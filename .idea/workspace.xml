@@ -5,59 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8c372c7d-355b-46d8-8d98-50b1aa5004b6" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend_code.gs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/building_cv/augment_cv_for_job.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/building_cv/build_coherent_history.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/building_cv/build_cv_from_work_history.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/building_cv/evaluate_work_history.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/building_cv/run_pipeline.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/_cv_example.tex" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/_cv_template.tex" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/_dynamic_template.tex" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/candidate_cv.tex" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.aux" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.out" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.pdf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/evaluate.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyvenv.cfg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/scrape.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/search.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/_description.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/_helpers.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/ailleron.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/arbeitnow.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/ats_boards.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/bulldogjob.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/gamejobs.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/gamesindustry.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/geckodynamics.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/himalayas.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/jobicy.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/justjoin.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/miquido.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/n_ix.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/nearform.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/netflix.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/nofluffjobs.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/nofluffjobs_fullstack.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/pracuj_it.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/pragmatic_coders.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/remotegamejobs.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/remoteok.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/remotive.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/sii.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/skillshot.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/softnauts.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/softwaremind.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/theprotocol.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/thesmartjobs.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/virtuslab.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/weworkremotely.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/workwithindies.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/sources/zartis.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/JobScrapper_public.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/JobScrapper_public.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/__init__.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,11 +16,19 @@
   </component>
   <component name="CopilotPersistence">
     <persistenceIdMap>
+      <entry key="_/Users/filiploster/Documents/projects/rekrutacje/CareerVaultHQ" value="3LpQO4vtb4MWd3Hcw4A350Bou1H" />
       <entry key="_/Users/filiploster/Documents/projects/rekrutacje/JobScrapper_public" value="3Loojsh6hcD0LE9bhkmRF5vYDP8" />
     </persistenceIdMap>
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="225" />
+    <option name="cachedIndexableFilesCount" value="6" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -78,6 +36,65 @@
   <component name="McpProjectServerCommands">
     <commands />
     <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0000000000000273" />
+      <entry key="S30" value="1.0000875325341514" />
+      <entry key="S60" value="1.0210285098244214" />
+      <entry key="M2" value="1.3422922625491112" />
+      <entry key="M5" value="3.065439888638713" />
+      <entry key="M10" value="4.976422471897143" />
+      <entry key="M15" value="5.992966088030063" />
+      <entry key="M30" value="7.302459788661061" />
+      <entry key="H1" value="8.095584749656524" />
+      <entry key="H2" value="8.532864568373187" />
+      <entry key="H4" value="8.762564543334754" />
+      <entry key="D1" value="8.959878280697666" />
+      <entry key="W1" value="8.994254718494314" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9526379980439373" />
+      <entry key="MS500" value="0.9903428719330246" />
+      <entry key="S2" value="0.9975769252644544" />
+      <entry key="S5" value="0.9990300646389034" />
+      <entry key="S10" value="0.9995149146655873" />
+      <entry key="S30" value="0.9999247756090687" />
+      <entry key="S60" value="1.0208231706720707" />
+      <entry key="M2" value="1.3412824084246195" />
+      <entry key="M5" value="3.0633807831398387" />
+      <entry key="M10" value="4.974621441561306" />
+      <entry key="M15" value="5.991516153331331" />
+      <entry key="M30" value="7.301583149770963" />
+      <entry key="H1" value="8.095102484264338" />
+      <entry key="H2" value="8.532611597888298" />
+      <entry key="H4" value="8.762434985425925" />
+      <entry key="D1" value="8.959856251008967" />
+      <entry key="W1" value="8.994251560569143" />
+    </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 1,
@@ -91,22 +108,79 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python tests.Python tests in tests.executor": "Run",
+    "Python.main.executor": "Run",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "master",
-    "last_opened_file_path": "/Users/filiploster/Documents/projects/rekrutacje/JobScrapper_public",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/Users/filiploster/Documents/projects/rekrutacje/CareerVaultHQ",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
     "settings.editor.selected.configurable": "com.intellij.mcpserver.settings",
+    "ts.external.directory.path": "/Users/filiploster/Documents/projects/rekrutacje/CareerVaultHQ/frontend/node_modules/typescript/lib",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/frontend" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python.main">
+    <configuration name="main" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="JobScrapper_public" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/backend/app" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="false" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/backend/app/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Python tests in tests" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="JobScrapper_public" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/backend/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="DEBUG_JUST_MY_CODE" value="false" />
+      <option name="RUN_TOOL" value="" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/backend/tests&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.main" />
+        <item itemvalue="Python tests.Python tests in tests" />
+      </list>
+    </recent_temporary>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
