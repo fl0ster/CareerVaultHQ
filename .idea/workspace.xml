@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="8c372c7d-355b-46d8-8d98-50b1aa5004b6" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend_code.gs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/building_cv/augment_cv_for_job.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/building_cv/build_coherent_history.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/building_cv/build_cv_from_work_history.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/building_cv/evaluate_work_history.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/building_cv/run_pipeline.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/_cv_example.tex" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/_cv_template.tex" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/_dynamic_template.tex" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/candidate_cv.tex" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.aux" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.out" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/cv/out/_dynamic_template.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/evaluate.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyvenv.cfg" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/scrape.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/search.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/_description.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/_helpers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/ailleron.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/arbeitnow.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/ats_boards.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/bulldogjob.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/gamejobs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/gamesindustry.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/geckodynamics.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/himalayas.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/jobicy.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/justjoin.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/miquido.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/n_ix.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/nearform.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/netflix.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/nofluffjobs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/nofluffjobs_fullstack.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/pracuj_it.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/pragmatic_coders.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/remotegamejobs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/remoteok.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/remotive.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/sii.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/skillshot.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/softnauts.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/softwaremind.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/theprotocol.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/thesmartjobs.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/virtuslab.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/weworkremotely.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/workwithindies.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/sources/zartis.py" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_/Users/filiploster/Documents/projects/rekrutacje/JobScrapper_public" value="3Loojsh6hcD0LE9bhkmRF5vYDP8" />
+    </persistenceIdMap>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="225" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3Loojsh6hcD0LE9bhkmRF5vYDP8" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "git-widget-placeholder": "master",
+    "last_opened_file_path": "/Users/filiploster/Documents/projects/rekrutacje/JobScrapper_public",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "com.intellij.mcpserver.settings",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-c59985aa861c-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.24374.152" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="8c372c7d-355b-46d8-8d98-50b1aa5004b6" name="Changes" comment="" />
+      <created>1794129921028</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1794129921028</updated>
+      <workItem from="1794129923160" duration="8000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>

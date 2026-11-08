@@ -1,0 +1,40 @@
+# Claude
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+
+# macOS
+.DS_Store
+**/.DS_Store
+**/._.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+.typecheck-venv/
+env/
+.env
+docker-compose.override.yml
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node modules
+node_modules/
