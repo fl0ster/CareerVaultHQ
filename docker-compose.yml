@@ -1,0 +1,22 @@
+# Run on the Raspberry Pi:  docker compose up -d
+services:
+  careervaulthq:
+    image: careervaulthq:latest
+    # Uncomment to build directly on the Pi instead of loading a prebuilt image
+    # (slow on a Pi 2; prefer cross-building on your workstation).
+    # build: .
+    container_name: careervaulthq
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: CareerVaultHQ
+      DEBUG: "false"
+      # Same-origin in production, so no CORS origins are needed.
+      CORS_ORIGINS: ""
+      DATABASE_URL: sqlite:////data/careervault.db
+    volumes:
+      - careervault-data:/data
+
+volumes:
+  careervault-data:

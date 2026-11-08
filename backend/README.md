@@ -57,3 +57,22 @@ app/
     routes/        one module per resource (health.py as example)
 tests/
 ```
+
+## Docker (Raspberry Pi 2 / ARMv7)
+
+The `Dockerfile` at the repo root builds the frontend in a Node stage (natively on
+your workstation) and packages it with the API in a `python:3.12-slim` image for
+`linux/arm/v7`. See the comments in `Dockerfile`, `docker-compose.yml` and
+`build-pi.sh` at the repo root.
+
+```bash
+# on your workstation (Docker Desktop with buildx)
+./build-pi.sh                       # -> careervaulthq-latest.tar.gz
+scp careervaulthq-latest.tar.gz pi@raspberrypi:~
+# on the Pi
+gunzip -c careervaulthq-latest.tar.gz | docker load
+docker compose up -d                # copy docker-compose.yml to the Pi first
+```
+
+The SQLite database lives in the `/data` volume. `uvicorn[standard]` extras
+(uvloop, httptools, watchfiles) are dev-only because they have no ARMv7 wheels.

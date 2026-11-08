@@ -5,7 +5,7 @@ description = "CareerVaultHQ REST API that also serves the React/Vite frontend"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
+    "uvicorn>=0.30",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "sqlalchemy>=2.0",
@@ -14,6 +14,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    # uvicorn extras (uvloop, httptools, watchfiles) have no armv7 wheels, so they are dev-only
+    "uvicorn[standard]>=0.30",
     "pytest>=8.0",
     "httpx>=0.27",
     "ruff>=0.5",
