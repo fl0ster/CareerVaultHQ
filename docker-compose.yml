@@ -1,10 +1,10 @@
 # Run on the Raspberry Pi:  docker compose up -d
 services:
   careervaulthq:
-    image: careervaulthq:latest
-    # Uncomment to build directly on the Pi instead of loading a prebuilt image
-    # (slow on a Pi 2; prefer cross-building on your workstation).
-    # build: .
+
+    # Published by .github/workflows/ci.yml. Override with IMAGE=... (e.g. a local build
+    # or a pinned version such as ghcr.io/fl0ster/careervaulthq:1.2.3).
+    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:latest}
     container_name: careervaulthq
     restart: unless-stopped
     ports:
@@ -12,11 +12,34 @@ services:
     environment:
       APP_NAME: CareerVaultHQ
       DEBUG: "false"
-      # Same-origin in production, so no CORS origins are needed.
       CORS_ORIGINS: ""
+      # SQLite file on the persistent /data volume (no separate DB container needed on the Pi).
       DATABASE_URL: sqlite:////data/careervault.db
     volumes:
-      - careervault-data:/data
+      - careervaulthq-data:/data
+    depends_on:
+      - redis
+    networks:
+      - careervaulthq-net
+
+  redis:
+    image: redis:alpine
+    container_name: careervaulthq-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - careervaulthq-net
+
+  watchtower:
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
-  careervault-data:
+  careervaulthq-data:
+  redis-data:
+
+networks:
+  careervaulthq-net:
+    driver: bridge
