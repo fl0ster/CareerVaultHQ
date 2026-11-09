@@ -109,6 +109,9 @@ jobs:
         uses: dataaxiom/ghcr-cleanup-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # GHCR stores package names in lowercase; the default (repo name) would 404
+          owner: ${{ github.repository_owner }}
+          package: careervaulthq
           # Remove manifests not referenced by any tag (old digests, orphans)
           delete-untagged: true
           delete-ghost-images: true
