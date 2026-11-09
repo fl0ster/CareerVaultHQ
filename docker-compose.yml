@@ -4,7 +4,7 @@ services:
 
     # Published by .github/workflows/ci.yml. Override with IMAGE=... (e.g. a local build
     # or a pinned version such as ghcr.io/fl0ster/careervaulthq:1.2.3).
-    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:latest}
+    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
     container_name: careervaulthq
     restart: unless-stopped
     ports:
