@@ -94,3 +94,27 @@ jobs:
             echo '```'
             echo "Digest: \`${{ steps.build.outputs.digest }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: Prune old package versions
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      packages: write
+
+    steps:
+      # Multi-arch aware: never deletes per-platform manifests or attestations
+      # that a kept tag still references.
+      - name: Delete old untagged and sha-* image versions
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Remove manifests not referenced by any tag (old digests, orphans)
+          delete-untagged: true
+          delete-ghost-images: true
+          delete-partial-images: true
+          # Of the non-excluded tags (i.e. sha-<short>), keep only the newest N
+          keep-n-tagged: 3
+          # Never touch release tags (1.2.3 / 1.2 / 1), latest, edge or main
+          exclude-tags: '^\d+(\.\d+){0,2}$,latest,edge,main'
+          use-regex: true
