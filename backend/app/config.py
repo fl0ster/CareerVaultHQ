@@ -25,6 +25,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
     frontend_dist: Path = BACKEND_DIR.parent / "frontend" / "dist"
+    # SQLAlchemy URL. Defaults to a local SQLite file for development/tests;
+    # docker-compose points it at the persistent /data volume (sqlite:////data/careervault.db).
+    database_url: str = f"sqlite:///{BACKEND_DIR / 'careervault.db'}"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

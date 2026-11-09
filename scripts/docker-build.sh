@@ -16,5 +16,4 @@ mkdir -p "${OUT_FOLDER}"
 
 docker buildx build --platform linux/arm/v7 -t "${IMAGE}" --load .
 docker save "${IMAGE}" | gzip > "${OUT}"
-echo "Wrote ${OUT}"
-echo "Copy to the Pi and load it:  scp ${OUT} pi@raspberrypi:~ && ssh pi@raspberrypi 'gunzip -c ${OUT} | docker load'"
+echo "Finished build: ${OUT}"
