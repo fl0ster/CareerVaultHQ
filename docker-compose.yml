@@ -33,6 +33,12 @@ services:
 
   watchtower:
     image: containrrr/watchtower
+    restart: unless-stopped
+    environment:
+      # Watchtower defaults to Docker API 1.25, which Docker Engine 29+ rejects.
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=120
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
