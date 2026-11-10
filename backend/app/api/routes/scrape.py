@@ -3,7 +3,9 @@
 1. ``POST /api/scrape`` (optional JSON body ``{"source": "skillshot"}``; omit to run all)
    -> ``202`` with ``job_id`` and ``status_url``.
 2. Poll ``GET /api/scrape/jobs/{job_id}`` until ``status`` is ``finished`` or ``failed``.
-   On success ``result`` holds the scraped jobs and ``count`` the number of them.
+   On success ``result`` holds the scraped jobs, ``count`` the number of them, ``new`` /
+   ``duplicates`` how many were inserted into / already present in the database and
+   ``scrape_run_id`` the id of the persisted run.
 """
 
 from __future__ import annotations
@@ -52,6 +54,12 @@ class ScrapeJobInfo(BaseModel):
     ended_at: str | None = None
     count: int | None = None
     """Number of scraped jobs (set once the job has finished)."""
+    new: int | None = None
+    """Number of jobs inserted into the database (set once the job has finished)."""
+    duplicates: int | None = None
+    """Number of scraped jobs that were already in the database."""
+    scrape_run_id: int | None = None
+    """Id of the ``scrape_runs`` row; jobs reference it via ``jobs.scrape_run_id``."""
     result: dict[str, Any] | None = None
     """Full scrape result (set once the job has finished)."""
     error: str | None = None
@@ -82,6 +90,9 @@ def _job_info(job: Job) -> ScrapeJobInfo:
         result = job.return_value() or {}
         info.result = result
         info.count = result.get("count", 0)
+        info.new = result.get("new")
+        info.duplicates = result.get("duplicates")
+        info.scrape_run_id = result.get("scrape_run_id")
     elif job_status == "failed":
         latest = job.latest_result()
         info.error = latest.exc_string if latest is not None else None
@@ -129,8 +140,6 @@ def start_scrape(
 
 
 @router.get("/jobs/{job_id}", response_model=ScrapeJobInfo, name="scrape_job_status")
-def job_status(
-    job_id: str, queue: Annotated[Queue, Depends(get_scrapper_queue)]
-) -> ScrapeJobInfo:
+def job_status(job_id: str, queue: Annotated[Queue, Depends(get_scrapper_queue)]) -> ScrapeJobInfo:
     """Current state of a scrape job; includes ``result`` and ``count`` once finished."""
     return _job_info(_fetch_job(job_id, queue))

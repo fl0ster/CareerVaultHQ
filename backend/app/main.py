@@ -5,12 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import api_router
 from app.config import get_settings
+from app.db import init_db
 from app.spa import mount_spa
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: open DB connections, warm caches, etc.
+    init_db()
     yield
     # Shutdown: release resources.
 

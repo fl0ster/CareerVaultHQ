@@ -1,0 +1,62 @@
+"""Database models."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db import Base
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+class ScrapeRun(Base):
+    """One execution of the scrape task (all sources or a single one)."""
+
+    __tablename__ = "scrape_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    source: Mapped[str | None] = mapped_column(String(64))
+    """Source name the run was limited to; ``None`` means every source."""
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    """``running`` -> ``finished`` (some sources may still have failed) or ``failed``."""
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scraped_count: Mapped[int] = mapped_column(Integer, default=0)
+    """Total listings returned by the scrapers."""
+    new_count: Mapped[int] = mapped_column(Integer, default=0)
+    """Listings not seen before and inserted into ``jobs``."""
+    duplicate_count: Mapped[int] = mapped_column(Integer, default=0)
+    """Listings whose link was already in ``jobs``."""
+    failed_sources: Mapped[str | None] = mapped_column(Text)
+    """Comma separated names of sources that raised."""
+    error: Mapped[str | None] = mapped_column(Text)
+
+    jobs: Mapped[list[Job]] = relationship(back_populates="scrape_run")
+
+
+class Job(Base):
+    """A scraped job listing. ``link`` identifies the job across runs."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(512))
+    link: Mapped[str] = mapped_column(String(2048), unique=True, index=True)
+    date_added: Mapped[str] = mapped_column(String(32), default="")
+    """Posting date as reported by the source (``YYYY-MM-DD``), may be empty."""
+    source: Mapped[str] = mapped_column(String(64), index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    """Plain-text description fetched from the job page (``None`` if unavailable)."""
+    scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    scrape_run_id: Mapped[int] = mapped_column(
+        ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    """Run that first discovered this job."""
+
+    scrape_run: Mapped[ScrapeRun | None] = relationship(back_populates="jobs")
