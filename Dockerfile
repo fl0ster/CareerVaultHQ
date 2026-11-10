@@ -26,31 +26,46 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# TeX Live for the LaTeX -> PDF worker (app/tasks/latex.py). Override with
+# TeX Live for the LaTeX -> PDF worker (app/tasks/latex.py).
+# Only base + recommended: that covers geometry, hyperref, xcolor, microtype and
+# koma-script (scrextend). The few packages the CV template needs from the >1 GB
+# texlive-latex-extra / texlive-fonts-extra (enumitem, fontaxes, carlito) are pulled
+# straight from CTAN below instead. Override with
 #   docker build --build-arg TEXLIVE_PACKAGES="..." .
-ARG TEXLIVE_PACKAGES="texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended"
+ARG TEXLIVE_PACKAGES="texlive-latex-base texlive-latex-recommended"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ${TEXLIVE_PACKAGES} \
     && rm -rf /var/lib/apt/lists/*
 
-# The CV template uses the carlito font (Calibri clone). Debian only ships its LaTeX support
-# inside texlive-fonts-extra (>1 GB), so fetch just that package's TDS zip from CTAN into
-# TEXMFLOCAL and register its font map. Python (already in the image) does the download + unzip.
-ARG CARLITO_TDS_URL="https://mirrors.ctan.org/install/fonts/carlito.tds.zip"
+# Extra LaTeX packages fetched from CTAN into TEXMFLOCAL (Python, already in the image,
+# does the download/unzip):
+#   carlito  - Calibri clone used by the CV template; TDS zip, needs its font map enabled
+#   fontaxes - required by carlito.sty; ships as .dtx/.ins so it is unpacked with tex
+#   enumitem - compact bullet lists; a single .sty
+ARG CTAN_MIRROR="https://mirrors.ctan.org"
 RUN <<'EOF'
 set -eu
 TEXMFLOCAL="$(kpsewhich -var-value TEXMFLOCAL)"
-mkdir -p "$TEXMFLOCAL"
-python - "$CARLITO_TDS_URL" "$TEXMFLOCAL" <<'PY'
+mkdir -p "$TEXMFLOCAL/tex/latex/enumitem" "$TEXMFLOCAL/tex/latex/fontaxes" /tmp/ctan
+python - "$CTAN_MIRROR" "$TEXMFLOCAL" <<'PY'
 import io, sys, urllib.request, zipfile
 
-url, texmf = sys.argv[1], sys.argv[2]
-with urllib.request.urlopen(url, timeout=120) as response:
-    zipfile.ZipFile(io.BytesIO(response.read())).extractall(texmf)
+mirror, texmf = sys.argv[1], sys.argv[2]
+
+def fetch(path):
+    with urllib.request.urlopen(f"{mirror}/{path}", timeout=120) as response:
+        return response.read()
+
+zipfile.ZipFile(io.BytesIO(fetch("install/fonts/carlito.tds.zip"))).extractall(texmf)
+zipfile.ZipFile(io.BytesIO(fetch("macros/latex/contrib/fontaxes.zip"))).extractall("/tmp/ctan")
+with open(f"{texmf}/tex/latex/enumitem/enumitem.sty", "wb") as f:
+    f.write(fetch("macros/latex/contrib/enumitem/enumitem.sty"))
 PY
+(cd /tmp/ctan/fontaxes && tex -interaction=batchmode fontaxes.ins >/dev/null && cp ./*.sty "$TEXMFLOCAL/tex/latex/fontaxes/")
+rm -rf /tmp/ctan
 mktexlsr
 updmap-sys --enable Map=carlito.map
-kpsewhich carlito.sty >/dev/null
+kpsewhich carlito.sty fontaxes.sty enumitem.sty >/dev/null
 EOF
 
 # Install runtime dependencies from pyproject (cached separately from app code).
