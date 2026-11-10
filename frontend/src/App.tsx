@@ -370,7 +370,13 @@ function App() {
         ))}
       </nav>
 
-      {tab === 'tools' ? <ToolsPage /> : <JobsPage />}
+      {/* Both pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
+      <section hidden={tab !== 'tools'}>
+        <ToolsPage />
+      </section>
+      <section hidden={tab !== 'jobs'}>
+        <JobsPage />
+      </section>
     </main>
   )
 }
