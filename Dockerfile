@@ -42,19 +42,34 @@ RUN apt-get update \
 #   carlito  - Calibri clone used by the CV template; TDS zip, needs its font map enabled
 #   fontaxes - required by carlito.sty; ships as .dtx/.ins so it is unpacked with tex
 #   enumitem - compact bullet lists; a single .sty
-ARG CTAN_MIRROR="https://mirrors.ctan.org"
+#
+# mirrors.ctan.org redirects to a random mirror, and some of them have broken TLS chains
+# or lag behind, so pinned, reliable mirrors are tried first with the redirector as a
+# last resort. Space-separated; override with --build-arg CTAN_MIRRORS="...".
+ARG CTAN_MIRRORS="https://ftp.fau.de/ctan https://mirrors.mit.edu/CTAN https://mirrors.ctan.org"
 RUN <<'EOF'
 set -eu
 TEXMFLOCAL="$(kpsewhich -var-value TEXMFLOCAL)"
 mkdir -p "$TEXMFLOCAL/tex/latex/enumitem" "$TEXMFLOCAL/tex/latex/fontaxes" /tmp/ctan
-python - "$CTAN_MIRROR" "$TEXMFLOCAL" <<'PY'
-import io, sys, urllib.request, zipfile
+python - "$CTAN_MIRRORS" "$TEXMFLOCAL" <<'PY'
+import io, sys, time, urllib.request, zipfile
 
-mirror, texmf = sys.argv[1], sys.argv[2]
+mirrors, texmf = sys.argv[1].split(), sys.argv[2]
 
-def fetch(path):
-    with urllib.request.urlopen(f"{mirror}/{path}", timeout=120) as response:
-        return response.read()
+def fetch(path, attempts=2):
+    errors = []
+    for mirror in mirrors:
+        for _ in range(attempts):
+            url = f"{mirror}/{path}"
+            try:
+                with urllib.request.urlopen(url, timeout=60) as response:
+                    print(f"fetched {url}", flush=True)
+                    return response.read()
+            except Exception as exc:  # noqa: BLE001 - any failure -> try next mirror
+                errors.append(f"{url}: {exc}")
+                print(f"failed  {url}: {exc}", file=sys.stderr, flush=True)
+                time.sleep(2)
+    sys.exit("could not download " + path + ":\n  " + "\n  ".join(errors))
 
 zipfile.ZipFile(io.BytesIO(fetch("install/fonts/carlito.tds.zip"))).extractall(texmf)
 zipfile.ZipFile(io.BytesIO(fetch("macros/latex/contrib/fontaxes.zip"))).extractall("/tmp/ctan")
