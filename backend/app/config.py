@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     # docker-compose points this at the bundled redis service (redis://redis:6379/0).
     redis_url: str = "redis://localhost:6379/0"
     latex_queue_name: str = "latex_2_pdf"
+    scrapper_queue_name: str = "scrapper"
     # How long a finished/failed job stays queryable via GET /latex/jobs/{id} (seconds).
     job_result_ttl: int = 24 * 3600
 
