@@ -62,6 +62,11 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Keep layout stable when a vertical scrollbar appears/disappears. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
 }
