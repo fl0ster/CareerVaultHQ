@@ -71,6 +71,18 @@ class WorkHistoryUpdate(BaseModel):
         return self
 
 
+class WorkHistoryExport(BaseModel):
+    """Plain export shape; key names are part of the contract (note ``employeer``)."""
+
+    date_start: str
+    date_end: str | None
+    employer: str
+    role: str
+    location: str | None
+    tech: str
+    context: str | None
+
+
 class WorkHistoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,8 +105,7 @@ def _get_or_404(session: Session, entry_id: int) -> WorkHistoryEntry:
     return entry
 
 
-@router.get("", response_model=list[WorkHistoryOut])
-def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryEntry]:
+def _all_entries(session: Session) -> list[WorkHistoryEntry]:
     """All work history entries, most recent position first."""
     return list(
         session.scalars(
@@ -103,6 +114,30 @@ def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[Work
             )
         ).all()
     )
+
+
+@router.get("", response_model=list[WorkHistoryOut])
+def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryEntry]:
+    """All work history entries, most recent position first."""
+    return _all_entries(session)
+
+
+@router.get("/json", response_model=list[WorkHistoryExport])
+def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryExport]:
+    """Work history as a bare JSON array with exactly the keys
+    ``date_start, date_end, employer, role, location, tech, context``."""
+    return [
+        WorkHistoryExport(
+            date_start=e.date_start.strftime("%b %Y"),
+            date_end=e.date_end.strftime("%b %Y") if e.date_end else None,
+            employer=e.employer,
+            role=e.role,
+            location=e.location,
+            tech=str.join(", ", e.tech),
+            context=e.context,
+        )
+        for e in _all_entries(session)
+    ]
 
 
 @router.post("", response_model=WorkHistoryOut, status_code=status.HTTP_201_CREATED)
