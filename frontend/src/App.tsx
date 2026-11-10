@@ -2,10 +2,12 @@ import { useState } from 'react'
 import './App.css'
 import JobsPage from './JobsPage.tsx'
 import ToolsPage from "./ToolsPage.tsx";
+import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 
 const TABS = [
   { id: 'tools', label: 'Tools' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'work-history', label: 'Work history' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
@@ -35,6 +37,9 @@ function App() {
       </section>
       <section hidden={tab !== 'jobs'}>
         <JobsPage />
+      </section>
+      <section hidden={tab !== 'work-history'}>
+        <WorkHistoryPage />
       </section>
     </main>
   )
