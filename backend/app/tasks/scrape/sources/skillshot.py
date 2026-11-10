@@ -7,16 +7,12 @@ import re
 import httpx
 from bs4 import BeautifulSoup
 
+from app.tasks.scrape.sources._helpers import HEADERS, html_to_text
+
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
 URL = f"{BASE_URL}/jobs?category=programowanie"
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-}
+DOMAINS = ("skillshot.pl",)
 
 _JOB_HREF = re.compile(r"^/jobs/\d+")
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -52,3 +48,10 @@ def fetch_jobs() -> list[dict]:
     resp = httpx.get(URL, headers=HEADERS, follow_redirects=True, timeout=30)
     resp.raise_for_status()
     return parse_jobs(resp.text)
+
+
+def parse_description(html: str, url: str) -> str:
+    """Plain-text description of a single job page (used by ``description.fetch_description``)."""
+    soup = BeautifulSoup(html, "html.parser")
+    el = soup.find("div", id="job_presentation")
+    return html_to_text(el) if el else ""

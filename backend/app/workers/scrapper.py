@@ -16,6 +16,7 @@ import sys
 from rq import Queue, Worker
 
 from app.config import get_settings
+from app.db import init_db
 from app.queue import get_redis
 
 
@@ -26,6 +27,7 @@ def main(argv: list[str] | None = None) -> None:
     settings = get_settings()
     logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 
+    init_db()
     connection = get_redis()
     queue = Queue(settings.scrapper_queue_name, connection=connection)
     worker = Worker([queue], connection=connection)
