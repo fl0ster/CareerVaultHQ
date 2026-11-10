@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import './App.css'
+import JobsPage from './JobsPage.tsx'
 
 const API = '/api/latex'
 const TERMINAL = new Set(['finished', 'failed', 'stopped', 'canceled'])
@@ -195,7 +196,7 @@ function ScrapePanel() {
   )
 }
 
-function App() {
+function ToolsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [job, setJob] = useState<JobInfo | null>(null)
@@ -275,7 +276,7 @@ function App() {
   const pdfUrl = jobId ? `${API}/jobs/${jobId}/pdf` : null
 
   return (
-    <main className="page">
+    <>
       <h1 className="title">LaTeX → PDF</h1>
       <p>Upload a .tex file and compile it via the API.</p>
 
@@ -339,6 +340,37 @@ function App() {
       <hr className="divider" />
 
       <ScrapePanel />
+    </>
+  )
+}
+
+const TABS = [
+  { id: 'tools', label: 'Tools' },
+  { id: 'jobs', label: 'Jobs' },
+] as const
+
+type Tab = (typeof TABS)[number]['id']
+
+function App() {
+  const [tab, setTab] = useState<Tab>('tools')
+
+  return (
+    <main className="page">
+      <nav className="tabs" aria-label="Pages">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={tab === t.id ? 'tab active' : 'tab'}
+            aria-current={tab === t.id ? 'page' : undefined}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'tools' ? <ToolsPage /> : <JobsPage />}
     </main>
   )
 }

@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from app import models
-from app.db import init_db, make_engine, session_factory
+from app.db import init_db, session_factory
 from app.tasks.scrape.description import generic_description
 from app.tasks.scrape.sources import skillshot
 
@@ -31,9 +31,7 @@ LISTING = [
 
 
 @pytest.fixture
-def engine(tmp_path, monkeypatch):
-    engine = make_engine(f"sqlite:///{tmp_path / 'test.db'}")
-    monkeypatch.setattr("app.db.get_engine", lambda: engine)
+def task_engine(engine, monkeypatch):
     monkeypatch.setattr(scrape_task, "init_db", lambda: init_db(engine))
     monkeypatch.setattr(scrape_task, "session_factory", lambda: session_factory(engine))
     return engine
@@ -53,7 +51,7 @@ def fake_sources(monkeypatch):
     return fetched
 
 
-def test_first_run_inserts_jobs_with_descriptions(engine, fake_sources):
+def test_first_run_inserts_jobs_with_descriptions(task_engine, fake_sources):
     result = scrape_task.scrape("skillshot")
 
     assert result["count"] == 3
@@ -64,7 +62,7 @@ def test_first_run_inserts_jobs_with_descriptions(engine, fake_sources):
         "https://www.skillshot.pl/jobs/2",
     ]
 
-    with session_factory(engine)() as session:
+    with session_factory(task_engine)() as session:
         run = session.get(models.ScrapeRun, result["scrape_run_id"])
         assert run.status == "finished"
         assert run.source == "skillshot"
@@ -83,7 +81,7 @@ def test_first_run_inserts_jobs_with_descriptions(engine, fake_sources):
         assert jobs[0].date_added == "2026-11-01"
 
 
-def test_second_run_only_counts_duplicates(engine, fake_sources):
+def test_second_run_only_counts_duplicates(task_engine, fake_sources):
     first = scrape_task.scrape("skillshot")
     fake_sources.clear()
 
@@ -94,7 +92,7 @@ def test_second_run_only_counts_duplicates(engine, fake_sources):
     assert fake_sources == []  # no description fetch for known jobs
     assert second["scrape_run_id"] != first["scrape_run_id"]
 
-    with session_factory(engine)() as session:
+    with session_factory(task_engine)() as session:
         assert (
             session.scalar(
                 select(models.Job).where(models.Job.scrape_run_id == second["scrape_run_id"])
@@ -106,7 +104,7 @@ def test_second_run_only_counts_duplicates(engine, fake_sources):
         assert run.source is None
 
 
-def test_failed_source_is_recorded(engine, fake_sources, monkeypatch):
+def test_failed_source_is_recorded(task_engine, fake_sources, monkeypatch):
     def boom():
         raise RuntimeError("site down")
 
@@ -116,13 +114,13 @@ def test_failed_source_is_recorded(engine, fake_sources, monkeypatch):
 
     assert result["failed"] == ["skillshot"]
     assert result["new"] == 0
-    with session_factory(engine)() as session:
+    with session_factory(task_engine)() as session:
         run = session.get(models.ScrapeRun, result["scrape_run_id"])
         assert run.status == "finished"
         assert run.failed_sources == "skillshot"
 
 
-def test_unknown_source_raises(engine, fake_sources):
+def test_unknown_source_raises(task_engine, fake_sources):
     with pytest.raises(ValueError, match="not available"):
         scrape_task.scrape("nope")
 

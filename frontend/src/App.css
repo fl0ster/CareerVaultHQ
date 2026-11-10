@@ -245,3 +245,103 @@ table.jobs {
     white-space: nowrap;
   }
 }
+
+/* Navigation tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+
+  .tab {
+    background: transparent;
+    color: var(--text);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 8px 16px;
+    margin-bottom: -1px;
+    width: auto;
+
+    &:hover:not(:disabled) {
+      border-color: var(--border);
+      color: var(--text-h);
+    }
+    &.active {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+  }
+}
+
+button.small {
+  font-size: 13px;
+  padding: 3px 10px;
+  width: auto;
+}
+
+.muted {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Scraped jobs list */
+.job-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.job-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.job-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.job-main {
+  min-width: 0;
+
+  a {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+
+.job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.job-desc {
+  margin-top: 10px;
+
+  pre {
+    max-height: 400px;
+    overflow: auto;
+    padding: 12px;
+    background: var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    margin: 0;
+  }
+}
+
+.sentinel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 16px 0;
+}
