@@ -24,6 +24,10 @@ docker-compose.override.yml
 dist/
 build/
 
+# Backend
+backend/static/uploads
+backend/static/jobs
+
 # Database
 *.db
 *.db-journal

@@ -52,9 +52,12 @@ app/
   main.py          app factory, middleware, router wiring
   config.py        settings loaded from env / .env
   spa.py           static + SPA fallback for the Vite build
+  queue.py         Redis connection + RQ queue (API side)
+  worker.py        RQ worker entrypoint: python -m app.worker
+  tasks/latex.py   pdflatex compile step executed by the worker
   api/
     __init__.py    aggregates routers under /api
-    routes/        one module per resource (health.py as example)
+    routes/        one module per resource (health.py, latex.py)
 tests/
 ```
 
