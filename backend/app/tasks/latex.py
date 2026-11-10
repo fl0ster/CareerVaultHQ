@@ -1,9 +1,5 @@
 """Compile a finished ``.tex`` document into a PDF.
 
-This is the last step of the original CV pipeline (``_ref/building_cv/run_pipeline.py``):
-run ``pdflatex`` a couple of times with ``-interaction=nonstopmode -halt-on-error`` so
-cross-references settle, writing all artefacts next to the source file.
-
 The function runs inside the RQ worker process, never in the web server.
 """
 
@@ -18,7 +14,6 @@ from typing import Any
 from app.config import get_settings
 
 LOG_TAIL_CHARS = 4000
-
 
 class LatexCompileError(RuntimeError):
     """Raised when the compiler is missing, times out or exits non-zero."""

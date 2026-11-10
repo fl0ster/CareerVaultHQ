@@ -78,8 +78,4 @@ VOLUME ["/data"]
 
 EXPOSE 8000
 
-# The same image also runs the background worker: `python -m app.worker` (see docker-compose.yml).
-# HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-#    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
-
 CMD ["sh", "-c", "uvicorn app.main:app --host ${HOST} --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
