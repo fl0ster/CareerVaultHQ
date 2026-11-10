@@ -1,9 +1,9 @@
-"""RQ worker entrypoint.
+"""RQ worker entrypoint for the LaTeX -> PDF queue (app/tasks/latex.py).
 
 Run alongside the API (same image, same /data volume, same Redis):
 
-    python -m app.worker            # blocks, processes jobs forever
-    python -m app.worker --burst    # drain the queue and exit
+    python -m app.workers.latex2pdf           # blocks, processes jobs forever
+    python -m app.workers.latex2pdf --burst   # drain the queue and exit
 
 Only the plain ``Worker`` is used (fork per job, no scheduler) to stay light on a Pi 2.
 """

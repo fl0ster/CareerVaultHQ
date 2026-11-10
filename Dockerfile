@@ -26,7 +26,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# TeX Live for the LaTeX -> PDF worker (app/tasks/latex.py).
+# TeX Live for the LaTeX -> PDF worker (app/workers/latex2pdf.py, app/tasks/latex.py).
 # Only base + recommended: that covers geometry, hyperref, xcolor, microtype and
 # koma-script (scrextend). The few packages the CV template needs from the >1 GB
 # texlive-latex-extra / texlive-fonts-extra (enumitem, fontaxes, carlito) are pulled
@@ -108,4 +108,6 @@ VOLUME ["/data"]
 
 EXPOSE 8000
 
+# Default: the API. The LaTeX worker runs from the same image with
+#   command: ["python", "-m", "app.workers.latex2pdf"]   (see docker-compose.yml)
 CMD ["sh", "-c", "uvicorn app.main:app --host ${HOST} --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

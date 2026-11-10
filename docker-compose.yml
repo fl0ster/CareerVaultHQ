@@ -30,7 +30,7 @@ services:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
     container_name: careervaulthq-worker
     restart: unless-stopped
-    command: ["python", "-m", "app.worker"]
+    command: ["python", "-m", "app.workers.latex2pdf"]
     environment:
       DEBUG: "false"
       DATABASE_URL: sqlite:////data/careervault.db
