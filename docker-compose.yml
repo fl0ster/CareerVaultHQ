@@ -15,6 +15,28 @@ services:
       CORS_ORIGINS: ""
       # SQLite file on the persistent /data volume (no separate DB container needed on the Pi).
       DATABASE_URL: sqlite:////data/careervault.db
+      REDIS_URL: redis://redis:6379/0
+      # Uploaded .tex files and generated PDFs; must be the same volume as the worker's.
+      LATEX_ROOT: /data/latex
+    volumes:
+      - careervaulthq-data:/data
+    depends_on:
+      - redis
+    networks:
+      - careervaulthq-net
+
+  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
+  worker:
+    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
+    container_name: careervaulthq-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DEBUG: "false"
+      DATABASE_URL: sqlite:////data/careervault.db
+      REDIS_URL: redis://redis:6379/0
+      LATEX_ROOT: /data/latex
+      LATEX_TIMEOUT: "300"
     volumes:
       - careervaulthq-data:/data
     depends_on:

@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
@@ -29,6 +30,24 @@ class Settings(BaseSettings):
     # docker-compose points it at the persistent /data volume (sqlite:////data/careervault.db).
     database_url: str = f"sqlite:///{BACKEND_DIR / 'careervault.db'}"
 
+    # --- Background jobs (Redis Queue) ---
+    # docker-compose points this at the bundled redis service (redis://redis:6379/0).
+    redis_url: str = "redis://localhost:6379/0"
+    latex_queue_name: str = "latex_2_pdf"
+    # How long a finished/failed job stays queryable via GET /latex/jobs/{id} (seconds).
+    job_result_ttl: int = 24 * 3600
+
+    # --- LaTeX -> PDF ---
+    latex_upload_root: Path = BACKEND_DIR / "static" / "uploads"
+    latex_jobs_root: Path = BACKEND_DIR / "static" / "jobs"
+    latex_compiler: str = "pdflatex"
+    # pdflatex is run this many times so cross-references / layout settle.
+    latex_passes: int = 2
+    # Hard limit per compile job (seconds); the Pi 2 is slow, so be generous.
+    latex_timeout: int = 300
+    # Reject uploads larger than this (bytes).
+    latex_max_upload_bytes: int = 2 * 1024 * 1024
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -36,9 +55,9 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator("frontend_dist", mode="before")
+    @field_validator("frontend_dist", "latex_upload_root", "latex_jobs_root", mode="before")
     @classmethod
-    def _resolve_dist(cls, value: object) -> object:
+    def _resolve_path(cls, value: object) -> object:
         if isinstance(value, str):
             path = Path(value)
             return path if path.is_absolute() else (BACKEND_DIR / path).resolve()

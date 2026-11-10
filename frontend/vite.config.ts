@@ -8,4 +8,10 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  server: {
+    // Forward API calls to the FastAPI backend during development.
+    proxy: {
+      '/api': 'http://localhost:8000',
+    },
+  },
 })
