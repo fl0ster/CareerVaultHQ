@@ -9,7 +9,6 @@ Flow for the frontend:
    ``GET /api/latex/jobs/{job_id}/events`` until ``status`` is ``finished`` or ``failed``.
 3. Download ``GET /api/latex/jobs/{job_id}/pdf``.
 
-The web server only stores the file and enqueues the job; ``app.worker`` does the work.
 """
 
 from __future__ import annotations

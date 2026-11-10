@@ -208,3 +208,40 @@ button,
   font-size: clamp(28px, 7vw, 56px);
   overflow-wrap: anywhere;
 }
+
+.divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 40px 0;
+}
+
+select {
+  font-size: 15px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+}
+
+table.jobs {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text);
+    font-weight: 600;
+  }
+  td:first-child {
+    white-space: nowrap;
+  }
+}

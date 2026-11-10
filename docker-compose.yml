@@ -26,17 +26,34 @@ services:
       - careervaulthq-net
 
   # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
-  worker:
+  worker-latex-2-pdf:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
-    container_name: careervaulthq-worker
+    container_name: careervaulthq-worker-latex-2-pdf
     restart: unless-stopped
-    command: ["python", "-m", "app.worker"]
+    command: ["python", "-m", "app.workers.latex2pdf"]
     environment:
       DEBUG: "false"
       DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
+    volumes:
+      - careervaulthq-data:/data
+    depends_on:
+      - redis
+    networks:
+      - careervaulthq-net
+
+  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
+  worker-scrapper:
+    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
+    container_name: careervaulthq-worker-scrapper
+    restart: unless-stopped
+    command: [ "python", "-m", "app.workers.scrapper" ]
+    environment:
+      DEBUG: "false"
+      DATABASE_URL: sqlite:////data/careervault.db
+      REDIS_URL: redis://redis:6379/0
     volumes:
       - careervaulthq-data:/data
     depends_on:
