@@ -13,17 +13,14 @@ scrape_task = importlib.import_module("app.tasks.scrape.scrape")
 
 LISTING = [
     {
-        "title": "Unity Developer",
         "link": "https://www.skillshot.pl/jobs/1",
         "date_added": "2026-11-01",
     },
     {
-        "title": "C++ Developer",
         "link": "https://www.skillshot.pl/jobs/2",
         "date_added": "2026-11-02",
     },
     {
-        "title": "C++ Developer",
         "link": "https://www.skillshot.pl/jobs/2",
         "date_added": "2026-11-02",
     },
@@ -43,11 +40,11 @@ def fake_sources(monkeypatch):
     monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(LISTING))
     fetched: list[str] = []
 
-    def fake_description(url: str) -> str:
+    def fake_page(url: str) -> str:
         fetched.append(url)
-        return f"description of {url}"
+        return f"<html>{url}</html>"
 
-    monkeypatch.setattr(scrape_task, "fetch_description", fake_description)
+    monkeypatch.setattr(scrape_task, "fetch_page", fake_page)
     return fetched
 
 
@@ -77,7 +74,7 @@ def test_first_run_inserts_jobs_with_descriptions(task_engine, fake_sources):
         ]
         assert all(j.scrape_run_id == run.id for j in jobs)
         assert all(j.source == "skillshot" for j in jobs)
-        assert jobs[0].description == "description of https://www.skillshot.pl/jobs/1"
+        assert jobs[0].html == "<html>https://www.skillshot.pl/jobs/1</html>"
         assert jobs[0].date_added == "2026-11-01"
 
 
@@ -135,9 +132,8 @@ def test_skillshot_parse_description():
 
 def test_generic_description_prefers_jsonld():
     html = """<html><head><script type="application/ld+json">
-    {"@type": "JobPosting", "title": "Dev", "hiringOrganization": {"name": "ACME"},
+    {"@type": "JobPosting", "hiringOrganization": {"name": "ACME"},
      "description": "<p>%s</p>"}
     </script></head><body><main>short</main></body></html>""" % ("x" * 120)
     text = generic_description(html)
-    assert text.startswith("Title: Dev\nCompany: ACME")
     assert "x" * 120 in text

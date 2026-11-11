@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -46,13 +46,12 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title: Mapped[str] = mapped_column(String(512))
     link: Mapped[str] = mapped_column(String(2048), unique=True, index=True)
     date_added: Mapped[str] = mapped_column(String(32), default="")
     """Posting date as reported by the source (``YYYY-MM-DD``), may be empty."""
     source: Mapped[str] = mapped_column(String(64), index=True)
-    description: Mapped[str | None] = mapped_column(Text)
-    """Plain-text description fetched from the job page (``None`` if unavailable)."""
+    html: Mapped[str | None] = mapped_column(Text)
+    """Raw HTML of the job page as fetched during scraping (``None`` if unavailable)."""
     scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     scrape_run_id: Mapped[int] = mapped_column(
         ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True, nullable=True
@@ -60,3 +59,25 @@ class Job(Base):
     """Run that first discovered this job."""
 
     scrape_run: Mapped[ScrapeRun | None] = relationship(back_populates="jobs")
+
+
+class WorkHistoryEntry(Base):
+    """One position in the user's work history (employer, role, dates, tech stack)."""
+
+    __tablename__ = "work_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date_start: Mapped[date] = mapped_column(Date, index=True)
+    date_end: Mapped[date | None] = mapped_column(Date)
+    """``None`` means the position is current."""
+    employer: Mapped[str] = mapped_column(String(256))
+    role: Mapped[str] = mapped_column(String(256))
+    location: Mapped[str | None] = mapped_column(String(256))
+    tech: Mapped[list[str]] = mapped_column(JSON, default=list)
+    """Technologies used in the role, stored as a JSON array of strings."""
+    context: Mapped[str | None] = mapped_column(Text)
+    """Free-form, potentially long description of the role."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )

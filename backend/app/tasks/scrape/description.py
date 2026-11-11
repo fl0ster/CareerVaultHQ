@@ -109,20 +109,11 @@ def generic_description(html: str) -> str:
     return html_to_text(body)
 
 
-def fetch_description(url: str) -> str:
-    """Plain-text job description for a job link, or ``""`` on failure."""
-    source = find_source(url)
+def fetch_page(url: str) -> str:
+    """``html`` for a job link: the raw HTML of the page. Either is ``""`` when it could not be obtained."""
+    html = ""
     try:
-        if source is not None and hasattr(source, "fetch_description"):
-            text = source.fetch_description(url) or ""
-            if len(text) >= MIN_DESCRIPTION_CHARS:
-                return text
         html = fetch_html(url)
-        if source is not None and hasattr(source, "parse_description"):
-            text = source.parse_description(html, url) or ""
-            if len(text) >= MIN_DESCRIPTION_CHARS:
-                return text
-        return generic_description(html)
-    except Exception as exc:  # noqa: BLE001 - a missing description must not fail the run
-        log.warning("description %s: %s", url, exc)
-        return ""
+    except Exception as exc:  # noqa: BLE001 - a missing page must not fail the run
+        log.warning("fetch %s: %s", url, exc)
+    return html

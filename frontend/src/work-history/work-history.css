@@ -1,0 +1,140 @@
+/* Work history page */
+.wh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wh-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.wh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wh-main {
+  min-width: 0;
+  color: var(--text-h);
+}
+
+.wh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.wh-tech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wh-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+
+  .danger {
+    color: #b91c1c;
+  }
+}
+
+.wh-context {
+  margin: 10px 0 0;
+  padding: 12px;
+  background: var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  max-height: 400px;
+  overflow: auto;
+}
+
+.wh-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  input:not([type='checkbox']),
+  textarea {
+    font: inherit;
+    font-size: 15px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+}
+
+.wh-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.wh-check {
+  flex-direction: row !important;
+  align-items: center;
+  align-self: end;
+  gap: 8px !important;
+  padding-bottom: 8px;
+}
+
+.wh-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .wh-grid {
+    grid-template-columns: 1fr;
+  }
+  .wh-head {
+    flex-direction: column;
+  }
+  .wh-buttons {
+    justify-content: flex-start;
+  }
+  .wh-buttons button {
+    width: auto;
+  }
+  .wh-actions {
+    flex-direction: column;
+  }
+}

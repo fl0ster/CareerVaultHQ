@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.db import init_db, session_factory
 from app.models import Job, ScrapeRun
-from app.tasks.scrape.description import fetch_description
+from app.tasks.scrape.description import fetch_page
 from app.tasks.scrape.sources import get_available_sources, load_source
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def _current_rq_job_id() -> str | None:
 
 
 def save_jobs(session: Session, run: ScrapeRun, jobs: list[dict[str, Any]]) -> tuple[int, int]:
-    """Insert listings not yet in the DB (fetching their description) and return
+    """Insert listings not yet in the DB (fetching their page HTML) and return
     ``(new, duplicates)``. Each inserted job references ``run``."""
     links = [job["link"] for job in jobs]
     existing: set[str] = set()
@@ -66,14 +66,13 @@ def save_jobs(session: Session, run: ScrapeRun, jobs: list[dict[str, Any]]) -> t
             duplicates += 1
             continue
         existing.add(link)  # the same link may appear twice in one listing page
-        description = fetch_description(link)
+        html = fetch_page(link)
         session.add(
             Job(
-                title=job["title"],
                 link=link,
                 date_added=job.get("date_added") or "",
                 source=job["source"],
-                description=description or None,
+                html=html or None,
                 scrape_run=run,
             )
         )
@@ -90,7 +89,7 @@ def scrape(source: str | None = None) -> dict[str, Any]:
             "scrape_run_id": <id of the ScrapeRun row>,
             "sources": [{"source", "ok", "error", "jobs"}, ...],
             "failed": ["<source name>", ...],
-            "jobs": [{"title", "link", "date_added", "source"}, ...],
+            "jobs": [{"date_added", "source"}, ...],
             "count": <number of scraped jobs>,
             "new": <jobs inserted into the DB>,
             "duplicates": <jobs already in the DB>,

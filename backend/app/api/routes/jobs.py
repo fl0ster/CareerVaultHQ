@@ -27,17 +27,16 @@ class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    title: str
     link: str
     date_added: str
     source: str
     scraped_at: datetime
     scrape_run_id: int | None
-    has_description: bool = False
+    has_html: bool = False
 
 
-class JobDetail(JobOut):
-    description: str | None
+class JobFull(JobOut):
+    html: str | None
 
 
 class JobPage(BaseModel):
@@ -50,7 +49,7 @@ class JobPage(BaseModel):
 
 def _to_out(job: Job) -> JobOut:
     out = JobOut.model_validate(job)
-    out.has_description = bool(job.description)
+    out.has_html = bool(job.html)
     return out
 
 
@@ -81,12 +80,11 @@ def list_jobs(
     )
 
 
-@router.get("/{job_id}", response_model=JobDetail)
-def get_job(job_id: int, session: Annotated[Session, Depends(get_session)]) -> JobDetail:
-    """A single scraped job including its full description."""
+@router.get("/{job_id}", response_model=JobFull)
+def get_job(job_id: int, session: Annotated[Session, Depends(get_session)]) -> JobFull:
+    """A single scraped job including its full html content."""
     job = session.get(Job, job_id)
     if job is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")
-    detail = JobDetail.model_validate(job)
-    detail.has_description = bool(job.description)
-    return detail
+    job_full = JobFull.model_validate(job)
+    return job_full
