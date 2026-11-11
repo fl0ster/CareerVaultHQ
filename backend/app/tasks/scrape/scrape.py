@@ -2,7 +2,8 @@
 
 Discovers scraper modules in ``app.tasks.scrape.sources`` and runs them. Every run is
 recorded as a ``ScrapeRun`` row; listings whose link is not in the ``jobs`` table yet get
-their description fetched and are inserted with a reference to the run that found them.
+their page's raw HTML fetched and are inserted with a reference to the run that found
+them. Parsing details out of the HTML is a separate step.
 The returned summary is stored as the RQ job result.
 """
 
@@ -70,7 +71,6 @@ def save_jobs(session: Session, run: ScrapeRun, jobs: list[dict[str, Any]]) -> t
         session.add(
             Job(
                 link=link,
-                date_added=job.get("date_added") or "",
                 source=job["source"],
                 html=html or None,
                 scrape_run=run,
@@ -89,7 +89,7 @@ def scrape(source: str | None = None) -> dict[str, Any]:
             "scrape_run_id": <id of the ScrapeRun row>,
             "sources": [{"source", "ok", "error", "jobs"}, ...],
             "failed": ["<source name>", ...],
-            "jobs": [{"date_added", "source"}, ...],
+            "jobs": [{"link", "source"}, ...],
             "count": <number of scraped jobs>,
             "new": <jobs inserted into the DB>,
             "duplicates": <jobs already in the DB>,

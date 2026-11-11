@@ -1,20 +1,15 @@
-from datetime import UTC, datetime, timedelta
-
 from app.models import Job, ScrapeRun
 
 
 def seed(db_session, n: int) -> ScrapeRun:
     run = ScrapeRun(status="finished", new_count=n, scraped_count=n)
     db_session.add(run)
-    base = datetime(2026, 11, 1, tzinfo=UTC)
     for i in range(n):
         db_session.add(
             Job(
                 link=f"https://example.com/jobs/{i}",
-                date_added="2026-11-01",
                 source="skillshot" if i % 2 == 0 else "other",
                 html="<html></html>" if i % 3 == 0 else None,
-                scraped_at=base + timedelta(minutes=i),
                 scrape_run=run,
             )
         )

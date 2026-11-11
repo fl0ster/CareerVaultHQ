@@ -4,7 +4,7 @@ Each module in this package (not starting with ``_``) must expose:
 
 - ``NAME: str`` - human readable source name
 - ``URL: str`` - listing page that is scraped
-- ``fetch_jobs() -> list[dict]`` - returns dicts with ``title``, ``link``, ``date_added``
+- ``fetch_jobs() -> list[dict]`` - returns dicts with ``link`` (details are parsed later)
 
 Optionally, to extract job descriptions (see ``app.tasks.scrape.description``):
 

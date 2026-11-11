@@ -12,18 +12,9 @@ from app.tasks.scrape.sources import skillshot
 scrape_task = importlib.import_module("app.tasks.scrape.scrape")
 
 LISTING = [
-    {
-        "link": "https://www.skillshot.pl/jobs/1",
-        "date_added": "2026-11-01",
-    },
-    {
-        "link": "https://www.skillshot.pl/jobs/2",
-        "date_added": "2026-11-02",
-    },
-    {
-        "link": "https://www.skillshot.pl/jobs/2",
-        "date_added": "2026-11-02",
-    },
+    {"link": "https://www.skillshot.pl/jobs/1"},
+    {"link": "https://www.skillshot.pl/jobs/2"},
+    {"link": "https://www.skillshot.pl/jobs/2"},
 ]
 
 
@@ -48,7 +39,7 @@ def fake_sources(monkeypatch):
     return fetched
 
 
-def test_first_run_inserts_jobs_with_descriptions(task_engine, fake_sources):
+def test_first_run_inserts_jobs_with_html(task_engine, fake_sources):
     result = scrape_task.scrape("skillshot")
 
     assert result["count"] == 3
@@ -75,7 +66,6 @@ def test_first_run_inserts_jobs_with_descriptions(task_engine, fake_sources):
         assert all(j.scrape_run_id == run.id for j in jobs)
         assert all(j.source == "skillshot" for j in jobs)
         assert jobs[0].html == "<html>https://www.skillshot.pl/jobs/1</html>"
-        assert jobs[0].date_added == "2026-11-01"
 
 
 def test_second_run_only_counts_duplicates(task_engine, fake_sources):

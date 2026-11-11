@@ -6,9 +6,7 @@ const PAGE_SIZE = 50
 export type StoredJob = {
   id: number
   link: string
-  date_added: string
   source: string
-  scraped_at: string
   scrape_run_id: number | null
   has_html: boolean
 }
@@ -48,8 +46,6 @@ function JobRow({ job }: { job: StoredJob }) {
           <a href={job.link} target="_blank" rel="noreferrer">{job.link}</a>
           <div className="job-meta">
             <span>{job.source}</span>
-            {job.date_added && <span>posted {job.date_added}</span>}
-            <span>scraped {new Date(job.scraped_at).toLocaleString()}</span>
             {job.scrape_run_id != null && <span>run #{job.scrape_run_id}</span>}
           </div>
         </div>

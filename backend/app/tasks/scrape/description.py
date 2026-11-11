@@ -110,7 +110,7 @@ def generic_description(html: str) -> str:
 
 
 def fetch_page(url: str) -> str:
-    """``html`` for a job link: the raw HTML of the page. Either is ``""`` when it could not be obtained."""
+    """Raw HTML of a job page; ``""`` when it could not be fetched."""
     html = ""
     try:
         html = fetch_html(url)
