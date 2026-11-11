@@ -79,18 +79,18 @@ def test_validation(client):
     assert res.status_code == 422
 
 
-def test_export_shape(client):
-    assert client.get(f"{BASE}/export").json() == []
+def test_json_shape(client):
+    assert client.get(f"{BASE}/json").json() == []
     client.post(BASE, json={**ENTRY, "date_start": "2015-01-01", "date_end": "2016-01-01"})
     client.post(BASE, json={**ENTRY, "date_start": "2024-01-01", "date_end": None})
 
-    items = client.get(f"{BASE}/export").json()
+    items = client.get(f"{BASE}/json").json()
     assert isinstance(items, list) and len(items) == 2
     assert list(items[0].keys()) == [
-        "date_start", "date_end", "employeer", "role", "location", "tech", "context",
+        "date_start", "date_end", "employer", "role", "location", "tech", "context",
     ]  # fmt: skip
-    assert items[0]["date_start"] == "2024-01-01"
+    assert items[0]["date_start"] == "Jan 2024"
     assert items[0]["date_end"] is None
-    assert items[0]["employeer"] == "Acme Corp"
-    assert items[0]["tech"] == ["Python", "FastAPI"]
+    assert items[0]["employer"] == "Acme Corp"
+    assert items[0]["tech"] == "Python, FastAPI"
     assert items[0]["context"] == ENTRY["context"]

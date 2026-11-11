@@ -5,13 +5,12 @@ const PAGE_SIZE = 50
 
 export type StoredJob = {
   id: number
-  title: string
   link: string
   date_added: string
   source: string
   scraped_at: string
   scrape_run_id: number | null
-  has_description: boolean
+  has_html: boolean
 }
 
 type JobPage = {
@@ -22,7 +21,7 @@ type JobPage = {
   has_more: boolean
 }
 
-type JobDetail = StoredJob & { description: string | null }
+type JobDetail = StoredJob & { html: string | null }
 
 function JobRow({ job }: { job: StoredJob }) {
   const [open, setOpen] = useState(false)
@@ -32,7 +31,7 @@ function JobRow({ job }: { job: StoredJob }) {
   const toggle = async () => {
     const next = !open
     setOpen(next)
-    if (!next || detail || !job.has_description) return
+    if (!next || detail || !job.has_html) return
     try {
       const res = await fetch(`${JOBS_API}/${job.id}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -46,7 +45,7 @@ function JobRow({ job }: { job: StoredJob }) {
     <li className="job-item">
       <div className="job-head">
         <div className="job-main">
-          <a href={job.link} target="_blank" rel="noreferrer">{job.title}</a>
+          <a href={job.link} target="_blank" rel="noreferrer">{job.link}</a>
           <div className="job-meta">
             <span>{job.source}</span>
             {job.date_added && <span>posted {job.date_added}</span>}
@@ -54,17 +53,17 @@ function JobRow({ job }: { job: StoredJob }) {
             {job.scrape_run_id != null && <span>run #{job.scrape_run_id}</span>}
           </div>
         </div>
-        {job.has_description && (
+        {job.has_html && (
           <button type="button" className="secondary small" onClick={toggle}>
-            {open ? 'Hide' : 'Description'}
+            {open ? 'Hide' : 'Html'}
           </button>
         )}
       </div>
-      {open && job.has_description && (
+      {open && job.has_html && (
         <div className="job-desc">
           {error && <p className="error">{error}</p>}
           {!detail && !error && <span className="spinner" aria-hidden="true" />}
-          {detail && <pre>{detail.description}</pre>}
+          {detail && <pre>{detail.html}</pre>}
         </div>
       )}
     </li>

@@ -26,9 +26,8 @@ def parse_jobs(html: str) -> list[dict]:
 
     # Each job listing is an <a> tag whose href starts with /jobs/<id>
     for a in soup.find_all("a", href=_JOB_HREF):
-        title = a.get_text(strip=True)
         link = BASE_URL + a["href"]
-        if not title or link in seen:
+        if link in seen:
             continue
         seen.add(link)
 
@@ -39,7 +38,7 @@ def parse_jobs(html: str) -> list[dict]:
             match = _DATE.search(tr.get_text(" ", strip=True))
             date_added = match.group(0) if match else ""
 
-        jobs.append({"title": title, "link": link, "date_added": date_added})
+        jobs.append({"link": link, "date_added": date_added})
 
     return jobs
 
