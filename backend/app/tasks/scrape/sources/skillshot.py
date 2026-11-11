@@ -15,11 +15,10 @@ URL = f"{BASE_URL}/jobs?category=programowanie"
 DOMAINS = ("skillshot.pl",)
 
 _JOB_HREF = re.compile(r"^/jobs/\d+")
-_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def parse_jobs(html: str) -> list[dict]:
-    """Extract job listings from the listing page HTML."""
+    """Extract job links from the listing page HTML."""
     soup = BeautifulSoup(html, "html.parser")
     jobs: list[dict] = []
     seen: set[str] = set()
@@ -30,15 +29,7 @@ def parse_jobs(html: str) -> list[dict]:
         if link in seen:
             continue
         seen.add(link)
-
-        # Date is in a sibling <td> within the same <tr>
-        date_added = ""
-        tr = a.find_parent("tr")
-        if tr:
-            match = _DATE.search(tr.get_text(" ", strip=True))
-            date_added = match.group(0) if match else ""
-
-        jobs.append({"link": link, "date_added": date_added})
+        jobs.append({"link": link})
 
     return jobs
 

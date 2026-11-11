@@ -1,13 +1,12 @@
 """Scraped jobs stored in the database.
 
-``GET /api/jobs?offset=0&limit=50`` returns a page of jobs, newest first (by the time
-they were added to the database), together with ``total`` and ``has_more`` so clients
-can load further pages progressively.
+``GET /api/jobs?offset=0&limit=50`` returns a page of jobs, newest first (by insertion
+order; the scrape time lives on the referenced ``scrape_runs`` row), together with
+``total`` and ``has_more`` so clients can load further pages progressively.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,9 +27,7 @@ class JobOut(BaseModel):
 
     id: int
     link: str
-    date_added: str
     source: str
-    scraped_at: datetime
     scrape_run_id: int | None
     has_html: bool = False
 
@@ -69,7 +66,7 @@ def list_jobs(
 
     total = session.scalar(count_query) or 0
     jobs = session.scalars(
-        query.order_by(Job.scraped_at.desc(), Job.id.desc()).offset(offset).limit(limit)
+        query.order_by(Job.id.desc()).offset(offset).limit(limit)
     ).all()
     return JobPage(
         items=[_to_out(j) for j in jobs],

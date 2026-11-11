@@ -47,16 +47,13 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     link: Mapped[str] = mapped_column(String(2048), unique=True, index=True)
-    date_added: Mapped[str] = mapped_column(String(32), default="")
-    """Posting date as reported by the source (``YYYY-MM-DD``), may be empty."""
     source: Mapped[str] = mapped_column(String(64), index=True)
     html: Mapped[str | None] = mapped_column(Text)
     """Raw HTML of the job page as fetched during scraping (``None`` if unavailable)."""
-    scraped_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     scrape_run_id: Mapped[int] = mapped_column(
         ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True, nullable=True
     )
-    """Run that first discovered this job."""
+    """Run that first discovered this job (its ``started_at`` is when the job was scraped)."""
 
     scrape_run: Mapped[ScrapeRun | None] = relationship(back_populates="jobs")
 

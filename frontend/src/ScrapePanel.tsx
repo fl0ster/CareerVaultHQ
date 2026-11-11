@@ -2,7 +2,7 @@ import {type FormEvent, useEffect, useState} from "react";
 
 const SCRAPE_API = '/api/scrape'
 
-type ScrapedJob = { link: string; date_added: string; source: string }
+type ScrapedJob = { link: string; source: string }
 
 type ScrapeResult = {
   sources: { source: string; ok: boolean; error: string | null; jobs: ScrapedJob[] }[]
@@ -154,12 +154,11 @@ export default function ScrapePanel() {
               ) : (
                 <table className="jobs">
                   <thead>
-                    <tr><th>Date</th><th>Source</th><th>Link</th></tr>
+                    <tr><th>Link</th><th>Source</th></tr>
                   </thead>
                   <tbody>
                     {result.jobs.map((j) => (
                       <tr key={j.link}>
-                        <td>{j.date_added || '—'}</td>
                         <td><a href={j.link} target="_blank" rel="noreferrer">{j.link}</a></td>
                         <td>{j.source}</td>
                       </tr>

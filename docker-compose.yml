@@ -88,13 +88,16 @@ services:
     networks:
       - careervaulthq-net
 
-  # Browser UI for inspecting redis
+  # Browser UI for inspecting Redis on the Pi: http://<pi>:8081
+  # Built locally on the Pi (upstream Redis GUI images are amd64-only).
   redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: redis-commander
+    build: ./tools/redis-commander
+    image: careervaulthq-redis-commander
+    container_name: careervaulthq-redis-commander
     restart: unless-stopped
-    environment:
-      - REDIS_HOSTS=local:redis:6379
+    # REDIS_HOSTS is only understood by the upstream image's entrypoint script, so
+    # the connection target is passed as CLI flags here.
+    command: ["--redis-host", "redis", "--redis-port", "6379", "--redis-db", "0", "--address", "0.0.0.0"]
     ports:
       - "8081:8081"
     depends_on:
