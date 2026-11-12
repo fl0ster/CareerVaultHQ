@@ -10,7 +10,8 @@ from app.tasks.scrape.sources import skillshot
 parse_task = importlib.import_module("app.tasks.parse.parse")
 
 HTML = (
-    "<html><body><div id='job_presentation'>"
+    "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head>"
+    "<body><h1>Unity Dev </h1><div id='job_presentation'>"
     "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
 )
 
@@ -38,6 +39,7 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
 
     assert result["pending_id"] == pending_id
     assert result["source"] == "skillshot"
+    assert result["title"] == "Unity Dev"
     assert result["description_chars"] == len("We need\nUnity")
     with session_factory(task_engine)() as session:
         pending = session.get(models.PendingJobParseRun, pending_id)
@@ -48,6 +50,7 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
         parsed = session.scalar(
             select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id)
         )
+        assert parsed.title == "Unity Dev"
         assert parsed.description == "We need\nUnity"
         assert parsed.parsed_at is not None
 
@@ -58,7 +61,7 @@ def test_parse_job_overwrites_previous_result(task_engine):
 
     with session_factory(task_engine)() as session:
         job = session.scalar(select(models.Job))
-        job.html = HTML.replace("Unity", "Unreal")
+        job.html = HTML.replace("Unity", "Unreal").replace("Unity Dev", "Unreal Dev")
         again = models.PendingJobParseRun(job_id=job.id)
         session.add(again)
         session.commit()
@@ -69,6 +72,7 @@ def test_parse_job_overwrites_previous_result(task_engine):
     with session_factory(task_engine)() as session:
         results = session.scalars(select(models.JobParseResult)).all()
         assert len(results) == 1
+        assert results[0].title == "Unreal Dev"
         assert results[0].description == "We need\nUnreal"
 
 
@@ -105,6 +109,26 @@ def test_parse_job_unknown_source_fails(task_engine):
 
     with pytest.raises(parse_task.JobParseError, match="unknown scrape source"):
         parse_task.parse_job(pending_id)
+
+
+def test_parse_job_source_without_hook_fails(task_engine, monkeypatch):
+    monkeypatch.delattr(skillshot, "parse_title")
+    pending_id = _make_pending(task_engine)
+
+    with pytest.raises(parse_task.JobParseError, match="does not define parse_title"):
+        parse_task.parse_job(pending_id)
+
+    with session_factory(task_engine)() as session:
+        assert session.get(models.PendingJobParseRun, pending_id).status == "FAILED"
+
+
+def test_skillshot_parse_title_prefers_h1():
+    assert skillshot.parse_title(HTML, "https://www.skillshot.pl/jobs/1") == "Unity Dev"
+
+
+def test_skillshot_parse_title_falls_back_to_title_tag():
+    html = "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head><body></body></html>"
+    assert skillshot.parse_title(html, "https://www.skillshot.pl/jobs/1") == "Unity Dev"
 
 
 def test_parse_job_unknown_pending_id(task_engine):

@@ -93,6 +93,8 @@ class JobParseResult(Base):
     job_id: Mapped[int] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
     )
+    title: Mapped[str | None] = mapped_column(String(512))
+    """Job title as returned by the source's ``parse_title``."""
     description: Mapped[str | None] = mapped_column(Text)
     """Plain-text job description as returned by the source's ``parse_description``."""
     parsed_at: Mapped[datetime] = mapped_column(

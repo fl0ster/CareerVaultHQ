@@ -45,3 +45,18 @@ def parse_description(html: str, url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     el = soup.find("div", id="job_presentation")
     return html_to_text(el) if el else ""
+
+
+def parse_title(html: str, url: str) -> str:
+    """Job title of a single job page (the ``<h1>``; falls back to ``<title>``)."""
+    soup = BeautifulSoup(html, "html.parser")
+    h1 = soup.find("h1")
+    if h1 and h1.get_text(strip=True):
+        return h1.get_text(" ", strip=True)
+    title = soup.find("title")
+    if not title:
+        return ""
+    # "<job title> dla <company> / Skillshot.pl"
+    text = title.get_text(" ", strip=True)
+    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", text)
+    return re.sub(r"\s+dla\s+.+$", "", text).strip()
