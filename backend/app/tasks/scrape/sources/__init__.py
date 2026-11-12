@@ -10,6 +10,7 @@ To extract job details (called by ``app.tasks.parse.parse_job`` with the HTML st
 the ``jobs`` row; ``parse_description`` is also used by ``app.tasks.scrape.description``):
 
 - ``parse_title(html, url) -> str`` - job title of a job page
+- ``parse_company(html, url) -> str`` - hiring company of a job page
 - ``parse_description(html, url) -> str`` - plain-text description of a job page
 - ``DOMAINS: tuple[str, ...]`` - hostnames (suffix match) the module owns (optional)
 - ``fetch_description(url) -> str`` - when an API is better than HTML (optional)

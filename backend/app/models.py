@@ -95,6 +95,8 @@ class JobParseResult(Base):
     )
     title: Mapped[str | None] = mapped_column(String(512))
     """Job title as returned by the source's ``parse_title``."""
+    company: Mapped[str | None] = mapped_column(String(256))
+    """Hiring company as returned by the source's ``parse_company``."""
     description: Mapped[str | None] = mapped_column(Text)
     """Plain-text job description as returned by the source's ``parse_description``."""
     parsed_at: Mapped[datetime] = mapped_column(

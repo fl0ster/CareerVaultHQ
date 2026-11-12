@@ -3,7 +3,7 @@
 The scrape task inserts a ``PendingJobParseRun`` row for every new ``Job`` and enqueues
 ``parse_job(pending_id)``. The task looks up the job's ``source`` module in
 ``app.tasks.scrape.sources`` and calls its ``parse_<field>(html, url)`` hook for every
-field in ``FIELDS`` (currently ``title`` and ``description``); the values are stored in
+field in ``FIELDS`` (currently ``title``, ``company`` and ``description``); the values are stored in
 ``job_parse_results`` and the pending row is marked ``COMPLETED`` with the time the parse
 happened.
 """
@@ -25,7 +25,7 @@ from app.tasks.scrape.sources import load_source
 log = logging.getLogger(__name__)
 
 
-FIELDS = ("title", "description")
+FIELDS = ("title", "company", "description")
 """Columns of ``JobParseResult`` filled by the source's ``parse_<field>(html, url)`` hook."""
 
 
@@ -53,6 +53,10 @@ def parse_field(job: Job, field: str, module: ModuleType | None = None) -> str:
 
 def parse_title(job: Job) -> str:
     return parse_field(job, "title")
+
+
+def parse_company(job: Job) -> str:
+    return parse_field(job, "company")
 
 
 def parse_description(job: Job) -> str:
@@ -86,6 +90,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "job_id": <id of the parsed Job>,
             "source": "<source module name>",
             "title": "<extracted title>",
+            "company": "<extracted company>",
             "description_chars": <length of the extracted description>,
         }
 
@@ -131,10 +136,11 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         session.commit()
 
         log.info(
-            "Parsed job %d (%s): %r, %d chars",
+            "Parsed job %d (%s): %r at %r, %d chars",
             job.id,
             job.link,
             values["title"],
+            values["company"],
             len(values["description"]),
         )
         return {
@@ -142,5 +148,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "job_id": job.id,
             "source": job.source,
             "title": values["title"],
+            "company": values["company"],
             "description_chars": len(values["description"]),
         }

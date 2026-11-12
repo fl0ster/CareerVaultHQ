@@ -15,6 +15,7 @@ URL = f"{BASE_URL}/jobs?category=programowanie"
 DOMAINS = ("skillshot.pl",)
 
 _JOB_HREF = re.compile(r"^/jobs/\d+")
+_USER_HREF = re.compile(r"^/users/\d+")
 
 
 def parse_jobs(html: str) -> list[dict]:
@@ -56,7 +57,22 @@ def parse_title(html: str, url: str) -> str:
     title = soup.find("title")
     if not title:
         return ""
-    # "<job title> dla <company> / Skillshot.pl"
-    text = title.get_text(" ", strip=True)
-    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", text)
-    return re.sub(r"\s+dla\s+.+$", "", text).strip()
+
+    # TODO: apply LLM to figure this out
+    return ""
+
+
+def parse_company(html: str, url: str) -> str:
+    """Hiring company of a single job page (the ``/users/<id>`` link in the job header;
+    falls back to ``<title>``)."""
+    soup = BeautifulSoup(html, "html.parser")
+    header = soup.find("div", id="job_presentation") or soup
+    a = header.find("a", href=_USER_HREF)
+    if a and a.get_text(strip=True):
+        return a.get_text(" ", strip=True)
+    title = soup.find("title")
+    if not title:
+        return ""
+    
+    # TODO: apply LLM to figure this out
+    return ""

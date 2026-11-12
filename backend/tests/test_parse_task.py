@@ -11,7 +11,8 @@ parse_task = importlib.import_module("app.tasks.parse.parse")
 
 HTML = (
     "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head>"
-    "<body><h1>Unity Dev </h1><div id='job_presentation'>"
+    "<body><div id='job_presentation'><h1>Unity Dev </h1>"
+    "<p><span>dla</span> <b><a href='/users/7'>ACME</a></b></p>"
     "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
 )
 
@@ -40,7 +41,8 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
     assert result["pending_id"] == pending_id
     assert result["source"] == "skillshot"
     assert result["title"] == "Unity Dev"
-    assert result["description_chars"] == len("We need\nUnity")
+    assert result["company"] == "ACME"
+    assert result["description_chars"] == len("Unity Dev\ndla\nACME\nWe need\nUnity")
     with session_factory(task_engine)() as session:
         pending = session.get(models.PendingJobParseRun, pending_id)
         assert pending.status == "COMPLETED"
@@ -51,7 +53,8 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
             select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id)
         )
         assert parsed.title == "Unity Dev"
-        assert parsed.description == "We need\nUnity"
+        assert parsed.company == "ACME"
+        assert parsed.description == "Unity Dev\ndla\nACME\nWe need\nUnity"
         assert parsed.parsed_at is not None
 
 
@@ -73,7 +76,7 @@ def test_parse_job_overwrites_previous_result(task_engine):
         results = session.scalars(select(models.JobParseResult)).all()
         assert len(results) == 1
         assert results[0].title == "Unreal Dev"
-        assert results[0].description == "We need\nUnreal"
+        assert results[0].description == "Unreal Dev\ndla\nACME\nWe need\nUnreal"
 
 
 def test_parse_job_marks_failure_when_parser_raises(task_engine, monkeypatch):
@@ -124,6 +127,15 @@ def test_parse_job_source_without_hook_fails(task_engine, monkeypatch):
 
 def test_skillshot_parse_title_prefers_h1():
     assert skillshot.parse_title(HTML, "https://www.skillshot.pl/jobs/1") == "Unity Dev"
+
+
+def test_skillshot_parse_company_prefers_user_link():
+    assert skillshot.parse_company(HTML, "https://www.skillshot.pl/jobs/1") == "ACME"
+
+
+def test_skillshot_parse_company_falls_back_to_title_tag():
+    html = "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head><body></body></html>"
+    assert skillshot.parse_company(html, "https://www.skillshot.pl/jobs/1") == "ACME"
 
 
 def test_skillshot_parse_title_falls_back_to_title_tag():
