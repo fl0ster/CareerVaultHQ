@@ -24,7 +24,6 @@ from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, PendingJobParseRun, ScrapeRun
 from app.queue import get_scrapper_queue
-from app.tasks.parse import parse_job
 from app.tasks.scrape.description import fetch_page
 from app.tasks.scrape.sources import get_available_sources, load_source
 
@@ -97,6 +96,11 @@ def enqueue_parse_jobs(session: Session, pending: list[PendingJobParseRun]) -> l
     store the RQ job ids on the rows. Returns the RQ job ids."""
     if not pending:
         return []
+    # Imported here, not at module level: ``app.tasks.parse.parse`` imports the sources
+    # package, whose parent package imports this module, so a top-level import would be
+    # circular when the worker imports the parse task first (see test_rq_entrypoints).
+    from app.tasks.parse import parse_job
+
     settings = get_settings()
     queue = get_scrapper_queue()
     ids: list[str] = []
