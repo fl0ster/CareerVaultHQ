@@ -58,6 +58,50 @@ class Job(Base):
     scrape_run: Mapped[ScrapeRun | None] = relationship(back_populates="jobs")
 
 
+class PendingJobParseRun(Base):
+    """A request to parse one scraped ``Job``. Created by the scrape task right after the
+    job is inserted; the parse task flips ``status`` and records ``parsed_at``."""
+
+    __tablename__ = "pending_job_parse_runs"
+
+    STATUS_NOT_STARTED = "NOT_STARTED"
+    STATUS_COMPLETED = "COMPLETED"
+    STATUS_FAILED = "FAILED"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(16), default=STATUS_NOT_STARTED, index=True)
+    """``NOT_STARTED`` -> ``COMPLETED`` (or ``FAILED`` when the parser raised)."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    parsed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """When the parse task finished (``None`` while ``NOT_STARTED``)."""
+    error: Mapped[str | None] = mapped_column(Text)
+
+    job: Mapped[Job] = relationship()
+
+
+class JobParseResult(Base):
+    """Structured data extracted from a ``Job``'s raw HTML. One row per job; re-parsing
+    overwrites it."""
+
+    __tablename__ = "job_parse_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    description: Mapped[str | None] = mapped_column(Text)
+    """Plain-text job description as returned by the source's ``parse_description``."""
+    parsed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    job: Mapped[Job] = relationship()
+
+
 class WorkHistoryEntry(Base):
     """One position in the user's work history (employer, role, dates, tech stack)."""
 

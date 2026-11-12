@@ -6,10 +6,12 @@ Each module in this package (not starting with ``_``) must expose:
 - ``URL: str`` - listing page that is scraped
 - ``fetch_jobs() -> list[dict]`` - returns dicts with ``link`` (details are parsed later)
 
-Optionally, to extract job descriptions (see ``app.tasks.scrape.description``):
+To extract job descriptions (called by ``app.tasks.parse.parse_job`` with the HTML stored
+on the ``jobs`` row, and by ``app.tasks.scrape.description``):
 
-- ``DOMAINS: tuple[str, ...]`` - hostnames (suffix match) the module owns
-- ``parse_description(html, url) -> str`` and/or ``fetch_description(url) -> str``
+- ``parse_description(html, url) -> str`` - plain-text description of a job page
+- ``DOMAINS: tuple[str, ...]`` - hostnames (suffix match) the module owns (optional)
+- ``fetch_description(url) -> str`` - when an API is better than HTML (optional)
 """
 
 from __future__ import annotations
