@@ -48,7 +48,7 @@ def parse_field(job: Job, field: str, module: ModuleType | None = None) -> str:
     parser = getattr(module, f"parse_{field}", None)
     if parser is None:
         raise JobParseError(f"source {job.source!r} does not define parse_{field}")
-    return parser(job.html, job.link)
+    return parser(job.html)
 
 
 def parse_title(job: Job) -> str:

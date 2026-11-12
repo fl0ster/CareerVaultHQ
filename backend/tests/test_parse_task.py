@@ -80,7 +80,7 @@ def test_parse_job_overwrites_previous_result(task_engine):
 
 
 def test_parse_job_marks_failure_when_parser_raises(task_engine, monkeypatch):
-    def boom(html, url):
+    def boom(html):
         raise RuntimeError("bad markup")
 
     monkeypatch.setattr(skillshot, "parse_description", boom)
@@ -126,21 +126,21 @@ def test_parse_job_source_without_hook_fails(task_engine, monkeypatch):
 
 
 def test_skillshot_parse_title_prefers_h1():
-    assert skillshot.parse_title(HTML, "https://www.skillshot.pl/jobs/1") == "Unity Dev"
+    assert skillshot.parse_title(HTML) == "Unity Dev"
 
 
 def test_skillshot_parse_company_prefers_user_link():
-    assert skillshot.parse_company(HTML, "https://www.skillshot.pl/jobs/1") == "ACME"
+    assert skillshot.parse_company(HTML) == "ACME"
 
 
 def test_skillshot_parse_company_falls_back_to_title_tag():
     html = "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head><body></body></html>"
-    assert skillshot.parse_company(html, "https://www.skillshot.pl/jobs/1") == "ACME"
+    assert skillshot.parse_company(html) == "ACME"
 
 
 def test_skillshot_parse_title_falls_back_to_title_tag():
     html = "<html><head><title>Unity Dev dla ACME / Skillshot.pl</title></head><body></body></html>"
-    assert skillshot.parse_title(html, "https://www.skillshot.pl/jobs/1") == "Unity Dev"
+    assert skillshot.parse_title(html) == "Unity Dev"
 
 
 def test_parse_job_unknown_pending_id(task_engine):

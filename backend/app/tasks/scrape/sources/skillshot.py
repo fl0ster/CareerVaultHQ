@@ -41,14 +41,14 @@ def fetch_jobs() -> list[dict]:
     return parse_jobs(resp.text)
 
 
-def parse_description(html: str, url: str) -> str:
+def parse_description(html: str) -> str:
     """Plain-text description of a single job page (used by ``description.fetch_description``)."""
     soup = BeautifulSoup(html, "html.parser")
     el = soup.find("div", id="job_presentation")
     return html_to_text(el) if el else ""
 
 
-def parse_title(html: str, url: str) -> str:
+def parse_title(html: str) -> str:
     """Job title of a single job page (the ``<h1>``; falls back to ``<title>``)."""
     soup = BeautifulSoup(html, "html.parser")
     h1 = soup.find("h1")
@@ -58,11 +58,19 @@ def parse_title(html: str, url: str) -> str:
     if not title:
         return ""
 
+    # "<job title> dla <company> / Skillshot.pl"
+    text = title.get_text(" ", strip=True)
+    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", text)
+    result = re.sub(r"\s+dla\s+.+$", "", text).strip()
+
+    if result and result != "":
+        return result
+
     # TODO: apply LLM to figure this out
     return ""
 
 
-def parse_company(html: str, url: str) -> str:
+def parse_company(html: str) -> str:
     """Hiring company of a single job page (the ``/users/<id>`` link in the job header;
     falls back to ``<title>``)."""
     soup = BeautifulSoup(html, "html.parser")
@@ -73,6 +81,13 @@ def parse_company(html: str, url: str) -> str:
     title = soup.find("title")
     if not title:
         return ""
-    
+
+    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", title.get_text(" ", strip=True))
+    m = re.search(r"\s+dla\s+(.+)$", text)
+    result = m.group(1).strip() if m else ""
+
+    if result and result != "":
+        return result
+
     # TODO: apply LLM to figure this out
     return ""

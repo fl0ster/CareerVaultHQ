@@ -141,7 +141,7 @@ def test_skillshot_parse_description():
         "<html><body><div id='job_presentation'>"
         "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
     )
-    assert skillshot.parse_description(html, "https://www.skillshot.pl/jobs/1") == "We need\nUnity"
+    assert skillshot.parse_description(html) == "We need\nUnity"
 
 
 def test_generic_description_prefers_jsonld():

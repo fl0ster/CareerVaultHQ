@@ -3,7 +3,7 @@
 Each scraper module in ``app.tasks.scrape.sources`` may declare how to turn one of its
 job links into a plain-text description:
 
-    DOMAINS = ("example.com",)                 # hostnames (suffix match) it owns
+    DOMAINS = ("example.com")                 # hostnames (suffix match) it owns
     def parse_description(html, url) -> str    # for server-rendered pages, or
     def fetch_description(url) -> str          # when an API is better than HTML
 
