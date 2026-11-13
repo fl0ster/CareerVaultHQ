@@ -16,6 +16,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 from rq import get_current_job
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,13 +25,12 @@ from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, PendingJobParseRun, ScrapeRun
 from app.queue import get_scrapper_queue
-from app.tasks.scrape.description import fetch_page
+from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import get_available_sources, load_source
 
 log = logging.getLogger(__name__)
 
 PARSE_TIMEOUT = 120
-
 
 def run_source(name: str) -> dict[str, Any]:
     """Run a single scraper source. Never raises; failures are reported in the result."""
@@ -58,6 +58,19 @@ def _current_rq_job_id() -> str | None:
     job = get_current_job()
     return job.id if job is not None else None
 
+def fetch_html(url: str) -> str:
+    resp = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=FETCH_TIMEOUT)
+    resp.raise_for_status()
+    return resp.text
+
+def fetch_page(url: str) -> str:
+    """Raw HTML of a job page; ``""`` when it could not be fetched."""
+    html = ""
+    try:
+        html = fetch_html(url)
+    except Exception as exc:  # noqa: BLE001 - a missing page must not fail the run
+        log.warning("fetch %s: %s", url, exc)
+    return html
 
 def save_jobs(
     session: Session, run: ScrapeRun, jobs: list[dict[str, Any]]

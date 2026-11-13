@@ -18,22 +18,13 @@ import logging
 from types import ModuleType
 from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup
-
 from app.tasks.scrape.sources import get_available_sources, load_source
-from app.tasks.scrape.sources._helpers import (
-    fetch_html,
-    format_jobposting,
-    html_to_text,
-    jsonld_jobposting,
-)
 
 log = logging.getLogger(__name__)
 
 MIN_DESCRIPTION_CHARS = 100
 
 _registry: list[tuple[tuple[str, ...], ModuleType]] | None = None
-
 
 def _load_registry() -> list[tuple[tuple[str, ...], ModuleType]]:
     """Import every scraper module that declares ``DOMAINS`` and a description hook."""
@@ -64,28 +55,3 @@ def find_source(url: str) -> ModuleType | None:
             if (host == d or host.endswith("." + d)) and len(d) > best_len:
                 best, best_len = mod, len(d)
     return best
-
-
-GENERIC_SELECTORS = [
-    ("div", {"id": "job-description"}),
-    ("div", {"class": "job-description"}),
-    ("div", {"class": "job-section"}),  # SmartRecruiters
-    ("div", {"itemprop": "description"}),
-    ("div", {"class": "description"}),
-    ("div", {"class": "job-details"}),
-    ("div", {"class": "job-body"}),
-    ("div", {"class": "job-content"}),
-    ("div", {"class": "field--name-body"}),  # Drupal
-    ("article", {}),
-    ("main", {}),
-]
-
-
-def fetch_page(url: str) -> str:
-    """Raw HTML of a job page; ``""`` when it could not be fetched."""
-    html = ""
-    try:
-        html = fetch_html(url)
-    except Exception as exc:  # noqa: BLE001 - a missing page must not fail the run
-        log.warning("fetch %s: %s", url, exc)
-    return html

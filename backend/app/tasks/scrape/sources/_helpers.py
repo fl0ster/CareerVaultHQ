@@ -6,23 +6,7 @@ from __future__ import annotations
 import json
 import re
 
-import httpx
 from bs4 import BeautifulSoup, NavigableString
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
-}
-
-FETCH_TIMEOUT = 20
-
-
-def fetch_html(url: str) -> str:
-    resp = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=FETCH_TIMEOUT)
-    resp.raise_for_status()
-    return resp.text
 
 
 def html_to_text(value) -> str:

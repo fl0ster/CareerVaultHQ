@@ -7,7 +7,8 @@ import re
 import httpx
 from bs4 import BeautifulSoup
 
-from app.tasks.scrape.sources._helpers import HEADERS, html_to_text
+from app.tasks.scrape.sources._helpers import html_to_text
+from app.tasks.scrape._helpers import HEADERS
 
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
