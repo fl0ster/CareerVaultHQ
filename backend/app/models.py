@@ -126,3 +126,19 @@ class WorkHistoryEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class CandidateProfile(Base):
+    """Free-text description of the candidate. Several rows may exist; only the most
+    recently created one (highest ``id``) is considered current."""
+
+    __tablename__ = "candidate_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    content: Mapped[str] = mapped_column(Text, default="")
+    work_history_id: Mapped[str | None] = mapped_column(String(256))
+    """Opaque reference to the work history this profile was built from (free string for now)."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
