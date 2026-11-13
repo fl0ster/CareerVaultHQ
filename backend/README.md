@@ -56,6 +56,10 @@ app/
   workers/         Background worker entrypoints
     latex2pdf.py   RQ worker for the LaTeX queue: python -m app.workers.latex2pdf
   tasks/latex.py   pdflatex compile step executed by the worker
+  services/
+    openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
+                   the openrouter_calls table. Routes/tasks use OpenRouterService directly;
+                   /api/openrouter/* exposes it over HTTP
   api/
     __init__.py    aggregates routers under /api
     routes/        one module per resource (health.py, latex.py)

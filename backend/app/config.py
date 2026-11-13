@@ -49,6 +49,22 @@ class Settings(BaseSettings):
     # Reject uploads larger than this (bytes).
     latex_max_upload_bytes: int = 2 * 1024 * 1024
 
+    # --- OpenRouter (LLM calls) ---
+    # API key from https://openrouter.ai/keys. Calls fail with 503 when it is empty.
+    openrouter_api_key: str = ""
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Default model for free-text chat completions.
+    openrouter_chat_model: str = "openai/gpt-4o-mini"
+    # Jev Decisions API (https://openrouter.ai/docs/guides/community/jev): typed answers
+    # (probabilities) to questions about a ``state`` instead of free text.
+    openrouter_decisions_url: str = "https://openrouter.ai/api/alpha/decisions"
+    openrouter_decision_model: str = "typesafe/jev-1.14"
+    # Per-request HTTP timeout (seconds).
+    openrouter_timeout: float = 120.0
+    # Optional attribution headers shown on openrouter.ai rankings.
+    openrouter_site_url: str = ""
+    openrouter_site_name: str = "CareerVaultHQ"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

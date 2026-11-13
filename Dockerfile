@@ -99,7 +99,9 @@ ENV HOST=0.0.0.0 \
     CORS_ORIGINS="" \
     REDIS_URL=redis://redis:6379/0 \
     LATEX_UPLOAD_ROOT=/data/static/uploads/latex \
-    LATEX_JOBS_ROOT=/data/static/jobs/latex
+    LATEX_JOBS_ROOT=/data/static/jobs/latex \
+    OPENROUTER_CHAT_MODEL=openai/gpt-4o-mini
+    OPENROUTER_DECISION_MODEL=typesafe/jev-1.14
 
 RUN useradd --system --uid 1001 --create-home appuser \
     && mkdir -p /data && chown appuser:appuser /data

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -142,3 +142,37 @@ class CandidateProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
+
+
+class OpenRouterCall(Base):
+    """One request made to OpenRouter through ``app.services.openrouter``. Every call is
+    recorded, including failed ones, so spend and prompts can be audited."""
+
+    __tablename__ = "openrouter_calls"
+
+    KIND_CHAT = "chat"
+    KIND_DECISION = "decision"
+    STATUS_OK = "ok"
+    STATUS_FAILED = "failed"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(128), index=True)
+    """Who made the call, e.g. ``api.openrouter.chat`` or ``tasks.parse``."""
+    kind: Mapped[str] = mapped_column(String(16), index=True)
+    """``chat`` (free text) or ``decision`` (structured JSON)."""
+    model: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(16), default=STATUS_OK, index=True)
+    input: Mapped[dict] = mapped_column(JSON)
+    """Request body sent to OpenRouter (messages, response_format, ...)."""
+    output: Mapped[dict | None] = mapped_column(JSON)
+    """Raw response body returned by OpenRouter (``None`` when the request failed)."""
+    cost: Mapped[float | None] = mapped_column(Float)
+    """Cost in USD as reported in ``usage.cost`` by the API."""
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    total_tokens: Mapped[int | None] = mapped_column(Integer)
+    generation_id: Mapped[str | None] = mapped_column(String(128))
+    """OpenRouter's ``id`` for the completion."""
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
