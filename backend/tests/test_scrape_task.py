@@ -7,7 +7,6 @@ from sqlalchemy import select
 
 from app import models
 from app.db import init_db, session_factory
-from app.tasks.scrape.description import generic_description
 from app.tasks.scrape.sources import skillshot
 
 # ``app.tasks.scrape.scrape`` the attribute is the function; fetch the module explicitly.
@@ -142,12 +141,3 @@ def test_skillshot_parse_description():
         "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
     )
     assert skillshot.parse_description(html) == "We need\nUnity"
-
-
-def test_generic_description_prefers_jsonld():
-    html = """<html><head><script type="application/ld+json">
-    {"@type": "JobPosting", "hiringOrganization": {"name": "ACME"},
-     "description": "<p>%s</p>"}
-    </script></head><body><main>short</main></body></html>""" % ("x" * 120)
-    text = generic_description(html)
-    assert "x" * 120 in text

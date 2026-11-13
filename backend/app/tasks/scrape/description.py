@@ -81,34 +81,6 @@ GENERIC_SELECTORS = [
 ]
 
 
-def generic_description(html: str) -> str:
-    """Best-effort extraction for pages no source module claims."""
-    ld = jsonld_jobposting(html)
-    if ld:
-        text = format_jobposting(ld)
-        if len(text) >= MIN_DESCRIPTION_CHARS:
-            return text
-
-    soup = BeautifulSoup(html, "html.parser")
-    for tag, attrs in GENERIC_SELECTORS:
-        if attrs.get("class") == "job-section":
-            elements = soup.find_all(tag, attrs)
-        else:
-            elements = [soup.find(tag, attrs)]
-        elements = [e for e in elements if e]
-        if elements:
-            text = "\n\n".join(html_to_text(e) for e in elements)
-            if len(text) > 200:
-                return text
-
-    body = soup.find("body") or soup
-    for el in body(
-        ["script", "style", "nav", "footer", "header", "aside", "form", "iframe", "noscript"]
-    ):
-        el.decompose()
-    return html_to_text(body)
-
-
 def fetch_page(url: str) -> str:
     """Raw HTML of a job page; ``""`` when it could not be fetched."""
     html = ""
