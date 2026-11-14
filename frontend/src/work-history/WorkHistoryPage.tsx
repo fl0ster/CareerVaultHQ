@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './work-history.css'
 import { type WorkHistoryEntry, type WorkHistoryInput, workHistoryApi } from './api.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
+import { candidateProfileApi } from '../candidate-profile/api.ts'
 
 function formatMonth(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
@@ -57,6 +58,8 @@ export default function WorkHistoryPage() {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
+  const [generating, setGenerating] = useState(false)
+  const [profileStatus, setProfileStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
   const load = () =>
     workHistoryApi.list().then(
@@ -93,6 +96,29 @@ export default function WorkHistoryPage() {
     }
   }
 
+  const generateProfile = async () => {
+    setGenerating(true)
+    setProfileStatus(null)
+    try {
+      const profile = await candidateProfileApi.generate()
+      setProfileStatus({
+        kind: 'ok',
+        text: `Candidate profile generated (#${profile.id}). See the "Candidate profile" tab.`,
+      })
+    } catch (e) {
+      const message = String(e instanceof Error ? e.message : e)
+      const text =
+        message === 'missing work history'
+            ? 'Add at least one position before generating a profile.'
+            : `Could not generate candidate profile: ${message}`
+      setProfileStatus({ kind: 'error', text })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const canGenerate = !generating && !!entries && entries.length > 0
+
   return (
     <>
       <h1 className="title">Work history</h1>
@@ -102,6 +128,24 @@ export default function WorkHistoryPage() {
           {entries === null ? 'Loading…' : `${entries.length} position${entries.length === 1 ? '' : 's'}.`}{' '}
           <button type="button" className="small" onClick={() => setMode({ kind: 'create' })}>
             Add position
+          </button>{' '}
+          <button
+            type="button"
+            className="secondary small"
+            disabled={!canGenerate}
+            title={entries && entries.length === 0 ? 'Add a position first' : undefined}
+            onClick={generateProfile}
+          >
+            {generating ? 'Generating profile…' : 'Generate candidate profile'}
+          </button>
+        </p>
+      )}
+
+      {mode.kind === 'list' && profileStatus && (
+        <p className={profileStatus.kind === 'error' ? 'error' : undefined}>
+          {profileStatus.text}{' '}
+          <button type="button" className="secondary small" onClick={() => setProfileStatus(null)}>
+            Dismiss
           </button>
         </p>
       )}

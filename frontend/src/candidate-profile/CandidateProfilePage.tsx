@@ -31,7 +31,7 @@ export default function CandidateProfilePage() {
     )
 
   useEffect(() => {
-    load()
+    void load()
   }, [])
 
   const dirty =
@@ -41,21 +41,23 @@ export default function CandidateProfilePage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (profile == null)
-      return;
 
     setSaving(true)
     setSaveError(null)
+
     try {
-      const input = { content, work_history_id: workHistoryId.trim() || null }
-      const saved = await candidateProfileApi.update(profile.id, input)
-      apply(saved)
-      setSavedAt(saved.updated_at)
-    } catch (err) {
-      setSaveError(String(err instanceof Error ? err.message : err))
-    } finally {
-      setSaving(false)
-    }
+        const input = { content, work_history_id: workHistoryId.trim() || null }
+
+        const saved = profile == null
+          ? await candidateProfileApi.create(input)
+          : await candidateProfileApi.update(profile.id, input)
+        apply(saved)
+        setSavedAt(saved.updated_at)
+      } catch (err) {
+        setSaveError(String(err instanceof Error ? err.message : err))
+      } finally {
+        setSaving(false)
+      }
   }
 
   const reset = () => {
@@ -81,7 +83,7 @@ export default function CandidateProfilePage() {
           <p className="cp-status">
             {profile
               ? `Profile #${profile.id}, last updated ${formatDate(profile.updated_at)}.`
-              : 'No profile yet.'}
+              : 'Create new profile.'}
           </p>
 
           <label>
@@ -96,17 +98,15 @@ export default function CandidateProfilePage() {
 
           {saveError && <p className="error">{saveError}</p>}
 
-          {profile ?
-            <div className="cp-actions">
-              <button type="submit" disabled={saving || !dirty}>
-                {saving ? 'Saving…' : 'Save changes'}
-              </button>
-              <button type="button" className="secondary" onClick={reset} disabled={saving || !dirty}>
-                Discard changes
-              </button>
-              {savedAt && !dirty && <span className="cp-saved">Saved {formatDate(savedAt)}</span>}
-            </div>
-            : null}
+          <div className="cp-actions">
+            <button type="submit" disabled={saving || !dirty}>
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button type="button" className="secondary" onClick={reset} disabled={saving || !dirty}>
+              Discard changes
+            </button>
+            {savedAt && !dirty && <span className="cp-saved">Saved {formatDate(savedAt)}</span>}
+          </div>
         </form>
       )}
     </>

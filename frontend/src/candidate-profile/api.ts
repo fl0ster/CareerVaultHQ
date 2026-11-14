@@ -30,6 +30,15 @@ async function parse<T>(res: Response): Promise<T> {
 
 export const candidateProfileApi = {
   latest: () => fetch(`${API}/latest`).then((r) => parse<CandidateProfile | null>(r)),
+  /** Create a new profile with custom text */
+  create: (input: CandidateProfileInput) =>
+      fetch(`${API}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+      }).then((r) => parse<CandidateProfile>(r)),
+  /** Generate a new profile from the work history via the AI service. */
+  generate: () => fetch(`${API}/generate`, { method: 'POST' }).then((r) => parse<CandidateProfile>(r)),
   update: (id: number, input: CandidateProfileInput) =>
     fetch(`${API}/${id}`, {
       method: 'PATCH',

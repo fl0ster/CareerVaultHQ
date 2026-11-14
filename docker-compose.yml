@@ -18,6 +18,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Uploaded .tex files and generated PDFs; must be the same volume as the worker's.
       LATEX_ROOT: /data/latex
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -37,6 +38,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -54,6 +56,7 @@ services:
       DEBUG: "false"
       DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
     depends_on:
