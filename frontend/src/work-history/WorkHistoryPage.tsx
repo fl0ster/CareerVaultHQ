@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './work-history.css'
-import { type WorkHistoryEntry, type WorkHistoryInput, workHistoryApi } from './api.ts'
+import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, workHistoryApi } from './api.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
 import { candidateProfileApi } from '../candidate-profile/api.ts'
 
@@ -60,6 +60,9 @@ export default function WorkHistoryPage() {
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
   const [generating, setGenerating] = useState(false)
   const [profileStatus, setProfileStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const load = () =>
     workHistoryApi.list().then(
@@ -118,6 +121,59 @@ export default function WorkHistoryPage() {
   }
 
   const canGenerate = !generating && !!entries && entries.length > 0
+  const hasEntries = !!entries && entries.length > 0
+
+  const describe = (e: unknown) => String(e instanceof Error ? e.message : e)
+
+  const exportJson = async () => {
+    setTransfer(null)
+    try {
+      const items = await workHistoryApi.exportJson()
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `work-history-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setTransfer({ kind: 'error', text: `Could not export work history: ${describe(e)}` })
+    }
+  }
+
+  const importJson = async (file: File) => {
+    setTransfer(null)
+    let items: unknown
+    try {
+      items = JSON.parse(await file.text())
+    } catch {
+      setTransfer({ kind: 'error', text: `${file.name} is not valid JSON.` })
+      return
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of positions.` })
+      return
+    }
+    const replace = hasEntries
+      ? window.confirm(
+          `Replace the existing ${entries.length} position${entries.length === 1 ? '' : 's'} with the imported ones?\n\n` +
+            'OK = replace, Cancel = keep them and add the imported positions.',
+        )
+      : false
+    setImporting(true)
+    try {
+      const created = await workHistoryApi.importJson(items as WorkHistoryExport[], replace)
+      await load()
+      setTransfer({
+        kind: 'ok',
+        text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.`,
+      })
+    } catch (e) {
+      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${describe(e)}` })
+    } finally {
+      setImporting(false)
+    }
+  }
 
   return (
     <>
@@ -137,6 +193,37 @@ export default function WorkHistoryPage() {
             onClick={generateProfile}
           >
             {generating ? 'Generating profile…' : 'Generate candidate profile'}
+          </button>{' '}
+          <button type="button" className="secondary small" disabled={!hasEntries} onClick={exportJson}>
+            Export JSON
+          </button>{' '}
+          <button
+            type="button"
+            className="secondary small"
+            disabled={importing || entries === null}
+            onClick={() => fileInput.current?.click()}
+          >
+            {importing ? 'Importing…' : 'Import JSON'}
+          </button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(ev) => {
+              const file = ev.target.files?.[0]
+              ev.target.value = ''
+              if (file) void importJson(file)
+            }}
+          />
+        </p>
+      )}
+
+      {mode.kind === 'list' && transfer && (
+        <p className={transfer.kind === 'error' ? 'error' : undefined}>
+          {transfer.text}{' '}
+          <button type="button" className="secondary small" onClick={() => setTransfer(null)}>
+            Dismiss
           </button>
         </p>
       )}

@@ -94,3 +94,64 @@ def test_json_shape(client):
     assert items[0]["employer"] == "Acme Corp"
     assert items[0]["tech"] == "Python, FastAPI"
     assert items[0]["context"] == ENTRY["context"]
+
+
+# --- JSON import ----------------------------------------------------------------------
+
+def _import_payload(**overrides):
+    item = {
+        "date_start": "Jan 2020",
+        "date_end": "Mar 2022",
+        "employer": "Acme",
+        "role": "Dev",
+        "location": "Remote",
+        "tech": "python, sql",
+        "context": "did things",
+    }
+    item.update(overrides)
+    return [item]
+
+
+def test_import_json_round_trips_export(client):
+    res = client.post(f"{BASE}/json", json=_import_payload())
+    assert res.status_code == 201, res.text
+    created = res.json()
+    assert len(created) == 1
+    assert created[0]["date_start"] == "2020-01-01"
+    assert created[0]["date_end"] == "2022-03-01"
+    assert created[0]["tech"] == ["python", "sql"]
+
+    exported = client.get(f"{BASE}/json").json()
+    assert exported == _import_payload()
+
+    # Export output can be imported again unchanged (appends).
+    res = client.post(f"{BASE}/json", json=exported)
+    assert res.status_code == 201
+    assert len(client.get(BASE).json()) == 2
+
+
+def test_import_json_replace(client):
+    client.post(f"{BASE}/json", json=_import_payload(employer="Old"))
+    res = client.post(f"{BASE}/json?replace=true", json=_import_payload(employer="New"))
+    assert res.status_code == 201
+    entries = client.get(BASE).json()
+    assert [e["employer"] for e in entries] == ["New"]
+
+
+def test_import_json_accepts_list_tech_and_current_position(client):
+    res = client.post(f"{BASE}/json", json=_import_payload(date_end=None, tech=["Go", " go ", ""]))
+    assert res.status_code == 201
+    assert res.json()[0]["date_end"] is None
+    assert res.json()[0]["tech"] == ["Go"]
+
+
+def test_import_json_rejects_bad_date_without_writing(client):
+    payload = _import_payload() + _import_payload(date_start="sometime")
+    res = client.post(f"{BASE}/json", json=payload)
+    assert res.status_code == 422
+    assert "entry 1" in res.json()["detail"]
+    assert client.get(BASE).json() == []
+
+
+def test_import_json_rejects_empty(client):
+    assert client.post(f"{BASE}/json", json=[]).status_code == 422

@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
@@ -71,8 +71,31 @@ class WorkHistoryUpdate(BaseModel):
         return self
 
 
+MONTH_FORMAT = "%b %Y"
+"""Date format used by the JSON export/import (``Jan 2020``)."""
+
+
+def _format_month(value: date | None) -> str | None:
+    return value.strftime(MONTH_FORMAT) if value else None
+
+
+def _parse_month(value: str | None) -> date | None:
+    """Inverse of :func:`_format_month`; also accepts ISO dates (``2020-01-15``)."""
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    for fmt in (MONTH_FORMAT, "%B %Y", "%Y-%m-%d", "%Y-%m"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"unrecognised date {value!r}; expected e.g. 'Jan 2020'")
+
+
 class WorkHistoryExport(BaseModel):
-    """Plain export shape; key names are part of the contract (note ``employeer``)."""
+    """Plain export shape; key names are part of the contract."""
 
     date_start: str
     date_end: str | None
@@ -81,6 +104,36 @@ class WorkHistoryExport(BaseModel):
     location: str | None
     tech: str
     context: str | None
+
+
+class WorkHistoryImport(BaseModel):
+    """One entry of an import payload. Same shape as :class:`WorkHistoryExport`, so an
+    export can be fed straight back in; ``tech`` may be either a comma separated string
+    or a list."""
+
+    date_start: str
+    date_end: str | None = None
+    employer: str = Field(min_length=1, max_length=256)
+    role: str = Field(min_length=1, max_length=256)
+    location: str | None = Field(default=None, max_length=256)
+    tech: str | list[str] = ""
+    context: str | None = None
+
+    def to_create(self) -> WorkHistoryCreate:
+        """Convert to the validated create payload; raises ``ValueError`` on bad dates."""
+        tech = self.tech.split(",") if isinstance(self.tech, str) else self.tech
+        date_start = _parse_month(self.date_start)
+        if date_start is None:
+            raise ValueError("date_start is required")
+        return WorkHistoryCreate(
+            date_start=date_start,
+            date_end=_parse_month(self.date_end),
+            employer=self.employer,
+            role=self.role,
+            location=self.location,
+            tech=tech,
+            context=self.context,
+        )
 
 
 class WorkHistoryOut(BaseModel):
@@ -128,8 +181,8 @@ def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[Wo
     ``date_start, date_end, employer, role, location, tech, context``."""
     return [
         WorkHistoryExport(
-            date_start=e.date_start.strftime("%b %Y"),
-            date_end=e.date_end.strftime("%b %Y") if e.date_end else None,
+            date_start=_format_month(e.date_start),
+            date_end=_format_month(e.date_end),
             employer=e.employer,
             role=e.role,
             location=e.location,
@@ -138,6 +191,36 @@ def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[Wo
         )
         for e in _all_entries(session)
     ]
+
+
+@router.post("/json", response_model=list[WorkHistoryOut], status_code=status.HTTP_201_CREATED)
+def import_entries(
+    payload: Annotated[list[WorkHistoryImport], Body()],
+    session: Annotated[Session, Depends(get_session)],
+    replace: bool = False,
+) -> list[WorkHistoryEntry]:
+    """Import a JSON array in the shape produced by ``GET /json``. Entries are appended;
+    pass ``?replace=true`` to drop the existing work history first. The whole import is
+    validated before anything is written, so a bad entry rejects the entire payload."""
+    if not payload:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "no entries to import")
+    creates: list[WorkHistoryCreate] = []
+    for index, item in enumerate(payload):
+        try:
+            creates.append(item.to_create())
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, f"entry {index}: {exc}"
+            ) from exc
+
+    if replace:
+        session.execute(delete(WorkHistoryEntry))
+    entries = [WorkHistoryEntry(**c.model_dump()) for c in creates]
+    session.add_all(entries)
+    session.commit()
+    for entry in entries:
+        session.refresh(entry)
+    return entries
 
 
 @router.post("", response_model=WorkHistoryOut, status_code=status.HTTP_201_CREATED)
