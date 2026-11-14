@@ -47,6 +47,20 @@ services:
     networks:
       - careervaulthq-net
 
+  # scheduler responsible for running cron jobs
+  scheduler:
+    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
+    container_name: careervaulthq-scheduler
+    restart: unless-stopped
+    command: ["python", "-m", "app.scheduler.scheduler"]
+    depends_on:
+      - redis
+      - worker
+    environment:
+      DATABASE_URL: sqlite:////data/careervault.db
+      REDIS_URL: redis://redis:6379/0
+      SCHEDULER_SLEEP_SECONDS: 30
+
   redis:
     image: redis:alpine
     container_name: careervaulthq-redis
@@ -90,17 +104,6 @@ services:
       - redis
     networks:
       - careervaulthq-net
-
-  watchtower:
-    image: containrrr/watchtower
-    restart: unless-stopped
-    environment:
-      # Watchtower defaults to Docker API 1.25, which Docker Engine 29+ rejects.
-      - DOCKER_API_VERSION=1.44
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=120
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   careervaulthq-data:
