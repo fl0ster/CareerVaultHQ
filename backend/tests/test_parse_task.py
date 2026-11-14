@@ -1,6 +1,8 @@
 import importlib
 
 import pytest
+from fakeredis import FakeStrictRedis
+from rq import Queue
 from sqlalchemy import select
 
 from app import models
@@ -18,7 +20,14 @@ HTML = (
 
 
 @pytest.fixture
-def task_engine(engine, monkeypatch):
+def evaluate_queue(monkeypatch):
+    queue = Queue("jobs", connection=FakeStrictRedis())
+    monkeypatch.setattr(parse_task, "get_queue", lambda: queue)
+    return queue
+
+
+@pytest.fixture
+def task_engine(engine, monkeypatch, evaluate_queue):
     monkeypatch.setattr(parse_task, "init_db", lambda: init_db(engine))
     monkeypatch.setattr(parse_task, "session_factory", lambda: session_factory(engine))
     return engine
@@ -56,6 +65,44 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
         assert parsed.company == "ACME"
         assert parsed.description == "Unity Dev\ndla\nACME\nWe need\nUnity"
         assert parsed.parsed_at is not None
+
+
+def test_parse_job_enqueues_evaluation_of_the_parsed_job(task_engine, evaluate_queue):
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    queued = evaluate_queue.jobs
+    assert len(queued) == 1
+    assert queued[0].id == result["evaluate_job"]
+    assert queued[0].func_name == "app.tasks.evaluate.evaluate.evaluate_parse_results"
+    with session_factory(task_engine)() as session:
+        parsed = session.scalar(select(models.JobParseResult))
+    assert queued[0].args == ([parsed.id],)
+    assert queued[0].meta == {"job_parse_result_id": parsed.id, "job_id": result["job_id"]}
+
+
+def test_parse_job_survives_queue_outage(task_engine, monkeypatch):
+    def boom():
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(parse_task, "get_queue", boom)
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    assert result["evaluate_job"] is None
+    with session_factory(task_engine)() as session:
+        assert session.get(models.PendingJobParseRun, pending_id).status == "COMPLETED"
+
+
+def test_failed_parse_enqueues_nothing(task_engine, evaluate_queue):
+    pending_id = _make_pending(task_engine, html=None)
+
+    with pytest.raises(parse_task.JobParseError):
+        parse_task.parse_job(pending_id)
+
+    assert evaluate_queue.jobs == []
 
 
 def test_parse_job_overwrites_previous_result(task_engine):

@@ -26,6 +26,7 @@ MIN_DESCRIPTION_CHARS = 100
 
 _registry: list[tuple[tuple[str, ...], ModuleType]] | None = None
 
+
 def _load_registry() -> list[tuple[tuple[str, ...], ModuleType]]:
     """Import every scraper module that declares ``DOMAINS`` and a description hook."""
     global _registry

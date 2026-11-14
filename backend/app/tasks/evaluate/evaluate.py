@@ -1,0 +1,245 @@
+"""Scoring parsed jobs against the current candidate profile as a background (RQ) job.
+
+Both entry points take the newest ``CandidateProfile`` (highest ``id``), ask the OpenRouter
+decisions API (``OpenRouterService.decide``) a single ``noul`` question per job and store
+the probability of "yes" in ``job_evaluations``:
+
+* ``evaluate_pending_jobs(limit)`` - every ``JobParseResult`` without a ``JobEvaluation``
+  for that profile yet (a periodic catch-up, e.g. from the scheduler).
+* ``evaluate_parse_results(ids)`` - the given ``job_parse_results`` rows only (the parse
+  task enqueues this for the job it just parsed).
+
+Jobs are scored one by one and each result is committed on its own, so a failure (or a
+worker restart) half-way through loses nothing: re-running picks up where it stopped.
+
+The task is idempotent per (parsed job, profile) pair: a pair that already has a row in
+``job_evaluations`` is never selected again, and the table's unique constraint guarantees
+that even two runs overlapping in time cannot store the pair twice (the loser's insert is
+discarded and counted under ``skipped``).
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.db import init_db, session_factory
+from app.models import CandidateProfile, JobEvaluation, JobParseResult
+from app.services.openrouter import (
+    OpenRouterError,
+    OpenRouterNotConfigured,
+    OpenRouterService,
+)
+
+log = logging.getLogger(__name__)
+
+SOURCE = "tasks.evaluate"
+"""``openrouter_calls.source`` label for calls made by this task."""
+
+MAX_PARSE_AGE = timedelta(days=7)
+"""Parse results older than this are not evaluated: the listing is probably gone and the
+OpenRouter call would be wasted."""
+
+QUESTION_NAME = "is_match"
+QUESTIONS: dict[str, dict[str, Any]] = {
+    QUESTION_NAME: {
+        "type": "noul",
+        "instructions": (
+            "Is this job a good match for the candidate? Consider the candidate's skills, "
+            "technologies, seniority and experience against what the job description "
+            "requires. Ignore the salary and the location."
+        ),
+        "criteria": {
+            "true": (
+                "The candidate meets the core requirements of the role and the role is "
+                "consistent with the candidate's experience and skill set."
+            ),
+            "false": (
+                "The job requires skills, seniority or a specialisation the candidate "
+                "clearly lacks, or the role is in a different field."
+            ),
+        },
+    }
+}
+
+
+class NoCandidateProfile(RuntimeError):
+    """``candidate_profiles`` is empty, so there is nothing to evaluate against."""
+
+
+def latest_profile(session: Session) -> CandidateProfile | None:
+    return session.scalar(select(CandidateProfile).order_by(CandidateProfile.id.desc()).limit(1))
+
+
+def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
+    """``JobParseResult`` rows parsed within ``MAX_PARSE_AGE`` and without a
+    ``JobEvaluation`` for ``profile_id``, oldest first."""
+    evaluated = select(JobEvaluation.job_parse_result_id).where(
+        JobEvaluation.candidate_profile_id == profile_id
+    )
+    cutoff = (now or datetime.now(UTC)) - MAX_PARSE_AGE
+    return (
+        select(JobParseResult)
+        .where(JobParseResult.id.not_in(evaluated))
+        .where(JobParseResult.parsed_at >= cutoff)
+        .order_by(JobParseResult.id)
+    )
+
+
+def pending_parse_results(
+    session: Session, profile_id: int, *, limit: int | None = None
+) -> list[JobParseResult]:
+    """Up to ``limit`` parsed jobs not yet evaluated against ``profile_id``."""
+    stmt = _unevaluated_query(profile_id)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    return list(session.scalars(stmt))
+
+
+def unevaluated_among(
+    session: Session, profile_id: int, parse_result_ids: list[int]
+) -> list[JobParseResult]:
+    """Those of ``parse_result_ids`` not yet evaluated against ``profile_id``."""
+    if not parse_result_ids:
+        return []
+    stmt = _unevaluated_query(profile_id).where(JobParseResult.id.in_(parse_result_ids))
+    return list(session.scalars(stmt))
+
+
+def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, Any]:
+    """``state`` object sent to the decisions API."""
+    return {
+        "candidate_profile": profile.content,
+        "job": {
+            "title": parsed.title or "",
+            "company": parsed.company or "",
+            "description": parsed.description or "",
+        },
+    }
+
+
+def evaluate_one(
+    service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult
+) -> JobEvaluation:
+    """Ask OpenRouter about one job and return the (unsaved) ``JobEvaluation``."""
+    decision = service.decide(
+        state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE
+    )
+    return JobEvaluation(
+        job_parse_result_id=parsed.id,
+        candidate_profile_id=profile.id,
+        match_probability=decision.noul(QUESTION_NAME),
+        openrouter_call_id=decision.call_id,
+        model=decision.model,
+    )
+
+
+def _current_profile(session: Session) -> CandidateProfile:
+    profile = latest_profile(session)
+    if profile is None:
+        raise NoCandidateProfile("no candidate profile to evaluate jobs against")
+    return profile
+
+
+def evaluate_pending_jobs(limit: int | None = None) -> dict[str, Any]:
+    """Score every parsed job not yet evaluated against the latest candidate profile.
+    ``limit`` caps how many jobs are scored in this run (``None`` = all of them).
+    Returns the summary described in :func:`_evaluate`."""
+    init_db()
+    with session_factory()() as session:
+        profile = _current_profile(session)
+        pending = pending_parse_results(session, profile.id, limit=limit)
+        return _evaluate(session, profile, pending)
+
+
+def evaluate_parse_results(parse_result_ids: list[int]) -> dict[str, Any]:
+    """Score the given ``job_parse_results`` rows against the latest candidate profile.
+    Rows already evaluated against that profile are left alone, so re-enqueueing the same
+    ids is a no-op. Returns the summary described in :func:`_evaluate`."""
+    init_db()
+    with session_factory()() as session:
+        profile = _current_profile(session)
+        pending = unevaluated_among(session, profile.id, parse_result_ids)
+        return _evaluate(session, profile, pending)
+
+
+def _evaluate(
+    session: Session, profile: CandidateProfile, pending: list[JobParseResult]
+) -> dict[str, Any]:
+    """Score ``pending`` one by one, committing each ``JobEvaluation`` on its own.
+
+    Returns::
+
+        {
+            "candidate_profile_id": <id of the profile used>,
+            "pending": <jobs that needed scoring when the run started>,
+            "evaluated": <jobs scored and saved>,
+            "failed": <jobs whose OpenRouter call failed>,
+            "skipped": <jobs another run evaluated meanwhile (nothing stored)>,
+            "evaluations": [
+                {"job_parse_result_id": .., "job_id": .., "match_probability": ..}, ...
+            ],
+        }
+
+    A failing OpenRouter call skips that job (it stays unevaluated and is retried next
+    run); only a missing API key aborts the whole run.
+    """
+    log.info("Evaluating %d parsed job(s) against candidate profile %d", len(pending), profile.id)
+    service = OpenRouterService(session)
+
+    evaluations: list[dict[str, Any]] = []
+    failed = 0
+    skipped = 0
+    for parsed in pending:
+        try:
+            evaluation = evaluate_one(service, profile, parsed)
+        except OpenRouterNotConfigured:
+            raise  # OPENROUTER_API_KEY missing: nothing will succeed, bail out
+        except OpenRouterError as exc:
+            failed += 1
+            session.rollback()
+            log.warning(
+                "Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc
+            )
+            continue
+        session.add(evaluation)
+        try:
+            session.commit()
+        except IntegrityError:
+            # Another run scored this pair since we selected it; keep theirs.
+            session.rollback()
+            skipped += 1
+            log.info(
+                "Parsed job %d already evaluated against profile %d, skipping",
+                parsed.id,
+                profile.id,
+            )
+            continue
+        evaluations.append(
+            {
+                "job_parse_result_id": parsed.id,
+                "job_id": parsed.job_id,
+                "match_probability": evaluation.match_probability,
+            }
+        )
+        log.info(
+            "Job %d (%r at %r): match probability %.3f",
+            parsed.job_id,
+            parsed.title,
+            parsed.company,
+            evaluation.match_probability,
+        )
+
+    return {
+        "candidate_profile_id": profile.id,
+        "pending": len(pending),
+        "evaluated": len(evaluations),
+        "failed": failed,
+        "skipped": skipped,
+        "evaluations": evaluations,
+    }

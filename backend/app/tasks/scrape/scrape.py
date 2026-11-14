@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 
 PARSE_TIMEOUT = 120
 
+
 def run_source(name: str) -> dict[str, Any]:
     """Run a single scraper source. Never raises; failures are reported in the result."""
     log.info("=== Running scraper: %s ===", name)
@@ -58,10 +59,12 @@ def _current_rq_job_id() -> str | None:
     job = get_current_job()
     return job.id if job is not None else None
 
+
 def fetch_html(url: str) -> str:
     resp = httpx.get(url, headers=HEADERS, follow_redirects=True, timeout=FETCH_TIMEOUT)
     resp.raise_for_status()
     return resp.text
+
 
 def fetch_page(url: str) -> str:
     """Raw HTML of a job page; ``""`` when it could not be fetched."""
@@ -71,6 +74,7 @@ def fetch_page(url: str) -> str:
     except Exception as exc:  # noqa: BLE001 - a missing page must not fail the run
         log.warning("fetch %s: %s", url, exc)
     return html
+
 
 def save_jobs(
     session: Session, run: ScrapeRun, jobs: list[dict[str, Any]]

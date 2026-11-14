@@ -5,12 +5,14 @@ The scrape task inserts a ``PendingJobParseRun`` row for every new ``Job`` and e
 ``app.tasks.scrape.sources`` and calls its ``parse_<field>(html, url)`` hook for every
 field in ``FIELDS`` (currently ``title``, ``company`` and ``description``); the values are stored in
 ``job_parse_results`` and the pending row is marked ``COMPLETED`` with the time the parse
-happened.
+happened. Finally ``app.tasks.evaluate.evaluate_parse_results`` is enqueued for the parsed job so it
+gets scored against the current candidate profile.
 """
 
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import UTC, datetime
 from types import ModuleType
 from typing import Any
@@ -18,11 +20,17 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, JobParseResult, PendingJobParseRun
+from app.queue import get_queue
+from app.tasks.evaluate import evaluate_parse_results
 from app.tasks.scrape.sources import load_source
 
 log = logging.getLogger(__name__)
+
+EVALUATE_TIMEOUT = 300
+"""RQ ``job_timeout`` for the evaluation enqueued after a parse (one OpenRouter call)."""
 
 
 FIELDS = ("title", "company", "description")
@@ -80,6 +88,28 @@ def _save_result(session: Session, job: Job, values: dict[str, str]) -> JobParse
     return result
 
 
+def enqueue_evaluation(result: JobParseResult) -> str | None:
+    """Enqueue ``evaluate_parse_results([result.id])`` (``result`` must be committed) and return the
+    RQ job id. Failing to reach Redis is logged, not raised: the parse itself succeeded
+    and a later ``evaluate_pending_jobs()`` run picks the job up anyway."""
+    settings = get_settings()
+    try:
+        rq_job = get_queue().enqueue(
+            evaluate_parse_results,
+            [result.id],
+            job_id=uuid.uuid4().hex,
+            job_timeout=EVALUATE_TIMEOUT,
+            result_ttl=settings.job_result_ttl,
+            failure_ttl=settings.job_result_ttl,
+            meta={"job_parse_result_id": result.id, "job_id": result.job_id},
+            description=f"evaluate job {result.job_id}",
+        )
+    except Exception:
+        log.exception("Could not enqueue evaluation of job %d", result.job_id)
+        return None
+    return rq_job.id
+
+
 def parse_job(pending_id: int) -> dict[str, Any]:
     """Parse the job referenced by ``pending_job_parse_runs.id == pending_id``.
 
@@ -92,6 +122,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "title": "<extracted title>",
             "company": "<extracted company>",
             "description_chars": <length of the extracted description>,
+            "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
 
     Raises on failure after marking the pending row ``FAILED`` so RQ records the job as
@@ -119,7 +150,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
 
         try:
             values = parse_fields(job)
-            _save_result(session, job, values)
+            result = _save_result(session, job, values)
         except Exception as exc:
             session.rollback()
             pending.status = PendingJobParseRun.STATUS_FAILED
@@ -134,6 +165,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         pending.error = None
         pending.parsed_at = datetime.now(UTC)
         session.commit()
+        evaluate_job_id = enqueue_evaluation(result)
 
         log.info(
             "Parsed job %d (%s): %r at %r, %d chars",
@@ -150,4 +182,5 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "title": values["title"],
             "company": values["company"],
             "description_chars": len(values["description"]),
+            "evaluate_job": evaluate_job_id,
         }

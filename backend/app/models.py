@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -176,3 +186,35 @@ class OpenRouterCall(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobEvaluation(Base):
+    """How well a parsed job (``job_parse_results``) matches a ``CandidateProfile``, as
+    judged by the OpenRouter decisions API (``app.tasks.evaluate``). One row per
+    (parsed job, profile) pair; a newer profile yields a fresh row for every job."""
+
+    __tablename__ = "job_evaluations"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_pair"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    candidate_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    match_probability: Mapped[float] = mapped_column(Float, nullable=False)
+    """Probability (0-1) that the job is a good match, from the ``noul`` answer."""
+    openrouter_call_id: Mapped[int | None] = mapped_column(
+        ForeignKey("openrouter_calls.id", ondelete="SET NULL"), index=True
+    )
+    """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer)."""
+    model: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    job_parse_result: Mapped[JobParseResult] = relationship()
+    candidate_profile: Mapped[CandidateProfile] = relationship()

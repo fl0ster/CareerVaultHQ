@@ -1,4 +1,3 @@
-
 FETCH_TIMEOUT = 20
 
 HEADERS = {
