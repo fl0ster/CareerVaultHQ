@@ -15,6 +15,17 @@ export type WorkHistoryEntry = {
 
 export type WorkHistoryInput = Omit<WorkHistoryEntry, 'id' | 'created_at' | 'updated_at'>
 
+/** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
+export type WorkHistoryExport = {
+  date_start: string
+  date_end: string | null
+  employer: string
+  role: string
+  location: string | null
+  tech: string | string[]
+  context: string | null
+}
+
 async function parse<T>(res: Response): Promise<T> {
   if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T
   let message = `HTTP ${res.status}`
@@ -48,4 +59,11 @@ export const workHistoryApi = {
       body: JSON.stringify(input),
     }).then((r) => parse<WorkHistoryEntry>(r)),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
+  exportJson: () => fetch(`${API}/json`).then((r) => parse<WorkHistoryExport[]>(r)),
+  importJson: (items: WorkHistoryExport[], replace: boolean) =>
+    fetch(`${API}/json?replace=${replace}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(items),
+    }).then((r) => parse<WorkHistoryEntry[]>(r)),
 }

@@ -53,9 +53,13 @@ app/
   config.py        settings loaded from env / .env
   spa.py           static + SPA fallback for the Vite build
   queue.py         Redis connection + RQ queue (API side)
-  workers/         Background worker entrypoints
-    latex2pdf.py   RQ worker for the LaTeX queue: python -m app.workers.latex2pdf
+  workers/         Background worker entrypoint
+    worker.py      RQ worker for the single job queue (LaTeX + scraping): python -m app.workers.worker
   tasks/latex.py   pdflatex compile step executed by the worker
+  services/
+    openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
+                   the openrouter_calls table. Routes/tasks use OpenRouterService directly;
+                   /api/openrouter/* exposes it over HTTP
   api/
     __init__.py    aggregates routers under /api
     routes/        one module per resource (health.py, latex.py)

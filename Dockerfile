@@ -26,7 +26,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# TeX Live for the LaTeX -> PDF worker (app/workers/latex2pdf.py, app/tasks/latex.py).
+# TeX Live for the LaTeX -> PDF jobs run by the worker (app/workers/worker.py, app/tasks/latex.py).
 # Only base + recommended: that covers geometry, hyperref, xcolor, microtype and
 # koma-script (scrextend). The few packages the CV template needs from the >1 GB
 # texlive-latex-extra / texlive-fonts-extra (enumitem, fontaxes, carlito) are pulled
@@ -99,7 +99,9 @@ ENV HOST=0.0.0.0 \
     CORS_ORIGINS="" \
     REDIS_URL=redis://redis:6379/0 \
     LATEX_UPLOAD_ROOT=/data/static/uploads/latex \
-    LATEX_JOBS_ROOT=/data/static/jobs/latex
+    LATEX_JOBS_ROOT=/data/static/jobs/latex \
+    OPENROUTER_CHAT_MODEL=openai/gpt-4o-mini \
+    OPENROUTER_DECISION_MODEL=typesafe/jev-1.14
 
 RUN useradd --system --uid 1001 --create-home appuser \
     && mkdir -p /data && chown appuser:appuser /data
@@ -108,6 +110,6 @@ VOLUME ["/data"]
 
 EXPOSE 8000
 
-# Default: the API. The LaTeX worker runs from the same image with
-#   command: ["python", "-m", "app.workers.latex2pdf"]   (see docker-compose.yml)
+# Default: the API. The background worker runs from the same image with
+#   command: ["python", "-m", "app.workers.worker"]   (see docker-compose.yml)
 CMD ["sh", "-c", "uvicorn app.main:app --host ${HOST} --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

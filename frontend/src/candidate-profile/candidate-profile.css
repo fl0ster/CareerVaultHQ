@@ -1,0 +1,63 @@
+/* Candidate profile page */
+.cp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  input,
+  textarea {
+    font: inherit;
+    font-size: 15px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 300px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+}
+
+.cp-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.cp-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp-saved {
+  font-size: 13px;
+  color: var(--text);
+}
+
+@media (max-width: 600px) {
+  .cp-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

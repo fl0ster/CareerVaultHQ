@@ -1,9 +1,10 @@
-"""RQ worker entrypoint for the web scrapping queue.
+"""RQ worker entrypoint for the single background queue (LaTeX -> PDF compiles and web
+scraping / parsing jobs share one queue so only one worker process runs on the Pi).
 
 Run alongside the API (same image, same /data volume, same Redis):
 
-    python -m app.workers.scrapper           # blocks, processes jobs forever
-    python -m app.workers.scrapper --burst   # drain the queue and exit
+    python -m app.workers.worker           # blocks, processes jobs forever
+    python -m app.workers.worker --burst   # drain the queue and exit
 
 Only the plain ``Worker`` is used (fork per job, no scheduler) to stay light on a Pi 2.
 """
@@ -29,7 +30,7 @@ def main(argv: list[str] | None = None) -> None:
 
     init_db()
     connection = get_redis()
-    queue = Queue(settings.scrapper_queue_name, connection=connection)
+    queue = Queue(settings.queue_name, connection=connection)
     worker = Worker([queue], connection=connection)
     worker.work(burst=burst, with_scheduler=False)
 

@@ -18,6 +18,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Uploaded .tex files and generated PDFs; must be the same volume as the worker's.
       LATEX_ROOT: /data/latex
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -25,18 +26,20 @@ services:
     networks:
       - careervaulthq-net
 
-  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
-  worker-latex-2-pdf:
+  # RQ worker: runs every background job enqueued by the API (LaTeX -> PDF compiles,
+  # web scraping and parsing) from one queue. Same image, same /data volume.
+  worker:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
-    container_name: careervaulthq-worker-latex-2-pdf
+    container_name: careervaulthq-worker
     restart: unless-stopped
-    command: ["python", "-m", "app.workers.latex2pdf"]
+    command: ["python", "-m", "app.workers.worker"]
     environment:
       DEBUG: "false"
       DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -44,20 +47,21 @@ services:
     networks:
       - careervaulthq-net
 
-  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
-  worker-scrapper:
+  # Scheduler: enqueues periodic jobs (e.g. the catch-up job evaluation) on the worker's
+  # queue. It only talks to Redis, so it needs no /data volume or API key.
+  scheduler:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
-    container_name: careervaulthq-worker-scrapper
+    container_name: careervaulthq-scheduler
     restart: unless-stopped
-    command: [ "python", "-m", "app.workers.scrapper" ]
+    command: ["python", "-m", "app.scheduler.scheduler"]
     environment:
       DEBUG: "false"
-      DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - careervaulthq-data:/data
+      SCHEDULER_SLEEP_SECONDS: 30
     depends_on:
       - redis
+      - worker
+    # Must share the network with redis, otherwise the "redis" hostname does not resolve.
     networks:
       - careervaulthq-net
 
@@ -104,17 +108,6 @@ services:
       - redis
     networks:
       - careervaulthq-net
-
-  watchtower:
-    image: containrrr/watchtower
-    restart: unless-stopped
-    environment:
-      # Watchtower defaults to Docker API 1.25, which Docker Engine 29+ rejects.
-      - DOCKER_API_VERSION=1.44
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=120
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   careervaulthq-data:

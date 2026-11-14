@@ -15,8 +15,10 @@ from app.config import get_settings
 
 LOG_TAIL_CHARS = 4000
 
+
 class LatexCompileError(RuntimeError):
     """Raised when the compiler is missing, times out or exits non-zero."""
+
 
 def _log_tail(log_file: Path) -> str:
     if not log_file.is_file():

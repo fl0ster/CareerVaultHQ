@@ -7,7 +7,8 @@ import re
 import httpx
 from bs4 import BeautifulSoup
 
-from app.tasks.scrape.sources._helpers import HEADERS, html_to_text
+from app.tasks.scrape.sources._helpers import html_to_text
+from app.tasks.scrape._helpers import HEADERS
 
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
@@ -15,6 +16,7 @@ URL = f"{BASE_URL}/jobs?category=programowanie"
 DOMAINS = ("skillshot.pl",)
 
 _JOB_HREF = re.compile(r"^/jobs/\d+")
+_USER_HREF = re.compile(r"^/users/\d+")
 
 
 def parse_jobs(html: str) -> list[dict]:
@@ -40,8 +42,53 @@ def fetch_jobs() -> list[dict]:
     return parse_jobs(resp.text)
 
 
-def parse_description(html: str, url: str) -> str:
+def parse_description(html: str) -> str:
     """Plain-text description of a single job page (used by ``description.fetch_description``)."""
     soup = BeautifulSoup(html, "html.parser")
     el = soup.find("div", id="job_presentation")
     return html_to_text(el) if el else ""
+
+
+def parse_title(html: str) -> str:
+    """Job title of a single job page (the ``<h1>``; falls back to ``<title>``)."""
+    soup = BeautifulSoup(html, "html.parser")
+    h1 = soup.find("h1")
+    if h1 and h1.get_text(strip=True):
+        return h1.get_text(" ", strip=True)
+    title = soup.find("title")
+    if not title:
+        return ""
+
+    # "<job title> dla <company> / Skillshot.pl"
+    text = title.get_text(" ", strip=True)
+    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", text)
+    result = re.sub(r"\s+dla\s+.+$", "", text).strip()
+
+    if result and result != "":
+        return result
+
+    # TODO: apply LLM to figure this out
+    return ""
+
+
+def parse_company(html: str) -> str:
+    """Hiring company of a single job page (the ``/users/<id>`` link in the job header;
+    falls back to ``<title>``)."""
+    soup = BeautifulSoup(html, "html.parser")
+    header = soup.find("div", id="job_presentation") or soup
+    a = header.find("a", href=_USER_HREF)
+    if a and a.get_text(strip=True):
+        return a.get_text(" ", strip=True)
+    title = soup.find("title")
+    if not title:
+        return ""
+
+    text = re.sub(r"\s*/\s*Skillshot\.pl\s*$", "", title.get_text(" ", strip=True))
+    m = re.search(r"\s+dla\s+(.+)$", text)
+    result = m.group(1).strip() if m else ""
+
+    if result and result != "":
+        return result
+
+    # TODO: apply LLM to figure this out
+    return ""

@@ -22,7 +22,7 @@ def jobs_root(tmp_path):
 @pytest.fixture
 def fake_queue():
     # is_async=False would run jobs inline; keep them queued so tests exercise the API only.
-    return Queue("latex", connection=FakeStrictRedis())
+    return Queue("jobs", connection=FakeStrictRedis())
 
 
 @pytest.fixture

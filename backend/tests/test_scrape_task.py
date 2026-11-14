@@ -1,11 +1,12 @@
 import importlib
 
 import pytest
+from fakeredis import FakeStrictRedis
+from rq import Queue
 from sqlalchemy import select
 
 from app import models
 from app.db import init_db, session_factory
-from app.tasks.scrape.description import generic_description
 from app.tasks.scrape.sources import skillshot
 
 # ``app.tasks.scrape.scrape`` the attribute is the function; fetch the module explicitly.
@@ -26,6 +27,13 @@ def task_engine(engine, monkeypatch):
 
 
 @pytest.fixture
+def parse_queue(monkeypatch):
+    queue = Queue("jobs", connection=FakeStrictRedis())
+    monkeypatch.setattr(scrape_task, "get_queue", lambda: queue)
+    return queue
+
+
+@pytest.fixture
 def fake_sources(monkeypatch):
     monkeypatch.setattr(scrape_task, "get_available_sources", lambda: ["skillshot"])
     monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(LISTING))
@@ -39,7 +47,7 @@ def fake_sources(monkeypatch):
     return fetched
 
 
-def test_first_run_inserts_jobs_with_html(task_engine, fake_sources):
+def test_first_run_inserts_jobs_with_html(task_engine, fake_sources, parse_queue):
     result = scrape_task.scrape("skillshot")
 
     assert result["count"] == 3
@@ -67,8 +75,21 @@ def test_first_run_inserts_jobs_with_html(task_engine, fake_sources):
         assert all(j.source == "skillshot" for j in jobs)
         assert jobs[0].html == "<html>https://www.skillshot.pl/jobs/1</html>"
 
+        pending = session.scalars(
+            select(models.PendingJobParseRun).order_by(models.PendingJobParseRun.job_id)
+        ).all()
+        assert [p.job_id for p in pending] == [j.id for j in jobs]
+        assert all(p.status == "NOT_STARTED" for p in pending)
+        assert all(p.parsed_at is None for p in pending)
+        assert [p.rq_job_id for p in pending] == result["parse_jobs"]
 
-def test_second_run_only_counts_duplicates(task_engine, fake_sources):
+    # one parse task per inserted job, carrying the pending row id
+    queued = parse_queue.jobs
+    assert [j.id for j in queued] == result["parse_jobs"]
+    assert sorted(j.args[0] for j in queued) == [p.id for p in pending]
+
+
+def test_second_run_only_counts_duplicates(task_engine, fake_sources, parse_queue):
     first = scrape_task.scrape("skillshot")
     fake_sources.clear()
 
@@ -76,7 +97,9 @@ def test_second_run_only_counts_duplicates(task_engine, fake_sources):
 
     assert second["new"] == 0
     assert second["duplicates"] == 3
+    assert second["parse_jobs"] == []
     assert fake_sources == []  # no description fetch for known jobs
+    assert len(parse_queue.jobs) == 2  # only the first run enqueued parse tasks
     assert second["scrape_run_id"] != first["scrape_run_id"]
 
     with session_factory(task_engine)() as session:
@@ -91,7 +114,7 @@ def test_second_run_only_counts_duplicates(task_engine, fake_sources):
         assert run.source is None
 
 
-def test_failed_source_is_recorded(task_engine, fake_sources, monkeypatch):
+def test_failed_source_is_recorded(task_engine, fake_sources, parse_queue, monkeypatch):
     def boom():
         raise RuntimeError("site down")
 
@@ -117,13 +140,4 @@ def test_skillshot_parse_description():
         "<html><body><div id='job_presentation'>"
         "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
     )
-    assert skillshot.parse_description(html, "https://www.skillshot.pl/jobs/1") == "We need\nUnity"
-
-
-def test_generic_description_prefers_jsonld():
-    html = """<html><head><script type="application/ld+json">
-    {"@type": "JobPosting", "hiringOrganization": {"name": "ACME"},
-     "description": "<p>%s</p>"}
-    </script></head><body><main>short</main></body></html>""" % ("x" * 120)
-    text = generic_description(html)
-    assert "x" * 120 in text
+    assert skillshot.parse_description(html) == "We need\nUnity"
