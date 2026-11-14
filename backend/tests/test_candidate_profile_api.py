@@ -1,4 +1,5 @@
 import json
+
 BASE = "/api/candidate-profile"
 
 
@@ -6,6 +7,7 @@ def test_latest_is_null_when_empty(client):
     res = client.get(f"{BASE}/latest")
     assert res.status_code == 200
     assert res.json() is None
+
 
 # --- POST /create ----------------------------------------------------------------------
 
@@ -104,3 +106,51 @@ def test_generate_again_after_work_history_changes(client):
     assert second.status_code == 201
     assert second.json()["work_history_id"] != first["work_history_id"]
     assert len(seen) == 2
+
+
+# --- evaluation enqueued on create -----------------------------------------------------
+
+
+def _evaluation_jobs(fake_queue):
+    return [j for j in fake_queue.jobs if j.func_name.endswith("evaluate_pending_jobs")]
+
+
+def test_create_enqueues_evaluation_batch(client, fake_queue):
+    res = client.post(f"{BASE}/", json={"content": "Python dev"})
+    assert res.status_code == 201
+
+    jobs = _evaluation_jobs(fake_queue)
+    assert len(jobs) == 1
+    assert jobs[0].args == (Settings().evaluate_batch_size,)
+    assert jobs[0].meta == {"candidate_profile_id": res.json()["id"]}
+
+
+def test_generate_enqueues_evaluation_batch(client, fake_queue):
+    _add_entry(client)
+    _mock_openrouter(client, "A profile.", [])
+
+    res = client.post(f"{BASE}/generate")
+    assert res.status_code == 201
+
+    jobs = _evaluation_jobs(fake_queue)
+    assert len(jobs) == 1
+    assert jobs[0].meta == {"candidate_profile_id": res.json()["id"]}
+
+
+def test_create_succeeds_when_queue_is_down(client, fake_queue, monkeypatch):
+    def boom(*args, **kwargs):
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(fake_queue, "enqueue", boom)
+
+    res = client.post(f"{BASE}/", json={"content": "Python dev"})
+    assert res.status_code == 201
+    assert client.get(f"{BASE}/latest").json()["id"] == res.json()["id"]
+
+
+def test_patch_does_not_enqueue_evaluation(client, fake_queue):
+    created = client.post(f"{BASE}/", json={"content": "v1"}).json()
+    before = len(_evaluation_jobs(fake_queue))
+
+    assert client.patch(f"{BASE}/{created['id']}", json={"content": "v2"}).status_code == 200
+    assert len(_evaluation_jobs(fake_queue)) == before

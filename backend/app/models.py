@@ -218,3 +218,30 @@ class JobEvaluation(Base):
 
     job_parse_result: Mapped[JobParseResult] = relationship()
     candidate_profile: Mapped[CandidateProfile] = relationship()
+
+
+class JobEvaluationFailure(Base):
+    """Bookkeeping for a (parsed job, profile) pair whose OpenRouter call failed, so the
+    evaluation is retried with a backoff instead of on every run. One row per pair; it is
+    deleted once the pair is scored successfully (see ``app.tasks.evaluate``)."""
+
+    __tablename__ = "job_evaluation_failures"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_failure_pair"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    candidate_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    """How many times the pair has failed so far."""
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    """The pair is not selected for evaluation before this time."""

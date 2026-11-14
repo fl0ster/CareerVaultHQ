@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     queue_name: str = "jobs"
     # How long a finished/failed job stays queryable via GET /latex/jobs/{id} (seconds).
-    job_result_ttl: int = 24 * 3600
+    job_result_ttl: int = 3600
 
     # --- LaTeX -> PDF ---
     latex_upload_root: Path = BACKEND_DIR / "static" / "uploads"
@@ -63,6 +63,18 @@ class Settings(BaseSettings):
     # Optional attribution headers shown on openrouter.ai rankings.
     openrouter_site_url: str = ""
     openrouter_site_name: str = "CareerVaultHQ"
+
+    # --- Job evaluation (app.tasks.evaluate / app.scheduler) ---
+    # How often the scheduler enqueues a catch-up ``evaluate_pending_jobs`` run (seconds).
+    evaluate_interval_seconds: int = 15 * 60
+    # Longest the scheduler waits after consecutive failed catch-up runs (seconds).
+    evaluate_max_backoff_seconds: int = 6 * 3600
+    # Jobs scored per catch-up run, so one run does not hog the single worker.
+    evaluate_batch_size: int = 50
+    # A (job, profile) pair whose OpenRouter call failed is retried after
+    # ``evaluate_retry_backoff_seconds * 2**(attempts-1)``, at most ``evaluate_max_attempts`` times.
+    evaluate_max_attempts: int = 3
+    evaluate_retry_backoff_seconds: int = 30 * 60
 
     @field_validator("cors_origins", mode="before")
     @classmethod

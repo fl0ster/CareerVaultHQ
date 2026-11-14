@@ -16,6 +16,10 @@ The task is idempotent per (parsed job, profile) pair: a pair that already has a
 ``job_evaluations`` is never selected again, and the table's unique constraint guarantees
 that even two runs overlapping in time cannot store the pair twice (the loser's insert is
 discarded and counted under ``skipped``).
+
+A failed OpenRouter call is recorded in ``job_evaluation_failures`` and the pair is only
+retried after an exponential backoff (``evaluate_retry_backoff_seconds``), at most
+``evaluate_max_attempts`` times, so a broken job or provider is not hammered on every run.
 """
 
 from __future__ import annotations
@@ -24,12 +28,13 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import init_db, session_factory
-from app.models import CandidateProfile, JobEvaluation, JobParseResult
+from app.models import CandidateProfile, JobEvaluation, JobEvaluationFailure, JobParseResult
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -77,16 +82,24 @@ def latest_profile(session: Session) -> CandidateProfile | None:
 
 
 def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
-    """``JobParseResult`` rows parsed within ``MAX_PARSE_AGE`` and without a
-    ``JobEvaluation`` for ``profile_id``, oldest first."""
+    """``JobParseResult`` rows parsed within ``MAX_PARSE_AGE``, without a ``JobEvaluation``
+    for ``profile_id`` and not waiting out a failure backoff, oldest first."""
+    now = now or datetime.now(UTC)
     evaluated = select(JobEvaluation.job_parse_result_id).where(
         JobEvaluation.candidate_profile_id == profile_id
     )
-    cutoff = (now or datetime.now(UTC)) - MAX_PARSE_AGE
+    backing_off = select(JobEvaluationFailure.job_parse_result_id).where(
+        JobEvaluationFailure.candidate_profile_id == profile_id,
+        or_(
+            JobEvaluationFailure.attempts >= get_settings().evaluate_max_attempts,
+            JobEvaluationFailure.next_attempt_at > now,
+        ),
+    )
     return (
         select(JobParseResult)
         .where(JobParseResult.id.not_in(evaluated))
-        .where(JobParseResult.parsed_at >= cutoff)
+        .where(JobParseResult.id.not_in(backing_off))
+        .where(JobParseResult.parsed_at >= now - MAX_PARSE_AGE)
         .order_by(JobParseResult.id)
     )
 
@@ -139,6 +152,44 @@ def evaluate_one(
     )
 
 
+def _record_failure(
+    session: Session, profile: CandidateProfile, parsed: JobParseResult, error: str
+) -> None:
+    """Bump the failure row for the pair and push its ``next_attempt_at`` out
+    exponentially: ``backoff * 2**(attempts-1)``."""
+    settings = get_settings()
+    failure = session.scalar(
+        select(JobEvaluationFailure).where(
+            JobEvaluationFailure.job_parse_result_id == parsed.id,
+            JobEvaluationFailure.candidate_profile_id == profile.id,
+        )
+    )
+    if failure is None:
+        failure = JobEvaluationFailure(
+            job_parse_result_id=parsed.id, candidate_profile_id=profile.id, attempts=0
+        )
+        session.add(failure)
+    failure.attempts += 1
+    failure.last_error = error[:2000]
+    failure.last_attempt_at = datetime.now(UTC)
+    failure.next_attempt_at = failure.last_attempt_at + timedelta(
+        seconds=settings.evaluate_retry_backoff_seconds * 2 ** (failure.attempts - 1)
+    )
+    try:
+        session.commit()
+    except IntegrityError:  # a concurrent run recorded the same failure; theirs is enough
+        session.rollback()
+
+
+def _clear_failure(session: Session, profile: CandidateProfile, parsed: JobParseResult) -> None:
+    session.execute(
+        delete(JobEvaluationFailure).where(
+            JobEvaluationFailure.job_parse_result_id == parsed.id,
+            JobEvaluationFailure.candidate_profile_id == profile.id,
+        )
+    )
+
+
 def _current_profile(session: Session) -> CandidateProfile:
     profile = latest_profile(session)
     if profile is None:
@@ -186,8 +237,9 @@ def _evaluate(
             ],
         }
 
-    A failing OpenRouter call skips that job (it stays unevaluated and is retried next
-    run); only a missing API key aborts the whole run.
+    A failing OpenRouter call skips that job: the failure is recorded and the job is
+    retried after a backoff (see ``_record_failure``). Only a missing API key aborts the
+    whole run.
     """
     log.info("Evaluating %d parsed job(s) against candidate profile %d", len(pending), profile.id)
     service = OpenRouterService(session)
@@ -203,12 +255,14 @@ def _evaluate(
         except OpenRouterError as exc:
             failed += 1
             session.rollback()
+            _record_failure(session, profile, parsed, f"{type(exc).__name__}: {exc}")
             log.warning(
                 "Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc
             )
             continue
         session.add(evaluation)
         try:
+            _clear_failure(session, profile, parsed)
             session.commit()
         except IntegrityError:
             # Another run scored this pair since we selected it; keep theirs.

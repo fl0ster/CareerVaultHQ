@@ -47,19 +47,23 @@ services:
     networks:
       - careervaulthq-net
 
-  # scheduler responsible for running cron jobs
+  # Scheduler: enqueues periodic jobs (e.g. the catch-up job evaluation) on the worker's
+  # queue. It only talks to Redis, so it needs no /data volume or API key.
   scheduler:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
     container_name: careervaulthq-scheduler
     restart: unless-stopped
     command: ["python", "-m", "app.scheduler.scheduler"]
+    environment:
+      DEBUG: "false"
+      REDIS_URL: redis://redis:6379/0
+      SCHEDULER_SLEEP_SECONDS: 30
     depends_on:
       - redis
       - worker
-    environment:
-      DATABASE_URL: sqlite:////data/careervault.db
-      REDIS_URL: redis://redis:6379/0
-      SCHEDULER_SLEEP_SECONDS: 30
+    # Must share the network with redis, otherwise the "redis" hostname does not resolve.
+    networks:
+      - careervaulthq-net
 
   redis:
     image: redis:alpine

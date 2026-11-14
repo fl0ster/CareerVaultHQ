@@ -255,6 +255,84 @@ def test_jobs_parsed_over_a_week_ago_are_not_evaluated(task_engine, requests_see
     assert len(requests_seen) == 2
 
 
+def test_failed_call_is_recorded_and_retried_only_after_backoff(task_engine, requests_seen):
+    seeded = _seed(task_engine, jobs=1)
+    parsed_id, profile_id = seeded["parsed_ids"][0], seeded["profile_ids"][0]
+    task_engine.set_handler(
+        lambda req: httpx.Response(502, json={"error": {"message": "provider down"}})
+    )
+
+    assert evaluate_task.evaluate_pending_jobs()["failed"] == 1
+    with session_factory(task_engine)() as session:
+        failure = session.scalar(select(models.JobEvaluationFailure))
+        assert (failure.job_parse_result_id, failure.candidate_profile_id) == (
+            parsed_id,
+            profile_id,
+        )
+        assert failure.attempts == 1
+        assert "provider down" in failure.last_error
+        first_backoff = failure.next_attempt_at - failure.last_attempt_at
+        assert first_backoff == timedelta(seconds=Settings().evaluate_retry_backoff_seconds)
+
+    # Still inside the backoff window: nothing is retried, by either entry point.
+    assert evaluate_task.evaluate_pending_jobs()["pending"] == 0
+    assert evaluate_task.evaluate_parse_results([parsed_id])["pending"] == 0
+    assert len(requests_seen) == 1
+
+    # Once the window has passed the job is retried and the backoff doubles.
+    with session_factory(task_engine)() as session:
+        failure = session.scalar(select(models.JobEvaluationFailure))
+        failure.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+    assert evaluate_task.evaluate_pending_jobs()["failed"] == 1
+    assert len(requests_seen) == 2
+    with session_factory(task_engine)() as session:
+        failure = session.scalar(select(models.JobEvaluationFailure))
+        assert failure.attempts == 2
+        assert failure.next_attempt_at - failure.last_attempt_at == 2 * first_backoff
+
+
+def test_successful_retry_clears_the_failure_row(task_engine, requests_seen):
+    seeded = _seed(task_engine, jobs=1)
+    parsed_id = seeded["parsed_ids"][0]
+    task_engine.set_handler(lambda req: httpx.Response(502, json={"error": "nope"}))
+    evaluate_task.evaluate_pending_jobs()
+    with session_factory(task_engine)() as session:
+        failure = session.scalar(select(models.JobEvaluationFailure))
+        failure.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+
+    task_engine.set_handler(lambda req: httpx.Response(200, json=_decision(0.6)))
+    result = evaluate_task.evaluate_parse_results([parsed_id])
+
+    assert result["evaluated"] == 1
+    with session_factory(task_engine)() as session:
+        assert session.scalar(select(models.JobEvaluationFailure)) is None
+        assert session.scalar(select(models.JobEvaluation)).match_probability == 0.6
+
+
+def test_pair_is_given_up_after_max_attempts(task_engine, requests_seen, monkeypatch):
+    seeded = _seed(task_engine, jobs=1)
+    parsed_id, profile_id = seeded["parsed_ids"][0], seeded["profile_ids"][0]
+    monkeypatch.setattr(
+        evaluate_task, "get_settings", lambda: Settings(cors_origins=[], evaluate_max_attempts=2)
+    )
+    with session_factory(task_engine)() as session:
+        session.add(
+            models.JobEvaluationFailure(
+                job_parse_result_id=parsed_id,
+                candidate_profile_id=profile_id,
+                attempts=2,
+                next_attempt_at=datetime.now(UTC) - timedelta(days=1),
+            )
+        )
+        session.commit()
+
+    assert evaluate_task.evaluate_pending_jobs()["pending"] == 0
+    assert evaluate_task.evaluate_parse_results([parsed_id])["pending"] == 0
+    assert requests_seen == []
+
+
 def test_evaluate_pending_jobs_respects_limit(task_engine, requests_seen):
     _seed(task_engine, jobs=3)
 
