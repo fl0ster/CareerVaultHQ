@@ -1,1 +1,1 @@
-"""Background worker entrypoints. Run one with ``python -m app.workers.<name>``."""
+"""Background worker entrypoint. Run with ``python -m app.workers.worker``."""

@@ -20,7 +20,7 @@ from rq.exceptions import NoSuchJobError
 from rq.job import Job
 
 from app.config import Settings, get_settings
-from app.queue import get_scrapper_queue
+from app.queue import get_queue
 from app.tasks.scrape import scrape
 from app.tasks.scrape.sources import get_available_sources
 
@@ -109,7 +109,7 @@ def list_sources() -> list[str]:
 def start_scrape(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
-    queue: Annotated[Queue, Depends(get_scrapper_queue)],
+    queue: Annotated[Queue, Depends(get_queue)],
     body: ScrapeRequest | None = None,
 ) -> ScrapeAccepted:
     """Queue a scrape of one source (or all sources when ``source`` is omitted)."""
@@ -140,6 +140,6 @@ def start_scrape(
 
 
 @router.get("/jobs/{job_id}", response_model=ScrapeJobInfo, name="scrape_job_status")
-def job_status(job_id: str, queue: Annotated[Queue, Depends(get_scrapper_queue)]) -> ScrapeJobInfo:
+def job_status(job_id: str, queue: Annotated[Queue, Depends(get_queue)]) -> ScrapeJobInfo:
     """Current state of a scrape job; includes ``result`` and ``count`` once finished."""
     return _job_info(_fetch_job(job_id, queue))

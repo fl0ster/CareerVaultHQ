@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, PendingJobParseRun, ScrapeRun
-from app.queue import get_scrapper_queue
+from app.queue import get_queue
 from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import get_available_sources, load_source
 
@@ -115,7 +115,7 @@ def enqueue_parse_jobs(session: Session, pending: list[PendingJobParseRun]) -> l
     from app.tasks.parse import parse_job
 
     settings = get_settings()
-    queue = get_scrapper_queue()
+    queue = get_queue()
     ids: list[str] = []
     for row in pending:
         rq_job = queue.enqueue(

@@ -28,8 +28,8 @@ def task_engine(engine, monkeypatch):
 
 @pytest.fixture
 def parse_queue(monkeypatch):
-    queue = Queue("scrapper", connection=FakeStrictRedis())
-    monkeypatch.setattr(scrape_task, "get_scrapper_queue", lambda: queue)
+    queue = Queue("jobs", connection=FakeStrictRedis())
+    monkeypatch.setattr(scrape_task, "get_queue", lambda: queue)
     return queue
 
 

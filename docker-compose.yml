@@ -26,36 +26,19 @@ services:
     networks:
       - careervaulthq-net
 
-  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
-  worker-latex-2-pdf:
+  # RQ worker: runs every background job enqueued by the API (LaTeX -> PDF compiles,
+  # web scraping and parsing) from one queue. Same image, same /data volume.
+  worker:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
-    container_name: careervaulthq-worker-latex-2-pdf
+    container_name: careervaulthq-worker
     restart: unless-stopped
-    command: ["python", "-m", "app.workers.latex2pdf"]
+    command: ["python", "-m", "app.workers.worker"]
     environment:
       DEBUG: "false"
       DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-    volumes:
-      - careervaulthq-data:/data
-    depends_on:
-      - redis
-    networks:
-      - careervaulthq-net
-
-  # RQ worker: compiles LaTeX -> PDF jobs enqueued by the API (same image, same /data volume).
-  worker-scrapper:
-    image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
-    container_name: careervaulthq-worker-scrapper
-    restart: unless-stopped
-    command: [ "python", "-m", "app.workers.scrapper" ]
-    environment:
-      DEBUG: "false"
-      DATABASE_URL: sqlite:////data/careervault.db
-      REDIS_URL: redis://redis:6379/0
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data

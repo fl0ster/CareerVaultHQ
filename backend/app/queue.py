@@ -14,9 +14,6 @@ def get_redis() -> Redis:
 
 
 def get_queue() -> Queue:
-    """FastAPI dependency. Tests override this with a fakeredis-backed queue."""
-    return Queue(get_settings().latex_queue_name, connection=get_redis())
-
-def get_scrapper_queue() -> Queue:
-    """FastAPI dependency. Tests override this with a fakeredis-backed queue."""
-    return Queue(get_settings().scrapper_queue_name, connection=get_redis())
+    """FastAPI dependency. All background jobs (LaTeX compiles, scraping, parsing) go on
+    this single queue. Tests override this with a fakeredis-backed queue."""
+    return Queue(get_settings().queue_name, connection=get_redis())
