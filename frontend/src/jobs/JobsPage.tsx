@@ -1,49 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import './jobs.css'
+import { type EvaluatedJob, type JobSortOrder, jobsApi, percent } from './api.ts'
+import JobDialog from './JobDialog.tsx'
+import ScoreBadge from './ScoreBadge.tsx'
 
-const JOBS_API = '/api/jobs'
 const PAGE_SIZE = 50
 const THRESHOLD_KEY = 'jobs.matchThreshold'
 const DEFAULT_THRESHOLD = 70
-
-export type JobEvaluation = {
-  id: number
-  candidate_profile_id: number
-  match_probability: number
-  model: string | null
-  created_at: string
-}
-
-export type EvaluatedJob = {
-  id: number
-  link: string
-  source: string
-  scrape_run_id: number | null
-  has_html: boolean
-  title: string | null
-  company: string | null
-  parsed_at: string
-  evaluation: JobEvaluation
-}
-
-type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
-  description: string | null
-  evaluation: JobEvaluation | null
-}
-
-type JobPage = {
-  items: EvaluatedJob[]
-  total: number
-  offset: number
-  limit: number
-  has_more: boolean
-  candidate_profile_id: number | null
-}
-
-type SortOrder = 'newest' | 'match'
-
-function percent(probability: number): number {
-  return Math.round(probability * 100)
-}
 
 function loadThreshold(): number {
   try {
@@ -54,18 +17,6 @@ function loadThreshold(): number {
     /* storage unavailable, use the default */
   }
   return DEFAULT_THRESHOLD
-}
-
-function ScoreBadge({ probability, threshold }: { probability: number; threshold: number }) {
-  const value = percent(probability)
-  return (
-    <span
-      className={value >= threshold ? 'score match' : 'score'}
-      title={`${value}% match (threshold ${threshold}%)`}
-    >
-      {value}%
-    </span>
-  )
 }
 
 function JobRow({
@@ -95,132 +46,6 @@ function JobRow({
   )
 }
 
-function JobDialog({
-  job,
-  threshold,
-  onClose,
-}: {
-  job: EvaluatedJob
-  threshold: number
-  onClose: () => void
-}) {
-  const dialog = useRef<HTMLDialogElement>(null)
-  const [detail, setDetail] = useState<EvaluatedJobDetail | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [html, setHtml] = useState<string | null>(null)
-  const [htmlError, setHtmlError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const el = dialog.current
-    if (!el) return
-    el.showModal()
-    return () => el.close()
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`${JOBS_API}/${job.id}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return (await res.json()) as EvaluatedJobDetail
-      })
-      .then((data) => {
-        if (!cancelled) setDetail(data)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [job.id])
-
-  const showHtml = async () => {
-    if (html !== null) {
-      setHtml(null)
-      return
-    }
-    try {
-      const res = await fetch(`${JOBS_API}/raw/${job.id}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const raw: { html: string | null } = await res.json()
-      setHtml(raw.html ?? '')
-    } catch (e) {
-      setHtmlError(String(e))
-    }
-  }
-
-  const evaluation = detail?.evaluation ?? job.evaluation
-
-  return (
-    <dialog
-      ref={dialog}
-      className="job-dialog"
-      onClose={onClose}
-      onClick={(e) => {
-        // Clicks on the backdrop land on the dialog element itself.
-        if (e.target === dialog.current) onClose()
-      }}
-    >
-      <div className="job-dialog-body">
-        <div className="job-dialog-head">
-          <div className="job-main">
-            <h2>{job.title ?? 'Untitled job'}</h2>
-            <div className="job-meta">
-              {job.company && <span className="job-company">{job.company}</span>}
-              <span>{job.source}</span>
-              {job.scrape_run_id != null && <span>run #{job.scrape_run_id}</span>}
-            </div>
-          </div>
-          <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        <dl className="job-facts">
-          <dt>Match</dt>
-          <dd>
-            <ScoreBadge probability={evaluation.match_probability} threshold={threshold} />
-            {evaluation.model && <span className="muted">{evaluation.model}</span>}
-          </dd>
-          <dt>Evaluated</dt>
-          <dd>{new Date(evaluation.created_at).toLocaleString()}</dd>
-          <dt>Parsed</dt>
-          <dd>{new Date(job.parsed_at).toLocaleString()}</dd>
-          <dt>Link</dt>
-          <dd>
-            <a href={job.link} target="_blank" rel="noreferrer">
-              {job.link}
-            </a>
-          </dd>
-        </dl>
-
-        {error && <p className="error">Could not load job details: {error}</p>}
-        {!detail && !error && <span className="spinner" aria-hidden="true" />}
-        {detail && (
-          <div className="job-desc">
-            {detail.description ? (
-              <pre className="description">{detail.description}</pre>
-            ) : (
-              <p className="muted">No parsed description.</p>
-            )}
-          </div>
-        )}
-
-        {job.has_html && (
-          <div className="job-html">
-            <button type="button" className="secondary small" onClick={showHtml}>
-              {html !== null ? 'Hide raw html' : 'Raw html'}
-            </button>
-            {htmlError && <p className="error">{htmlError}</p>}
-            {html !== null && <pre>{html}</pre>}
-          </div>
-        )}
-      </div>
-    </dialog>
-  )
-}
-
 export default function JobsPage() {
   const [jobs, setJobs] = useState<EvaluatedJob[]>([])
   const [total, setTotal] = useState<number | null>(null)
@@ -228,7 +53,7 @@ export default function JobsPage() {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sort, setSort] = useState<SortOrder>('newest')
+  const [sort, setSort] = useState<JobSortOrder>('newest')
   const [threshold, setThreshold] = useState<number>(loadThreshold)
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
   const sentinel = useRef<HTMLDivElement>(null)
@@ -236,7 +61,7 @@ export default function JobsPage() {
   const loadingRef = useRef(false)
   const offsetRef = useRef(0)
   const hasMoreRef = useRef(true)
-  const sortRef = useRef<SortOrder>('newest')
+  const sortRef = useRef<JobSortOrder>('newest')
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMoreRef.current) return
@@ -244,14 +69,7 @@ export default function JobsPage() {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({
-        offset: String(offsetRef.current),
-        limit: String(PAGE_SIZE),
-        sort: sortRef.current,
-      })
-      const res = await fetch(`${JOBS_API}?${params}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const page: JobPage = await res.json()
+      const page = await jobsApi.list({ offset: offsetRef.current, limit: PAGE_SIZE, sort: sortRef.current })
       offsetRef.current += page.items.length
       hasMoreRef.current = page.has_more
       setJobs((prev) => [...prev, ...page.items])
@@ -275,7 +93,7 @@ export default function JobsPage() {
     loadMore()
   }, [loadMore])
 
-  const changeSort = (next: SortOrder) => {
+  const changeSort = (next: JobSortOrder) => {
     sortRef.current = next
     setSort(next)
     reload()
@@ -336,7 +154,7 @@ export default function JobsPage() {
         </label>
         <label>
           Sort{' '}
-          <select value={sort} onChange={(e) => changeSort(e.target.value as SortOrder)}>
+          <select value={sort} onChange={(e) => changeSort(e.target.value as JobSortOrder)}>
             <option value="newest">Newest evaluated</option>
             <option value="match">Best match</option>
           </select>

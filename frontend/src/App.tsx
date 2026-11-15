@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import './App.css'
-import JobsPage from './JobsPage.tsx'
+import JobsPage from './jobs/JobsPage.tsx'
 import ToolsPage from "./ToolsPage.tsx";
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
