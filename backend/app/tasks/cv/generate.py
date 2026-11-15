@@ -605,16 +605,46 @@ def run_pipeline(
     tex_path = out_dir / TEX_NAME
     tex_path.write_text(tex, encoding="utf-8")
     cost, call_count = llm.cost(session)
+
+    def with_original(entries: list[dict], source: list[Role]) -> list[dict]:
+        """Pipeline copy of the tailored entries: adds the ``work_history`` id and the
+        text the LLM started from, so the UI can show what was changed."""
+        return [
+            {
+                **entry,
+                "id": role.id,
+                "months": role.length,
+                "original_context": role.context,
+                "original_tech": ", ".join(role.tech),
+            }
+            for entry, role in zip(entries, source, strict=True)
+        ]
+
     pipeline = {
         "job_description_chars": len(job_description),
         "cost": cost,
         "openrouter_calls": call_count,
+        "thresholds": {
+            "max_entries": settings.cv_max_entries,
+            "high_relevance": settings.cv_high_relevance,
+            "exceptional_relevance": settings.cv_exceptional_relevance,
+            "irrelevant_relevance": settings.cv_irrelevant_relevance,
+            "min_months": settings.cv_min_months,
+        },
         "relevance": [
-            {"id": r.id, "employer": r.employer, "role": r.role, "relevance": round(r.relevance, 4)}
+            {
+                "id": r.id,
+                "employer": r.employer,
+                "role": r.role,
+                "relevance": round(r.relevance, 4),
+                "date_start": r.date_start,
+                "date_end": r.date_end_label(today),
+                "months": r.length,
+            }
             for r in roles
         ],
-        "main": main_entries,
-        "early": early_entries,
+        "main": with_original(main_entries, history.main),
+        "early": with_original(early_entries, history.early),
         "categories": [[name, techs] for name, techs in categories],
         "timeline_log": history.log,
         "warnings": warnings,

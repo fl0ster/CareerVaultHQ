@@ -36,6 +36,58 @@ export type GeneratedCvPage = {
   has_more: boolean
 }
 
+/** One ``work_history`` row as scored in step 1 of the pipeline. Dates and months are
+ * only present on CVs generated after the pipeline started recording them. */
+export type PipelineRole = {
+  id: number | null
+  employer: string
+  role: string
+  relevance: number
+  date_start?: string
+  date_end?: string
+  months?: number
+}
+
+/** A role as it ends up in the CV: ``main`` entries are tailored, ``early`` ones condensed.
+ * ``original_*`` hold the text the LLM started from (newer CVs only). */
+export type PipelineEntry = {
+  id?: number | null
+  date_start: string
+  date_end: string
+  employer: string
+  role: string
+  location: string | null
+  tech: string
+  context: string | null
+  relevance: number
+  months?: number
+  original_context?: string | null
+  original_tech?: string
+}
+
+export type PipelineThresholds = {
+  max_entries: number
+  high_relevance: number
+  exceptional_relevance: number
+  irrelevant_relevance: number
+  min_months: number
+}
+
+/** ``GET /api/cv/{id}/pipeline``: what the generation did (``pipeline.json``). */
+export type CvPipeline = {
+  job_description_chars?: number
+  cost?: number
+  openrouter_calls?: number
+  thresholds?: PipelineThresholds
+  relevance?: PipelineRole[]
+  main?: PipelineEntry[]
+  early?: PipelineEntry[]
+  categories?: [string, string[]][]
+  timeline_log?: string[]
+  warnings?: string[]
+  latex_log_tail?: string
+}
+
 export type ListCvParams = {
   offset?: number
   limit?: number
@@ -83,6 +135,8 @@ export const cvApi = {
   },
   get: (id: number, signal?: AbortSignal) =>
     fetch(`${API}/${id}`, { signal }).then((r) => parse<GeneratedCv>(r)),
+  pipeline: (id: number, signal?: AbortSignal) =>
+    fetch(`${API}/${id}/pipeline`, { signal }).then((r) => parse<CvPipeline>(r)),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
   pdfUrl: (id: number) => `${API}/${id}/pdf`,
   texUrl: (id: number) => `${API}/${id}/tex`,
