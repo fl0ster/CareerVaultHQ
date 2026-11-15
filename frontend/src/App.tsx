@@ -4,10 +4,12 @@ import JobsPage from './JobsPage.tsx'
 import ToolsPage from "./ToolsPage.tsx";
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
+import CompaniesPage from './companies/CompaniesPage.tsx'
 
 const TABS = [
   { id: 'tools', label: 'Tools' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'companies', label: 'Companies' },
   { id: 'work-history', label: 'Work history' },
   { id: 'candidate-profile', label: 'Candidate profile' },
 ] as const
@@ -39,6 +41,9 @@ function App() {
       </section>
       <section hidden={tab !== 'jobs'}>
         <JobsPage />
+      </section>
+      <section hidden={tab !== 'companies'}>
+        <CompaniesPage />
       </section>
       <section hidden={tab !== 'work-history'}>
         <WorkHistoryPage />
