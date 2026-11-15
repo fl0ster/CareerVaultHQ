@@ -64,7 +64,7 @@ app/
                    (normalise -> alias lookup -> canonical lookup -> fuzzy match -> create)
   api/
     __init__.py    aggregates routers under /api
-    routes/        one module per resource (health.py, latex.py)
+    routes/        one module per resource (health.py, latex.py, jobs.py, companies.py, ...)
 tests/
 ```
 

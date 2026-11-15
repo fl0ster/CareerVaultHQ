@@ -1,0 +1,162 @@
+"""Canonical companies resolved from scraped job listings (see ``app.services.companies``).
+
+``GET /api/companies?offset=0&limit=50&q=tech`` returns a page of companies, alphabetically,
+with how many parsed jobs reference each one. ``GET /api/companies/{id}?jobs_limit=10`` adds
+the aliases (every spelling that was mapped to the company) and its latest parsed jobs.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.db import get_session
+from app.models import Company, CompanyAlias, Job, JobParseResult
+from app.services.companies import normalize_company_name
+
+router = APIRouter()
+
+MAX_PAGE_SIZE = 200
+MAX_COMPANY_JOBS = 100
+
+
+class CompanyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    normalized_name: str
+    created_at: datetime
+    updated_at: datetime
+    job_count: int = 0
+    """Parsed jobs (``job_parse_results``) pointing at this company."""
+
+
+class CompanyAliasOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    alias: str
+    normalized_alias: str
+    match_kind: str
+    similarity: float | None = None
+    source: str | None = None
+    created_at: datetime
+
+
+class CompanyJobOut(BaseModel):
+    """A parsed job of the company, newest parse first."""
+
+    job_id: int
+    parse_result_id: int
+    link: str
+    source: str
+    title: str | None = None
+    parsed_at: datetime
+
+
+class CompanyFull(CompanyOut):
+    aliases: list[CompanyAliasOut]
+    jobs: list[CompanyJobOut]
+    """Up to ``jobs_limit`` parsed jobs, most recently parsed first (``job_count`` has the
+    total)."""
+
+
+class CompanyPage(BaseModel):
+    items: list[CompanyOut]
+    total: int
+    offset: int
+    limit: int
+    has_more: bool
+
+
+def _job_count_subquery():
+    return (
+        select(JobParseResult.company_id, func.count().label("job_count"))
+        .group_by(JobParseResult.company_id)
+        .subquery()
+    )
+
+
+def _to_out(company: Company, job_count: int | None) -> CompanyOut:
+    out = CompanyOut.model_validate(company)
+    out.job_count = job_count or 0
+    return out
+
+
+@router.get("", response_model=CompanyPage)
+def list_companies(
+    session: Annotated[Session, Depends(get_session)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
+    q: str | None = None,
+) -> CompanyPage:
+    """Page of companies, alphabetically by name. ``q`` filters by substring of the
+    normalised name or any alias."""
+    counts = _job_count_subquery()
+    query = select(Company, counts.c.job_count).outerjoin(counts, counts.c.company_id == Company.id)
+    count_query = select(func.count()).select_from(Company)
+    if q:
+        needle = f"%{normalize_company_name(q)}%"
+        matching_alias = select(CompanyAlias.company_id).where(
+            CompanyAlias.normalized_alias.like(needle)
+        )
+        condition = Company.normalized_name.like(needle) | Company.id.in_(matching_alias)
+        query = query.where(condition)
+        count_query = count_query.where(condition)
+
+    total = session.scalar(count_query) or 0
+    rows = session.execute(
+        query.order_by(Company.name, Company.id).offset(offset).limit(limit)
+    ).all()
+    return CompanyPage(
+        items=[_to_out(company, job_count) for company, job_count in rows],
+        total=total,
+        offset=offset,
+        limit=limit,
+        has_more=offset + len(rows) < total,
+    )
+
+
+@router.get("/{company_id}", response_model=CompanyFull)
+def get_company(
+    company_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    jobs_limit: Annotated[int, Query(ge=0, le=MAX_COMPANY_JOBS)] = 10,
+) -> CompanyFull:
+    """A single company with every alias mapped to it and its ``jobs_limit`` latest jobs."""
+    company = session.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown company")
+    job_count = session.scalar(
+        select(func.count())
+        .select_from(JobParseResult)
+        .where(JobParseResult.company_id == company.id)
+    )
+    latest = session.execute(
+        select(JobParseResult, Job)
+        .join(Job, Job.id == JobParseResult.job_id)
+        .where(JobParseResult.company_id == company.id)
+        .order_by(JobParseResult.parsed_at.desc(), JobParseResult.id.desc())
+        .limit(jobs_limit)
+    ).all()
+    return CompanyFull(
+        **_to_out(company, job_count).model_dump(),
+        aliases=[CompanyAliasOut.model_validate(alias) for alias in company.aliases],
+        jobs=[
+            CompanyJobOut(
+                job_id=job.id,
+                parse_result_id=parsed.id,
+                link=job.link,
+                source=job.source,
+                title=parsed.title,
+                parsed_at=parsed.parsed_at,
+            )
+            for parsed, job in latest
+        ],
+    )
