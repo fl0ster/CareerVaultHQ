@@ -56,10 +56,12 @@ def _seed(engine, *, profiles=("Senior Unity developer",), jobs=2) -> dict:
             session.flush()
             profile_ids.append(profile.id)
         parsed_ids = []
+        acme = models.Company(name="ACME", normalized_name="acme")
+        session.add(acme)
         for i in range(jobs):
             job = models.Job(link=f"https://example.com/jobs/{i}", source="skillshot")
             parsed = models.JobParseResult(
-                job=job, title=f"Job {i}", company="ACME", description=f"Needs Unity {i}"
+                job=job, title=f"Job {i}", company=acme, description=f"Needs Unity {i}"
             )
             session.add_all([job, parsed])
             session.flush()

@@ -3,10 +3,13 @@
 The scrape task inserts a ``PendingJobParseRun`` row for every new ``Job`` and enqueues
 ``parse_job(pending_id)``. The task looks up the job's ``source`` module in
 ``app.tasks.scrape.sources`` and calls its ``parse_<field>(html, url)`` hook for every
-field in ``FIELDS`` (currently ``title``, ``company`` and ``description``); the values are stored in
-``job_parse_results`` and the pending row is marked ``COMPLETED`` with the time the parse
-happened. Finally ``app.tasks.evaluate.evaluate_parse_results`` is enqueued for the parsed job so it
-gets scored against the current candidate profile.
+field in ``FIELDS`` (currently ``title``, ``company`` and ``description``). ``title`` and
+``description`` are stored verbatim in ``job_parse_results``; the raw ``company`` string is
+never stored there but resolved through ``app.services.companies.resolve_company`` to a
+canonical ``companies`` row whose id is written to ``job_parse_results.company_id``. The
+pending row is then marked ``COMPLETED`` with the time the parse happened. Finally
+``app.tasks.evaluate.evaluate_parse_results`` is enqueued for the parsed job so it gets
+scored against the current candidate profile.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
+from app.services.companies import CompanyMatch, resolve_company
 from app.tasks.evaluate import evaluate_parse_results
 from app.tasks.scrape.sources import load_source
 
@@ -34,7 +38,11 @@ EVALUATE_TIMEOUT = 300
 
 
 FIELDS = ("title", "company", "description")
-"""Columns of ``JobParseResult`` filled by the source's ``parse_<field>(html, url)`` hook."""
+"""Fields extracted by the source's ``parse_<field>(html, url)`` hook. All but ``company``
+are columns of ``JobParseResult``; ``company`` is resolved to ``company_id``."""
+
+TEXT_FIELDS = tuple(field for field in FIELDS if field != "company")
+"""The fields of ``FIELDS`` stored verbatim on ``JobParseResult``."""
 
 
 class JobParseError(RuntimeError):
@@ -77,15 +85,21 @@ def parse_fields(job: Job) -> dict[str, str]:
     return {field: parse_field(job, field, module) for field in FIELDS}
 
 
-def _save_result(session: Session, job: Job, values: dict[str, str]) -> JobParseResult:
+def _save_result(
+    session: Session, job: Job, values: dict[str, str]
+) -> tuple[JobParseResult, CompanyMatch | None]:
+    """Upsert the ``JobParseResult`` of ``job``; the ``company`` value goes through the
+    company ingestion pipeline and only the canonical ``company_id`` is stored."""
     result = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job.id))
     if result is None:
         result = JobParseResult(job_id=job.id)
         session.add(result)
-    for field, value in values.items():
-        setattr(result, field, value or None)
+    for field in TEXT_FIELDS:
+        setattr(result, field, values.get(field) or None)
+    match = resolve_company(session, values.get("company", ""), source=job.source)
+    result.company = match.company if match else None
     result.parsed_at = datetime.now(UTC)
-    return result
+    return result, match
 
 
 def enqueue_evaluation(result: JobParseResult) -> str | None:
@@ -120,7 +134,9 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "job_id": <id of the parsed Job>,
             "source": "<source module name>",
             "title": "<extracted title>",
-            "company": "<extracted company>",
+            "company": "<canonical company name, or None>",
+            "company_id": <id of the canonical companies row, or None>,
+            "company_match": "<alias | exact | fuzzy | new, or None>",
             "description_chars": <length of the extracted description>,
             "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
@@ -136,21 +152,28 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             raise ValueError(f"unknown pending parse run: {pending_id}")
 
         job = session.get(Job, pending.job_id)
+        if job is None:
+            raise ValueError(f"pending parse run {pending_id} references a missing job")
+
         if pending.status == PendingJobParseRun.STATUS_COMPLETED:
             log.info("Job %d was already parsed", job.id)
+            result = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job.id))
+            company = result.company if result else None
             return {
                 "pending_id": pending.id,
                 "job_id": job.id,
                 "source": job.source,
-                "description_chars": len(job.description),
+                "title": result.title if result else None,
+                "company": company.name if company else None,
+                "company_id": company.id if company else None,
+                "company_match": None,
+                "description_chars": len(result.description or "") if result else 0,
+                "evaluate_job": None,
             }
-
-        if job is None:
-            raise ValueError(f"pending parse run {pending_id} references a missing job")
 
         try:
             values = parse_fields(job)
-            result = _save_result(session, job, values)
+            result, match = _save_result(session, job, values)
         except Exception as exc:
             session.rollback()
             pending.status = PendingJobParseRun.STATUS_FAILED
@@ -167,12 +190,15 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         session.commit()
         evaluate_job_id = enqueue_evaluation(result)
 
+        company = match.company if match else None
         log.info(
-            "Parsed job %d (%s): %r at %r, %d chars",
+            "Parsed job %d (%s): %r at %r (company %s, %s), %d chars",
             job.id,
             job.link,
             values["title"],
             values["company"],
+            company.id if company else None,
+            match.match_kind if match else "none",
             len(values["description"]),
         )
         return {
@@ -180,7 +206,9 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "job_id": job.id,
             "source": job.source,
             "title": values["title"],
-            "company": values["company"],
+            "company": company.name if company else None,
+            "company_id": company.id if company else None,
+            "company_match": match.match_kind if match else None,
             "description_chars": len(values["description"]),
             "evaluate_job": evaluate_job_id,
         }

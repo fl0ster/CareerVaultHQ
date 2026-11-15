@@ -105,8 +105,11 @@ class JobParseResult(Base):
     )
     title: Mapped[str | None] = mapped_column(String(512))
     """Job title as returned by the source's ``parse_title``."""
-    company: Mapped[str | None] = mapped_column(String(256))
-    """Hiring company as returned by the source's ``parse_company``."""
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="SET NULL"), index=True
+    )
+    """Canonical ``Company`` the source's ``parse_company`` value was resolved to by
+    ``app.services.companies.resolve_company`` (``None`` when the page named no company)."""
     description: Mapped[str | None] = mapped_column(Text)
     """Plain-text job description as returned by the source's ``parse_description``."""
     parsed_at: Mapped[datetime] = mapped_column(
@@ -114,6 +117,66 @@ class JobParseResult(Base):
     )
 
     job: Mapped[Job] = relationship()
+    company: Mapped[Company | None] = relationship(back_populates="parse_results")
+
+
+class Company(Base):
+    """The canonical record of a hiring company. Every spelling seen in a job listing is
+    mapped to exactly one of these rows through ``CompanyAlias``; ``job_parse_results``
+    reference the canonical row, never the raw text from the page."""
+
+    __tablename__ = "companies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    """Official, clean display name (the first spelling seen until edited by hand)."""
+    normalized_name: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    """``app.services.companies.normalize_company_name(name)``; the deterministic lookup key
+    and the string fuzzy matching compares against."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    aliases: Mapped[list[CompanyAlias]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    parse_results: Mapped[list[JobParseResult]] = relationship(back_populates="company")
+
+
+class CompanyAlias(Base):
+    """One spelling of a company name (variation, typo, legal-form suffix, previous name)
+    and the canonical ``Company`` it maps to. Looked up by ``normalized_alias`` before any
+    fuzzy matching happens, so a spelling is resolved the same way every time."""
+
+    __tablename__ = "company_aliases"
+
+    MATCH_EXACT = "exact"
+    """The normalized spelling equalled the canonical ``normalized_name``."""
+    MATCH_FUZZY = "fuzzy"
+    """Attached by similarity to an existing company (see ``similarity``)."""
+    MATCH_NEW = "new"
+    """First spelling ever seen; it created the canonical row."""
+    MATCH_MANUAL = "manual"
+    """Entered or re-pointed by a human."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    alias: Mapped[str] = mapped_column(String(256), nullable=False)
+    """The spelling exactly as it appeared on the job page."""
+    normalized_alias: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    """``normalize_company_name(alias)``; unique so one spelling maps to one company."""
+    match_kind: Mapped[str] = mapped_column(String(16), default=MATCH_NEW)
+    """How the alias was attached: ``exact``, ``fuzzy``, ``new`` or ``manual``."""
+    similarity: Mapped[float | None] = mapped_column(Float)
+    """Score (0-1) of the fuzzy match that attached it (``None`` otherwise)."""
+    source: Mapped[str | None] = mapped_column(String(64))
+    """Scrape source the spelling was first seen on."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    company: Mapped[Company] = relationship(back_populates="aliases")
 
 
 class WorkHistoryEntry(Base):
