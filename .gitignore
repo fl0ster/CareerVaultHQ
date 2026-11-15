@@ -42,3 +42,6 @@ backend/static/jobs
 
 # Node modules
 node_modules/
+
+# Documentation
+_ref

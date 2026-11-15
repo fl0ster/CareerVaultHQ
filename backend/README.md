@@ -60,9 +60,11 @@ app/
     openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
                    the openrouter_calls table. Routes/tasks use OpenRouterService directly;
                    /api/openrouter/* exposes it over HTTP
+    companies.py   resolves the scraped company name to a canonical companies row
+                   (normalise -> alias lookup -> canonical lookup -> fuzzy match -> create)
   api/
     __init__.py    aggregates routers under /api
-    routes/        one module per resource (health.py, latex.py)
+    routes/        one module per resource (health.py, latex.py, jobs.py, companies.py, ...)
 tests/
 ```
 

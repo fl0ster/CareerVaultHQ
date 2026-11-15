@@ -3,7 +3,7 @@ import importlib
 import pytest
 from fakeredis import FakeStrictRedis
 from rq import Queue
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import models
 from app.db import init_db, session_factory
@@ -51,6 +51,7 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
     assert result["source"] == "skillshot"
     assert result["title"] == "Unity Dev"
     assert result["company"] == "ACME"
+    assert result["company_match"] == "new"
     assert result["description_chars"] == len("Unity Dev\ndla\nACME\nWe need\nUnity")
     with session_factory(task_engine)() as session:
         pending = session.get(models.PendingJobParseRun, pending_id)
@@ -62,9 +63,73 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
             select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id)
         )
         assert parsed.title == "Unity Dev"
-        assert parsed.company == "ACME"
         assert parsed.description == "Unity Dev\ndla\nACME\nWe need\nUnity"
         assert parsed.parsed_at is not None
+        assert not hasattr(parsed, "company_name")
+        assert parsed.company_id == result["company_id"]
+        assert parsed.company.name == "ACME"
+        assert parsed.company.normalized_name == "acme"
+        assert [a.alias for a in parsed.company.aliases] == ["ACME"]
+
+
+def test_parse_job_links_typo_to_existing_company(task_engine):
+    first = parse_task.parse_job(_make_pending(task_engine))
+
+    with session_factory(task_engine)() as session:
+        job = models.Job(
+            link="https://www.skillshot.pl/jobs/2",
+            source="skillshot",
+            html=HTML.replace("ACME", "Techland"),
+        )
+        pending = models.PendingJobParseRun(job=job)
+        session.add_all([job, pending])
+        session.commit()
+        second_id = pending.id
+    second = parse_task.parse_job(second_id)
+    assert second["company_match"] == "new"
+    assert second["company"] == "Techland"
+    assert second["company_id"] != first["company_id"]
+
+    with session_factory(task_engine)() as session:
+        job = models.Job(
+            link="https://www.skillshot.pl/jobs/3",
+            source="skillshot",
+            html=HTML.replace("ACME", "Techlnad"),
+        )
+        pending = models.PendingJobParseRun(job=job)
+        session.add_all([job, pending])
+        session.commit()
+        third_id = pending.id
+    third = parse_task.parse_job(third_id)
+    assert third["company_match"] == "fuzzy"
+    assert third["company_id"] == second["company_id"]
+
+    with session_factory(task_engine)() as session:
+        assert session.scalar(select(func.count(models.Company.id))) == 2
+        aliases = session.scalars(
+            select(models.CompanyAlias.alias).order_by(models.CompanyAlias.id)
+        ).all()
+        assert aliases == ["ACME", "Techland", "Techlnad"]
+        parse_results = session.scalars(
+            select(models.JobParseResult).order_by(models.JobParseResult.id)
+        ).all()
+        assert [r.company_id for r in parse_results] == [
+            first["company_id"],
+            second["company_id"],
+            second["company_id"],
+        ]
+
+
+def test_parse_job_without_company_leaves_company_null(task_engine):
+    html = "<html><head><title>Unity Dev / Skillshot.pl</title></head><body><p>x</p></body></html>"
+    result = parse_task.parse_job(_make_pending(task_engine, html=html))
+
+    assert result["company"] is None
+    assert result["company_id"] is None
+    assert result["company_match"] is None
+    with session_factory(task_engine)() as session:
+        assert session.scalar(select(models.JobParseResult)).company_id is None
+        assert session.scalar(select(models.Company)) is None
 
 
 def test_parse_job_enqueues_evaluation_of_the_parsed_job(task_engine, evaluate_queue):

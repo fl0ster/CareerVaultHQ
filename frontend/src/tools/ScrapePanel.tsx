@@ -1,29 +1,5 @@
-import {type FormEvent, useEffect, useState} from "react";
-
-const SCRAPE_API = '/api/scrape'
-
-type ScrapedJob = { link: string; source: string }
-
-type ScrapeResult = {
-  sources: { source: string; ok: boolean; error: string | null; jobs: ScrapedJob[] }[]
-  failed: string[]
-  jobs: ScrapedJob[]
-  count: number
-}
-
-type ScrapeJobInfo = {
-  job_id: string
-  status: string
-  source?: string | null
-  enqueued_at?: string | null
-  started_at?: string | null
-  ended_at?: string | null
-  count?: number | null
-  result?: ScrapeResult | null
-  error?: string | null
-}
-
-const TERMINAL = new Set(['finished', 'failed', 'stopped', 'canceled'])
+import { type FormEvent, useEffect, useState } from 'react'
+import { isTerminal, scrapeApi, type ScrapeJobInfo } from './api.ts'
 
 export default function ScrapePanel() {
   const [sources, setSources] = useState<string[]>([])
@@ -33,12 +9,12 @@ export default function ScrapePanel() {
   const [error, setError] = useState<string | null>(null)
 
   const jobId = job?.job_id
-  const done = job ? TERMINAL.has(job.status) : false
+  const done = job ? isTerminal(job.status) : false
 
   useEffect(() => {
-    fetch(`${SCRAPE_API}/sources`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((list: string[]) => setSources(list))
+    scrapeApi
+      .sources()
+      .then(setSources)
       .catch((e) => setError(`Could not load sources: ${String(e)}`))
   }, [])
 
@@ -50,12 +26,10 @@ export default function ScrapePanel() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${SCRAPE_API}/jobs/${jobId}`)
-        if (!res.ok) throw new Error(`status ${res.status}`)
-        const info: ScrapeJobInfo = await res.json()
+        const info = await scrapeApi.getJob(jobId)
         if (cancelled) return
         setJob(info)
-        if (!TERMINAL.has(info.status)) timer = window.setTimeout(poll, 1000)
+        if (!isTerminal(info.status)) timer = window.setTimeout(poll, 1000)
       } catch (e) {
         if (!cancelled) setError(`Could not fetch job status: ${String(e)}`)
       }
@@ -74,16 +48,7 @@ export default function ScrapePanel() {
     setJob(null)
     setSubmitting(true)
     try {
-      const res = await fetch(SCRAPE_API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: source || null }),
-      })
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null)
-        throw new Error(detail?.detail ?? `HTTP ${res.status}`)
-      }
-      const accepted = await res.json()
+      const accepted = await scrapeApi.start(source || null)
       setJob({ job_id: accepted.job_id, status: accepted.status, source: accepted.source })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))

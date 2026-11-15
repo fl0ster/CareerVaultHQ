@@ -1,0 +1,152 @@
+/* Companies page */
+.company-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.company-search:focus {
+  outline: none;
+  border-color: var(--accent-border);
+}
+
+.company-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.company-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 8px;
+  font: inherit;
+  text-align: left;
+  color: var(--text-h);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.company-row:hover,
+.company-row:focus-visible {
+  background: var(--accent-bg);
+  outline: none;
+}
+
+.company-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.company-jobs-count {
+  flex: none;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Detail popup */
+.company-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.company-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.company-dialog-body {
+  padding: 20px 24px 24px;
+}
+
+.company-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.company-dialog-head .title {
+  margin: 0;
+}
+
+.company-dialog h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.company-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 12px 0 0;
+}
+
+.company-facts dt {
+  color: var(--text);
+}
+
+.company-facts dd {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.company-aliases,
+.company-jobs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.company-aliases li,
+.company-jobs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.company-alias-name {
+  color: var(--text-h);
+}
+
+.company-alias-meta,
+.company-job-meta {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.company-jobs a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .company-dialog-body {
+    padding: 16px;
+  }
+
+  .company-facts {
+    grid-template-columns: 1fr;
+  }
+}

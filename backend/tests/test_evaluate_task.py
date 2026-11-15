@@ -56,10 +56,12 @@ def _seed(engine, *, profiles=("Senior Unity developer",), jobs=2) -> dict:
             session.flush()
             profile_ids.append(profile.id)
         parsed_ids = []
+        acme = models.Company(name="ACME", normalized_name="acme")
+        session.add(acme)
         for i in range(jobs):
             job = models.Job(link=f"https://example.com/jobs/{i}", source="skillshot")
             parsed = models.JobParseResult(
-                job=job, title=f"Job {i}", company="ACME", description=f"Needs Unity {i}"
+                job=job, title=f"Job {i}", company=acme, description=f"Needs Unity {i}"
             )
             session.add_all([job, parsed])
             session.flush()
@@ -92,8 +94,8 @@ def test_evaluate_pending_jobs_scores_every_unevaluated_job(task_engine, request
             (seeded["parsed_ids"][1], seeded["profile_ids"][0], 0.12),
         ]
         assert all(r.openrouter_call_id is not None for r in rows)
-        assert rows[0].model == "typesafe/jev-1.14"
         calls = session.scalars(select(models.OpenRouterCall)).all()
+        assert all(c.model == "typesafe/jev-1.14" for c in calls)
         assert {c.source for c in calls} == {"tasks.evaluate"}
         assert {c.kind for c in calls} == {"decision"}
 

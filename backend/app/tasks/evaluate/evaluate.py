@@ -130,7 +130,7 @@ def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, 
         "candidate_profile": profile.content,
         "job": {
             "title": parsed.title or "",
-            "company": parsed.company or "",
+            "company": parsed.company.name if parsed.company else "",
             "description": parsed.description or "",
         },
     }
@@ -148,7 +148,6 @@ def evaluate_one(
         candidate_profile_id=profile.id,
         match_probability=decision.noul(QUESTION_NAME),
         openrouter_call_id=decision.call_id,
-        model=decision.model,
     )
 
 
@@ -285,7 +284,7 @@ def _evaluate(
             "Job %d (%r at %r): match probability %.3f",
             parsed.job_id,
             parsed.title,
-            parsed.company,
+            parsed.company.name if parsed.company else None,
             evaluation.match_probability,
         )
 
