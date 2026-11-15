@@ -7,17 +7,17 @@ import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
 
 const TABS = [
-  { id: 'tools', label: 'Tools' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'companies', label: 'Companies' },
   { id: 'work-history', label: 'Work history' },
   { id: 'candidate-profile', label: 'Candidate profile' },
+  { id: 'tools', label: 'Tools' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
 
 function App() {
-  const [tab, setTab] = useState<Tab>('tools')
+  const [tab, setTab] = useState<Tab>('jobs')
 
   return (
     <main className="page">
@@ -36,9 +36,6 @@ function App() {
       </nav>
 
       {/* Both pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
-      <section hidden={tab !== 'tools'}>
-        <ToolsPage />
-      </section>
       <section hidden={tab !== 'jobs'}>
         <JobsPage />
       </section>
@@ -50,6 +47,9 @@ function App() {
       </section>
       <section hidden={tab !== 'candidate-profile'}>
         <CandidateProfilePage />
+      </section>
+      <section hidden={tab !== 'tools'}>
+        <ToolsPage />
       </section>
     </main>
   )
