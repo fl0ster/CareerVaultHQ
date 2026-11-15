@@ -46,3 +46,51 @@ export const candidateProfileApi = {
       body: JSON.stringify(input),
     }).then((r) => parse<CandidateProfile>(r)),
 }
+
+// --- Candidate details (printed on generated CVs) --------------------------------------
+
+const DETAILS_API = '/api/candidate-details'
+
+export type EducationEntry = {
+  degree: string
+  institution: string
+  date_start: string
+  date_end: string
+  note: string
+}
+
+export type LanguageEntry = {
+  language: string
+  level: string
+}
+
+export type CandidateDetailsInput = {
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  website: string
+  github: string
+  linkedin: string
+  location: string
+  education: EducationEntry[]
+  certifications: string[]
+  languages: LanguageEntry[]
+  consent_text: string
+}
+
+export type CandidateDetails = CandidateDetailsInput & {
+  id: number
+  created_at: string
+  updated_at: string
+}
+
+export const candidateDetailsApi = {
+  get: () => fetch(DETAILS_API).then((r) => parse<CandidateDetails | null>(r)),
+  save: (input: CandidateDetailsInput) =>
+    fetch(DETAILS_API, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => parse<CandidateDetails>(r)),
+}

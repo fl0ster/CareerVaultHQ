@@ -18,6 +18,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Uploaded .tex files and generated PDFs; must be the same volume as the worker's.
       LATEX_ROOT: /data/latex
+      # Generated CVs (app.tasks.cv); same volume as the worker's.
+      CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
@@ -39,6 +41,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
+      CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data

@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    candidate_details,
     candidate_profile,
     companies,
+    cv,
     health,
     jobs,
     latex,
@@ -21,4 +23,8 @@ api_router.include_router(work_history.router, prefix="/work-history", tags=["wo
 api_router.include_router(
     candidate_profile.router, prefix="/candidate-profile", tags=["candidate-profile"]
 )
+api_router.include_router(
+    candidate_details.router, prefix="/candidate-details", tags=["candidate-details"]
+)
+api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])

@@ -61,3 +61,78 @@
     align-items: stretch;
   }
 }
+
+/* Personal details form */
+.cd-form {
+  h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  textarea {
+    min-height: 0;
+    font-family: inherit;
+    font-size: 15px;
+  }
+}
+
+.cd-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.cd-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+
+  legend {
+    padding: 0 6px;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  > button {
+    align-self: flex-start;
+  }
+}
+
+.cd-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+
+  > button {
+    align-self: flex-start;
+  }
+}
+
+.cd-row-inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 12px;
+
+  > button {
+    align-self: end;
+    margin-bottom: 3px;
+  }
+}
+
+.cd-form .danger {
+  color: #b91c1c;
+}
+
+@media (max-width: 600px) {
+  .cd-grid,
+  .cd-row-inline {
+    grid-template-columns: 1fr;
+  }
+}

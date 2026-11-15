@@ -20,6 +20,11 @@ def jobs_root(tmp_path):
 
 
 @pytest.fixture
+def cv_root(tmp_path):
+    return tmp_path / "cv"
+
+
+@pytest.fixture
 def fake_queue():
     # is_async=False would run jobs inline; keep them queued so tests exercise the API only.
     return Queue("jobs", connection=FakeStrictRedis())
@@ -41,10 +46,11 @@ def db_session(engine):
 
 
 @pytest.fixture
-def client(upload_root, jobs_root, fake_queue, engine):
+def client(upload_root, jobs_root, cv_root, fake_queue, engine):
     settings = Settings(
         latex_upload_root=upload_root,
         latex_jobs_root=jobs_root,
+        cv_root=cv_root,
         cors_origins=[],
         database_url=str(engine.url),
     )

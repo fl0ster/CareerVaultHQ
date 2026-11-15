@@ -1,0 +1,225 @@
+% CV template filled by app.tasks.cv.render.render_cv.
+%
+% Build:  pdflatex cv.tex
+%
+% Requires (TeX Live):  carlito enumitem xcolor geometry hyperref microtype scrextend
+%
+% Placeholders, written as the name between double underscores (every value is already
+% LaTeX-escaped; the names must not appear anywhere else in this file, comments included):
+%   NAME          candidate's full name
+%   HEADLINE      headline role, optionally followed by the core technologies
+%   PDF_SUBJECT   headline role for the PDF metadata
+%   CONTACTS      one line of contact items (email, phone, links, location)
+%   SUMMARY       professional summary paragraph
+%   ROLES         cvrole blocks (one per position) + the "Additional Experience" block
+%   EDUCATION     whole "Education & Certifications" section block, or empty
+%   TECHNOLOGIES  whole "Technologies" section block, or empty
+%   LANGUAGES     whole "Languages" section block, or empty
+%   CONSENT       consent clause block, or empty
+%
+% * A role is typeset as an unbreakable block, so it never splits across pages;
+%   LaTeX moves the whole block to the next page if it does not fit.
+% * All spacing lives in the "Spacing" block below -- tweak numbers there, not in the body.
+
+\documentclass[11pt,a4paper]{article}
+
+% -----------------------------------------------------------------------------
+% Packages
+% -----------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[sfdefault,lining]{carlito}   % Calibri clone; clean and ATS-friendly
+\usepackage[a4paper,margin=2cm,top=1.8cm,bottom=1.8cm]{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{scrextend}
+
+% -----------------------------------------------------------------------------
+% Colours
+% -----------------------------------------------------------------------------
+\definecolor{accent}{HTML}{1F3A5F}   % headings, name, rules
+\definecolor{muted}{HTML}{5A6270}    % dates, companies, secondary text
+\definecolor{rule}{HTML}{C9CED6}     % thin separators
+\definecolor{link}{HTML}{1F3A5F}
+
+\hypersetup{
+  urlcolor=link,
+  pdftitle={__NAME__ -- CV},
+  pdfauthor={__NAME__},
+  pdfsubject={__PDF_SUBJECT__},
+}
+\urlstyle{same}
+
+% -----------------------------------------------------------------------------
+% Spacing (single place to tune the vertical rhythm)
+% -----------------------------------------------------------------------------
+\newlength{\cvSectionBefore}  \setlength{\cvSectionBefore}{14pt}
+\newlength{\cvSectionAfter}   \setlength{\cvSectionAfter}{6pt}
+\newlength{\cvRoleGap}        \setlength{\cvRoleGap}{10pt}   % between roles
+\newlength{\cvRoleHeadGap}    \setlength{\cvRoleHeadGap}{3pt} % header -> bullets
+\newlength{\cvTechGap}        \setlength{\cvTechGap}{3pt}    % bullets -> Tech line
+
+% -----------------------------------------------------------------------------
+% General layout
+% -----------------------------------------------------------------------------
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\raggedright
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\linespread{1.08}
+
+% Bullet lists: compact, hanging indent, small round bullet
+\setlist[itemize]{
+  label=\textbullet,
+  leftmargin=1.1em,
+  labelsep=0.5em,
+  itemsep=2pt,
+  parsep=0pt,
+  topsep=0pt,
+  partopsep=0pt,
+}
+
+% -----------------------------------------------------------------------------
+% Macros
+% -----------------------------------------------------------------------------
+
+% \cvsection{Title}: upper-case heading glued to whatever follows it.
+\newcommand{\cvsectionheading}[1]{%
+  {\color{accent}\fontsize{12.5pt}{15pt}\selectfont\bfseries\MakeUppercase{#1}\par}%
+  \nobreak\vspace{2pt}%
+  \nobreak\vspace{\cvSectionAfter}\nobreak
+  \global\cvfirstroletrue
+}
+\newcommand{\cvsection}[1]{%
+  \par\vspace{\cvSectionBefore}%
+  \cvsectionheading{#1}%
+}
+
+% cvsectionblock environment: heading AND content in one minipage, so a short section
+% (Education, Technologies, Languages) is never split across pages.
+\newenvironment{cvsectionblock}[1]{%
+  \par\vspace{\cvSectionBefore}%
+  \begin{minipage}{\linewidth}\raggedright
+  \cvsectionheading{#1}%
+}{%
+  \end{minipage}\par
+}
+
+% \cvitem{Label}{Text}: one labelled line, e.g. for Languages / Technologies.
+\newcommand{\cvitem}[2]{{\bfseries #1:} #2\par\vspace{2pt}}
+
+% \cvtech{...}: "Tech:" line used inside a role.
+\newcommand{\cvtech}[1]{%
+  \par\vspace{\cvTechGap}%
+  {\color{muted}\small\textbf{Tech:} #1\par}%
+}
+
+% cvrole environment
+%   \begin{cvrole}{Role title}{Company}{Dates}{Location}
+%     \item ...
+%     \cvtech{...}          % optional
+%   \end{cvrole}
+% The block is typeset into a box first; if it does not fit on the remaining page a new
+% page is started and the hairline separator above it is omitted.
+\newcommand{\cvroleheader}[4]{%
+  {\fontsize{12pt}{14pt}\selectfont\bfseries #1}%
+  \hfill{\color{muted}\small #3}\par
+  \vspace{1pt}%
+  {\color{muted}\itshape #2\ifx\relax#4\relax\else\ \textperiodcentered\ #4\fi\par}%
+  \vspace{\cvRoleHeadGap}%
+}
+\newif\ifcvfirstrole
+\newsavebox{\cvrolebox}
+\newlength{\cvroleneed}
+\newlength{\cvroleavail}
+\newenvironment{cvrole}[4]{%
+  \begin{lrbox}{\cvrolebox}%
+  \begin{minipage}{\linewidth}%
+    \raggedright
+    \cvroleheader{#1}{#2}{#3}{#4}%
+    \begin{itemize}
+}{%
+    \end{itemize}%
+  \end{minipage}%
+  \end{lrbox}%
+  \par\penalty0
+  \ifcvfirstrole
+    \global\cvfirstrolefalse
+    \vspace{\cvRoleGap}\usebox{\cvrolebox}\par
+  \else
+    \setlength{\cvroleneed}{\ht\cvrolebox}%
+    \addtolength{\cvroleneed}{\dp\cvrolebox}%
+    \addtolength{\cvroleneed}{2\cvRoleGap}%
+    \addtolength{\cvroleneed}{\baselineskip}% rule line + slack
+    \setlength{\cvroleavail}{\pagegoal}%
+    \addtolength{\cvroleavail}{-\pagetotal}%
+    \ifdim\cvroleneed>\cvroleavail
+      \newpage\usebox{\cvrolebox}\par
+    \else
+      \vspace{\cvRoleGap}\cvrule\usebox{\cvrolebox}\par
+    \fi
+  \fi
+}
+
+% \cvblock: generic unbreakable block (consent, ...).
+\newenvironment{cvblock}{\par\begin{minipage}{\linewidth}\raggedright}{\end{minipage}\par}
+
+% Hairline drawn above every role except the first one in a section.
+\newcommand{\cvrule}{{\color{rule}\rule{\linewidth}{0.4pt}}\par\vspace{\cvRoleGap}}
+
+\begin{document}
+
+% -----------------------------------------------------------------------------
+% Header
+% -----------------------------------------------------------------------------
+{\color{accent}\fontsize{26pt}{30pt}\selectfont\bfseries __NAME__\par}
+\vspace{3pt}
+{\fontsize{13pt}{16pt}\selectfont\color{muted} __HEADLINE__\par}
+\vspace{8pt}
+{\small
+  __CONTACTS__
+  \par}
+
+% -----------------------------------------------------------------------------
+% Summary
+% -----------------------------------------------------------------------------
+\cvsection{Summary}
+\begin{addmargin}[0.5cm]{0cm}
+__SUMMARY__
+\end{addmargin} \par
+
+% -----------------------------------------------------------------------------
+% Professional Experience
+% -----------------------------------------------------------------------------
+\cvsection{Professional Experience}
+\begin{addmargin}[0.5cm]{0cm}
+
+__ROLES__
+
+\end{addmargin}
+
+% -----------------------------------------------------------------------------
+% Education & Certifications
+% -----------------------------------------------------------------------------
+__EDUCATION__
+
+% -----------------------------------------------------------------------------
+% Technologies
+% -----------------------------------------------------------------------------
+__TECHNOLOGIES__
+
+% -----------------------------------------------------------------------------
+% Languages
+% -----------------------------------------------------------------------------
+__LANGUAGES__
+
+% -----------------------------------------------------------------------------
+% Consent
+% -----------------------------------------------------------------------------
+__CONSENT__
+
+\end{document}

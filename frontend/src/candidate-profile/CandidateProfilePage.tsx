@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import './candidate-profile.css'
 import { type CandidateProfile, candidateProfileApi } from './api.ts'
+import CandidateDetailsForm from './CandidateDetailsForm.tsx'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
@@ -68,6 +69,8 @@ export default function CandidateProfilePage() {
   return (
     <>
       <h1 className="title">Candidate profile</h1>
+
+      <CandidateDetailsForm />
 
       {profile === undefined && !loadError && <p>Loading…</p>}
 
