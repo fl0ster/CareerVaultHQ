@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 import httpx
 import pytest
@@ -339,3 +340,51 @@ def test_list_calls_with_filters_and_totals(api):
     assert api.get(f"{BASE}/calls", params={"status": "failed"}).json()["total"] == 1
     assert api.get(f"{BASE}/calls", params={"kind": "decision"}).json()["total"] == 0
     assert api.get(f"{BASE}/calls/999").status_code == 404
+
+
+def test_cost_report_series_and_breakdowns(api, db_session):
+    from datetime import UTC, datetime
+
+    api.post(f"{BASE}/chat", json={"prompt": "1"})
+    api.post(f"{BASE}/chat", json={"prompt": "2", "source": "other"})
+    api.state["handler"] = lambda req: httpx.Response(500, text="boom")
+    api.post(f"{BASE}/chat", json={"prompt": "3"})
+
+    # Move the second call two days back so the series spans three daily buckets.
+    calls = db_session.scalars(select(OpenRouterCall).order_by(OpenRouterCall.id)).all()
+    calls[1].created_at = calls[0].created_at.replace(tzinfo=UTC) - timedelta(days=2)
+    db_session.commit()
+
+    report = api.get(f"{BASE}/cost").json()
+    assert report["total_calls"] == 3
+    assert report["total_cost"] == pytest.approx(0.0084)
+    assert report["granularity"] == "day"
+    assert [b["calls"] for b in report["series"]] == [1, 0, 2]
+    assert [b["cost"] for b in report["series"]] == pytest.approx([0.0042, 0.0, 0.0042])
+    assert [b["cumulative_cost"] for b in report["series"]] == pytest.approx(
+        [0.0042, 0.0042, 0.0084]
+    )
+    assert report["by_source"][0] == {
+        "key": "api.openrouter.chat",
+        "cost": pytest.approx(0.0042),
+        "calls": 2,
+        "total_tokens": 15,
+    }
+    assert report["by_model"][0]["key"] == "test/model"  # the failed call logs the default model
+    assert report["facets"]["sources"] == ["api.openrouter.chat", "other"]
+    assert report["facets"]["statuses"] == ["failed", "ok"]
+
+    filtered = api.get(f"{BASE}/cost", params={"status": "failed"}).json()
+    assert filtered["total_calls"] == 1
+    assert filtered["total_cost"] == 0
+    assert len(filtered["series"]) == 1
+
+    since = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    assert api.get(f"{BASE}/cost", params={"since": since}).json()["total_calls"] == 2
+    monthly = api.get(f"{BASE}/cost", params={"granularity": "month"}).json()
+    assert len(monthly["series"]) in (1, 2)
+    assert monthly["series"][-1]["cumulative_cost"] == pytest.approx(0.0084)
+
+    empty = api.get(f"{BASE}/cost", params={"source": "nope"}).json()
+    assert empty["series"] == [] and empty["first_call_at"] is None
+    assert api.get(f"{BASE}/cost", params={"granularity": "year"}).status_code == 422
