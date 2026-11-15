@@ -20,7 +20,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_session
 from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult
@@ -101,13 +101,25 @@ def get_raw_job(job_id: int, session: Annotated[Session, Depends(get_session)]) 
 
 
 class EvaluationOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     candidate_profile_id: int
     match_probability: float
     model: str | None
+    """Model that produced the score (from the ``openrouter_calls`` row), if still known."""
     created_at: datetime
+
+
+def _evaluation_out(evaluation: JobEvaluation | None) -> EvaluationOut | None:
+    if evaluation is None:
+        return None
+    call = evaluation.openrouter_call
+    return EvaluationOut(
+        id=evaluation.id,
+        candidate_profile_id=evaluation.candidate_profile_id,
+        match_probability=evaluation.match_probability,
+        model=call.model if call is not None else None,
+        created_at=evaluation.created_at,
+    )
 
 
 class EvaluatedJobOut(BaseModel):
@@ -155,9 +167,9 @@ def _evaluated(
         "scrape_run_id": job.scrape_run_id,
         "has_html": bool(job.html),
         "title": parsed.title,
-        "company": parsed.company,
+        "company": parsed.company.name if parsed.company is not None else None,
         "parsed_at": parsed.parsed_at,
-        "evaluation": evaluation,
+        "evaluation": _evaluation_out(evaluation),
     }
     if description:
         data["description"] = parsed.description
@@ -170,6 +182,7 @@ def _evaluated_query(profile_id: int) -> Select:
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(JobEvaluation, JobEvaluation.job_parse_result_id == JobParseResult.id)
         .where(JobEvaluation.candidate_profile_id == profile_id)
+        .options(joinedload(JobParseResult.company), joinedload(JobEvaluation.openrouter_call))
     )
 
 
@@ -230,6 +243,7 @@ def get_job(job_id: int, session: Annotated[Session, Depends(get_session)]) -> E
         select(Job, JobParseResult)
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .where(Job.id == job_id)
+        .options(joinedload(JobParseResult.company))
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")

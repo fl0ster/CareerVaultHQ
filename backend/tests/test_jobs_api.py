@@ -1,4 +1,13 @@
-from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult, ScrapeRun
+from app.models import (
+    CandidateProfile,
+    Company,
+    Job,
+    JobEvaluation,
+    JobParseResult,
+    OpenRouterCall,
+    ScrapeRun,
+)
+from app.services.companies import normalize_company_name
 
 
 def seed(db_session, n: int) -> ScrapeRun:
@@ -17,6 +26,10 @@ def seed(db_session, n: int) -> ScrapeRun:
     return run
 
 
+def _call() -> OpenRouterCall:
+    return OpenRouterCall(source="tests", kind=OpenRouterCall.KIND_DECISION, model="m", input={})
+
+
 def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfile]:
     """``n`` jobs, all parsed, scored against an old and a new profile. Job ``i`` scores
     ``i / n`` against the new profile and ``0.5`` against the old one. The last job is
@@ -28,8 +41,10 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
     db_session.flush()
     jobs = db_session.query(Job).order_by(Job.id).all()
     for i, job in enumerate(jobs):
+        name = f"Company {i}"
+        company = Company(name=name, normalized_name=normalize_company_name(name))
         parsed = JobParseResult(
-            job=job, title=f"Title {i}", company=f"Company {i}", description=f"Desc {i}"
+            job=job, title=f"Title {i}", company=company, description=f"Desc {i}"
         )
         db_session.add(parsed)
         db_session.flush()
@@ -38,7 +53,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
                 job_parse_result_id=parsed.id,
                 candidate_profile_id=old.id,
                 match_probability=0.5,
-                model="m",
+                openrouter_call=_call(),
             )
         )
         if i < n - 1:
@@ -47,7 +62,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
                     job_parse_result_id=parsed.id,
                     candidate_profile_id=new.id,
                     match_probability=i / n,
-                    model="m",
+                    openrouter_call=_call(),
                 )
             )
     db_session.commit()
@@ -112,6 +127,8 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
     assert body["description"] == "Desc 1"
     assert body["evaluation"]["candidate_profile_id"] == new.id
     assert body["evaluation"]["match_probability"] == 1 / 3
+    assert body["evaluation"]["model"] == "m"
+    assert body["company"] == "Company 1"
 
     unscored = client.get("/api/jobs/3").json()  # parsed, only scored against the old profile
     assert unscored["description"] == "Desc 2"

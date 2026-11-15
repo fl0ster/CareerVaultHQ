@@ -280,6 +280,7 @@ class JobEvaluation(Base):
 
     job_parse_result: Mapped[JobParseResult] = relationship()
     candidate_profile: Mapped[CandidateProfile] = relationship()
+    openrouter_call: Mapped[OpenRouterCall | None] = relationship()
 
 
 class JobEvaluationFailure(Base):
