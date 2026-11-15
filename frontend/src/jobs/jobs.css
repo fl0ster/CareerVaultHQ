@@ -8,6 +8,14 @@
 .job-item {
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
+  /* Rows glide between positions (see useFlip); keep them above neighbours while moving. */
+  position: relative;
+  background: var(--bg);
+  transition:
+    background-color 0.3s ease,
+    padding 0.3s ease,
+    margin 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .job-main {
@@ -90,6 +98,7 @@
 }
 
 .job-item.match {
+  z-index: 1;
   background: var(--accent-bg);
   border-left: 3px solid var(--accent);
   margin-left: -12px;

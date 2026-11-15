@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import { type EvaluatedJob, type JobSortOrder, jobsApi, percent } from './api.ts'
 import JobDialog from './JobDialog.tsx'
@@ -19,6 +19,57 @@ function loadThreshold(): number {
   return DEFAULT_THRESHOLD
 }
 
+/** Vertical offset currently applied by a running transform animation, in px. */
+function currentTranslateY(el: HTMLElement): number {
+  const transform = getComputedStyle(el).transform
+  if (!transform || transform === 'none') return 0
+  // matrix(a, b, c, d, tx, ty) — ty is the last component.
+  const match = /matrix\(([^)]+)\)/.exec(transform)
+  if (!match) return 0
+  const parts = match[1].split(',')
+  const ty = Number(parts[parts.length - 1])
+  return Number.isFinite(ty) ? ty : 0
+}
+
+/**
+ * FLIP animation: whenever the list re-orders, rows glide from their previous
+ * position to the new one instead of jumping. `order` is a key that changes
+ * when the ordering does.
+ *
+ * `previous` holds each row's *layout* position (transform excluded) from the
+ * last commit. If a row is still mid-glide when the order changes again, its
+ * in-flight offset is read first, the old animation is cancelled, and the new
+ * glide starts from where the row visually is, so rapid slider drags stay smooth.
+ */
+function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
+  const previous = useRef(new Map<string, number>())
+
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const rows = Array.from(list.children) as HTMLElement[]
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const next = new Map<string, number>()
+    for (const row of rows) {
+      const key = row.dataset.key
+      if (!key) continue
+      const inFlight = currentTranslateY(row)
+      for (const animation of row.getAnimations()) animation.cancel()
+      const top = row.getBoundingClientRect().top
+      next.set(key, top)
+      const before = previous.current.get(key)
+      if (before === undefined || reduce) continue
+      const delta = before + inFlight - top
+      if (Math.abs(delta) < 1) continue
+      row.animate(
+        [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }],
+        { duration: 350, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      )
+    }
+    previous.current = next
+  }, [listRef, order])
+}
+
 function JobRow({
   job,
   threshold,
@@ -30,7 +81,7 @@ function JobRow({
 }) {
   const matching = percent(job.evaluation.match_probability) >= threshold
   return (
-    <li className={matching ? 'job-item match' : 'job-item'}>
+    <li className={matching ? 'job-item match' : 'job-item'} data-key={String(job.id)}>
       <button type="button" className="job-row" onClick={() => onSelect(job)}>
         <div className="job-main">
           <span className="job-title">{job.title ?? job.link}</span>
@@ -57,6 +108,7 @@ export default function JobsPage() {
   const [threshold, setThreshold] = useState<number>(loadThreshold)
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
   const sentinel = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
   // Mirrors of state for the observer callback so it never reads stale values.
   const loadingRef = useRef(false)
   const offsetRef = useRef(0)
@@ -122,7 +174,12 @@ export default function JobsPage() {
     return () => observer.disconnect()
   }, [loadMore])
 
-  const matchingCount = jobs.filter((j) => percent(j.evaluation.match_probability) >= threshold).length
+  // Matching jobs go first; each group keeps the server order (newest first by ID).
+  const isMatch = (j: EvaluatedJob) => percent(j.evaluation.match_probability) >= threshold
+  const matchingJobs = jobs.filter(isMatch)
+  const orderedJobs = [...matchingJobs, ...jobs.filter((j) => !isMatch(j))]
+  const matchingCount = matchingJobs.length
+  useFlip(listRef, orderedJobs.map((j) => j.id).join(','))
 
   return (
     <>
@@ -177,8 +234,8 @@ export default function JobsPage() {
             : 'No evaluated jobs yet. Run a scrape from the Tools tab and wait for the evaluation to finish.'}
         </p>
       ) : (
-        <ul className="job-list">
-          {jobs.map((job) => (
+        <ul className="job-list" ref={listRef}>
+          {orderedJobs.map((job) => (
             <JobRow key={job.id} job={job} threshold={threshold} onSelect={setSelected} />
           ))}
         </ul>
