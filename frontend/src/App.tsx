@@ -5,6 +5,7 @@ import ToolsPage from './tools/ToolsPage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
+import CostPage from './cost/CostPage.tsx'
 
 const TABS = [
   { id: 'jobs', label: 'Jobs' },
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'work-history', label: 'Work history' },
   { id: 'candidate-profile', label: 'Candidate profile' },
   { id: 'tools', label: 'Tools' },
+  { id: 'cost', label: 'Cost' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
@@ -50,6 +52,9 @@ function App() {
       </section>
       <section hidden={tab !== 'tools'}>
         <ToolsPage />
+      </section>
+      <section hidden={tab !== 'cost'}>
+        <CostPage />
       </section>
     </main>
   )
