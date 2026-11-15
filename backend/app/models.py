@@ -308,3 +308,71 @@ class JobEvaluationFailure(Base):
     last_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     """The pair is not selected for evaluation before this time."""
+
+
+class CandidateDetails(Base):
+    """Personal details printed on a generated CV (name, contact lines, education,
+    certifications, languages and the consent clause). A singleton: at most one row exists
+    and ``PUT /api/candidate-details`` upserts it."""
+
+    __tablename__ = "candidate_details"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    first_name: Mapped[str] = mapped_column(String(128), default="")
+    last_name: Mapped[str] = mapped_column(String(128), default="")
+    email: Mapped[str] = mapped_column(String(256), default="")
+    phone: Mapped[str] = mapped_column(String(64), default="")
+    website: Mapped[str] = mapped_column(String(512), default="")
+    github: Mapped[str] = mapped_column(String(512), default="")
+    linkedin: Mapped[str] = mapped_column(String(512), default="")
+    location: Mapped[str] = mapped_column(String(256), default="")
+    education: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    """``[{"degree", "institution", "date_start", "date_end", "note"}, ...]``; dates are free
+    text (``Oct 2012``) because they are printed verbatim."""
+    certifications: Mapped[list[str]] = mapped_column(JSON, default=list)
+    languages: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    """``[{"language": "English", "level": "Advanced (C1)"}, ...]``."""
+    consent_text: Mapped[str] = mapped_column(Text, default="")
+    """Data-processing consent printed in small type at the end of the CV; blank = omitted."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class GeneratedCV(Base):
+    """A CV tailored to one parsed job by ``app.tasks.cv.generate_cv``. The row is created
+    (``queued``) when the generation is requested and updated by the task as it runs; the
+    ``.tex`` and ``.pdf`` land under ``settings.cv_root / <id>``."""
+
+    __tablename__ = "generated_cvs"
+
+    STATUS_QUEUED = "queued"
+    STATUS_RUNNING = "running"
+    STATUS_FINISHED = "finished"
+    STATUS_FAILED = "failed"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(16), default=STATUS_QUEUED, index=True)
+    """``queued`` -> ``running`` -> ``finished`` or ``failed``."""
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    headline_role: Mapped[str | None] = mapped_column(String(256))
+    """Job title printed under the candidate's name."""
+    core_technologies: Mapped[list[str]] = mapped_column(JSON, default=list)
+    """The one or two technologies printed next to the headline role."""
+    summary: Mapped[str | None] = mapped_column(Text)
+    """Professional summary that opens the CV."""
+    tex_path: Mapped[str | None] = mapped_column(String(1024))
+    pdf_path: Mapped[str | None] = mapped_column(String(1024))
+    pipeline: Mapped[dict | None] = mapped_column(JSON)
+    """What the pipeline did: relevance per role, which roles were listed or condensed,
+    the timeline log and any warnings (steps that fell back to the original text)."""
+
+    job_parse_result: Mapped[JobParseResult] = relationship()

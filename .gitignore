@@ -27,6 +27,7 @@ build/
 # Backend
 backend/static/uploads
 backend/static/jobs
+backend/static/cv
 
 # Database
 *.db

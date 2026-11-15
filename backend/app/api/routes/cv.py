@@ -1,0 +1,339 @@
+"""CVs generated for parsed jobs.
+
+1. ``POST /api/cv/generate`` with ``{"job_id": <jobs.id>}`` -> ``202`` with the new
+   ``generated_cvs`` row (status ``queued``); ``app.tasks.cv.generate_cv`` runs on the
+   worker.
+2. Poll ``GET /api/cv/{id}`` (or the list) until ``status`` is ``finished`` or ``failed``.
+3. Download ``GET /api/cv/{id}/pdf`` (or the source at ``GET /api/cv/{id}/tex``).
+
+``GET /api/cv`` lists every generated CV newest first with the job it was made for;
+``?job_id=`` narrows it to one job. ``DELETE /api/cv/{id}`` removes the row and its files.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import shutil
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Annotated, Any, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from rq import Queue
+from rq.exceptions import NoSuchJobError
+from rq.job import Job as RqJob
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
+
+from app.config import Settings, get_settings
+from app.db import get_session
+from app.models import CandidateDetails, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
+from app.queue import get_queue
+from app.tasks.cv import generate_cv
+from app.tasks.cv.generate import CvGenerationError, check_details, cv_dir
+
+log = logging.getLogger(__name__)
+
+router = APIRouter()
+
+MAX_PAGE_SIZE = 200
+
+CvStatus = Literal["queued", "running", "finished", "failed"]
+
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+# --------------------------------------------------------------------------- models
+
+
+class GenerateCvRequest(BaseModel):
+    job_id: int
+    """``jobs.id`` of a parsed job."""
+
+
+class CvJobOut(BaseModel):
+    id: int
+    """``jobs.id``"""
+    title: str | None
+    company: str | None
+    link: str
+    source: str
+
+
+class GeneratedCvOut(BaseModel):
+    id: int
+    status: CvStatus
+    error: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    headline_role: str | None
+    core_technologies: list[str]
+    summary: str | None
+    warnings: list[str]
+    """Pipeline steps that fell back to the original text (see ``app.tasks.cv``)."""
+    cost: float | None
+    """USD spent on OpenRouter calls for this CV (``None`` until it is finished)."""
+    openrouter_calls: int | None
+    job: CvJobOut
+    pdf_url: str | None
+    """Set once the CV is ``finished``."""
+    tex_url: str | None
+
+
+class GeneratedCvPage(BaseModel):
+    items: list[GeneratedCvOut]
+    total: int
+    offset: int
+    limit: int
+    has_more: bool
+
+
+# --------------------------------------------------------------------------- helpers
+
+
+def _query():
+    return (
+        select(GeneratedCV)
+        .join(JobParseResult, JobParseResult.id == GeneratedCV.job_parse_result_id)
+        .join(Job, Job.id == JobParseResult.job_id)
+        .options(
+            joinedload(GeneratedCV.job_parse_result).joinedload(JobParseResult.job),
+            joinedload(GeneratedCV.job_parse_result).joinedload(JobParseResult.company),
+        )
+    )
+
+
+def _get_or_404(session: Session, cv_id: int) -> GeneratedCV:
+    cv = session.scalar(_query().where(GeneratedCV.id == cv_id))
+    if cv is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown generated cv")
+    return cv
+
+
+def _reconcile(session: Session, queue: Queue, cv: GeneratedCV) -> None:
+    """A generation the worker lost (killed by the RQ timeout, worker crashed) stays
+    ``running`` in the database; pick the failure up from RQ when it is visible there."""
+    if cv.status not in (GeneratedCV.STATUS_QUEUED, GeneratedCV.STATUS_RUNNING) or not cv.rq_job_id:
+        return
+    try:
+        rq_job = RqJob.fetch(cv.rq_job_id, connection=queue.connection)
+    except NoSuchJobError:
+        return
+    except Exception:  # Redis unreachable: show what the database knows
+        log.debug("Could not fetch RQ job %s", cv.rq_job_id, exc_info=True)
+        return
+    if rq_job.get_status(refresh=False) == "failed":
+        latest = rq_job.latest_result()
+        cv.status = GeneratedCV.STATUS_FAILED
+        cv.error = (latest.exc_string if latest is not None else None) or "worker failed"
+        cv.finished_at = rq_job.ended_at or datetime.now(tz=cv.created_at.tzinfo)
+        session.commit()
+
+
+def _to_out(cv: GeneratedCV, request: Request) -> GeneratedCvOut:
+    parsed = cv.job_parse_result
+    job = parsed.job
+    finished = cv.status == GeneratedCV.STATUS_FINISHED
+    return GeneratedCvOut(
+        id=cv.id,
+        status=cv.status,  # type: ignore[arg-type]
+        error=cv.error,
+        created_at=cv.created_at,
+        started_at=cv.started_at,
+        finished_at=cv.finished_at,
+        headline_role=cv.headline_role,
+        core_technologies=list(cv.core_technologies or []),
+        summary=cv.summary,
+        warnings=list((cv.pipeline or {}).get("warnings") or []),
+        cost=(cv.pipeline or {}).get("cost"),
+        openrouter_calls=(cv.pipeline or {}).get("openrouter_calls"),
+        job=CvJobOut(
+            id=job.id,
+            title=parsed.title,
+            company=parsed.company.name if parsed.company is not None else None,
+            link=job.link,
+            source=job.source,
+        ),
+        pdf_url=str(request.url_for("generated_cv_pdf", cv_id=cv.id)) if finished else None,
+        tex_url=str(request.url_for("generated_cv_tex", cv_id=cv.id)) if finished else None,
+    )
+
+
+def _download_name(session: Session, cv: GeneratedCV, suffix: str) -> str:
+    """``First_Last_CV_Company.pdf``-style file name for the download."""
+    details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))
+    parts = []
+    if details is not None:
+        parts += [details.first_name, details.last_name]
+    parts.append("CV")
+    company = cv.job_parse_result.company
+    if company is not None:
+        parts.append(company.name)
+    name = "_".join(_SAFE_NAME.sub("_", p).strip("_") for p in parts if p and p.strip())
+    return f"{name or 'CV'}{suffix}"
+
+
+def _file_or_409(settings: Settings, cv: GeneratedCV, path: str | None) -> Path:
+    if cv.status == GeneratedCV.STATUS_FAILED:
+        raise HTTPException(status.HTTP_409_CONFLICT, cv.error or "generation failed")
+    if cv.status != GeneratedCV.STATUS_FINISHED or not path:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"generation is {cv.status}")
+    file = Path(path).resolve()
+    if not file.is_relative_to(settings.cv_root.resolve()) or not file.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found on disk")
+    return file
+
+
+# --------------------------------------------------------------------------- routes
+
+
+@router.post("/generate", response_model=GeneratedCvOut, status_code=status.HTTP_202_ACCEPTED)
+def generate(
+    payload: GenerateCvRequest,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> GeneratedCvOut:
+    """Queue a CV generation for a parsed job.
+
+    ``404`` when the job is unknown or not parsed yet; ``400`` when there is no work
+    history or the candidate's name is not set; ``503`` when the queue is unreachable.
+    """
+    parsed = session.scalar(
+        select(JobParseResult)
+        .where(JobParseResult.job_id == payload.job_id)
+        .options(joinedload(JobParseResult.job), joinedload(JobParseResult.company))
+    )
+    if parsed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
+    if session.scalar(select(func.count()).select_from(WorkHistoryEntry)) == 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first"
+        )
+    details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))
+    try:
+        check_details(details)
+    except CvGenerationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex)
+    session.add(cv)
+    session.commit()
+    session.refresh(cv)
+    try:
+        queue.enqueue(
+            generate_cv,
+            cv.id,
+            job_id=cv.rq_job_id,
+            job_timeout=settings.cv_timeout,
+            result_ttl=settings.job_result_ttl,
+            failure_ttl=settings.job_result_ttl,
+            meta={"generated_cv_id": cv.id, "job_id": parsed.job_id},
+            description=f"generate cv {cv.id} for job {parsed.job_id}",
+        )
+    except Exception as exc:
+        log.exception("Could not enqueue CV generation %d", cv.id)
+        cv.status = GeneratedCV.STATUS_FAILED
+        cv.error = f"could not enqueue the generation: {exc}"
+        session.commit()
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "job queue unavailable; try again later"
+        ) from exc
+    return _to_out(_get_or_404(session, cv.id), request)
+
+
+@router.get("", response_model=GeneratedCvPage)
+def list_cvs(
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
+    job_id: int | None = None,
+) -> GeneratedCvPage:
+    """Generated CVs, newest first, each with the job it was generated for."""
+    query = _query()
+    if job_id is not None:
+        query = query.where(Job.id == job_id)
+    total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    cvs = session.scalars(query.order_by(GeneratedCV.id.desc()).offset(offset).limit(limit)).all()
+    for cv in cvs:
+        _reconcile(session, queue, cv)
+    return GeneratedCvPage(
+        items=[_to_out(cv, request) for cv in cvs],
+        total=total,
+        offset=offset,
+        limit=limit,
+        has_more=offset + len(cvs) < total,
+    )
+
+
+@router.get("/{cv_id}", response_model=GeneratedCvOut)
+def get_cv(
+    cv_id: int,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> GeneratedCvOut:
+    """One generated CV; poll until ``status`` is ``finished`` or ``failed``."""
+    cv = _get_or_404(session, cv_id)
+    _reconcile(session, queue, cv)
+    return _to_out(cv, request)
+
+
+@router.get("/{cv_id}/pdf", name="generated_cv_pdf")
+def get_pdf(
+    cv_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileResponse:
+    """Download the PDF (``409`` while the generation is still running or has failed)."""
+    cv = _get_or_404(session, cv_id)
+    pdf = _file_or_409(settings, cv, cv.pdf_path)
+    return FileResponse(
+        pdf, media_type="application/pdf", filename=_download_name(session, cv, ".pdf")
+    )
+
+
+@router.get("/{cv_id}/tex", name="generated_cv_tex")
+def get_tex(
+    cv_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileResponse:
+    """Download the LaTeX source the PDF was built from."""
+    cv = _get_or_404(session, cv_id)
+    tex = _file_or_409(settings, cv, cv.tex_path)
+    return FileResponse(
+        tex, media_type="application/x-tex", filename=_download_name(session, cv, ".tex")
+    )
+
+
+@router.get("/{cv_id}/pipeline", response_model=dict[str, Any])
+def get_pipeline(cv_id: int, session: Annotated[Session, Depends(get_session)]) -> dict[str, Any]:
+    """What the pipeline did (relevance per role, tailored entries, timeline log, warnings)."""
+    return _get_or_404(session, cv_id).pipeline or {}
+
+
+@router.delete("/{cv_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cv(
+    cv_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Delete the generated CV and its files (``409`` while it is still being generated)."""
+    cv = _get_or_404(session, cv_id)
+    if cv.status in (GeneratedCV.STATUS_QUEUED, GeneratedCV.STATUS_RUNNING):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"generation is {cv.status}")
+    folder = cv_dir(settings, cv.id)
+    if folder.is_dir() and folder.is_relative_to(settings.cv_root.resolve()):
+        shutil.rmtree(folder, ignore_errors=True)
+    session.delete(cv)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

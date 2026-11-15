@@ -48,6 +48,30 @@ class Settings(BaseSettings):
     # Reject uploads larger than this (bytes).
     latex_max_upload_bytes: int = 2 * 1024 * 1024
 
+    # --- CV generation (app.tasks.cv) ---
+    # Where generated CVs are written (``<cv_root>/<generated_cv_id>/cv.{tex,pdf}``);
+    # shared by API and worker.
+    cv_root: Path = BACKEND_DIR / "static" / "cv"
+    # Chat model used to tailor the work history; empty = ``openrouter_chat_model``.
+    cv_chat_model: str = ""
+    # How many OpenRouter requests one generation keeps in flight at once.
+    cv_max_workers: int = 4
+    # Hard limit for one generation (RQ ``job_timeout``, seconds): dozens of LLM calls plus
+    # pdflatex, which is slow on the Pi.
+    cv_timeout: int = 1800
+    # Timeline rules (see ``app.tasks.cv.history``): how many roles are listed in full
+    # before older ones are condensed into "Additional experience" ...
+    cv_max_entries: int = 5
+    # ... a role at or above this relevance may win an overlap as the shorter job ...
+    cv_high_relevance: float = 0.5
+    # ... a role at or above this relevance is never condensed, however old ...
+    cv_exceptional_relevance: float = 0.8
+    # ... a role below this relevance is always condensed, even if it leaves a gap ...
+    cv_irrelevant_relevance: float = 0.2
+    # ... and a losing shorter job is trimmed instead of dropped when it alone covers at
+    # least this many months.
+    cv_min_months: int = 3
+
     # --- OpenRouter (LLM calls) ---
     # API key from https://openrouter.ai/keys. Calls fail with 503 when it is empty.
     openrouter_api_key: str = ""
@@ -83,7 +107,9 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator("frontend_dist", "latex_upload_root", "latex_jobs_root", mode="before")
+    @field_validator(
+        "frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", mode="before"
+    )
     @classmethod
     def _resolve_path(cls, value: object) -> object:
         if isinstance(value, str):

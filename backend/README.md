@@ -56,6 +56,9 @@ app/
   workers/         Background worker entrypoint
     worker.py      RQ worker for the single job queue (LaTeX + scraping): python -m app.workers.worker
   tasks/latex.py   pdflatex compile step executed by the worker
+  tasks/cv/        CV tailored to one parsed job (worker job generate_cv): history.py builds the
+                   coherent timeline from relevance-scored roles, render.py fills cv_template.tex,
+                   generate.py orchestrates the OpenRouter calls and the pdflatex compile
   services/
     openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
                    the openrouter_calls table. Routes/tasks use OpenRouterService directly;

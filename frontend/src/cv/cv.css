@@ -1,0 +1,190 @@
+/* Generated CV page and the CV section of the job dialog */
+.cv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cv-item {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cv-main {
+  min-width: 0;
+  color: var(--text-h);
+}
+
+.cv-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  overflow-wrap: anywhere;
+}
+
+.cv-company {
+  color: var(--text);
+}
+
+.cv-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.cv-headline {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.cv-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+
+  .button.small {
+    font-size: 13px;
+    padding: 3px 10px;
+    width: auto;
+    display: inline-block;
+  }
+  .danger {
+    color: #b91c1c;
+  }
+}
+
+.cv-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  .spinner {
+    width: 10px;
+    height: 10px;
+  }
+  &.finished {
+    background: rgba(34, 197, 94, 0.2);
+    color: #15803d;
+  }
+  &.failed {
+    background: rgba(239, 68, 68, 0.2);
+    color: #b91c1c;
+  }
+  &.running,
+  &.queued {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+}
+
+.cv-details {
+  margin-top: 10px;
+  font-size: 14px;
+
+  pre.error {
+    margin: 0 0 8px;
+    padding: 12px;
+    background: var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow: auto;
+  }
+}
+
+.cv-cost {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.cv-summary {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.cv-warnings {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Job dialog section */
+.job-cv {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: var(--text-h);
+  }
+  .cv-list {
+    margin-top: 8px;
+  }
+  .cv-item:last-child {
+    border-bottom: 0;
+    padding-bottom: 4px;
+  }
+  .cv-item:first-child {
+    padding-top: 4px;
+  }
+}
+
+.cv-inline-error {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.job-cv-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .cv-head {
+    flex-direction: column;
+  }
+  .cv-buttons,
+  .cv-actions {
+    justify-content: flex-start;
+  }
+  .cv-buttons button,
+  .cv-actions .button {
+    width: auto;
+  }
+}

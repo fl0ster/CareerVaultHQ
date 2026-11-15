@@ -1,0 +1,55 @@
+BASE = "/api/candidate-details"
+
+DETAILS = {
+    "first_name": " Jane ",
+    "last_name": "Doe",
+    "email": "jane@example.com",
+    "phone": "+48 600 000 000",
+    "website": "janedoe.dev",
+    "github": "github.com/jane",
+    "linkedin": "",
+    "location": "Kraków",
+    "education": [
+        {"degree": "B.Sc.", "institution": "Uni", "date_start": "2012", "date_end": "2015"},
+        {"degree": " ", "institution": "", "date_start": "", "date_end": "", "note": ""},
+    ],
+    "certifications": ["AWS", " ", "GCP "],
+    "languages": [{"language": "Polish", "level": "Native"}, {"language": "", "level": "B2"}],
+    "consent_text": "I consent.",
+}
+
+
+def test_get_is_null_until_saved(client):
+    res = client.get(BASE)
+    assert res.status_code == 200
+    assert res.json() is None
+
+
+def test_put_creates_then_replaces_the_single_row(client):
+    res = client.put(BASE, json=DETAILS)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["first_name"] == "Jane"
+    assert body["education"] == [
+        {
+            "degree": "B.Sc.",
+            "institution": "Uni",
+            "date_start": "2012",
+            "date_end": "2015",
+            "note": "",
+        }
+    ]
+    assert body["certifications"] == ["AWS", "GCP"]
+    assert body["languages"] == [{"language": "Polish", "level": "Native"}]
+    assert client.get(BASE).json() == body
+
+    again = client.put(BASE, json={"first_name": "Janet", "last_name": "Doe"}).json()
+    assert again["id"] == body["id"]
+    assert again["first_name"] == "Janet"
+    assert again["email"] == ""
+    assert again["education"] == []
+
+
+def test_put_validates_lengths(client):
+    res = client.put(BASE, json={"first_name": "x" * 200})
+    assert res.status_code == 422
