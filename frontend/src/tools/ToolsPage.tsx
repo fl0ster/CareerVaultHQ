@@ -1,29 +1,17 @@
-import {type FormEvent, useEffect, useRef, useState} from "react";
-import ScrapePanel from "./ScrapePanel.tsx";
-
-type JobInfo = {
-  job_id: string
-  status: string
-  source?: string | null
-  enqueued_at?: string | null
-  started_at?: string | null
-  ended_at?: string | null
-  pdf_url?: string | null
-  error?: string | null
-}
-
-const API = '/api/latex'
-const TERMINAL = new Set(['finished', 'failed', 'stopped', 'canceled'])
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import './tools.css'
+import { isTerminal, latexApi, type LatexJobInfo } from './api.ts'
+import ScrapePanel from './ScrapePanel.tsx'
 
 export default function ToolsPage() {
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [job, setJob] = useState<JobInfo | null>(null)
+  const [job, setJob] = useState<LatexJobInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const jobId = job?.job_id
-  const done = job ? TERMINAL.has(job.status) : false
+  const done = job ? isTerminal(job.status) : false
 
   // Follow the job: SSE first, polling as a fallback.
   useEffect(() => {
@@ -33,22 +21,20 @@ export default function ToolsPage() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/jobs/${jobId}`)
-        if (!res.ok) throw new Error(`status ${res.status}`)
-        const info: JobInfo = await res.json()
+        const info = await latexApi.getJob(jobId)
         if (cancelled) return
         setJob(info)
-        if (!TERMINAL.has(info.status)) timer = window.setTimeout(poll, 1000)
+        if (!isTerminal(info.status)) timer = window.setTimeout(poll, 1000)
       } catch (e) {
         if (!cancelled) setError(`Could not fetch job status: ${String(e)}`)
       }
     }
 
-    const es = new EventSource(`${API}/jobs/${jobId}/events`)
+    const es = new EventSource(latexApi.eventsUrl(jobId))
     es.addEventListener('status', (ev) => {
-      const info: JobInfo = JSON.parse((ev as MessageEvent).data)
+      const info: LatexJobInfo = JSON.parse((ev as MessageEvent).data)
       setJob(info)
-      if (TERMINAL.has(info.status)) es.close()
+      if (isTerminal(info.status)) es.close()
     })
     es.onerror = () => {
       es.close()
@@ -69,14 +55,7 @@ export default function ToolsPage() {
     setJob(null)
     setSubmitting(true)
     try {
-      const body = new FormData()
-      body.append('file', file)
-      const res = await fetch(`${API}/compile`, { method: 'POST', body })
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null)
-        throw new Error(detail?.detail ?? `HTTP ${res.status}`)
-      }
-      const accepted = await res.json()
+      const accepted = await latexApi.compile(file)
       setJob({ job_id: accepted.job_id, status: accepted.status, source: accepted.source })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -92,7 +71,7 @@ export default function ToolsPage() {
     if (fileInput.current) fileInput.current.value = ''
   }
 
-  const pdfUrl = jobId ? `${API}/jobs/${jobId}/pdf` : null
+  const pdfUrl = jobId ? latexApi.pdfUrl(jobId) : null
 
   return (
     <>
