@@ -92,8 +92,8 @@ def test_evaluate_pending_jobs_scores_every_unevaluated_job(task_engine, request
             (seeded["parsed_ids"][1], seeded["profile_ids"][0], 0.12),
         ]
         assert all(r.openrouter_call_id is not None for r in rows)
-        assert rows[0].model == "typesafe/jev-1.14"
         calls = session.scalars(select(models.OpenRouterCall)).all()
+        assert all(c.model == "typesafe/jev-1.14" for c in calls)
         assert {c.source for c in calls} == {"tasks.evaluate"}
         assert {c.kind for c in calls} == {"decision"}
 

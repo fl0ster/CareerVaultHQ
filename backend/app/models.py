@@ -212,8 +212,7 @@ class JobEvaluation(Base):
     openrouter_call_id: Mapped[int | None] = mapped_column(
         ForeignKey("openrouter_calls.id", ondelete="SET NULL"), index=True
     )
-    """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer)."""
-    model: Mapped[str | None] = mapped_column(String(128))
+    """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer, model)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()

@@ -148,7 +148,6 @@ def evaluate_one(
         candidate_profile_id=profile.id,
         match_probability=decision.noul(QUESTION_NAME),
         openrouter_call_id=decision.call_id,
-        model=decision.model,
     )
 
 
