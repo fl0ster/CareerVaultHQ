@@ -6,6 +6,7 @@ import CompaniesPage from './companies/CompaniesPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
+import QueueWidget from './queue/QueueWidget.tsx'
 
 const TABS = [
   { id: 'jobs', label: 'Jobs' },
@@ -56,6 +57,8 @@ function App() {
       <section hidden={tab !== 'cost'}>
         <CostPage />
       </section>
+
+      <QueueWidget />
     </main>
   )
 }

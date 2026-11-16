@@ -9,6 +9,7 @@ from app.api.routes import (
     jobs,
     latex,
     openrouter,
+    queue_status,
     scrape,
     sources,
     work_history,
@@ -30,3 +31,4 @@ api_router.include_router(
 )
 api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])
+api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
