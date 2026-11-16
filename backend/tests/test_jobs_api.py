@@ -8,16 +8,18 @@ from app.models import (
     ScrapeRun,
 )
 from app.services.companies import normalize_company_name
+from tests.conftest import ensure_source
 
 
 def seed(db_session, n: int) -> ScrapeRun:
     run = ScrapeRun(status="finished", new_count=n, scraped_count=n)
     db_session.add(run)
+    skillshot, other = ensure_source(db_session, "skillshot"), ensure_source(db_session, "other")
     for i in range(n):
         db_session.add(
             Job(
                 link=f"https://example.com/jobs/{i}",
-                source="skillshot" if i % 2 == 0 else "other",
+                source=skillshot if i % 2 == 0 else other,
                 html="<html></html>" if i % 3 == 0 else None,
                 scrape_run=run,
             )

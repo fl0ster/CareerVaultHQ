@@ -59,15 +59,16 @@ class Settings(BaseSettings):
     # Hard limit for one generation (RQ ``job_timeout``, seconds): dozens of LLM calls plus
     # pdflatex, which is slow on the Pi.
     cv_timeout: int = 1800
-    # Timeline rules (see ``app.tasks.cv.history``): how many roles are listed in full
-    # before older ones are condensed into "Additional experience" ...
+    # Timeline rules (see ``app.tasks.cv.history``): at most this many roles are listed in
+    # full (never more); older ones are condensed into "Additional experience" ...
     cv_max_entries: int = 5
+    # ... at least this many recent roles are listed in full when the history has enough,
+    # backfilling with the most relevant removed roles even if they are a poor fit ...
+    cv_min_entries: int = 3
     # ... a role at or above this relevance may win an overlap as the shorter job ...
-    cv_high_relevance: float = 0.5
-    # ... a role at or above this relevance is never condensed, however old ...
-    cv_exceptional_relevance: float = 0.8
+    cv_high_relevance: float = 0.6
     # ... a role below this relevance is always condensed, even if it leaves a gap ...
-    cv_irrelevant_relevance: float = 0.2
+    cv_irrelevant_relevance: float = 0.25
     # ... and a losing shorter job is trimmed instead of dropped when it alone covers at
     # least this many months.
     cv_min_months: int = 3

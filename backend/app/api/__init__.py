@@ -10,6 +10,7 @@ from app.api.routes import (
     latex,
     openrouter,
     scrape,
+    sources,
     work_history,
 )
 
@@ -17,6 +18,7 @@ api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(latex.router, prefix="/latex", tags=["latex"])
 api_router.include_router(scrape.router, prefix="/scrape", tags=["scrape"])
+api_router.include_router(sources.router, prefix="/sources", tags=["sources"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(companies.router, prefix="/companies", tags=["companies"])
 api_router.include_router(work_history.router, prefix="/work-history", tags=["work-history"])

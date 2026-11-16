@@ -1,82 +1,52 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { isTerminal, scrapeApi, type ScrapeJobInfo } from './api.ts'
+import { sourcesApi, type Source } from '../sources/api.ts'
+import { useScrapeJob } from './useScrapeJob.ts'
+
+function optionLabel(s: Source): string {
+  if (s.module_error) return `${s.name} (broken)`
+  if (!s.enabled) return `${s.name} (disabled)`
+  return s.name
+}
 
 export default function ScrapePanel() {
-  const [sources, setSources] = useState<string[]>([])
+  const [sources, setSources] = useState<Source[]>([])
   const [source, setSource] = useState<string>('')
-  const [submitting, setSubmitting] = useState(false)
-  const [job, setJob] = useState<ScrapeJobInfo | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  const jobId = job?.job_id
-  const done = job ? isTerminal(job.status) : false
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const { job, error, done, running, submitting, start, reset } = useScrapeJob()
 
   useEffect(() => {
-    scrapeApi
-      .sources()
+    sourcesApi
+      .list()
       .then(setSources)
-      .catch((e) => setError(`Could not load sources: ${String(e)}`))
+      .catch((e) => setLoadError(`Could not load sources: ${String(e)}`))
   }, [])
 
-  // Poll the scrape job until it reaches a terminal state.
-  useEffect(() => {
-    if (!jobId || done) return
-    let cancelled = false
-    let timer: number | undefined
-
-    const poll = async () => {
-      try {
-        const info = await scrapeApi.getJob(jobId)
-        if (cancelled) return
-        setJob(info)
-        if (!isTerminal(info.status)) timer = window.setTimeout(poll, 1000)
-      } catch (e) {
-        if (!cancelled) setError(`Could not fetch job status: ${String(e)}`)
-      }
-    }
-    poll()
-
-    return () => {
-      cancelled = true
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [jobId, done])
-
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault()
-    setError(null)
-    setJob(null)
-    setSubmitting(true)
-    try {
-      const accepted = await scrapeApi.start(source || null)
-      setJob({ job_id: accepted.job_id, status: accepted.status, source: accepted.source })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const reset = () => {
-    setJob(null)
-    setError(null)
+    start(source || null)
   }
 
   const result = job?.status === 'finished' ? job.result : null
+  const shownError = error ?? loadError
 
   return (
     <>
       <h1 className="title">Job scraper</h1>
-      <p>Run a scraper source in the background and list the jobs it found.</p>
+      <p>
+        Run a scraper source in the background and list the jobs it found. "All sources" runs
+        every enabled source; a disabled source can still be run by picking it here.
+      </p>
 
       <form onSubmit={submit} className="upload">
         <select value={source} onChange={(e) => setSource(e.target.value)} disabled={submitting}>
           <option value="">All sources</option>
           {sources.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s.key} value={s.key} disabled={!!s.module_error}>
+              {optionLabel(s)}
+            </option>
           ))}
         </select>
-        <button type="submit" disabled={submitting || (!!job && !done)}>
+        <button type="submit" disabled={running}>
           {submitting ? 'Starting…' : 'Scrape'}
         </button>
         {(job || error) && (
@@ -86,7 +56,7 @@ export default function ScrapePanel() {
         )}
       </form>
 
-      {error && <p className="error">{error}</p>}
+      {shownError && <p className="error">{shownError}</p>}
 
       {job && (
         <section className="job">

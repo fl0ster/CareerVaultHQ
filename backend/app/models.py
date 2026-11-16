@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     Float,
@@ -24,6 +25,75 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+class ScrapeSource(Base):
+    """One row per scraper plugin module in ``app.tasks.scrape.sources``; ``key`` is the
+    module name. Rows are created and refreshed by ``app.services.sources.sync_sources``
+    and never deleted (``jobs`` reference them): a module that disappears from disk is kept
+    with ``module_error`` set. ``enabled`` and ``priority`` are edited through
+    ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the scrape task."""
+
+    __tablename__ = "scrape_sources"
+
+    HEALTH_UNKNOWN = "unknown"
+    """Never run yet."""
+    HEALTH_HEALTHY = "healthy"
+    """Last run succeeded and returned listings."""
+    HEALTH_DEGRADED = "degraded"
+    """Failed recently, or succeeded with zero listings (markup probably changed)."""
+    HEALTH_FAILING = "failing"
+    """``FAILING_AFTER`` or more failures in a row."""
+    HEALTH_BROKEN = "broken"
+    """The module cannot be imported, violates the contract or was removed."""
+
+    FAILING_AFTER = 3
+    """Consecutive failures at which ``health`` turns ``failing``."""
+
+    MODULE_MISSING = "module not found"
+    """``module_error`` for a row whose module is no longer in the sources package."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    """Module name in ``app.tasks.scrape.sources``."""
+    name: Mapped[str] = mapped_column(String(128))
+    """The module's ``NAME``."""
+    url: Mapped[str | None] = mapped_column(String(2048))
+    """The module's ``URL`` (listing page)."""
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    """``False`` excludes the source from "scrape all"; it can still be run by name."""
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    """Manual ranking; higher runs first and lists first."""
+    module_error: Mapped[str | None] = mapped_column(Text)
+    """Import/contract problem reported by discovery (``None`` when the module is usable)."""
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    """Error of the last run (``None`` when it succeeded)."""
+    last_scraped_count: Mapped[int | None] = mapped_column(Integer)
+    """Listings returned by the last run."""
+    last_new_count: Mapped[int | None] = mapped_column(Integer)
+    """Listings inserted into ``jobs`` by the last run."""
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    jobs: Mapped[list[Job]] = relationship(back_populates="source")
+
+    @property
+    def health(self) -> str:
+        """Derived from the run bookkeeping; one of the ``HEALTH_*`` constants."""
+        if self.module_error is not None:
+            return self.HEALTH_BROKEN
+        if self.last_run_at is None:
+            return self.HEALTH_UNKNOWN
+        if self.consecutive_failures >= self.FAILING_AFTER:
+            return self.HEALTH_FAILING
+        if self.consecutive_failures >= 1 or self.last_scraped_count == 0:
+            return self.HEALTH_DEGRADED
+        return self.HEALTH_HEALTHY
+
+
 class ScrapeRun(Base):
     """One execution of the scrape task (all sources or a single one)."""
 
@@ -31,8 +101,10 @@ class ScrapeRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    source: Mapped[str | None] = mapped_column(String(64))
-    """Source name the run was limited to; ``None`` means every source."""
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
+    )
+    """Source the run was limited to; ``None`` means every enabled source."""
     status: Mapped[str] = mapped_column(String(16), default="running")
     """``running`` -> ``finished`` (some sources may still have failed) or ``failed``."""
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -47,6 +119,7 @@ class ScrapeRun(Base):
     """Comma separated names of sources that raised."""
     error: Mapped[str | None] = mapped_column(Text)
 
+    source: Mapped[ScrapeSource | None] = relationship()
     jobs: Mapped[list[Job]] = relationship(back_populates="scrape_run")
 
 
@@ -57,7 +130,10 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     link: Mapped[str] = mapped_column(String(2048), unique=True, index=True)
-    source: Mapped[str] = mapped_column(String(64), index=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("scrape_sources.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    """The ``ScrapeSource`` (plugin module) that found the job and parses its page."""
     html: Mapped[str | None] = mapped_column(Text)
     """Raw HTML of the job page as fetched during scraping (``None`` if unavailable)."""
     scrape_run_id: Mapped[int] = mapped_column(
@@ -65,6 +141,7 @@ class Job(Base):
     )
     """Run that first discovered this job (its ``started_at`` is when the job was scraped)."""
 
+    source: Mapped[ScrapeSource] = relationship(back_populates="jobs")
     scrape_run: Mapped[ScrapeRun | None] = relationship(back_populates="jobs")
 
 
@@ -172,11 +249,14 @@ class CompanyAlias(Base):
     """How the alias was attached: ``exact``, ``fuzzy``, ``new`` or ``manual``."""
     similarity: Mapped[float | None] = mapped_column(Float)
     """Score (0-1) of the fuzzy match that attached it (``None`` otherwise)."""
-    source: Mapped[str | None] = mapped_column(String(64))
-    """Scrape source the spelling was first seen on."""
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
+    )
+    """Scrape source the spelling was first seen on (``None`` for manual entries)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     company: Mapped[Company] = relationship(back_populates="aliases")
+    source: Mapped[ScrapeSource | None] = relationship()
 
 
 class WorkHistoryEntry(Base):

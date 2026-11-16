@@ -1,0 +1,94 @@
+/* Sources page */
+.sources-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 12px;
+}
+
+table.sources {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tr.disabled td {
+    opacity: 0.55;
+  }
+  tr.disabled td:nth-child(2),
+  tr.disabled td:last-child {
+    opacity: 1;
+  }
+  input.priority {
+    width: 4em;
+    padding: 4px 6px;
+    font: inherit;
+    color: var(--text-h);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+}
+
+.source-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  code {
+    font-size: 12px;
+    color: var(--text);
+  }
+}
+
+.source-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #b91c1c;
+  max-width: 260px;
+  word-break: break-word;
+}
+
+.muted {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Health badge variants (the base .badge lives in App.css) */
+.badge.health-healthy {
+  background: rgba(34, 197, 94, 0.2);
+  color: #15803d;
+}
+.badge.health-degraded {
+  background: rgba(245, 158, 11, 0.2);
+  color: #b45309;
+}
+.badge.health-failing,
+.badge.health-broken {
+  background: rgba(239, 68, 68, 0.2);
+  color: #b91c1c;
+}
+
+@media (max-width: 700px) {
+  table.sources {
+    display: block;
+    overflow-x: auto;
+  }
+}

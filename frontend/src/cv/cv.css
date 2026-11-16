@@ -379,6 +379,10 @@
     content: '✓ ';
     color: var(--ok);
   }
+  .log-backfilled::marker {
+    content: '↩ ';
+    color: var(--warn);
+  }
   .log-gap {
     color: var(--text);
   }

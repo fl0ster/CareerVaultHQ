@@ -2,11 +2,24 @@ import pytest
 from fakeredis import FakeStrictRedis
 from fastapi.testclient import TestClient
 from rq import Queue
+from sqlalchemy import select
 
 from app.config import Settings, get_settings
 from app.db import get_engine, get_session, init_db, make_engine, session_factory
 from app.main import app
+from app.models import ScrapeSource
 from app.queue import get_queue
+
+
+def ensure_source(session, key: str = "skillshot", **fields) -> ScrapeSource:
+    """The ``scrape_sources`` row for ``key``, created (and flushed) if missing. Tests that
+    build ``Job`` rows by hand need one because ``jobs.source_id`` is a foreign key."""
+    row = session.scalar(select(ScrapeSource).where(ScrapeSource.key == key))
+    if row is None:
+        row = ScrapeSource(key=key, name=key.title(), url=f"https://{key}.example/jobs", **fields)
+        session.add(row)
+        session.flush()
+    return row
 
 
 @pytest.fixture

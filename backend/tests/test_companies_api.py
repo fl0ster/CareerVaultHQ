@@ -2,15 +2,17 @@ from datetime import UTC, datetime
 
 from app import models
 from app.services.companies import resolve_company
+from tests.conftest import ensure_source
 
 
 def seed(db_session) -> dict[str, int]:
-    techland = resolve_company(db_session, "Techland", source="skillshot").company
+    src = ensure_source(db_session)
+    techland = resolve_company(db_session, "Techland", source=src).company
     resolve_company(db_session, "Techlnad")  # fuzzy alias of Techland
     acme = resolve_company(db_session, "ACME").company
     db_session.flush()
     for i in range(3):
-        job = models.Job(link=f"https://example.com/jobs/{i}", source="skillshot")
+        job = models.Job(link=f"https://example.com/jobs/{i}", source=src)
         db_session.add(
             models.JobParseResult(
                 job=job,
@@ -19,7 +21,7 @@ def seed(db_session) -> dict[str, int]:
                 parsed_at=datetime(2026, 11, 1 + i, tzinfo=UTC),
             )
         )
-    job = models.Job(link="https://example.com/jobs/none", source="skillshot")
+    job = models.Job(link="https://example.com/jobs/none", source=src)
     db_session.add(models.JobParseResult(job=job, title="No company"))
     db_session.commit()
     return {"techland": techland.id, "acme": acme.id}

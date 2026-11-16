@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from app import models
 from app.db import init_db, session_factory
 from app.tasks.scrape.sources import skillshot
+from tests.conftest import ensure_source
 
 parse_task = importlib.import_module("app.tasks.parse.parse")
 
@@ -35,7 +36,9 @@ def task_engine(engine, monkeypatch, evaluate_queue):
 
 def _make_pending(engine, *, source="skillshot", html=HTML) -> int:
     with session_factory(engine)() as session:
-        job = models.Job(link="https://www.skillshot.pl/jobs/1", source=source, html=html)
+        job = models.Job(
+            link="https://www.skillshot.pl/jobs/1", source=ensure_source(session, source), html=html
+        )
         pending = models.PendingJobParseRun(job=job)
         session.add_all([job, pending])
         session.commit()
@@ -78,7 +81,7 @@ def test_parse_job_links_typo_to_existing_company(task_engine):
     with session_factory(task_engine)() as session:
         job = models.Job(
             link="https://www.skillshot.pl/jobs/2",
-            source="skillshot",
+            source=ensure_source(session),
             html=HTML.replace("ACME", "Techland"),
         )
         pending = models.PendingJobParseRun(job=job)
@@ -93,7 +96,7 @@ def test_parse_job_links_typo_to_existing_company(task_engine):
     with session_factory(task_engine)() as session:
         job = models.Job(
             link="https://www.skillshot.pl/jobs/3",
-            source="skillshot",
+            source=ensure_source(session),
             html=HTML.replace("ACME", "Techlnad"),
         )
         pending = models.PendingJobParseRun(job=job)

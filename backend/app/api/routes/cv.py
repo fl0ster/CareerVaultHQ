@@ -157,7 +157,7 @@ def _to_out(cv: GeneratedCV, request: Request) -> GeneratedCvOut:
             title=parsed.title,
             company=parsed.company.name if parsed.company is not None else None,
             link=job.link,
-            source=job.source,
+            source=job.source.key,
         ),
         pdf_url=str(request.url_for("generated_cv_pdf", cv_id=cv.id)) if finished else None,
         tex_url=str(request.url_for("generated_cv_tex", cv_id=cv.id)) if finished else None,

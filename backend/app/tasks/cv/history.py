@@ -9,7 +9,10 @@ Three transformations are applied, in this order:
 
 1. Irrelevant removal. Roles with relevance below ``irrelevant_relevance`` are moved
    straight to ``early``, no matter where they sit in the timeline and even if that
-   leaves an employment gap in the main listing.
+   leaves an employment gap in the main listing. If that leaves fewer than
+   ``min_entries`` roles, the most relevant of the removed ones are brought back (and
+   overlaps re-resolved) until ``min_entries`` is reached or there is nothing left to
+   bring back: a CV should list at least that many roles in full, even poor fits.
 
 2. Overlap resolution. Longer, uninterrupted work periods are preferred. Whenever two
    roles overlap in time, the shorter one wins only when it is relevant (relevance >=
@@ -19,9 +22,14 @@ Three transformations are applied, in this order:
    gap of at least ``min_months``, in which case it is trimmed instead.
 
 3. Early career split. Roles are listed newest first. At most ``max_entries`` are listed
-   in full; every older role is moved to ``early``. Exceptionally relevant old roles
-   (relevance >= ``exceptional_relevance``) are never moved: the cut is pushed back so
-   that they, and everything newer, stay listed.
+   in full, never more; every older role is moved to ``early``.
+
+4. Early overlap resolution. The condensed block prints dates too, so it must not reveal
+   parallel employment either: every early role is trimmed around the roles listed in
+   full (dropped when nothing is left), and overlaps among the early roles themselves are
+   resolved with the rules of step 2. The CV never shows two overlapping periods. Any
+   early role left shorter than ``min_months`` after all that is dropped: a gap is
+   preferable to a stub that needs explaining.
 
 Months are handled as absolute indexes (``year * 12 + month - 1``) so trimming is plain
 integer arithmetic.
@@ -239,17 +247,63 @@ def resolve_overlaps(
             log.append(f"dropped  {loser.label} ({old}) in favour of {winner.label} {scores}")
 
 
-def split_early_career(
-    roles: list[Role], max_entries: int, exceptional_relevance: float, log: list[str]
+def backfill(
+    kept: list[Role], pool: list[Role], min_entries: int, log: list[str]
 ) -> tuple[list[Role], list[Role]]:
-    """``(kept, early)``: everything older than the newest ``max_entries`` roles. The cut
-    is pushed back past any exceptionally relevant old role, so the early block is always
-    the oldest consecutive run of non-exceptional roles."""
+    """``(kept, pool)``: move the most relevant roles from ``pool`` into ``kept`` until it
+    holds ``min_entries`` roles or the pool is empty."""
+    missing = min_entries - len(kept)
+    if missing <= 0 or not pool:
+        return kept, pool
+    pool = sorted(pool, key=lambda r: (r.relevance, r.start), reverse=True)
+    promoted, pool = pool[:missing], pool[missing:]
+    log.append(
+        f"only {len(kept)} role(s) left, minimum is {min_entries}: listing "
+        f"{len(promoted)} most relevant removed role(s) in full anyway:"
+    )
+    for r in promoted:
+        log.append(f"    - {r.label} [{r.relevance:.2f}]")
+    return kept + promoted, pool
+
+
+def resolve_against(roles: list[Role], fixed: list[Role], log: list[str]) -> list[Role]:
+    """Trim every role in ``roles`` around the ``fixed`` ones (which always win), dropping
+    those with nothing left."""
+    kept: list[Role] = []
+    for role in roles:
+        old = _span(role)
+        survived = True
+        for winner in sorted(fixed, key=lambda r: r.start):
+            if role.overlaps(winner) and not trim_around(role, winner):
+                survived = False
+                break
+        if not survived:
+            log.append(f"dropped  {role.label} ({old}): fully covered by listed roles")
+        elif _span(role) != old:
+            kept.append(role)
+            log.append(f"trimmed  {role.label} ({old} -> {_span(role)}) around listed roles")
+        else:
+            kept.append(role)
+    return kept
+
+
+def drop_short(roles: list[Role], min_months: int, log: list[str]) -> list[Role]:
+    """Drop roles shorter than ``min_months`` (typically stubs left by trimming)."""
+    kept = []
+    for role in roles:
+        if role.length < min_months:
+            log.append(f"dropped  {role.label} ({_span(role)}): shorter than {min_months} months")
+        else:
+            kept.append(role)
+    return kept
+
+
+def split_early_career(
+    roles: list[Role], max_entries: int, log: list[str]
+) -> tuple[list[Role], list[Role]]:
+    """``(kept, early)``: everything older than the newest ``max_entries`` roles."""
     newest_first = _newest_first(roles)
-    cut = max_entries
-    for i, role in enumerate(newest_first):
-        if role.relevance >= exceptional_relevance:
-            cut = max(cut, i + 1)
+    cut = max(max_entries, 0)
 
     early = newest_first[cut:]
     if early:
@@ -270,8 +324,8 @@ def build_coherent_history(
     roles: list[Role],
     *,
     max_entries: int = 5,
+    min_entries: int = 3,
     high_relevance: float = 0.3,
-    exceptional_relevance: float = 0.6,
     irrelevant_relevance: float = 0.1,
     min_months: int = 3,
 ) -> CoherentHistory:
@@ -279,11 +333,20 @@ def build_coherent_history(
     are copied, so the caller's objects are left untouched."""
     log: list[str] = []
     roles = [replace(r) for r in roles]
+    min_entries = min(min_entries, max_entries)
 
     kept, early = split_irrelevant(roles, irrelevant_relevance, log)
     kept = resolve_overlaps(kept, high_relevance, min_months, log)
-    kept, older = split_early_career(kept, max_entries, exceptional_relevance, log)
+    while len(kept) < min_entries and early:
+        kept, early = backfill(kept, early, min_entries, log)
+        kept = resolve_overlaps(kept, high_relevance, min_months, log)
+    kept, older = split_early_career(kept, max_entries, log)
     early += older
+
+    # The condensed block prints dates as well: no overlaps there either.
+    early = resolve_against(early, kept, log)
+    early = resolve_overlaps(early, high_relevance, min_months, log)
+    early = drop_short(early, min_months, log)
 
     main = _newest_first(kept)
     early = _newest_first(early)

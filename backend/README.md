@@ -56,6 +56,12 @@ app/
   workers/         Background worker entrypoint
     worker.py      RQ worker for the single job queue (LaTeX + scraping): python -m app.workers.worker
   tasks/latex.py   pdflatex compile step executed by the worker
+  tasks/scrape/    worker job scrape(): runs the scraper plugins and stores new listings in jobs
+    sources/       one plugin module per job board (drop a <key>.py file to add a source; see the
+                   package docstring for the contract). Mirrored into the scrape_sources table
+                   (enabled, priority, health, relevance) by services/sources.py
+  tasks/parse/     worker job parse_job(): extracts title/company/description with the source's
+                   parse_* hooks
   tasks/cv/        CV tailored to one parsed job (worker job generate_cv): history.py builds the
                    coherent timeline from relevance-scored roles, render.py fills cv_template.tex,
                    generate.py orchestrates the OpenRouter calls and the pdflatex compile
@@ -65,6 +71,8 @@ app/
                    /api/openrouter/* exposes it over HTTP
     companies.py   resolves the scraped company name to a canonical companies row
                    (normalise -> alias lookup -> canonical lookup -> fuzzy match -> create)
+    sources.py     syncs scrape_sources rows with the plugin modules, records per-source run
+                   health and aggregates relevance per source (/api/sources)
   api/
     __init__.py    aggregates routers under /api
     routes/        one module per resource (health.py, latex.py, jobs.py, companies.py, ...)

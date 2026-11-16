@@ -11,12 +11,12 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import Company, CompanyAlias, Job, JobParseResult
+from app.models import Company, CompanyAlias, Job, JobParseResult, ScrapeSource
 from app.services.companies import normalize_company_name
 
 router = APIRouter()
@@ -46,7 +46,13 @@ class CompanyAliasOut(BaseModel):
     match_kind: str
     similarity: float | None = None
     source: str | None = None
+    """Key of the scrape source the spelling was first seen on."""
     created_at: datetime
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_key(cls, value: object) -> object:
+        return value.key if isinstance(value, ScrapeSource) else value
 
 
 class CompanyJobOut(BaseModel):
@@ -153,7 +159,7 @@ def get_company(
                 job_id=job.id,
                 parse_result_id=parsed.id,
                 link=job.link,
-                source=job.source,
+                source=job.source.key,
                 title=parsed.title,
                 parsed_at=parsed.parsed_at,
             )

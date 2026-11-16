@@ -10,6 +10,7 @@ from app import models
 from app.config import Settings
 from app.db import init_db, session_factory
 from app.services.openrouter import OpenRouterService
+from tests.conftest import ensure_source
 
 generate_task = importlib.import_module("app.tasks.cv.generate")
 
@@ -75,7 +76,12 @@ def requests_seen():
 def task_engine(engine, monkeypatch, tmp_path, requests_seen):
     """Temporary database, mocked OpenRouter, fake pdflatex, CV root under tmp_path."""
     settings = Settings(
-        openrouter_api_key="sk-test", cors_origins=[], cv_root=tmp_path / "cv", cv_max_workers=3
+        openrouter_api_key="sk-test",
+        cors_origins=[],
+        cv_root=tmp_path / "cv",
+        cv_max_workers=3,
+        # Three fixture roles, one irrelevant: keep it condensed rather than backfilled.
+        cv_min_entries=2,
     )
     state = {"handler": _handler}
 
@@ -111,7 +117,7 @@ def _seed(engine, *, details=True, history=True) -> int:
     """A parsed job, three work history rows and the candidate's details; returns the id
     of a queued ``GeneratedCV`` for the job."""
     with session_factory(engine)() as session:
-        job = models.Job(link="https://example.com/jobs/1", source="skillshot")
+        job = models.Job(link="https://example.com/jobs/1", source=ensure_source(session))
         parsed = models.JobParseResult(
             job=job,
             title="React Native Developer",

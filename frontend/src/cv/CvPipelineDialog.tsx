@@ -89,7 +89,6 @@ function RelevanceChart({ analysis }: { analysis: Analysis }) {
     ? [
         { v: t.irrelevant_relevance, name: 'irrelevant' },
         { v: t.high_relevance, name: 'relevant' },
-        { v: t.exceptional_relevance, name: 'exceptional' },
       ]
     : []
 
@@ -98,8 +97,9 @@ function RelevanceChart({ analysis }: { analysis: Analysis }) {
       <figcaption>How each role scored against the job</figcaption>
       <p className="pl-hint">
         One LLM call per role gives the probability that the role is relevant experience for this job. Below{' '}
-        {t ? pct(t.irrelevant_relevance) : 'the irrelevant threshold'} a role is always condensed; at or above{' '}
-        {t ? pct(t.exceptional_relevance) : 'the exceptional threshold'} it is always listed in full, however old.
+        {t ? pct(t.irrelevant_relevance) : 'the irrelevant threshold'} a role is condensed, unless fewer than{' '}
+        {t?.min_entries ?? 'the minimum number of'} roles would be left; then the most relevant of them are listed anyway.
+        Never more than {t?.max_entries ?? 'the maximum number of'} roles are listed in full.
       </p>
       <OutcomeLegend counts={analysis.counts} />
       <div className="chart-plot">
@@ -466,8 +466,16 @@ export default function CvPipelineDialog({ cv, onClose }: Props) {
               </div>
               <div className="cost-tile outcome-listed">
                 <span className="cost-tile-label">Listed in full</span>
-                <span className="cost-tile-value">{analysis.counts.listed}</span>
-                <span className="muted">{roles.filter((r) => r.trimmed).length} trimmed</span>
+                <span className="cost-tile-value">
+                  {analysis.counts.listed}
+                  {analysis.thresholds && (
+                    <span className="muted"> / {analysis.thresholds.min_entries}–{analysis.thresholds.max_entries}</span>
+                  )}
+                </span>
+                <span className="muted">
+                  {roles.filter((r) => r.trimmed).length} trimmed
+                  {analysis.counts.backfilled > 0 && `, ${analysis.counts.backfilled} listed to reach the minimum`}
+                </span>
               </div>
               <div className="cost-tile">
                 <span className="cost-tile-label">Condensed / dropped</span>
@@ -494,8 +502,10 @@ export default function CvPipelineDialog({ cv, onClose }: Props) {
                 <h3>Timeline decisions</h3>
                 <p className="pl-hint">
                   Overlapping periods are resolved in favour of the longer role unless the shorter one is clearly more
-                  relevant; then older roles past the limit
-                  {analysis.thresholds ? ` of ${analysis.thresholds.max_entries}` : ''} are condensed.
+                  relevant. Roles that are a poor fit are listed anyway when fewer than
+                  {analysis.thresholds ? ` ${analysis.thresholds.min_entries}` : ' the minimum'} would remain, and older
+                  roles past the limit{analysis.thresholds ? ` of ${analysis.thresholds.max_entries}` : ''} are always
+                  condensed.
                 </p>
                 <ul className="pl-decisions">
                   {decisions.map((l, i) => (

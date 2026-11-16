@@ -66,7 +66,6 @@ export const latexApi = {
 }
 
 export const scrapeApi = {
-  sources: () => fetch(`${SCRAPE_API}/sources`).then((r) => parse<string[]>(r)),
   start: (source: string | null) =>
     fetch(SCRAPE_API, {
       method: 'POST',
