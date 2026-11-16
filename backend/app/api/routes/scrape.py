@@ -2,6 +2,7 @@
 
 1. ``POST /api/scrape`` (optional JSON body ``{"source": "skillshot"}``; omit to run all)
    -> ``202`` with ``job_id`` and ``status_url``.
+   A disabled source still runs when named here; only "all" skips disabled ones.
 2. Poll ``GET /api/scrape/jobs/{job_id}`` until ``status`` is ``finished`` or ``failed``.
    On success ``result`` holds the scraped jobs, ``count`` the number of them, ``new`` /
    ``duplicates`` how many were inserted into / already present in the database and

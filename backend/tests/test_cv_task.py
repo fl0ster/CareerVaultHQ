@@ -10,6 +10,7 @@ from app import models
 from app.config import Settings
 from app.db import init_db, session_factory
 from app.services.openrouter import OpenRouterService
+from tests.conftest import ensure_source
 
 generate_task = importlib.import_module("app.tasks.cv.generate")
 
@@ -111,7 +112,7 @@ def _seed(engine, *, details=True, history=True) -> int:
     """A parsed job, three work history rows and the candidate's details; returns the id
     of a queued ``GeneratedCV`` for the job."""
     with session_factory(engine)() as session:
-        job = models.Job(link="https://example.com/jobs/1", source="skillshot")
+        job = models.Job(link="https://example.com/jobs/1", source=ensure_source(session))
         parsed = models.JobParseResult(
             job=job,
             title="React Native Developer",

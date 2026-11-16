@@ -1,4 +1,6 @@
 import importlib
+import sys
+import types
 
 import pytest
 from fakeredis import FakeStrictRedis
@@ -35,7 +37,7 @@ def parse_queue(monkeypatch):
 
 @pytest.fixture
 def fake_sources(monkeypatch):
-    monkeypatch.setattr(scrape_task, "get_available_sources", lambda: ["skillshot"])
+    monkeypatch.setattr("app.tasks.scrape.sources.get_available_sources", lambda: ["skillshot"])
     monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(LISTING))
     fetched: list[str] = []
 
@@ -61,7 +63,7 @@ def test_first_run_inserts_jobs_with_html(task_engine, fake_sources, parse_queue
     with session_factory(task_engine)() as session:
         run = session.get(models.ScrapeRun, result["scrape_run_id"])
         assert run.status == "finished"
-        assert run.source == "skillshot"
+        assert run.source.key == "skillshot"
         assert (run.scraped_count, run.new_count, run.duplicate_count) == (3, 2, 1)
         assert run.failed_sources is None
         assert run.finished_at is not None
@@ -72,7 +74,7 @@ def test_first_run_inserts_jobs_with_html(task_engine, fake_sources, parse_queue
             "https://www.skillshot.pl/jobs/2",
         ]
         assert all(j.scrape_run_id == run.id for j in jobs)
-        assert all(j.source == "skillshot" for j in jobs)
+        assert all(j.source.key == "skillshot" for j in jobs)
         assert jobs[0].html == "<html>https://www.skillshot.pl/jobs/1</html>"
 
         pending = session.scalars(
@@ -141,3 +143,129 @@ def test_skillshot_parse_description():
         "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
     )
     assert skillshot.parse_description(html) == "We need\nUnity"
+
+
+# --- scrape_sources bookkeeping ----------------------------------------------------------
+
+
+def _source(engine, key="skillshot") -> models.ScrapeSource:
+    with session_factory(engine)() as session:
+        row = session.scalar(select(models.ScrapeSource).where(models.ScrapeSource.key == key))
+        assert row is not None, f"no scrape_sources row for {key}"
+        return row
+
+
+def test_run_updates_source_health(task_engine, fake_sources, parse_queue):
+    result = scrape_task.scrape("skillshot")
+
+    row = _source(task_engine)
+    assert row.health == "healthy"
+    assert row.last_run_at is not None
+    assert row.last_success_at == row.last_run_at
+    assert (row.last_scraped_count, row.last_new_count) == (3, 2)
+    assert row.last_error is None
+    assert row.consecutive_failures == 0
+    assert result["sources"] == [
+        {
+            "source": "skillshot",
+            "ok": True,
+            "error": None,
+            "jobs": LISTING,
+            "new": 2,
+            "duplicates": 1,
+        }
+    ]
+
+
+def test_failures_degrade_then_fail_the_source(task_engine, fake_sources, parse_queue, monkeypatch):
+    def boom():
+        raise RuntimeError("site down")
+
+    monkeypatch.setattr(skillshot, "fetch_jobs", boom)
+
+    scrape_task.scrape("skillshot")
+    row = _source(task_engine)
+    assert (row.health, row.consecutive_failures) == ("degraded", 1)
+    assert row.last_error == "RuntimeError: site down"
+    assert row.last_success_at is None
+
+    scrape_task.scrape("skillshot")
+    scrape_task.scrape("skillshot")
+    row = _source(task_engine)
+    assert (row.health, row.consecutive_failures) == ("failing", 3)
+
+    monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(LISTING))
+    scrape_task.scrape("skillshot")
+    row = _source(task_engine)
+    assert (row.health, row.consecutive_failures) == ("healthy", 0)
+
+
+def test_disabled_source_is_skipped_by_scrape_all_but_runs_by_name(
+    task_engine, fake_sources, parse_queue
+):
+    scrape_task.scrape(None)  # creates the row
+    with session_factory(task_engine)() as session:
+        row = session.scalar(select(models.ScrapeSource))
+        row.enabled = False
+        session.commit()
+    fake_sources.clear()
+
+    everything = scrape_task.scrape(None)
+    assert everything["sources"] == []
+    assert everything["count"] == 0
+    assert fake_sources == []
+
+    named = scrape_task.scrape("skillshot")
+    assert named["count"] == 3
+    assert named["duplicates"] == 3
+    assert _source(task_engine).last_run_at is not None
+
+
+def test_broken_source_cannot_be_run_by_name(task_engine, fake_sources, monkeypatch):
+    monkeypatch.setattr(
+        "app.tasks.scrape.sources.get_available_sources", lambda: ["skillshot", "junk"]
+    )
+    monkeypatch.setitem(sys.modules, "app.tasks.scrape.sources.junk", types.ModuleType("junk"))
+
+    with pytest.raises(ValueError, match="not available \\(missing NAME"):
+        scrape_task.scrape("junk")
+
+    assert _source(task_engine, "junk").health == "broken"
+
+
+def test_scrape_all_runs_usable_sources_in_priority_order(task_engine, parse_queue, monkeypatch):
+    order: list[str] = []
+
+    def stub(key: str) -> types.ModuleType:
+        mod = types.ModuleType(f"app.tasks.scrape.sources.{key}")
+        mod.NAME, mod.URL = key.title(), f"https://{key}.example"
+        mod.fetch_jobs = lambda: order.append(key) or [{"link": f"https://{key}.example/1"}]
+        mod.parse_title = mod.parse_company = mod.parse_description = lambda html: ""
+        return mod
+
+    monkeypatch.setattr(
+        "app.tasks.scrape.sources.get_available_sources", lambda: ["alpha", "beta", "gamma"]
+    )
+    for key in ("alpha", "beta", "gamma"):
+        monkeypatch.setitem(sys.modules, f"app.tasks.scrape.sources.{key}", stub(key))
+    monkeypatch.setattr(scrape_task, "fetch_page", lambda url: "<html></html>")
+
+    with session_factory(task_engine)() as session:
+        from app.services.sources import sync_sources
+
+        rows = {r.key: r for r in sync_sources(session)}
+        rows["gamma"].priority = 10
+        rows["beta"].priority = 5
+        rows["alpha"].priority = 5
+        session.commit()
+
+    result = scrape_task.scrape(None)
+
+    assert order == ["gamma", "alpha", "beta"]
+    assert [s["source"] for s in result["sources"]] == ["gamma", "alpha", "beta"]
+    assert result["new"] == 3
+    with session_factory(task_engine)() as session:
+        jobs = session.scalars(select(models.Job).order_by(models.Job.id)).all()
+        assert [j.source.key for j in jobs] == ["gamma", "alpha", "beta"]
+        run = session.scalar(select(models.ScrapeRun))
+        assert run.source is None

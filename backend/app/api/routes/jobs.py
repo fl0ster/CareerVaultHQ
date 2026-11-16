@@ -18,12 +18,12 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_session
-from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult
+from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult, ScrapeSource
 
 router = APIRouter()
 
@@ -41,8 +41,14 @@ class JobOut(BaseModel):
     id: int
     link: str
     source: str
+    """Key of the ``ScrapeSource`` (plugin module name) the job came from."""
     scrape_run_id: int | None
     has_html: bool = False
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _source_key(cls, value: object) -> object:
+        return value.key if isinstance(value, ScrapeSource) else value
 
 
 class JobFull(JobOut):
@@ -71,11 +77,11 @@ def list_raw_jobs(
     source: str | None = None,
 ) -> JobPage:
     """Page of scraped jobs, newest first. Optionally filtered by scraper ``source``."""
-    query = select(Job)
+    query = select(Job).options(joinedload(Job.source))
     count_query = select(func.count()).select_from(Job)
     if source:
-        query = query.where(Job.source == source)
-        count_query = count_query.where(Job.source == source)
+        query = query.join(Job.source).where(ScrapeSource.key == source)
+        count_query = count_query.join(Job.source).where(ScrapeSource.key == source)
 
     total = session.scalar(count_query) or 0
     jobs = session.scalars(query.order_by(Job.id.desc()).offset(offset).limit(limit)).all()
@@ -163,7 +169,7 @@ def _evaluated(
     data = {
         "id": job.id,
         "link": job.link,
-        "source": job.source,
+        "source": job.source.key,
         "scrape_run_id": job.scrape_run_id,
         "has_html": bool(job.html),
         "title": parsed.title,
@@ -182,7 +188,11 @@ def _evaluated_query(profile_id: int) -> Select:
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(JobEvaluation, JobEvaluation.job_parse_result_id == JobParseResult.id)
         .where(JobEvaluation.candidate_profile_id == profile_id)
-        .options(joinedload(JobParseResult.company), joinedload(JobEvaluation.openrouter_call))
+        .options(
+            joinedload(Job.source),
+            joinedload(JobParseResult.company),
+            joinedload(JobEvaluation.openrouter_call),
+        )
     )
 
 
@@ -208,7 +218,7 @@ def list_jobs(
 
     query = _evaluated_query(profile_id)
     if source:
-        query = query.where(Job.source == source)
+        query = query.join(Job.source).where(ScrapeSource.key == source)
     if min_probability is not None:
         query = query.where(JobEvaluation.match_probability >= min_probability)
 

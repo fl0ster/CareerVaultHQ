@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from app import models
 from app.services import companies
 from app.services.companies import normalize_company_name, resolve_company, similarity
+from tests.conftest import ensure_source
 
 
 @pytest.mark.parametrize(
@@ -35,7 +36,7 @@ def _names(session):
 
 
 def test_first_spelling_creates_canonical_row_and_alias(db_session):
-    match = resolve_company(db_session, " Techland ", source="skillshot")
+    match = resolve_company(db_session, " Techland ", source=ensure_source(db_session))
     db_session.commit()
 
     assert match.created is True
@@ -48,7 +49,7 @@ def test_first_spelling_creates_canonical_row_and_alias(db_session):
     assert alias.alias == "Techland"
     assert alias.normalized_alias == "techland"
     assert alias.match_kind == "new"
-    assert alias.source == "skillshot"
+    assert alias.source.key == "skillshot"
 
 
 def test_same_normalised_name_is_an_exact_match(db_session):

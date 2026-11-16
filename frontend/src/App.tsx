@@ -1,20 +1,20 @@
 import { useState } from 'react'
 import './App.css'
 import JobsPage from './jobs/JobsPage.tsx'
-import ToolsPage from './tools/ToolsPage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
+import SourcesPage from './sources/SourcesPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 
 const TABS = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'companies', label: 'Companies' },
+  { id: 'sources', label: 'Sources' },
   { id: 'work-history', label: 'Work history' },
   { id: 'candidate-profile', label: 'Candidate profile' },
   { id: 'generated-cv', label: 'Generated CV' },
-  { id: 'tools', label: 'Tools' },
   { id: 'cost', label: 'Cost' },
 ] as const
 
@@ -46,6 +46,9 @@ function App() {
       <section hidden={tab !== 'companies'}>
         <CompaniesPage />
       </section>
+      <section hidden={tab !== 'sources'}>
+        <SourcesPage />
+      </section>
       <section hidden={tab !== 'work-history'}>
         <WorkHistoryPage />
       </section>
@@ -54,9 +57,6 @@ function App() {
       </section>
       <section hidden={tab !== 'generated-cv'}>
         <GeneratedCvPage />
-      </section>
-      <section hidden={tab !== 'tools'}>
-        <ToolsPage />
       </section>
       <section hidden={tab !== 'cost'}>
         <CostPage />

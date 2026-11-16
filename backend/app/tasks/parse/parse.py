@@ -1,7 +1,7 @@
 """Parsing a scraped job's raw HTML as a background (RQ) job.
 
 The scrape task inserts a ``PendingJobParseRun`` row for every new ``Job`` and enqueues
-``parse_job(pending_id)``. The task looks up the job's ``source`` module in
+``parse_job(pending_id)``. The task looks up the job's ``source.key`` module in
 ``app.tasks.scrape.sources`` and calls its ``parse_<field>(html, url)`` hook for every
 field in ``FIELDS`` (currently ``title``, ``company`` and ``description``). ``title`` and
 ``description`` are stored verbatim in ``job_parse_results``; the raw ``company`` string is
@@ -51,19 +51,19 @@ class JobParseError(RuntimeError):
 
 def _source_module(job: Job) -> ModuleType:
     try:
-        return load_source(job.source)
+        return load_source(job.source.key)
     except ValueError as exc:
         raise JobParseError(str(exc)) from exc
 
 
 def parse_field(job: Job, field: str, module: ModuleType | None = None) -> str:
-    """Dispatch to ``app.tasks.scrape.sources.<job.source>.parse_<field>(html, url)``."""
+    """Dispatch to ``app.tasks.scrape.sources.<job.source.key>.parse_<field>(html)``."""
     if not job.html:
         raise JobParseError(f"job {job.id} has no HTML to parse")
     module = module or _source_module(job)
     parser = getattr(module, f"parse_{field}", None)
     if parser is None:
-        raise JobParseError(f"source {job.source!r} does not define parse_{field}")
+        raise JobParseError(f"source {job.source.key!r} does not define parse_{field}")
     return parser(job.html)
 
 
@@ -162,7 +162,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             return {
                 "pending_id": pending.id,
                 "job_id": job.id,
-                "source": job.source,
+                "source": job.source.key,
                 "title": result.title if result else None,
                 "company": company.name if company else None,
                 "company_id": company.id if company else None,
@@ -204,7 +204,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         return {
             "pending_id": pending.id,
             "job_id": job.id,
-            "source": job.source,
+            "source": job.source.key,
             "title": values["title"],
             "company": company.name if company else None,
             "company_id": company.id if company else None,

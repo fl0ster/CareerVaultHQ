@@ -9,6 +9,7 @@ from app import models
 from app.config import Settings
 from app.db import init_db, session_factory
 from app.services.openrouter import OpenRouterService
+from tests.conftest import ensure_source
 
 evaluate_task = importlib.import_module("app.tasks.evaluate.evaluate")
 
@@ -59,7 +60,7 @@ def _seed(engine, *, profiles=("Senior Unity developer",), jobs=2) -> dict:
         acme = models.Company(name="ACME", normalized_name="acme")
         session.add(acme)
         for i in range(jobs):
-            job = models.Job(link=f"https://example.com/jobs/{i}", source="skillshot")
+            job = models.Job(link=f"https://example.com/jobs/{i}", source=ensure_source(session))
             parsed = models.JobParseResult(
                 job=job, title=f"Job {i}", company=acme, description=f"Needs Unity {i}"
             )

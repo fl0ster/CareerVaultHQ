@@ -4,13 +4,14 @@ from rq.job import Job as RqJob
 from rq.results import Result
 
 from app.models import Company, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
+from tests.conftest import ensure_source
 
 BASE = "/api/cv"
 DETAILS = "/api/candidate-details"
 
 
 def seed_job(db_session, i=0, *, company=True) -> Job:
-    job = Job(link=f"https://example.com/jobs/{i}", source="skillshot")
+    job = Job(link=f"https://example.com/jobs/{i}", source=ensure_source(db_session))
     parsed = JobParseResult(job=job, title=f"Title {i}", description=f"Desc {i}")
     if company:
         parsed.company = Company(name=f"Acme {i}", normalized_name=f"acme {i}")
@@ -36,7 +37,7 @@ def _cv_jobs(fake_queue):
 
 def test_generate_requires_parsed_job(client, db_session):
     assert client.post(f"{BASE}/generate", json={"job_id": 999}).status_code == 404
-    db_session.add(Job(link="https://example.com/unparsed", source="skillshot"))
+    db_session.add(Job(link="https://example.com/unparsed", source=ensure_source(db_session)))
     db_session.commit()
     assert client.post(f"{BASE}/generate", json={"job_id": 1}).status_code == 404
 

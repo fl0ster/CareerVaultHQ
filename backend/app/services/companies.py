@@ -29,7 +29,7 @@ from difflib import SequenceMatcher
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Company, CompanyAlias
+from app.models import Company, CompanyAlias, ScrapeSource
 
 FUZZY_THRESHOLD = 0.85
 """Minimum ``similarity`` (0-1) for a fuzzy match to be accepted."""
@@ -98,11 +98,12 @@ def resolve_company(
     session: Session,
     raw_name: str,
     *,
-    source: str | None = None,
+    source: ScrapeSource | None = None,
     threshold: float = FUZZY_THRESHOLD,
 ) -> CompanyMatch | None:
     """Map ``raw_name`` to its canonical ``Company``, adding rows to the session as needed
-    (the caller commits). Returns ``None`` when ``raw_name`` is empty after normalisation."""
+    (the caller commits). ``source`` is the scrape source the spelling was seen on and is
+    recorded on the alias. Returns ``None`` when ``raw_name`` is empty after normalisation."""
     normalized = normalize_company_name(raw_name or "")
     if not normalized:
         return None
