@@ -32,7 +32,7 @@ def test_irrelevant_roles_go_to_early_even_if_it_leaves_a_gap():
         role("B", date(2022, 1, 1), date(2023, 12, 1), 0.05),
         role("C", date(2020, 1, 1), date(2021, 12, 1), 0.8),
     ]
-    history = build_coherent_history(roles)
+    history = build_coherent_history(roles, min_entries=2)
     assert [r.employer for r in history.main] == ["A", "C"]
     assert [r.employer for r in history.early] == ["B"]
     assert any("gap" in line for line in history.log)
@@ -88,20 +88,72 @@ def test_trimmed_current_role_is_no_longer_present():
     assert side.date_end_label(TODAY) == "Dec 2023"
 
 
-def test_early_career_split_keeps_exceptional_old_roles():
+def test_early_career_split_never_lists_more_than_max_entries():
     roles = [
         role(f"R{i}", date(2010 + 2 * i, 1, 1), date(2011 + 2 * i, 12, 1), 0.3) for i in range(7)
     ]
-    roles[0].relevance = 0.95  # oldest role, exceptionally relevant
-    history = build_coherent_history(roles, max_entries=3)
-    # Cut pushed back past the exceptional role: everything stays listed.
-    assert len(history.main) == 7
-    assert history.early == []
-
-    roles[0].relevance = 0.3
+    roles[0].relevance = 0.95  # oldest role, very relevant: still condensed
     history = build_coherent_history(roles, max_entries=3)
     assert [r.employer for r in history.main] == ["R6", "R5", "R4"]
     assert [r.employer for r in history.early] == ["R3", "R2", "R1", "R0"]
+
+
+def test_min_entries_backfills_most_relevant_irrelevant_roles():
+    roles = [
+        role("Old", date(2010, 1, 1), date(2011, 12, 1), 0.05),
+        role("Mid", date(2012, 1, 1), date(2015, 12, 1), 0.15),
+        role("Low", date(2016, 1, 1), date(2019, 12, 1), 0.08),
+        role("Fit", date(2020, 1, 1), None, 0.9),
+    ]
+    history = build_coherent_history(roles, max_entries=5, min_entries=3, irrelevant_relevance=0.2)
+    # Only "Fit" is relevant; the two most relevant of the rest are listed anyway.
+    assert [r.employer for r in history.main] == ["Fit", "Low", "Mid"]
+    assert [r.employer for r in history.early] == ["Old"]
+    assert any("minimum is 3" in line for line in history.log)
+
+    # min_entries never exceeds max_entries, and a short history is listed as-is.
+    history = build_coherent_history(roles, max_entries=2, min_entries=3, irrelevant_relevance=0.2)
+    assert [r.employer for r in history.main] == ["Fit", "Mid"]
+    history = build_coherent_history(roles[3:], max_entries=5, min_entries=3)
+    assert [r.employer for r in history.main] == ["Fit"]
+
+
+def test_condensed_roles_never_overlap_listed_or_each_other():
+    roles = [
+        role("Main", date(2018, 1, 1), None, 0.9),
+        # Irrelevant side job running into the listed role: trimmed to before it.
+        role("Side", date(2016, 1, 1), date(2019, 6, 1), 0.05),
+        # Irrelevant job entirely inside the listed role: dropped.
+        role("Inside", date(2020, 1, 1), date(2020, 12, 1), 0.05),
+        # Two irrelevant early jobs overlapping each other: the longer wins.
+        role("EarlyLong", date(2010, 1, 1), date(2014, 12, 1), 0.05),
+        role("EarlyShort", date(2013, 1, 1), date(2013, 6, 1), 0.1),
+    ]
+    history = build_coherent_history(roles, min_entries=1, irrelevant_relevance=0.2)
+    assert [r.employer for r in history.main] == ["Main"]
+    assert [r.employer for r in history.early] == ["Side", "EarlyLong"]
+    side = history.early[0]
+    assert (side.date_start, side.date_end_label(TODAY)) == ("Jan 2016", "Dec 2017")
+    shown = history.main + history.early
+    for a in shown:
+        for b in shown:
+            assert a is b or not a.overlaps(b), (a.label, b.label)
+
+
+def test_condensed_role_shorter_than_min_months_is_dropped():
+    roles = [
+        role("Main", date(2018, 1, 1), None, 0.9),
+        # Irrelevant job trimmed down to a 2-month stub by the listed role: dropped, a gap
+        # is better than a stub that needs explaining.
+        role("Stub", date(2017, 11, 1), date(2018, 6, 1), 0.05),
+        # Already shorter than the minimum, even without trimming: dropped too.
+        role("Tiny", date(2015, 1, 1), date(2015, 2, 1), 0.05),
+        role("Old", date(2012, 1, 1), date(2014, 12, 1), 0.05),
+    ]
+    history = build_coherent_history(roles, min_entries=1, irrelevant_relevance=0.2, min_months=3)
+    assert [r.employer for r in history.main] == ["Main"]
+    assert [r.employer for r in history.early] == ["Old"]
+    assert sum("shorter than 3 months" in line for line in history.log) == 2
 
 
 def test_input_roles_are_not_mutated():

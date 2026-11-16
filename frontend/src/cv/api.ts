@@ -67,8 +67,8 @@ export type PipelineEntry = {
 
 export type PipelineThresholds = {
   max_entries: number
+  min_entries: number
   high_relevance: number
-  exceptional_relevance: number
   irrelevant_relevance: number
   min_months: number
 }

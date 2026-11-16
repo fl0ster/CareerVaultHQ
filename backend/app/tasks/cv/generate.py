@@ -563,8 +563,8 @@ def run_pipeline(
     history = build_coherent_history(
         roles,
         max_entries=settings.cv_max_entries,
+        min_entries=settings.cv_min_entries,
         high_relevance=settings.cv_high_relevance,
-        exceptional_relevance=settings.cv_exceptional_relevance,
         irrelevant_relevance=settings.cv_irrelevant_relevance,
         min_months=settings.cv_min_months,
     )
@@ -626,8 +626,8 @@ def run_pipeline(
         "openrouter_calls": call_count,
         "thresholds": {
             "max_entries": settings.cv_max_entries,
+            "min_entries": settings.cv_min_entries,
             "high_relevance": settings.cv_high_relevance,
-            "exceptional_relevance": settings.cv_exceptional_relevance,
             "irrelevant_relevance": settings.cv_irrelevant_relevance,
             "min_months": settings.cv_min_months,
         },

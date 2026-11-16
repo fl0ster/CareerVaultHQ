@@ -76,7 +76,12 @@ def requests_seen():
 def task_engine(engine, monkeypatch, tmp_path, requests_seen):
     """Temporary database, mocked OpenRouter, fake pdflatex, CV root under tmp_path."""
     settings = Settings(
-        openrouter_api_key="sk-test", cors_origins=[], cv_root=tmp_path / "cv", cv_max_workers=3
+        openrouter_api_key="sk-test",
+        cors_origins=[],
+        cv_root=tmp_path / "cv",
+        cv_max_workers=3,
+        # Three fixture roles, one irrelevant: keep it condensed rather than backfilled.
+        cv_min_entries=2,
     )
     state = {"handler": _handler}
 
