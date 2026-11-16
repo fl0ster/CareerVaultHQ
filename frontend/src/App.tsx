@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import JobsPage from './jobs/JobsPage.tsx'
-import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
-import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
+import CandidatePage from './candidate/CandidatePage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
 import CostPage from './cost/CostPage.tsx'
@@ -12,8 +11,7 @@ const TABS = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'companies', label: 'Companies' },
   { id: 'sources', label: 'Sources' },
-  { id: 'work-history', label: 'Work history' },
-  { id: 'candidate-profile', label: 'Candidate profile' },
+  { id: 'candidate', label: 'Candidate' },
   { id: 'generated-cv', label: 'Generated CV' },
   { id: 'cost', label: 'Cost' },
 ] as const
@@ -49,11 +47,8 @@ function App() {
       <section hidden={tab !== 'sources'}>
         <SourcesPage />
       </section>
-      <section hidden={tab !== 'work-history'}>
-        <WorkHistoryPage />
-      </section>
-      <section hidden={tab !== 'candidate-profile'}>
-        <CandidateProfilePage />
+      <section hidden={tab !== 'candidate'}>
+        <CandidatePage />
       </section>
       <section hidden={tab !== 'generated-cv'}>
         <GeneratedCvPage />
