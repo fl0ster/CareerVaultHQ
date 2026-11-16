@@ -1,0 +1,147 @@
+/* Floating background-job monitor, bottom right */
+.queue-widget {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 100;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.35;
+  overflow: hidden;
+
+  &:not(.open) {
+    width: auto;
+  }
+  &.busy {
+    border-color: var(--accent-border);
+  }
+}
+
+.queue-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 14px;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--accent-bg);
+  }
+  .spinner {
+    flex: none;
+  }
+}
+
+.queue-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.queue-summary {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.queue-chevron {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.queue-body {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px 12px;
+  max-height: 50vh;
+  overflow-y: auto;
+
+  h4 {
+    margin: 8px 0 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  h4:first-of-type {
+    margin-top: 0;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 0 6px;
+  }
+  .error {
+    margin: 0 0 8px;
+    font-size: 13px;
+  }
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queue-job {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+
+  &:first-child {
+    border-top: none;
+  }
+  &.running {
+    grid-template-columns: auto auto 1fr;
+  }
+  &.running .spinner {
+    align-self: center;
+  }
+}
+
+.queue-kind {
+  color: var(--text-h);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.queue-desc {
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.queue-time {
+  grid-column: 2 / -1;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.queue-job.running .queue-time {
+  grid-column: 3 / -1;
+}
+
+.queue-empty {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}

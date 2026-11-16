@@ -135,3 +135,12 @@ button.small {
   min-height: 40px;
   padding: 16px 0;
 }
+
+.subtabs {
+  margin-bottom: 24px;
+
+  .tab {
+    padding: 6px 12px;
+    font-size: 0.95em;
+  }
+}
