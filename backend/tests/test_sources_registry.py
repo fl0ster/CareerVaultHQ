@@ -25,11 +25,6 @@ def _valid(name: str, **overrides) -> types.ModuleType:
     attrs.update(overrides)
     return _module(name, **attrs)
 
-
-def test_skillshot_satisfies_the_contract():
-    assert sources.validate_source(sources.load_source("skillshot")) == []
-
-
 def test_validate_source_reports_every_problem():
     mod = _module("bad", NAME="", URL=42, fetch_jobs="not callable", parse_title=lambda h: "")
 

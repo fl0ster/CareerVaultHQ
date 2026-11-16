@@ -211,3 +211,42 @@ def parse_heading_sections(container, heading: str = "h2") -> str:
             continue
         out.append(f"{title}:\n{content}" if title else content)
     return "\n\n".join(out)
+
+
+def decode_rsc(html: str) -> str:
+    """Return the React Server Components payload embedded in a Next.js page.
+    The page pushes JSON-escaped string chunks via ``self.__next_f.push([1, "..."])``."""
+    chunks = re.findall(r'self\.__next_f\.push\(\[1,"(.*?)"\]\)</script>', html, re.S)
+    parts = []
+    for chunk in chunks:
+        try:
+            parts.append(json.loads('"' + chunk + '"'))
+        except json.JSONDecodeError:
+            parts.append(chunk)
+    return "\n".join(parts)
+
+
+def rsc_object(payload: str, prefix: str) -> dict:
+    """The first JSON object in a decoded RSC payload that starts with ``prefix``
+    (e.g. ``'{"offers":['``); ``{}`` when absent or malformed."""
+    start = payload.find(prefix)
+    if start < 0:
+        return {}
+    try:
+        data, _ = json.JSONDecoder().raw_decode(payload, start)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def resolve_rsc_ref(payload: str, value):
+    """Resolve a ``"$NN"`` reference in an RSC payload to its text row. Long strings
+    are stored as rows of the form ``NN:T<hex len>,<text>``."""
+    if not isinstance(value, str) or not value.startswith("$"):
+        return value
+    row_id = value[1:]
+    match = re.search(r"(?:^|\n)" + re.escape(row_id) + r":T([0-9a-f]+),", payload)
+    if not match:
+        return ""
+    length = int(match.group(1), 16)
+    return payload[match.end() :].encode("utf-8")[:length].decode("utf-8", errors="ignore")
