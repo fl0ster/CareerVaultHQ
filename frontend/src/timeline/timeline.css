@@ -1,4 +1,10 @@
-/* Timeline tab: a chronological, read-top-to-bottom log of events */
+/* Timeline tab: a log of events, newest at the top; reading goes upwards */
+.timeline {
+  /* The page holds the reading position itself (TimelinePage); browser scroll anchoring
+   * would double the correction. */
+  overflow-anchor: none;
+}
+
 .tl-list {
   list-style: none;
   margin: 0;
@@ -152,11 +158,11 @@ button.tl-row {
   color: var(--text-h);
 }
 
-/* "New updates!" pill, bottom centre (the queue widget sits bottom right) */
+/* "New updates!" pill, top centre, pointing at the unread events above */
 .tl-bubble {
   position: fixed;
   left: 50%;
-  bottom: 20px;
+  top: calc(var(--tabs-h, 0px) + var(--tl-header-h, 0px) + 12px);
   transform: translateX(-50%);
   z-index: 90;
   display: inline-flex;
@@ -186,7 +192,7 @@ button.tl-row {
 @keyframes tl-bubble-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 8px);
+    transform: translate(-50%, -8px);
   }
 }
 
@@ -209,7 +215,7 @@ button.tl-row {
   .tl-bubble {
     width: auto;
     max-width: calc(100vw - 32px);
-    bottom: 72px; /* clear of the queue widget */
+    top: calc(var(--tabs-h, 0px) + var(--tl-header-h, 0px) + 8px);
   }
   .tl-job.relevant {
     flex-wrap: wrap;
@@ -221,4 +227,12 @@ button.tl-row {
     box-sizing: border-box;
     align-items: stretch;
   }
+}
+
+/* Sticks right below the app's tab bar. */
+.tl-header {
+  position: sticky;
+  top: var(--tabs-h, 0px);
+  z-index: 95;
+  background: var(--bg);
 }

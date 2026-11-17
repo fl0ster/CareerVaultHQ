@@ -17,7 +17,7 @@ import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 
 const PAGE_SIZE = 100
 const MARK_READ_DELAY = 800
-/** Space kept above an element we scroll to, so it does not sit flush with the edge. */
+/** Space kept between an element we scroll to and the viewport edge. */
 const SCROLL_MARGIN = 24
 
 // --- grouping -------------------------------------------------------------------------
@@ -42,16 +42,28 @@ function dayLabel(date: Date): string {
   return date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-/** Turn events (ascending) into rows: day separators, the "new since your last visit"
- * marker before the first event after ``lastRead``, standalone events and folded runs of
- * non-relevant jobs. Separators and the marker always end a folded run. */
+/** Turn events (ascending, as loaded) into rows, newest first: day separators above each
+ * day's events, the "new since your last visit" marker between the unread events (above)
+ * and the read ones (below), standalone events and folded runs of non-relevant jobs (also
+ * newest first). Separators and the marker always end a folded run. */
 function buildItems(events: TimelineEvent[], lastRead: number | null): Item[] {
   const items: Item[] = []
   let day = ''
+  let unreadSeen = false
   let markerPlaced = false
-  let group: TimelineEvent[] | null = null
+  let group: Extract<Item, { kind: 'group' }> | null = null
 
-  for (const event of events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]
+    if (lastRead !== null && !markerPlaced) {
+      if (event.id > lastRead) {
+        unreadSeen = true
+      } else if (unreadSeen) {
+        markerPlaced = true
+        group = null
+        items.push({ kind: 'marker', key: 'marker' })
+      }
+    }
     const date = new Date(event.occurred_at)
     const nextDay = date.toDateString()
     if (nextDay !== day) {
@@ -59,24 +71,57 @@ function buildItems(events: TimelineEvent[], lastRead: number | null): Item[] {
       group = null
       items.push({ kind: 'day', key: `day-${event.id}`, label: dayLabel(date) })
     }
-    if (!markerPlaced && lastRead !== null && event.id > lastRead) {
-      markerPlaced = true
-      group = null
-      items.push({ kind: 'marker', key: 'marker' })
-    }
     if (isFoldable(event)) {
       if (group === null) {
-        group = [event]
-        items.push({ kind: 'group', key: `group-${event.id}`, events: group })
-      } else {
-        group.push(event)
+        group = { kind: 'group', key: '', events: [] }
+        items.push(group)
       }
+      group.events.push(event)
+      // Keyed by its oldest event, so newly arrived jobs joining the run keep it mounted.
+      group.key = `group-${event.id}`
     } else {
       group = null
       items.push({ kind: 'event', key: `event-${event.id}`, event })
     }
   }
-  return items
+  // Everything loaded is unread: the read part (if any) starts below.
+  if (!markerPlaced && unreadSeen) items.push({ kind: 'marker', key: 'marker' })
+  return sortWithinRuns(items)
+}
+
+/** Scrape run a job row belongs to (null for anything else). */
+function runOf(item: Item): number | null {
+  if (item.kind === 'event') return item.event.type === 'job_evaluated' ? item.event.scrape_run_id : null
+  if (item.kind === 'group') return item.events[0].scrape_run_id
+  return null
+}
+
+/** Within each stretch of adjacent rows from the same scrape run, put the relevant jobs on
+ * top and fold all the non-relevant ones into a single group below them. */
+function sortWithinRuns(items: Item[]): Item[] {
+  const out: Item[] = []
+  let i = 0
+  while (i < items.length) {
+    const run = runOf(items[i])
+    if (run === null) {
+      out.push(items[i++])
+      continue
+    }
+    let j = i
+    while (j < items.length && runOf(items[j]) === run) j++
+    const folded: TimelineEvent[] = []
+    for (const item of items.slice(i, j)) {
+      if (item.kind === 'group') folded.push(...item.events)
+      else out.push(item)
+    }
+    if (folded.length) {
+      folded.sort((a, b) => b.id - a.id)
+      // Keyed by its oldest event, so newly arrived jobs joining the run keep it mounted.
+      out.push({ kind: 'group', key: `group-${folded[folded.length - 1].id}`, events: folded })
+    }
+    i = j
+  }
+  return out
 }
 
 // --- renderers ------------------------------------------------------------------------
@@ -220,7 +265,7 @@ function JobGroup({
           {n} other new {n === 1 ? 'job' : 'jobs'} below the relevance threshold
           {sources.length > 0 && <> · {sources.join(', ')}</>}
         </div>
-        <time className="tl-time">{time(events[events.length - 1])}</time>
+        <time className="tl-time">{time(events[0])}</time>
       </button>
       {expanded && (
         <ul className="tl-group-items">
@@ -237,7 +282,9 @@ function JobGroup({
 
 // --- page -----------------------------------------------------------------------------
 
-type PendingScroll = { kind: 'entry' } | { kind: 'preserve'; prevHeight: number }
+/** The top-most visible item, its distance from the viewport top and the scroll position
+ * at the time it was measured. */
+type Anchor = { id: string; offset: number; scrollY: number }
 
 type Props = {
   /** Whether the Timeline tab is the visible one. */
@@ -250,8 +297,13 @@ function itemElements(list: HTMLElement | null): HTMLElement[] {
   return list ? Array.from(list.querySelectorAll<HTMLElement>('[data-last]')) : []
 }
 
+/** Bottom edge of the sticky tab bar + timeline header: content above it is covered. */
+function stickyBottom(): number {
+  return document.querySelector('.tl-header')?.getBoundingClientRect().bottom ?? 0
+}
+
 function scrollToElement(el: HTMLElement, offset = SCROLL_MARGIN, behavior: ScrollBehavior = 'auto') {
-  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior })
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset - stickyBottom(), behavior })
 }
 
 export default function TimelinePage({ active, status, onStatus }: Props) {
@@ -267,7 +319,7 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
   const [openedAtLatest, setOpenedAtLatest] = useState(0)
   /** Furthest event scrolled past (mirrors ``maxSeenRef`` for rendering). */
   const [maxSeen, setMaxSeen] = useState(0)
-  const [atBottom, setAtBottom] = useState(false)
+  const [atTop, setAtTop] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
 
@@ -284,9 +336,10 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
   const maxSeenRef = useRef(0)
   const sentReadRef = useRef(0)
   const readTimer = useRef<number | undefined>(undefined)
-  const pendingScroll = useRef<PendingScroll | null>(null)
+  /** Set when the first page is loaded: scroll to the starting position once it renders. */
+  const pendingEntry = useRef(false)
   /** Top-most visible item and its distance from the viewport top, restored on re-entry. */
-  const anchorRef = useRef<{ id: string; offset: number } | null>(null)
+  const anchorRef = useRef<Anchor | null>(null)
 
   const applyPage = useCallback((next: TimelineEvent[], older: boolean, newer: boolean) => {
     eventsRef.current = next
@@ -344,23 +397,29 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
     }
   }, [flushRead])
 
-  /** Look at what is on screen: everything whose bottom edge is visible counts as read,
-   * and the top-most visible item becomes the anchor to come back to. */
+  /** Look at what is on screen. Newer items sit above older ones, so the top-most item
+   * whose top edge is visible counts as read along with everything below it; the top-most
+   * visible item becomes the anchor to come back to. */
   const inspectViewport = useCallback(() => {
     if (!activeRef.current || !readyRef.current) return
     const viewport = window.innerHeight
+    const covered = stickyBottom()
     let seen = 0
-    let anchor: { id: string; offset: number } | null = null
+    let anchor: Anchor | null = null
     for (const el of itemElements(listRef.current)) {
       const rect = el.getBoundingClientRect()
-      if (anchor === null && rect.bottom > 0) anchor = { id: el.dataset.first!, offset: rect.top }
-      if (rect.bottom <= viewport + 1) seen = Number(el.dataset.last)
-      else break
+      if (rect.bottom <= covered) continue
+      anchor ??= { id: el.dataset.first!, offset: rect.top - covered, scrollY: window.scrollY }
+      if (rect.top >= viewport) break
+      if (rect.top >= covered - 1) {
+        seen = Number(el.dataset.last)
+        break
+      }
     }
     if (anchor) anchorRef.current = anchor
     if (seen) markSeen(seen)
-    const sentinel = bottomSentinel.current
-    setAtBottom(!hasNewerRef.current && !!sentinel && sentinel.getBoundingClientRect().top <= viewport)
+    const sentinel = topSentinel.current
+    setAtTop(!hasNewerRef.current && !!sentinel && sentinel.getBoundingClientRect().bottom >= covered)
   }, [markSeen])
 
   useEffect(() => {
@@ -413,7 +472,6 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
     if (!first) return
     const page = await load({ before_id: first.id })
     if (!page) return
-    pendingScroll.current = { kind: 'preserve', prevHeight: document.documentElement.scrollHeight }
     applyPage([...page.events, ...eventsRef.current], page.has_older, hasNewerRef.current)
   }, [applyPage, load])
 
@@ -435,7 +493,7 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
         setMaxSeen(current.last_read_id)
         setUnreadFrom(current.last_read_id)
         setOpenedAtLatest(current.latest_id)
-        pendingScroll.current = { kind: 'entry' }
+        pendingEntry.current = true
         applyPage(page.events, page.has_older, page.has_newer)
         setInitialized(true)
       } catch (e) {
@@ -449,19 +507,15 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
     }
   }, [active, initialized, load, applyPage, onStatus])
 
-  // Scroll after the DOM reflects a load: to the first unread item on entry, or keep the
-  // reading position steady when older events were prepended above it.
+  // Starting position once the first page renders: the "new since your last visit" marker
+  // at the top, so the latest read items are on screen and the unread ones wait above; with
+  // nothing unread, the top (the newest event).
   useLayoutEffect(() => {
-    const pending = pendingScroll.current
-    if (!pending || !active) return
-    pendingScroll.current = null
-    if (pending.kind === 'preserve') {
-      window.scrollBy(0, document.documentElement.scrollHeight - pending.prevHeight)
-    } else {
-      const marker = listRef.current?.querySelector<HTMLElement>('[data-marker]')
-      if (marker) scrollToElement(marker)
-      else window.scrollTo(0, document.documentElement.scrollHeight)
-    }
+    if (!pendingEntry.current || !active) return
+    pendingEntry.current = false
+    const marker = listRef.current?.querySelector<HTMLElement>('[data-marker]')
+    if (marker) scrollToElement(marker)
+    else window.scrollTo(0, 0)
     readyRef.current = true
     inspectViewport()
   }, [events, active, inspectViewport])
@@ -475,14 +529,42 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
       return
     }
     const anchor = anchorRef.current
-    if (!readyRef.current || pendingScroll.current || !anchor) return
+    if (!readyRef.current || pendingEntry.current || !anchor) return
     const el = listRef.current?.querySelector<HTMLElement>(`[data-first="${anchor.id}"]`)
     if (el) scrollToElement(el, anchor.offset)
     inspectViewport()
   }, [active, flushRead, inspectViewport])
 
-  // New events reported by the status poll are appended right away when the end of the
-  // timeline is loaded; they land below the reading position and the bubble points at them.
+  // Expose the sticky header's height so the bubble can sit just below it.
+  const headerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const update = () => document.documentElement.style.setProperty('--tl-header-h', `${el.offsetHeight}px`)
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    update()
+    return () => observer.disconnect()
+  }, [])
+
+  // The page never scrolls on its own: whatever a render changes (newer events inserted
+  // above, the header's unread line, a new day label), the item being looked at stays put
+  // on screen. Runs after every render. The browser's scroll anchoring is switched off for
+  // the timeline (see the CSS) so the two cannot fight; the anchor's offset is adjusted by
+  // any scrolling done since it was measured.
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current
+    if (!active || !readyRef.current || pendingEntry.current || !anchor) return
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-first="${anchor.id}"]`)
+    if (!el) return
+    const expected = anchor.offset + stickyBottom() - (window.scrollY - anchor.scrollY)
+    const drift = el.getBoundingClientRect().top - expected
+    if (Math.abs(drift) >= 1) window.scrollBy(0, drift)
+    inspectViewport()
+  })
+
+  // New events reported by the status poll are loaded right away when the newest end of the
+  // timeline is loaded; they land above the reading position and the bubble points at them.
   const latestId = status?.latest_id ?? 0
   useEffect(() => {
     if (!initialized || hasNewerRef.current) return
@@ -499,8 +581,8 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
         if (!activeRef.current || !readyRef.current) return
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
-          if (entry.target === topSentinel.current && hasOlderRef.current) loadOlder()
-          if (entry.target === bottomSentinel.current && hasNewerRef.current) loadNewer()
+          if (entry.target === topSentinel.current && hasNewerRef.current) loadNewer()
+          if (entry.target === bottomSentinel.current && hasOlderRef.current) loadOlder()
         }
       },
       { rootMargin: '300px' },
@@ -517,15 +599,22 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
 
   // --- actions ------------------------------------------------------------------------
 
+  /** Bring the oldest unread item up from the top edge, so reading continues upwards. */
   const jumpToUnread = async () => {
-    const firstUnread = () =>
-      itemElements(listRef.current).find((el) => Number(el.dataset.last) > maxSeenRef.current)
-    if (!firstUnread() && hasNewerRef.current) await loadNewer()
-    // Wait a frame for the appended items to render.
+    const oldestUnread = () =>
+      itemElements(listRef.current)
+        .filter((el) => Number(el.dataset.last) > maxSeenRef.current)
+        .at(-1)
+    if (!oldestUnread() && hasNewerRef.current) await loadNewer()
+    // Wait a frame for the inserted items to render.
     window.requestAnimationFrame(() => {
-      const el = firstUnread()
-      if (el) scrollToElement(el, SCROLL_MARGIN, 'smooth')
-      else window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
+      const el = oldestUnread()
+      if (el) {
+        const bottom = el.getBoundingClientRect().bottom + window.scrollY
+        window.scrollTo({ top: bottom - window.innerHeight + SCROLL_MARGIN, behavior: 'smooth' })
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
     })
   }
 
@@ -566,20 +655,19 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
 
   const items = buildItems(events, unreadFrom)
   const newestLoaded = events.at(-1)?.id ?? 0
-  const unreadBelow = hasNewer || newestLoaded > maxSeen
+  const unreadAbove = hasNewer || newestLoaded > maxSeen
   const arrivedMeanwhile = Math.max(latestId, newestLoaded) > openedAtLatest && maxSeen < Math.max(latestId, newestLoaded)
-  const showBubble = active && initialized && unreadBelow && !atBottom
+  const showBubble = active && initialized && unreadAbove && !atTop
   const ctx: RenderContext = { onOpenJob: openJob, onApplied: applied }
 
   return (
     <div className="timeline">
-      <header className="tl-header">
-        <h1 className="title">Timeline</h1>
+      <header className="tl-header" ref={headerRef}>
         <p>
           {status === null
             ? 'Loading…'
             : status.unread === 0
-              ? 'You are up to date.'
+              ? null
               : `${status.unread} unread ${status.unread === 1 ? 'event' : 'events'}${
                   status.unread_relevant ? `, ${status.unread_relevant} relevant ${status.unread_relevant === 1 ? 'job' : 'jobs'}` : ''
                 }.`}{' '}
@@ -594,8 +682,8 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
       {error && <p className="error">{error}</p>}
 
       <div ref={topSentinel} className="sentinel">
-        {loading && hasOlder && <span className="spinner" aria-hidden="true" />}
-        {initialized && !hasOlder && events.length > 0 && <span className="muted">Beginning of the timeline</span>}
+        {loading && (hasNewer || !initialized) && <span className="spinner" aria-hidden="true" />}
+        {initialized && !hasNewer && events.length > 0 && <span className="muted">You are all caught up.</span>}
       </div>
 
       {initialized && events.length === 0 && !hasNewer ? (
@@ -613,12 +701,12 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
               case 'marker':
                 return (
                   <li key={item.key} className="tl-marker" data-marker="">
-                    <span>New since your last visit</span>
+                    <span>↑ New since your last visit</span>
                   </li>
                 )
               case 'group': {
-                const first = item.events[0].id
-                const last = item.events[item.events.length - 1].id
+                const first = item.events[item.events.length - 1].id
+                const last = item.events[0].id
                 return (
                   <li key={item.key} data-first={first} data-last={last} className={last > maxSeen ? 'unread' : undefined}>
                     <JobGroup
@@ -649,17 +737,17 @@ export default function TimelinePage({ active, status, onStatus }: Props) {
       )}
 
       <div ref={bottomSentinel} className="sentinel">
-        {loading && <span className="spinner" aria-hidden="true" />}
-        {initialized && !hasNewer && events.length > 0 && <span className="muted">You are all caught up.</span>}
+        {loading && initialized && hasOlder && <span className="spinner" aria-hidden="true" />}
+        {initialized && !hasOlder && events.length > 0 && <span className="muted">Beginning of the timeline</span>}
       </div>
 
       {showBubble && (
         <button type="button" className="tl-bubble" onClick={jumpToUnread}>
-          {arrivedMeanwhile ? 'New updates!' : 'Unread below'}
+          {arrivedMeanwhile ? 'New updates!' : 'Unread above'}
           {status && status.unread_relevant > 0 && (
             <span className="tl-bubble-count">★ {status.unread_relevant}</span>
           )}
-          <span aria-hidden="true">↓</span>
+          <span aria-hidden="true">↑</span>
         </button>
       )}
 
