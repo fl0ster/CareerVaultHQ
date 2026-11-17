@@ -7,9 +7,11 @@ import SourcesPage from './sources/SourcesPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import QueueWidget from './queue/QueueWidget.tsx'
+import ApplicationsPage from './applications/ApplicationsPage.tsx'
 
 const TABS = [
   { id: 'jobs', label: 'Jobs' },
+  { id: 'applications', label: 'Applications' },
   { id: 'companies', label: 'Companies' },
   { id: 'sources', label: 'Sources' },
   { id: 'candidate', label: 'Candidate' },
@@ -41,6 +43,9 @@ function App() {
       {/* Both pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
       <section hidden={tab !== 'jobs'}>
         <JobsPage />
+      </section>
+      <section hidden={tab !== 'applications'}>
+        <ApplicationsPage />
       </section>
       <section hidden={tab !== 'companies'}>
         <CompaniesPage />

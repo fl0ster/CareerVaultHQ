@@ -456,3 +456,92 @@ class GeneratedCV(Base):
     the timeline log and any warnings (steps that fell back to the original text)."""
 
     job_parse_result: Mapped[JobParseResult] = relationship()
+
+
+class ApplicationStatus(Base):
+    """A state an ``Application`` can be in (``APPLIED``, ``INTERVIEW``, ...). Kept in a
+    table rather than an enum so new states can be added without a schema change; the
+    defaults in ``DEFAULTS`` are created by ``app.services.applications.ensure_statuses``."""
+
+    __tablename__ = "application_statuses"
+
+    DEFAULTS: tuple[tuple[str, str], ...] = (
+        ("APPLIED", "Applied"),
+        ("INTERVIEW", "Interview"),
+        ("OFFER", "Offer"),
+        ("REJECTED", "Rejected"),
+    )
+    """``(key, label)`` pairs created on first use, in display order."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    """Stable identifier used by the API, upper case (``APPLIED``)."""
+    label: Mapped[str] = mapped_column(String(128))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    """Display order; lower first."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Application(Base):
+    """A job application made for an evaluated job. One per parsed job (re-evaluating the
+    job against a newer profile does not allow a second one). Its current state is the most
+    recent ``ApplicationEvent``; ``notes`` is free text about the application as a whole."""
+
+    __tablename__ = "applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    job_evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("job_evaluations.id", ondelete="SET NULL"), index=True
+    )
+    """The evaluation the application was created from (``None`` once it is deleted)."""
+    generated_cv_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True
+    )
+    """The CV generated for this application (the latest one when regenerated)."""
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    job_parse_result: Mapped[JobParseResult] = relationship()
+    job_evaluation: Mapped[JobEvaluation | None] = relationship()
+    generated_cv: Mapped[GeneratedCV | None] = relationship()
+    events: Mapped[list[ApplicationEvent]] = relationship(
+        back_populates="application",
+        cascade="all, delete-orphan",
+        order_by="(ApplicationEvent.occurred_at, ApplicationEvent.id)",
+    )
+
+    @property
+    def current_event(self) -> ApplicationEvent | None:
+        """The latest state change (``events`` is ordered oldest first)."""
+        return self.events[-1] if self.events else None
+
+
+class ApplicationEvent(Base):
+    """One state the application went through (applied on X, interview on Y, ...), with a
+    note of its own."""
+
+    __tablename__ = "application_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    status_id: Mapped[int] = mapped_column(
+        ForeignKey("application_statuses.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    note: Mapped[str] = mapped_column(Text, default="")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    """When the state was reached (defaults to when it was recorded; editable)."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[Application] = relationship(back_populates="events")
+    status: Mapped[ApplicationStatus] = relationship()

@@ -9,7 +9,7 @@ Records created before ``older_than`` are deleted:
 
 Deleting a job cascades (FK ``ON DELETE CASCADE``) to its parse result, pending parse
 runs, evaluations and generated CVs. Protected jobs are never deleted, and neither are
-their parse results: jobs with a generated CV, and jobs with an evaluation whose
+their parse results: jobs with a generated CV or an application, and jobs with an evaluation whose
 ``match_probability`` is at or above ``settings.relevant_job_threshold``.
 """
 
@@ -23,7 +23,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import GeneratedCV, Job, JobEvaluation, JobParseResult, ScrapeRun
+from app.models import Application, GeneratedCV, Job, JobEvaluation, JobParseResult, ScrapeRun
 
 Target = Literal["all", "jobs", "job_parse_results"]
 
@@ -52,9 +52,10 @@ def cleanup_old_jobs(
     )
 
     protected_result_ids = select(GeneratedCV.job_parse_result_id).union(
+        select(Application.job_parse_result_id),
         select(JobEvaluation.job_parse_result_id).where(
             JobEvaluation.match_probability >= threshold
-        )
+        ),
     )
     protected_job_ids = select(JobParseResult.job_id).where(
         JobParseResult.id.in_(protected_result_ids)

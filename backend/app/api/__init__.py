@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    applications,
     candidate_details,
     candidate_profile,
     cleanup,
@@ -34,3 +35,4 @@ api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])
 api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
 api_router.include_router(cleanup.router, prefix="/cleanup", tags=["cleanup"])
+api_router.include_router(applications.router, prefix="/applications", tags=["applications"])

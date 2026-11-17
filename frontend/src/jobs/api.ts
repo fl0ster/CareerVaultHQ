@@ -4,6 +4,9 @@ export type JobEvaluation = {
   id: number
   candidate_profile_id: number
   match_probability: number
+  /** Match mapped onto [-1, 1] around the backend relevance threshold: 0 at the
+   * threshold, positive above it. For display only. */
+  relevance: number
   model: string | null
   created_at: string
 }
@@ -18,6 +21,8 @@ export type EvaluatedJob = {
   company: string | null
   parsed_at: string
   evaluation: JobEvaluation
+  /** Set when an application was already created for this job. */
+  application_id: number | null
 }
 
 export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
@@ -42,9 +47,14 @@ export type ListJobsParams = {
   sort: JobSortOrder
 }
 
-/** Match probability (0..1) as a whole percentage. */
-export function percent(probability: number): number {
-  return Math.round(probability * 100)
+/** Highlighted on the jobs list (strictly above the relevance threshold). */
+export function isHighlighted(evaluation: Pick<JobEvaluation, 'relevance'>): boolean {
+  return evaluation.relevance > 0
+}
+
+/** At or above the relevance threshold: an application can be created for it. */
+export function isRelevant(evaluation: Pick<JobEvaluation, 'relevance'>): boolean {
+  return evaluation.relevance >= 0
 }
 
 async function parse<T>(res: Response): Promise<T> {
