@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     # ``evaluate_retry_backoff_seconds * 2**(attempts-1)``, at most ``evaluate_max_attempts`` times.
     evaluate_max_attempts: int = 3
     evaluate_retry_backoff_seconds: int = 30 * 60
+    # A job with an evaluation whose ``match_probability`` is at or above this is relevant:
+    # ``DELETE /api/cleanup`` never removes it (nor its parse result).
+    relevant_job_threshold: float = 0.6
 
     @field_validator("cors_origins", mode="before")
     @classmethod
