@@ -94,7 +94,7 @@ function JobRow({
         <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
           <RelevanceMeter relevance={job.evaluation.relevance} />
           {isRelevant(job.evaluation) && job.application_id == null && (
-            <CreateApplicationButton job={job} onCreated={(id) => onApplicationCreated(job.id, id)} />
+            <CreateApplicationButton evaluationId={job.evaluation.id} onCreated={(id) => onApplicationCreated(job.id, id)} />
           )}
         </div>
       </div>

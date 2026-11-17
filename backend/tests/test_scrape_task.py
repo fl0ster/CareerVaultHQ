@@ -260,3 +260,37 @@ def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, m
         assert [j.source.key for j in jobs] == ["alpha", "beta", "gamma"]
         run = session.scalar(select(models.ScrapeRun))
         assert run.source is None
+
+
+def test_finished_run_is_recorded_on_the_timeline(task_engine, fake_sources, parse_queue):
+    result = scrape_task.scrape("skillshot")
+
+    with session_factory(task_engine)() as session:
+        events = session.scalars(select(models.TimelineEvent)).all()
+        assert len(events) == 1
+        event = events[0]
+        assert event.type == "scrape_run"
+        assert event.scrape_run_id == result["scrape_run_id"]
+        assert event.payload["status"] == "finished"
+        assert event.payload["source_key"] == "skillshot"
+        assert (event.payload["scraped"], event.payload["new"], event.payload["duplicates"]) == (
+            3,
+            2,
+            1,
+        )
+
+
+def test_crashed_run_is_recorded_on_the_timeline(
+    task_engine, fake_sources, parse_queue, monkeypatch
+):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("db exploded")
+
+    monkeypatch.setattr(scrape_task, "save_jobs", boom)
+    with pytest.raises(RuntimeError):
+        scrape_task.scrape("skillshot")
+
+    with session_factory(task_engine)() as session:
+        (event,) = session.scalars(select(models.TimelineEvent)).all()
+        assert event.payload["status"] == "failed"
+        assert "db exploded" in event.payload["error"]

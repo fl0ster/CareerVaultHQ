@@ -45,7 +45,7 @@ function JobApplicationSection({
         ) : (
           !error && <span className="spinner" aria-hidden="true" />
         )
-      ) : <CreateApplicationButton job={job} onCreated={onCreated} />}
+      ) : <CreateApplicationButton evaluationId={job.evaluation.id} onCreated={onCreated} />}
       {error && <p className="error">{error}</p>}
     </div>
   )

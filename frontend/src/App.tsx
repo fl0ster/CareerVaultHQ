@@ -6,8 +6,11 @@ import CompaniesPage from './companies/CompaniesPage.tsx'
 import SettingsPage from './settings/SettingsPage.tsx'
 import QueueWidget from './queue/QueueWidget.tsx'
 import ApplicationsPage from './applications/ApplicationsPage.tsx'
+import TimelinePage from './timeline/TimelinePage.tsx'
+import { useTimelineStatus } from './timeline/useTimelineStatus.ts'
 
 const TABS = [
+  { id: 'timeline', label: 'Timeline' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'applications', label: 'Applications' },
   { id: 'companies', label: 'Companies' },
@@ -18,7 +21,10 @@ const TABS = [
 type Tab = (typeof TABS)[number]['id']
 
 function App() {
-  const [tab, setTab] = useState<Tab>('jobs')
+  const [tab, setTab] = useState<Tab>('timeline')
+  const timeline = useTimelineStatus()
+  const unread = timeline.status?.unread ?? 0
+  const unreadRelevant = timeline.status?.unread_relevant ?? 0
 
   return (
     <main className="page">
@@ -32,11 +38,22 @@ function App() {
             onClick={() => setTab(t.id)}
           >
             {t.label}
+            {t.id === 'timeline' && unread > 0 && (
+              <span
+                className={unreadRelevant > 0 ? 'tab-count relevant' : 'tab-count'}
+                title={`${unread} unread, ${unreadRelevant} relevant`}
+              >
+                {unreadRelevant > 0 ? `★ ${unreadRelevant}` : unread}
+              </span>
+            )}
           </button>
         ))}
       </nav>
 
-      {/* Both pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
+      {/* All pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
+      <section hidden={tab !== 'timeline'}>
+        <TimelinePage active={tab === 'timeline'} status={timeline.status} onStatus={timeline.update} />
+      </section>
       <section hidden={tab !== 'jobs'}>
         <JobsPage />
       </section>
