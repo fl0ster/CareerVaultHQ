@@ -51,7 +51,7 @@ def _cv_jobs(fake_queue):
 
 def test_statuses_are_seeded_and_extensible(client):
     keys = [s["key"] for s in client.get(f"{BASE}/statuses").json()]
-    assert keys == ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"]
+    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED"]
 
     res = client.post(f"{BASE}/statuses", json={"key": "ghosted"})
     assert res.status_code == 201
@@ -70,8 +70,8 @@ def test_create_application_queues_cv(client, db_session, fake_queue):
     assert res.status_code == 201, res.text
     body = res.json()
     assert body["notes"] == "referral"
-    assert body["status"]["key"] == "APPLIED"
-    assert [(e["status"]["key"], e["note"]) for e in body["events"]] == [("APPLIED", "x")]
+    assert body["status"]["key"] == "SHORTLISTED"
+    assert [(e["status"]["key"], e["note"]) for e in body["events"]] == [("SHORTLISTED", "x")]
     assert body["job"]["title"] == "Title 0" and body["job"]["company"] == "Acme 0"
     assert body["job"]["company_id"] is not None and body["job"]["company_notes"] == ""
 
@@ -140,7 +140,7 @@ def test_events_notes_and_listing(client, db_session):
     res = client.post(f"{BASE}/{a_id}/events", json={"status": "interview", "note": "Tue 10:00"})
     assert res.status_code == 201
     assert res.json()["status"]["key"] == "INTERVIEW"
-    assert [e["status"]["key"] for e in res.json()["events"]] == ["APPLIED", "INTERVIEW"]
+    assert [e["status"]["key"] for e in res.json()["events"]] == ["SHORTLISTED", "INTERVIEW"]
 
     # A back-dated state does not become the current one.
     past = (datetime.now(UTC) - timedelta(days=30)).isoformat()

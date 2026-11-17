@@ -1,7 +1,7 @@
 """Job applications made for evaluated jobs.
 
 * ``POST /api/applications`` with ``{"job_evaluation_id": ...}`` creates the application
-  (``409`` when the job already has one), records its initial state (``APPLIED`` unless
+  (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
   ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job.
 * ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
   current state); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
@@ -47,7 +47,7 @@ from app.services.applications import ensure_statuses
 router = APIRouter()
 
 MAX_PAGE_SIZE = 200
-DEFAULT_STATUS = "APPLIED"
+DEFAULT_STATUS = "SHORTLISTED"
 
 
 # --------------------------------------------------------------------------- models
