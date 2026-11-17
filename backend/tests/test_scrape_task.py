@@ -294,3 +294,46 @@ def test_crashed_run_is_recorded_on_the_timeline(
         (event,) = session.scalars(select(models.TimelineEvent)).all()
         assert event.payload["status"] == "failed"
         assert "db exploded" in event.payload["error"]
+
+
+def test_same_offer_under_different_links_is_deduplicated(
+    task_engine, fake_sources, parse_queue, monkeypatch
+):
+    base = "https://www.skillshot.pl/jobs/"
+    pages = {  # link suffix -> (title, company)
+        "1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
+        "1-krakow": ("python developer ", "ACME sp. z o.o."),
+        "1-other": ("Python Developer", "Globex"),  # similar role, other company
+        "2": ("Data Engineer", "Acme"),
+        "3": ("Data Engineer", "ACME!"),  # known alias spelling -> same company
+        "4": ("Data Engineer", "Initech"),
+    }
+    listing = [{"link": base + k} for k in ("1-warszawa", "1-krakow", "1-other", "2")]
+    monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(listing))
+
+    def page(html: str) -> tuple[str, str]:
+        return pages[html[6:-7].removeprefix(base)]
+
+    monkeypatch.setattr(skillshot, "parse_title", lambda html: page(html)[0])
+    monkeypatch.setattr(skillshot, "parse_company", lambda html: page(html)[1])
+
+    first = scrape_task.scrape("skillshot")
+    assert (first["new"], first["duplicates"]) == (3, 1)
+
+    # a later run matches jobs already parsed in the DB, through the company aliases
+    from app.services.companies import resolve_company
+
+    with session_factory(task_engine)() as session:
+        for job in session.scalars(select(models.Job)).all():
+            title, company = pages[job.link.removeprefix(base)]
+            match = resolve_company(session, company)
+            session.add(models.JobParseResult(job=job, title=title, company=match.company))
+            session.flush()
+        session.commit()
+    listing[:] = [{"link": base + "3"}, {"link": base + "4"}]
+    second = scrape_task.scrape("skillshot")
+    assert (second["new"], second["duplicates"]) == (1, 1)
+
+    with session_factory(task_engine)() as session:
+        links = sorted(session.scalars(select(models.Job.link)))
+    assert links == [base + k for k in ("1-other", "1-warszawa", "2", "4")]
