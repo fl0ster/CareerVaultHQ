@@ -233,7 +233,7 @@ def test_broken_source_cannot_be_run_by_name(task_engine, fake_sources, monkeypa
     assert _source(task_engine, "junk").health == "broken"
 
 
-def test_scrape_all_runs_usable_sources_in_priority_order(task_engine, parse_queue, monkeypatch):
+def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, monkeypatch):
     order: list[str] = []
 
     def stub(key: str) -> types.ModuleType:
@@ -250,22 +250,90 @@ def test_scrape_all_runs_usable_sources_in_priority_order(task_engine, parse_que
         monkeypatch.setitem(sys.modules, f"app.tasks.scrape.sources.{key}", stub(key))
     monkeypatch.setattr(scrape_task, "fetch_page", lambda url: "<html></html>")
 
-    with session_factory(task_engine)() as session:
-        from app.services.sources import sync_sources
-
-        rows = {r.key: r for r in sync_sources(session)}
-        rows["gamma"].priority = 10
-        rows["beta"].priority = 5
-        rows["alpha"].priority = 5
-        session.commit()
-
     result = scrape_task.scrape(None)
 
-    assert order == ["gamma", "alpha", "beta"]
-    assert [s["source"] for s in result["sources"]] == ["gamma", "alpha", "beta"]
+    assert order == ["alpha", "beta", "gamma"]
+    assert [s["source"] for s in result["sources"]] == ["alpha", "beta", "gamma"]
     assert result["new"] == 3
     with session_factory(task_engine)() as session:
         jobs = session.scalars(select(models.Job).order_by(models.Job.id)).all()
-        assert [j.source.key for j in jobs] == ["gamma", "alpha", "beta"]
+        assert [j.source.key for j in jobs] == ["alpha", "beta", "gamma"]
         run = session.scalar(select(models.ScrapeRun))
         assert run.source is None
+
+
+def test_finished_run_is_recorded_on_the_timeline(task_engine, fake_sources, parse_queue):
+    result = scrape_task.scrape("skillshot")
+
+    with session_factory(task_engine)() as session:
+        events = session.scalars(select(models.TimelineEvent)).all()
+        assert len(events) == 1
+        event = events[0]
+        assert event.type == "scrape_run"
+        assert event.scrape_run_id == result["scrape_run_id"]
+        assert event.payload["status"] == "finished"
+        assert event.payload["source_key"] == "skillshot"
+        assert (event.payload["scraped"], event.payload["new"], event.payload["duplicates"]) == (
+            3,
+            2,
+            1,
+        )
+
+
+def test_crashed_run_is_recorded_on_the_timeline(
+    task_engine, fake_sources, parse_queue, monkeypatch
+):
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("db exploded")
+
+    monkeypatch.setattr(scrape_task, "save_jobs", boom)
+    with pytest.raises(RuntimeError):
+        scrape_task.scrape("skillshot")
+
+    with session_factory(task_engine)() as session:
+        (event,) = session.scalars(select(models.TimelineEvent)).all()
+        assert event.payload["status"] == "failed"
+        assert "db exploded" in event.payload["error"]
+
+
+def test_same_offer_under_different_links_is_deduplicated(
+    task_engine, fake_sources, parse_queue, monkeypatch
+):
+    base = "https://www.skillshot.pl/jobs/"
+    pages = {  # link suffix -> (title, company)
+        "1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
+        "1-krakow": ("python developer ", "ACME sp. z o.o."),
+        "1-other": ("Python Developer", "Globex"),  # similar role, other company
+        "2": ("Data Engineer", "Acme"),
+        "3": ("Data Engineer", "ACME!"),  # known alias spelling -> same company
+        "4": ("Data Engineer", "Initech"),
+    }
+    listing = [{"link": base + k} for k in ("1-warszawa", "1-krakow", "1-other", "2")]
+    monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(listing))
+
+    def page(html: str) -> tuple[str, str]:
+        return pages[html[6:-7].removeprefix(base)]
+
+    monkeypatch.setattr(skillshot, "parse_title", lambda html: page(html)[0])
+    monkeypatch.setattr(skillshot, "parse_company", lambda html: page(html)[1])
+
+    first = scrape_task.scrape("skillshot")
+    assert (first["new"], first["duplicates"]) == (3, 1)
+
+    # a later run matches jobs already parsed in the DB, through the company aliases
+    from app.services.companies import resolve_company
+
+    with session_factory(task_engine)() as session:
+        for job in session.scalars(select(models.Job)).all():
+            title, company = pages[job.link.removeprefix(base)]
+            match = resolve_company(session, company)
+            session.add(models.JobParseResult(job=job, title=title, company=match.company))
+            session.flush()
+        session.commit()
+    listing[:] = [{"link": base + "3"}, {"link": base + "4"}]
+    second = scrape_task.scrape("skillshot")
+    assert (second["new"], second["duplicates"]) == (1, 1)
+
+    with session_factory(task_engine)() as session:
+        links = sorted(session.scalars(select(models.Job.link)))
+    assert links == [base + k for k in ("1-other", "1-warszawa", "2", "4")]

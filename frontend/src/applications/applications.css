@@ -1,0 +1,246 @@
+/* Applications page, its detail dialog and the application section of the job dialog */
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.app-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+
+  &:hover:not(:disabled) .job-title {
+    color: var(--accent);
+  }
+}
+
+.app-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.app-status {
+  &.applied {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  &.interview {
+    background: rgba(245, 158, 11, 0.2);
+    color: #b45309;
+  }
+  &.offer {
+    background: rgba(34, 197, 94, 0.2);
+    color: #15803d;
+  }
+  &.rejected {
+    background: rgba(239, 68, 68, 0.2);
+    color: #b91c1c;
+  }
+  &.none {
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--text);
+  }
+}
+
+.app-item.selected .job-title {
+  color: var(--accent);
+}
+
+.app-dialog-badges {
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.app-detail {
+  padding: 0;
+}
+
+.app-detail .app-section:last-of-type {
+  margin-bottom: 12px;
+}
+
+.app-section {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: var(--text-h);
+  }
+}
+
+.app-detail,
+.job-application {
+  textarea,
+  input[type='datetime-local'] {
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+    box-sizing: border-box;
+  }
+  textarea {
+    width: 100%;
+    resize: vertical;
+    margin: 6px 0;
+  }
+  .danger {
+    color: #b91c1c;
+  }
+}
+
+.app-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-events {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0 0 0 14px;
+  border-left: 2px solid var(--border);
+}
+
+.app-event {
+  padding: 6px 0 10px;
+
+  &.editing {
+    padding-bottom: 14px;
+  }
+}
+
+.app-event-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+
+  .app-buttons {
+    margin-left: auto;
+  }
+}
+
+.app-note {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.app-add-event {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.app-danger-zone {
+  justify-content: flex-end;
+}
+
+/* Job dialog section */
+.job-application {
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    color: var(--text-h);
+  }
+}
+
+.job-row .app-status {
+  margin-left: 8px;
+}
+
+/* Jobs list: the row button plus its "Create Application" button side by side */
+.job-row-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .job-row {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.create-application {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+
+  .error {
+    font-size: 12px;
+    max-width: 220px;
+    text-align: right;
+  }
+}
+
+.job-application .create-application {
+  align-items: flex-start;
+
+  .error {
+    text-align: left;
+    max-width: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-row {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+  }
+  .app-badges {
+    justify-content: flex-start;
+  }
+  .app-detail button,
+  .job-application button,
+  .create-application button {
+    width: auto;
+  }
+  .job-row-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .create-application {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,238 @@
+/* Timeline tab: a log of events, newest at the top; reading goes upwards */
+.timeline {
+  /* The page holds the reading position itself (TimelinePage); browser scroll anchoring
+   * would double the correction. */
+  overflow-anchor: none;
+}
+
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  > li {
+    position: relative;
+    border-left: 2px solid var(--border);
+    margin-left: 10px;
+    padding: 2px 0 2px 16px;
+  }
+  /* Unread items get an accent rail so progress is visible while scrolling. */
+  > li.unread {
+    border-left-color: var(--accent-border);
+  }
+}
+
+.tl-day {
+  padding-top: 20px !important;
+  padding-bottom: 6px !important;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-h);
+}
+
+.tl-marker {
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--accent-border);
+  }
+}
+
+.tl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+  text-align: left;
+  box-sizing: border-box;
+}
+
+button.tl-row {
+  background: transparent;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--border);
+  }
+}
+
+.tl-icon {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  color: var(--text);
+}
+
+.tl-body {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tl-time {
+  flex: none;
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-scrape.failed .tl-icon {
+  color: #d33;
+}
+
+.tl-error {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tl-job.relevant {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  padding-right: 10px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+
+  .tl-icon {
+    color: var(--accent);
+  }
+  .tl-row:hover .job-title {
+    color: var(--accent);
+  }
+  .job-title .badge {
+    margin-left: 8px;
+    font-weight: normal;
+  }
+}
+
+.tl-job-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.tl-job .relevance {
+  margin-top: 7px;
+}
+
+.tl-job-side .relevance {
+  margin-top: 6px;
+}
+
+.tl-group-items {
+  list-style: none;
+  margin: 0 0 6px 28px;
+  padding: 0;
+
+  .tl-row {
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+}
+
+.tl-job-title {
+  color: var(--text-h);
+}
+
+/* "New updates!" pill, top centre, pointing at the unread events above */
+.tl-bubble {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--tabs-h, 0px) + var(--tl-header-h, 0px) + 12px);
+  transform: translateX(-50%);
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 8px 18px;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: var(--shadow);
+  font-weight: 600;
+  animation: tl-bubble-in 0.2s ease-out;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+  }
+}
+
+.tl-bubble-count {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+}
+
+@keyframes tl-bubble-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+/* Unread badge on the tab label */
+.tab-count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--border);
+  color: var(--text-h);
+
+  &.relevant {
+    background: var(--accent);
+    color: #fff;
+  }
+}
+
+@media (max-width: 600px) {
+  .tl-bubble {
+    width: auto;
+    max-width: calc(100vw - 32px);
+    top: calc(var(--tabs-h, 0px) + var(--tl-header-h, 0px) + 8px);
+  }
+  .tl-job.relevant {
+    flex-wrap: wrap;
+    padding-bottom: 8px;
+  }
+  .tl-job-side {
+    width: 100%;
+    padding: 0 0 0 38px;
+    box-sizing: border-box;
+    align-items: stretch;
+  }
+}
+
+/* Sticks right below the app's tab bar. */
+.tl-header {
+  position: sticky;
+  top: var(--tabs-h, 0px);
+  z-index: 95;
+  background: var(--bg);
+}

@@ -59,7 +59,7 @@ app/
   tasks/scrape/    worker job scrape(): runs the scraper plugins and stores new listings in jobs
     sources/       one plugin module per job board (drop a <key>.py file to add a source; see the
                    package docstring for the contract). Mirrored into the scrape_sources table
-                   (enabled, priority, health, relevance) by services/sources.py
+                   (enabled, scrape interval, health, relevance) by services/sources.py
   tasks/parse/     worker job parse_job(): extracts title/company/description with the source's
                    parse_* hooks
   tasks/cv/        CV tailored to one parsed job (worker job generate_cv): history.py builds the

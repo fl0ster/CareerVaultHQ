@@ -250,3 +250,40 @@ def resolve_rsc_ref(payload: str, value):
         return ""
     length = int(match.group(1), 16)
     return payload[match.end() :].encode("utf-8")[:length].decode("utf-8", errors="ignore")
+
+
+def parse_pracuj_sections(sections: list | None) -> str:
+    """Render the section model shared by Pracuj Group sites (theprotocol.it, pracuj.pl):
+    titled sections with bullets / paragraphs / dictionaries and optional nested
+    ``subSections``."""
+
+    def render(section: dict) -> str:
+        title = (section.get("title") or "").strip()
+        parts: list[str] = []
+        model = section.get("model") or {}
+        kind = model.get("modelType")
+        if kind == "multi-paragraph":
+            parts.extend(p for p in model.get("paragraphs") or [] if p)
+        elif kind == "bullets":
+            parts.extend(f"- {b}" for b in model.get("bullets") or [] if b)
+        elif kind == "open-dictionary":
+            items = (model.get("items") or []) + (model.get("customItems") or [])
+            names = [i.get("name") for i in items if isinstance(i, dict) and i.get("name")]
+            if names:
+                parts.append(", ".join(names))
+        elif kind == "flag":
+            parts.append("yes" if model.get("flag") else "no")
+        elif kind and model.get("text"):
+            parts.append(str(model["text"]))
+        for sub in section.get("subSections") or []:
+            sub_title = (sub.get("title") or "").strip()
+            sub_text = render(sub)
+            if sub_text:
+                prefixed = sub_title and not sub_text.startswith(sub_title)
+                parts.append(f"{sub_title}: {sub_text}" if prefixed else sub_text)
+        content = "\n".join(parts)
+        if title and content and not content.startswith(title):
+            return f"{title}:\n{content}"
+        return content
+
+    return "\n\n".join(filter(None, (render(s) for s in sections or [])))

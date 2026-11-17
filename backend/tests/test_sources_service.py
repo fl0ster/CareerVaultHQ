@@ -28,9 +28,9 @@ def test_sync_creates_rows_for_discovered_modules(db_session, discovered):
 
     rows = service.sync_sources(db_session)
 
-    assert [(r.key, r.name, r.url, r.module_error, r.enabled, r.priority) for r in rows] == [
-        ("alpha", "Alpha", "https://alpha.example", None, True, 0),
-        ("bad", "bad", None, "missing NAME", True, 0),
+    assert [(r.key, r.name, r.url, r.module_error, r.enabled) for r in rows] == [
+        ("alpha", "Alpha", "https://alpha.example", None, True),
+        ("bad", "bad", None, "missing NAME", True),
     ]
     assert rows[0].health == "unknown"
     assert rows[1].health == "broken"
@@ -40,14 +40,14 @@ def test_sync_refreshes_metadata_but_keeps_user_settings(db_session, discovered)
     discovered.append(SourceInfo("alpha", "Alpha", "https://alpha.example"))
     row = service.sync_sources(db_session)[0]
     row.enabled = False
-    row.priority = 7
+    row.scrape_interval_seconds = 7200
     db_session.commit()
 
     discovered[0] = SourceInfo("alpha", "Alpha v2", "https://alpha.example/v2")
     row = service.sync_sources(db_session)[0]
 
     assert (row.name, row.url) == ("Alpha v2", "https://alpha.example/v2")
-    assert (row.enabled, row.priority) == (False, 7)
+    assert (row.enabled, row.scrape_interval_seconds) == (False, 7200)
     assert db_session.scalars(select(models.ScrapeSource)).all() == [row]  # no duplicate row
 
 
@@ -74,21 +74,21 @@ def test_sync_against_real_modules_includes_skillshot(db_session):
     assert row.module_error is None
 
 
-def test_runnable_sources_are_enabled_usable_and_ordered_by_priority(db_session):
-    ensure_source(db_session, "low", priority=1)
-    ensure_source(db_session, "high", priority=5)
-    ensure_source(db_session, "off", priority=9, enabled=False)
-    ensure_source(db_session, "broken", priority=9, module_error="missing URL")
-    ensure_source(db_session, "also_low", priority=1)
+def test_runnable_sources_are_enabled_usable_and_ordered_by_key(db_session):
+    ensure_source(db_session, "low")
+    ensure_source(db_session, "high")
+    ensure_source(db_session, "off", enabled=False)
+    ensure_source(db_session, "broken", module_error="missing URL")
+    ensure_source(db_session, "also_low")
     db_session.commit()
 
-    assert [r.key for r in service.runnable_sources(db_session)] == ["high", "also_low", "low"]
+    assert [r.key for r in service.runnable_sources(db_session)] == ["also_low", "high", "low"]
     assert [r.key for r in service.list_sources(db_session)] == [
-        "broken",
-        "off",
-        "high",
         "also_low",
+        "broken",
+        "high",
         "low",
+        "off",
     ]
 
 

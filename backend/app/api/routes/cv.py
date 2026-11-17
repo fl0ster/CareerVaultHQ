@@ -115,7 +115,7 @@ def _get_or_404(session: Session, cv_id: int) -> GeneratedCV:
     return cv
 
 
-def _reconcile(session: Session, queue: Queue, cv: GeneratedCV) -> None:
+def reconcile_cv(session: Session, queue: Queue, cv: GeneratedCV) -> None:
     """A generation the worker lost (killed by the RQ timeout, worker crashed) stays
     ``running`` in the database; pick the failure up from RQ when it is visible there."""
     if cv.status not in (GeneratedCV.STATUS_QUEUED, GeneratedCV.STATUS_RUNNING) or not cv.rq_job_id:
@@ -135,7 +135,7 @@ def _reconcile(session: Session, queue: Queue, cv: GeneratedCV) -> None:
         session.commit()
 
 
-def _to_out(cv: GeneratedCV, request: Request) -> GeneratedCvOut:
+def cv_out(cv: GeneratedCV, request: Request) -> GeneratedCvOut:
     parsed = cv.job_parse_result
     job = parsed.job
     finished = cv.status == GeneratedCV.STATUS_FINISHED
@@ -189,6 +189,47 @@ def _file_or_409(settings: Settings, cv: GeneratedCV, path: str | None) -> Path:
     return file
 
 
+def check_cv_inputs(session: Session) -> None:
+    """``400`` unless the inputs every CV needs (work history, candidate name) exist."""
+    if session.scalar(select(func.count()).select_from(WorkHistoryEntry)) == 0:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first"
+        )
+    details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))
+    try:
+        check_details(details)
+    except CvGenerationError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+def enqueue_cv(
+    session: Session, queue: Queue, settings: Settings, parsed: JobParseResult
+) -> GeneratedCV:
+    """Create a ``generated_cvs`` row for ``parsed`` and queue its generation. When the
+    queue is unreachable the row is committed as ``failed`` instead of raising."""
+    cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex)
+    session.add(cv)
+    session.commit()
+    session.refresh(cv)
+    try:
+        queue.enqueue(
+            generate_cv,
+            cv.id,
+            job_id=cv.rq_job_id,
+            job_timeout=settings.cv_timeout,
+            result_ttl=settings.job_result_ttl,
+            failure_ttl=settings.job_result_ttl,
+            meta={"generated_cv_id": cv.id, "job_id": parsed.job_id},
+            description=f"generate cv {cv.id} for job {parsed.job_id}",
+        )
+    except Exception as exc:
+        log.exception("Could not enqueue CV generation %d", cv.id)
+        cv.status = GeneratedCV.STATUS_FAILED
+        cv.error = f"could not enqueue the generation: {exc}"
+        session.commit()
+    return cv
+
+
 # --------------------------------------------------------------------------- routes
 
 
@@ -212,40 +253,13 @@ def generate(
     )
     if parsed is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
-    if session.scalar(select(func.count()).select_from(WorkHistoryEntry)) == 0:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first"
-        )
-    details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))
-    try:
-        check_details(details)
-    except CvGenerationError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-
-    cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex)
-    session.add(cv)
-    session.commit()
-    session.refresh(cv)
-    try:
-        queue.enqueue(
-            generate_cv,
-            cv.id,
-            job_id=cv.rq_job_id,
-            job_timeout=settings.cv_timeout,
-            result_ttl=settings.job_result_ttl,
-            failure_ttl=settings.job_result_ttl,
-            meta={"generated_cv_id": cv.id, "job_id": parsed.job_id},
-            description=f"generate cv {cv.id} for job {parsed.job_id}",
-        )
-    except Exception as exc:
-        log.exception("Could not enqueue CV generation %d", cv.id)
-        cv.status = GeneratedCV.STATUS_FAILED
-        cv.error = f"could not enqueue the generation: {exc}"
-        session.commit()
+    check_cv_inputs(session)
+    cv = enqueue_cv(session, queue, settings, parsed)
+    if cv.status == GeneratedCV.STATUS_FAILED:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "job queue unavailable; try again later"
-        ) from exc
-    return _to_out(_get_or_404(session, cv.id), request)
+        )
+    return cv_out(_get_or_404(session, cv.id), request)
 
 
 @router.get("", response_model=GeneratedCvPage)
@@ -264,9 +278,9 @@ def list_cvs(
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     cvs = session.scalars(query.order_by(GeneratedCV.id.desc()).offset(offset).limit(limit)).all()
     for cv in cvs:
-        _reconcile(session, queue, cv)
+        reconcile_cv(session, queue, cv)
     return GeneratedCvPage(
-        items=[_to_out(cv, request) for cv in cvs],
+        items=[cv_out(cv, request) for cv in cvs],
         total=total,
         offset=offset,
         limit=limit,
@@ -283,8 +297,8 @@ def get_cv(
 ) -> GeneratedCvOut:
     """One generated CV; poll until ``status`` is ``finished`` or ``failed``."""
     cv = _get_or_404(session, cv_id)
-    _reconcile(session, queue, cv)
-    return _to_out(cv, request)
+    reconcile_cv(session, queue, cv)
+    return cv_out(cv, request)
 
 
 @router.get("/{cv_id}/pdf", name="generated_cv_pdf")

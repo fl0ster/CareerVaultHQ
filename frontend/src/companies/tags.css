@@ -1,0 +1,69 @@
+/* Company tag pill and its toggle; used on the companies, jobs and applications pages. */
+.company-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tag-favourite {
+  --tag-bg: rgba(245, 158, 11, 0.2);
+  --tag-fg: #b45309;
+}
+.tag-interested {
+  --tag-bg: var(--accent-bg);
+  --tag-fg: var(--accent);
+}
+.tag-avoid {
+  --tag-bg: rgba(239, 68, 68, 0.2);
+  --tag-fg: #b91c1c;
+}
+
+.badge.company-tag {
+  background: var(--tag-bg);
+  color: var(--tag-fg);
+}
+
+.company-tag-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.company-tag-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tag-fg, var(--text));
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+
+  &.none {
+    opacity: 0.55;
+  }
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--border);
+    background: var(--tag-bg, var(--accent-bg));
+    opacity: 1;
+  }
+  &:disabled {
+    cursor: progress;
+  }
+}
+
+.company-tag-error {
+  font-size: 12px;
+}

@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { getCompany, type CompanyDetail } from './api.ts'
+import { notifyApplicationsChanged } from '../applications/api.ts'
+import NotesEditor from '../notes/NotesEditor.tsx'
+import { CompanyTagToggle } from './CompanyTag.tsx'
+import './tags.css'
+import { getCompany, updateCompanyNotes, type CompanyDetail } from './api.ts'
 
 const JOBS_LIMIT = 20
 
@@ -43,7 +47,10 @@ export default function CompanyDialog({ companyId, onClose }: Props) {
     <dialog ref={ref} className="company-dialog" onClose={onClose} onClick={closeOnBackdrop}>
       <div className="company-dialog-body">
         <div className="company-dialog-head">
-          <h2 className="title">{detail?.name ?? 'Company'}</h2>
+          <div className="company-dialog-title">
+            <h2 className="title">{detail?.name ?? 'Company'}</h2>
+            {detail && <CompanyTagToggle companyId={detail.id} tag={detail.tag} />}
+          </div>
           <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
             Close
           </button>
@@ -62,6 +69,19 @@ export default function CompanyDialog({ companyId, onClose }: Props) {
               <dt>First seen</dt>
               <dd>{formatDate(detail.created_at)}</dd>
             </dl>
+
+            <h3>Notes</h3>
+            <NotesEditor
+              label="Company notes"
+              value={detail.notes}
+              placeholder="Notes about this company (shared with its applications)"
+              onSave={async (notes) => {
+                const updated = await updateCompanyNotes(detail.id, notes)
+                setDetail((prev) => (prev ? { ...prev, notes: updated.notes } : prev))
+                // Applications show the company's notes too.
+                notifyApplicationsChanged()
+              }}
+            />
 
             <h3>Aliases</h3>
             {detail.aliases.length === 0 ? (

@@ -1,105 +1,63 @@
 import { useEffect, useRef, useState } from 'react'
-import { type EvaluatedJob, type EvaluatedJobDetail, jobsApi } from './api.ts'
-import ScoreBadge from './ScoreBadge.tsx'
-import '../cv/cv.css'
-import { cvApi, describeError, type GeneratedCv, isInProgress } from '../cv/api.ts'
-import CvActions from '../cv/CvActions.tsx'
-import CvStatusBadge from '../cv/CvStatusBadge.tsx'
+import { type EvaluatedJob, type EvaluatedJobDetail, isRelevant, jobsApi } from './api.ts'
+import RelevanceMeter from './RelevanceMeter.tsx'
+import '../applications/applications.css'
+import { type Application, applicationsApi } from '../applications/api.ts'
+import StatusBadge from '../applications/StatusBadge.tsx'
+import { describeError } from '../cv/api.ts'
+import CreateApplicationButton from './CreateApplicationButton.tsx'
+import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
 
-const CV_POLL_MS = 3000
-
-/** "Generate CV" button plus the CVs already generated for this job, kept fresh while
- * any of them is still being generated. */
-function JobCvSection({ jobId }: { jobId: number }) {
-  const [cvs, setCvs] = useState<GeneratedCv[] | null>(null)
+/** The job's application, or a button to create one when the job is relevant enough. */
+function JobApplicationSection({
+  job,
+  onCreated,
+}: {
+  job: EvaluatedJob
+  relevant: boolean
+  onCreated: (applicationId: number) => void
+}) {
+  const [application, setApplication] = useState<Application | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
-  const [tick, setTick] = useState(0)
+  const applicationId = job.application_id
 
   useEffect(() => {
+    if (applicationId == null) return
     const controller = new AbortController()
-    cvApi
-      .list({ job_id: jobId, limit: 20 }, controller.signal)
-      .then((page) => {
-        setCvs(page.items)
-        setError(null)
-      })
+    applicationsApi
+      .get(applicationId, controller.signal)
+      .then(setApplication)
       .catch((e) => {
-        if (!controller.signal.aborted) setError(`Could not load generated CVs: ${describeError(e)}`)
+        if (!controller.signal.aborted) setError(`Could not load the application: ${describeError(e)}`)
       })
     return () => controller.abort()
-  }, [jobId, tick])
+  }, [applicationId])
 
-  const pending = cvs?.some(isInProgress) ?? false
-  useEffect(() => {
-    if (!pending) return
-    const timer = window.setTimeout(() => setTick((t) => t + 1), CV_POLL_MS)
-    return () => window.clearTimeout(timer)
-  }, [pending, tick])
-
-  const generate = async () => {
-    setGenerating(true)
-    setError(null)
-    try {
-      const cv = await cvApi.generate(jobId)
-      setCvs((prev) => [cv, ...(prev ?? [])])
-    } catch (e) {
-      setError(describeError(e))
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  const latest = cvs?.[0]
   return (
-    <div className="job-cv">
-      <h3>CV for this job</h3>
-      <div className="job-cv-controls">
-        <button type="button" className="small" onClick={generate} disabled={generating || pending}>
-          {generating ? 'Requesting…' : pending ? 'Generating…' : cvs?.length ? 'Generate CV again' : 'Generate CV'}
-        </button>
-        {cvs === null && !error && <span className="spinner" aria-hidden="true" />}
-        {latest && latest.status === 'finished' && (
-          <span className="muted">
-            Latest: {latest.headline_role ?? 'ready'}
-            {latest.core_technologies.length > 0 && ` · ${latest.core_technologies.join(' · ')}`}
-          </span>
-        )}
-      </div>
+    <div className="job-application">
+      <h3>Application</h3>
+      {applicationId != null ? (
+        application ? (
+          <div className="app-buttons">
+            <StatusBadge status={application.status} />
+            <span className="muted">Application #{application.id} · manage it on the Applications tab.</span>
+          </div>
+        ) : (
+          !error && <span className="spinner" aria-hidden="true" />
+        )
+      ) : <CreateApplicationButton evaluationId={job.evaluation.id} onCreated={onCreated} />}
       {error && <p className="error">{error}</p>}
-      {cvs && cvs.length > 0 && (
-        <ul className="cv-list">
-          {cvs.map((cv) => (
-            <li key={cv.id} className="cv-item">
-              <div className="cv-head">
-                <div className="cv-main">
-                  <div className="cv-meta">
-                    <CvStatusBadge status={cv.status} />
-                    <span>#{cv.id}</span>
-                    <span>{new Date(cv.created_at).toLocaleString()}</span>
-                  </div>
-                  {cv.status === 'failed' && cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
-                  {cv.warnings.length > 0 && (
-                    <div className="muted">{cv.warnings.length} step(s) kept the original text; see the Generated CV tab.</div>
-                  )}
-                </div>
-                <CvActions cv={cv} />
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }
 
 type Props = {
   job: EvaluatedJob
-  threshold: number
   onClose: () => void
+  onApplicationCreated: (applicationId: number) => void
 }
 
-export default function JobDialog({ job, threshold, onClose }: Props) {
+export default function JobDialog({ job, onClose, onApplicationCreated }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [detail, setDetail] = useState<EvaluatedJobDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -158,7 +116,11 @@ export default function JobDialog({ job, threshold, onClose }: Props) {
           <div className="job-main">
             <h2>{job.title ?? 'Untitled job'}</h2>
             <div className="job-meta">
-              {job.company && <span className="job-company">{job.company}</span>}
+              {job.company && (
+                <span className="job-company">
+                  {job.company} <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                </span>
+              )}
               <span>{job.source}</span>
               {job.scrape_run_id != null && <span>run #{job.scrape_run_id}</span>}
             </div>
@@ -169,9 +131,9 @@ export default function JobDialog({ job, threshold, onClose }: Props) {
         </div>
 
         <dl className="job-facts">
-          <dt>Match</dt>
+          <dt>Relevance</dt>
           <dd>
-            <ScoreBadge probability={evaluation.match_probability} threshold={threshold} />
+            <RelevanceMeter relevance={evaluation.relevance} />
             {evaluation.model && <span className="muted">{evaluation.model}</span>}
           </dd>
           <dt>Evaluated</dt>
@@ -186,7 +148,7 @@ export default function JobDialog({ job, threshold, onClose }: Props) {
           </dd>
         </dl>
 
-        <JobCvSection jobId={job.id} />
+        <JobApplicationSection job={job} relevant={isRelevant(job.evaluation)} onCreated={onApplicationCreated} />
 
         {error && <p className="error">Could not load job details: {error}</p>}
         {!detail && !error && <span className="spinner" aria-hidden="true" />}

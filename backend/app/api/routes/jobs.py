@@ -22,8 +22,17 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult, ScrapeSource
+from app.models import (
+    Application,
+    CandidateProfile,
+    Job,
+    JobEvaluation,
+    JobParseResult,
+    ScrapeSource,
+)
+from app.services.relevance import relevance
 
 router = APIRouter()
 
@@ -110,12 +119,15 @@ class EvaluationOut(BaseModel):
     id: int
     candidate_profile_id: int
     match_probability: float
+    relevance: float
+    """``match_probability`` mapped onto [-1, 1] around ``settings.relevant_job_threshold``
+    (see ``relevance``): 0 at the threshold, positive above it. For display only."""
     model: str | None
     """Model that produced the score (from the ``openrouter_calls`` row), if still known."""
     created_at: datetime
 
 
-def _evaluation_out(evaluation: JobEvaluation | None) -> EvaluationOut | None:
+def _evaluation_out(evaluation: JobEvaluation | None, threshold: float) -> EvaluationOut | None:
     if evaluation is None:
         return None
     call = evaluation.openrouter_call
@@ -123,6 +135,7 @@ def _evaluation_out(evaluation: JobEvaluation | None) -> EvaluationOut | None:
         id=evaluation.id,
         candidate_profile_id=evaluation.candidate_profile_id,
         match_probability=evaluation.match_probability,
+        relevance=relevance(evaluation.match_probability, threshold),
         model=call.model if call is not None else None,
         created_at=evaluation.created_at,
     )
@@ -139,8 +152,14 @@ class EvaluatedJobOut(BaseModel):
     has_html: bool
     title: str | None
     company: str | None
+    company_id: int | None = None
+    """``companies.id`` of the resolved company."""
+    company_tag: str | None = None
+    """The company's tag (``Company.TAGS``), if any."""
     parsed_at: datetime
     evaluation: EvaluationOut
+    application_id: int | None = None
+    """``applications.id`` when an application was already created for the job."""
 
 
 class EvaluatedJobDetail(EvaluatedJobOut):
@@ -163,8 +182,26 @@ def _latest_profile_id(session: Session) -> int | None:
     return session.scalar(select(func.max(CandidateProfile.id)))
 
 
+def _application_ids(session: Session, parse_result_ids: list[int]) -> dict[int, int]:
+    """``{job_parse_result_id: application_id}`` for the parse results that have one."""
+    if not parse_result_ids:
+        return {}
+    rows = session.execute(
+        select(Application.job_parse_result_id, Application.id).where(
+            Application.job_parse_result_id.in_(parse_result_ids)
+        )
+    ).all()
+    return dict(rows)
+
+
 def _evaluated(
-    job: Job, parsed: JobParseResult, evaluation: JobEvaluation | None, *, description: bool
+    job: Job,
+    parsed: JobParseResult,
+    evaluation: JobEvaluation | None,
+    *,
+    threshold: float,
+    description: bool,
+    application_id: int | None = None,
 ) -> dict:
     data = {
         "id": job.id,
@@ -174,8 +211,11 @@ def _evaluated(
         "has_html": bool(job.html),
         "title": parsed.title,
         "company": parsed.company.name if parsed.company is not None else None,
+        "company_id": parsed.company.id if parsed.company is not None else None,
+        "company_tag": parsed.company.tag if parsed.company is not None else None,
         "parsed_at": parsed.parsed_at,
-        "evaluation": _evaluation_out(evaluation),
+        "evaluation": _evaluation_out(evaluation, threshold),
+        "application_id": application_id,
     }
     if description:
         data["description"] = parsed.description
@@ -199,6 +239,7 @@ def _evaluated_query(profile_id: int) -> Select:
 @router.get("", response_model=EvaluatedJobPage)
 def list_jobs(
     session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     source: str | None = None,
@@ -213,7 +254,12 @@ def list_jobs(
     profile_id = _latest_profile_id(session)
     if profile_id is None:
         return EvaluatedJobPage(
-            items=[], total=0, offset=offset, limit=limit, has_more=False, candidate_profile_id=None
+            items=[],
+            total=0,
+            offset=offset,
+            limit=limit,
+            has_more=False,
+            candidate_profile_id=None,
         )
 
     query = _evaluated_query(profile_id)
@@ -228,8 +274,18 @@ def list_jobs(
     else:
         query = query.order_by(JobEvaluation.id.desc())
     rows = session.execute(query.offset(offset).limit(limit)).all()
+    applications = _application_ids(session, [parsed.id for _, parsed, _ in rows])
     items = [
-        EvaluatedJobOut(**_evaluated(job, parsed, evaluation, description=False))
+        EvaluatedJobOut(
+            **_evaluated(
+                job,
+                parsed,
+                evaluation,
+                threshold=settings.relevant_job_threshold,
+                description=False,
+                application_id=applications.get(parsed.id),
+            )
+        )
         for job, parsed, evaluation in rows
     ]
     return EvaluatedJobPage(
@@ -243,7 +299,11 @@ def list_jobs(
 
 
 @router.get("/{job_id}", response_model=EvaluatedJobDetail)
-def get_job(job_id: int, session: Annotated[Session, Depends(get_session)]) -> EvaluatedJobDetail:
+def get_job(
+    job_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EvaluatedJobDetail:
     """A single parsed job with its full description and its score against the latest
     candidate profile (``evaluation`` is ``null`` when it has not been scored yet).
 
@@ -268,4 +328,14 @@ def get_job(job_id: int, session: Annotated[Session, Depends(get_session)]) -> E
                 JobEvaluation.candidate_profile_id == profile_id,
             )
         ).first()
-    return EvaluatedJobDetail(**_evaluated(job, parsed, evaluation, description=True))
+    application_id = _application_ids(session, [parsed.id]).get(parsed.id)
+    return EvaluatedJobDetail(
+        **_evaluated(
+            job,
+            parsed,
+            evaluation,
+            threshold=settings.relevant_job_threshold,
+            description=True,
+            application_id=application_id,
+        )
+    )

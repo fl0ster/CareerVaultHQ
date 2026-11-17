@@ -3,6 +3,8 @@
 ``GET /api/companies?offset=0&limit=50&q=tech`` returns a page of companies, alphabetically,
 with how many parsed jobs reference each one. ``GET /api/companies/{id}?jobs_limit=10`` adds
 the aliases (every spelling that was mapped to the company) and its latest parsed jobs.
+``PATCH /api/companies/{id}`` with ``{"notes": "..."}`` and/or ``{"tag": "favourite" | null}``
+updates the company's notes / tag (``GET /api/companies/tags`` lists the allowed tags).
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -31,6 +33,9 @@ class CompanyOut(BaseModel):
     id: int
     name: str
     normalized_name: str
+    notes: str = ""
+    tag: str | None = None
+    """One of ``Company.TAGS`` or ``None``."""
     created_at: datetime
     updated_at: datetime
     job_count: int = 0
@@ -81,6 +86,28 @@ class CompanyPage(BaseModel):
     has_more: bool
 
 
+class CompanyUpdate(BaseModel):
+    """Only the fields present in the body are changed; ``"tag": null`` clears the tag."""
+
+    notes: str | None = None
+    tag: str | None = None
+
+    @field_validator("tag")
+    @classmethod
+    def _known_tag(cls, value: str | None) -> str | None:
+        if value is not None and value not in Company.TAGS:
+            raise ValueError(f"must be one of {', '.join(Company.TAGS)} or null")
+        return value
+
+    @model_validator(mode="after")
+    def _something_to_update(self) -> CompanyUpdate:
+        if not self.model_fields_set & {"notes", "tag"}:
+            raise ValueError("nothing to update: send notes and/or tag")
+        if "notes" in self.model_fields_set and self.notes is None:
+            raise ValueError("notes cannot be null")
+        return self
+
+
 def _job_count_subquery():
     return (
         select(JobParseResult.company_id, func.count().label("job_count"))
@@ -92,7 +119,19 @@ def _job_count_subquery():
 def _to_out(company: Company, job_count: int | None) -> CompanyOut:
     out = CompanyOut.model_validate(company)
     out.job_count = job_count or 0
+    out.notes = company.notes or ""
     return out
+
+
+def _job_count(session: Session, company_id: int) -> int:
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(JobParseResult)
+            .where(JobParseResult.company_id == company_id)
+        )
+        or 0
+    )
 
 
 @router.get("", response_model=CompanyPage)
@@ -129,6 +168,12 @@ def list_companies(
     )
 
 
+@router.get("/tags", response_model=list[str])
+def list_company_tags() -> list[str]:
+    """The tags a company can have, in display order."""
+    return list(Company.TAGS)
+
+
 @router.get("/{company_id}", response_model=CompanyFull)
 def get_company(
     company_id: int,
@@ -139,11 +184,7 @@ def get_company(
     company = session.get(Company, company_id)
     if company is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown company")
-    job_count = session.scalar(
-        select(func.count())
-        .select_from(JobParseResult)
-        .where(JobParseResult.company_id == company.id)
-    )
+    job_count = _job_count(session, company.id)
     latest = session.execute(
         select(JobParseResult, Job)
         .join(Job, Job.id == JobParseResult.job_id)
@@ -166,3 +207,21 @@ def get_company(
             for parsed, job in latest
         ],
     )
+
+
+@router.patch("/{company_id}", response_model=CompanyOut)
+def update_company(
+    company_id: int,
+    payload: CompanyUpdate,
+    session: Annotated[Session, Depends(get_session)],
+) -> CompanyOut:
+    """Change the company's notes and/or tag."""
+    company = session.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown company")
+    if "notes" in payload.model_fields_set:
+        company.notes = payload.notes
+    if "tag" in payload.model_fields_set:
+        company.tag = payload.tag
+    session.commit()
+    return _to_out(company, _job_count(session, company.id))

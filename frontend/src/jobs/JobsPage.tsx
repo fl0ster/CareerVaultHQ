@@ -1,24 +1,14 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
-import { type EvaluatedJob, type JobSortOrder, jobsApi, percent } from './api.ts'
+import '../applications/applications.css'
+import { type EvaluatedJob, type JobSortOrder, isHighlighted, isRelevant, jobsApi } from './api.ts'
 import JobDialog from './JobDialog.tsx'
-import ScoreBadge from './ScoreBadge.tsx'
+import CreateApplicationButton from './CreateApplicationButton.tsx'
+import RelevanceMeter from './RelevanceMeter.tsx'
+import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import '../companies/tags.css'
 
 const PAGE_SIZE = 50
-const THRESHOLD_KEY = 'jobs.matchThreshold'
-const DEFAULT_THRESHOLD = 70
-
-function loadThreshold(): number {
-  try {
-    const raw = localStorage.getItem(THRESHOLD_KEY)
-    const value = raw === null ? NaN : Number(raw)
-    if (Number.isFinite(value) && value >= 0 && value <= 100) return value
-  } catch {
-    /* storage unavailable, use the default */
-  }
-  return DEFAULT_THRESHOLD
-}
-
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
   const transform = getComputedStyle(el).transform
@@ -72,27 +62,42 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
 
 function JobRow({
   job,
-  threshold,
   onSelect,
+  onApplicationCreated,
 }: {
   job: EvaluatedJob
-  threshold: number
   onSelect: (job: EvaluatedJob) => void
+  onApplicationCreated: (jobId: number, applicationId: number) => void
 }) {
-  const matching = percent(job.evaluation.match_probability) >= threshold
+  const matching = isHighlighted(job.evaluation)
   return (
     <li className={matching ? 'job-item match' : 'job-item'} data-key={String(job.id)}>
-      <button type="button" className="job-row" onClick={() => onSelect(job)}>
-        <div className="job-main">
-          <span className="job-title">{job.title ?? job.link}</span>
-          <div className="job-meta">
-            {job.company && <span className="job-company">{job.company}</span>}
-            <span>{job.source}</span>
-            <span>evaluated {new Date(job.evaluation.created_at).toLocaleDateString()}</span>
+      <div className="job-row-wrap">
+        <button type="button" className="job-row" onClick={() => onSelect(job)}>
+          <div className="job-main">
+            <span className="job-title">
+              {job.title ?? job.link}
+              {job.application_id != null && <span className="badge app-status applied">Application</span>}
+            </span>
+            <div className="job-meta">
+              {job.company && (
+                <span className="job-company">
+                  {job.company} <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />
+                </span>
+              )}
+              <span>{job.source}</span>
+              <span>evaluated {new Date(job.evaluation.created_at).toLocaleDateString()}</span>
+            </div>
           </div>
+
+        </button>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+          <RelevanceMeter relevance={job.evaluation.relevance} />
+          {isRelevant(job.evaluation) && job.application_id == null && (
+            <CreateApplicationButton evaluationId={job.evaluation.id} onCreated={(id) => onApplicationCreated(job.id, id)} />
+          )}
         </div>
-        <ScoreBadge probability={job.evaluation.match_probability} threshold={threshold} />
-      </button>
+      </div>
     </li>
   )
 }
@@ -105,7 +110,6 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sort, setSort] = useState<JobSortOrder>('newest')
-  const [threshold, setThreshold] = useState<number>(loadThreshold)
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
   const sentinel = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
@@ -151,15 +155,6 @@ export default function JobsPage() {
     reload()
   }
 
-  const changeThreshold = (next: number) => {
-    setThreshold(next)
-    try {
-      localStorage.setItem(THRESHOLD_KEY, String(next))
-    } catch {
-      /* storage unavailable, keep it for this session only */
-    }
-  }
-
   // Load the next page whenever the sentinel below the list scrolls into view.
   useEffect(() => {
     const el = sentinel.current
@@ -174,8 +169,14 @@ export default function JobsPage() {
     return () => observer.disconnect()
   }, [loadMore])
 
-  // Matching jobs go first; each group keeps the server order (newest first by ID).
-  const isMatch = (j: EvaluatedJob) => percent(j.evaluation.match_probability) >= threshold
+  const applicationCreated = (jobId: number, applicationId: number) => {
+    const update = (j: EvaluatedJob) => (j.id === jobId ? { ...j, application_id: applicationId } : j)
+    setJobs((prev) => prev.map(update))
+    setSelected((prev) => (prev ? update(prev) : prev))
+  }
+
+  // Relevant jobs go first; each group keeps the server order (newest first by ID).
+  const isMatch = (j: EvaluatedJob) => isHighlighted(j.evaluation)
   const matchingJobs = jobs.filter(isMatch)
   const orderedJobs = [...matchingJobs, ...jobs.filter((j) => !isMatch(j))]
   const matchingCount = matchingJobs.length
@@ -189,26 +190,13 @@ export default function JobsPage() {
           ? 'Loading…'
           : profileId === null
             ? 'No candidate profile yet.'
-            : `${jobs.length} of ${total} jobs scored against profile #${profileId}, ${matchingCount} loaded at or above the threshold.`}{' '}
+            : `${jobs.length} of ${total} jobs scored against profile #${profileId}, ${matchingCount} of the loaded ones relevant.`}{' '}
         <button type="button" className="secondary small" onClick={reload} disabled={loading}>
           Refresh
         </button>
       </p>
 
       <div className="jobs-controls">
-        <label className="threshold">
-          <span>
-            Highlight matches ≥ <strong>{threshold}%</strong>
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={threshold}
-            onChange={(e) => changeThreshold(Number(e.target.value))}
-          />
-        </label>
         <label>
           Sort{' '}
           <select value={sort} onChange={(e) => changeSort(e.target.value as JobSortOrder)}>
@@ -236,7 +224,12 @@ export default function JobsPage() {
       ) : (
         <ul className="job-list" ref={listRef}>
           {orderedJobs.map((job) => (
-            <JobRow key={job.id} job={job} threshold={threshold} onSelect={setSelected} />
+            <JobRow
+              key={job.id}
+              job={job}
+              onSelect={setSelected}
+              onApplicationCreated={applicationCreated}
+            />
           ))}
         </ul>
       )}
@@ -250,8 +243,8 @@ export default function JobsPage() {
         <JobDialog
           key={selected.id}
           job={selected}
-          threshold={threshold}
           onClose={() => setSelected(null)}
+          onApplicationCreated={(applicationId) => applicationCreated(selected.id, applicationId)}
         />
       )}
     </>

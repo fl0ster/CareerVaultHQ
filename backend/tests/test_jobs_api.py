@@ -1,3 +1,6 @@
+import pytest
+
+from app.api.routes.jobs import relevance
 from app.models import (
     CandidateProfile,
     Company,
@@ -86,6 +89,8 @@ def test_list_jobs_uses_latest_profile_and_includes_parsed_details(client, db_se
     assert first["link"] == "https://example.com/jobs/3"
     assert first["has_html"] is True
     assert first["evaluation"]["match_probability"] == 3 / 5
+    assert first["evaluation"]["relevance"] == 0  # exactly at the default 0.6 threshold
+    assert "relevant_job_threshold" not in body
     assert first["evaluation"]["candidate_profile_id"] == new.id
     assert "description" not in first
     assert "html" not in first
@@ -131,6 +136,7 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
     assert body["evaluation"]["match_probability"] == 1 / 3
     assert body["evaluation"]["model"] == "m"
     assert body["company"] == "Company 1"
+    assert body["company_id"] is not None and body["company_tag"] is None
 
     unscored = client.get("/api/jobs/3").json()  # parsed, only scored against the old profile
     assert unscored["description"] == "Desc 2"
@@ -180,3 +186,13 @@ def test_get_raw_job_includes_html(client, db_session):
     seed(db_session, 1)
     assert client.get("/api/jobs/raw/1").json()["html"] == "<html></html>"
     assert client.get("/api/jobs/raw/999").status_code == 404
+
+
+def test_relevance_maps_probability_around_threshold():
+    assert relevance(0.6, 0.6) == 0
+    assert relevance(1.0, 0.6) == 1
+    assert relevance(0.0, 0.6) == -1
+    assert relevance(0.8, 0.6) == pytest.approx(0.5)
+    assert relevance(0.3, 0.6) == pytest.approx(-0.5)
+    assert relevance(1.0, 1.0) == 0 and relevance(0.5, 1.0) == -0.5
+    assert relevance(0.0, 0.0) == 0 and relevance(0.5, 0.0) == 0.5

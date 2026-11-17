@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import models
 from app.config import Settings
@@ -353,3 +353,25 @@ def test_evaluate_without_profile_raises(task_engine):
         evaluate_task.evaluate_pending_jobs()
     with pytest.raises(evaluate_task.NoCandidateProfile):
         evaluate_task.evaluate_parse_results([1])
+
+
+def test_first_evaluation_is_recorded_on_the_timeline_once(task_engine):
+    seeded = _seed(task_engine, jobs=1)
+    task_engine.set_handler(lambda req: httpx.Response(200, json=_decision(0.8)))
+    evaluate_task.evaluate_pending_jobs()
+
+    # A newer profile re-scores the job; that must not add a second event.
+    with session_factory(task_engine)() as session:
+        session.add(models.CandidateProfile(content="Backend developer"))
+        session.commit()
+    evaluate_task.evaluate_pending_jobs()
+
+    with session_factory(task_engine)() as session:
+        assert session.scalar(select(func.count()).select_from(models.JobEvaluation)) == 2
+        (event,) = session.scalars(select(models.TimelineEvent)).all()
+        parsed = session.get(models.JobParseResult, seeded["parsed_ids"][0])
+        assert event.type == "job_evaluated"
+        assert event.job_id == parsed.job_id
+        assert event.payload["title"] == "Job 0"
+        assert event.payload["company_name"] == "ACME"
+        assert event.payload["match_probability"] == pytest.approx(0.8)

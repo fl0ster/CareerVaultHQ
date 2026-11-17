@@ -2,7 +2,7 @@
 
 Runs the scraper plugins in ``app.tasks.scrape.sources`` through their ``scrape_sources``
 rows (``app.services.sources``): the rows are synced from the modules first, a "scrape all"
-run takes the enabled, importable sources highest priority first, and a run limited to one
+run takes the enabled, importable sources (by key), and a run limited to one
 source takes that row even when it is disabled (so a fix can be tested by hand).
 
 Every run is recorded as a ``ScrapeRun`` row; listings whose link is not in the ``jobs``
@@ -18,8 +18,10 @@ The returned summary is stored as the RQ job result.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
+from types import ModuleType
 from typing import Any
 
 import httpx
@@ -29,9 +31,18 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import init_db, session_factory
-from app.models import Job, PendingJobParseRun, ScrapeRun, ScrapeSource
+from app.models import (
+    CompanyAlias,
+    Job,
+    JobParseResult,
+    PendingJobParseRun,
+    ScrapeRun,
+    ScrapeSource,
+)
 from app.queue import get_queue
+from app.services.companies import normalize_company_name
 from app.services.sources import apply_run_result, get_source, runnable_sources, sync_sources
+from app.services.timeline import record_scrape_run
 from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import load_source
 
@@ -50,7 +61,7 @@ def run_source(name: str) -> dict[str, Any]:
         log.exception("Scraper %r failed", name)
         return {"source": name, "ok": False, "error": f"{type(exc).__name__}: {exc}", "jobs": []}
     log.info("Scraper %s returned %d jobs", name, len(jobs))
-    return {"source": name, "ok": True, "error": None, "jobs": jobs}
+    return {"source": name, "ok": True, "error": None, "jobs": jobs, "module": module}
 
 
 def _resolve_sources(session: Session, source: str | None) -> list[ScrapeSource]:
@@ -88,16 +99,78 @@ def fetch_page(url: str) -> str:
     return html
 
 
+def normalize_title(title: str | None) -> str:
+    """Title as compared for duplicate detection: whitespace collapsed, lowercased."""
+    return re.sub(r"\s+", " ", title or "").strip().lower()
+
+
+OfferKey = tuple[str, int | str]
+"""``(normalized title, company)`` identifying an offer within a source. The company is the
+canonical ``Company`` id when its spelling is a known alias, else ``"name:<normalized>"``."""
+
+
+def _parse_field(module: ModuleType | None, field: str, html: str) -> str:
+    """``module.parse_<field>(html)``; ``""`` when there is no page, no parser, or the
+    parser fails."""
+    parser = getattr(module, f"parse_{field}", None)
+    if not html or parser is None:
+        return ""
+    try:
+        return parser(html) or ""
+    except Exception as exc:  # noqa: BLE001 - a parser bug must not fail the run
+        log.warning("parse_%s failed during dedupe: %s", field, exc)
+        return ""
+
+
+def offer_key(session: Session, module: ModuleType | None, html: str) -> OfferKey | None:
+    """Duplicate-detection key of a fetched job page, or ``None`` when its title or company
+    cannot be parsed (such jobs are never deduplicated). The company is looked up through
+    the existing aliases only; nothing is created."""
+    title = normalize_title(_parse_field(module, "title", html))
+    company = normalize_company_name(_parse_field(module, "company", html))
+    if not title or not company:
+        return None
+    company_id = session.scalar(
+        select(CompanyAlias.company_id).where(CompanyAlias.normalized_alias == company)
+    )
+    return title, company_id if company_id is not None else f"name:{company}"
+
+
+def _known_offers(session: Session, source: ScrapeSource) -> set[OfferKey]:
+    """Keys of the already parsed jobs of ``source`` that have a title and a company."""
+    rows = session.execute(
+        select(JobParseResult.title, JobParseResult.company_id)
+        .join(Job, Job.id == JobParseResult.job_id)
+        .where(
+            Job.source_id == source.id,
+            JobParseResult.title.is_not(None),
+            JobParseResult.company_id.is_not(None),
+        )
+    )
+    return {(t, c) for t, c in ((normalize_title(t), c) for t, c in rows) if t}
+
+
 def save_jobs(
-    session: Session, run: ScrapeRun, source: ScrapeSource, jobs: list[dict[str, Any]]
+    session: Session,
+    run: ScrapeRun,
+    source: ScrapeSource,
+    jobs: list[dict[str, Any]],
+    module: ModuleType | None = None,
 ) -> tuple[list[PendingJobParseRun], int]:
     """Insert listings of ``source`` not yet in the DB (fetching their page HTML) and return
     ``(pending parse runs for the inserted jobs, duplicates)``. Each inserted job
-    references ``run`` and ``source`` and gets a ``NOT_STARTED`` ``PendingJobParseRun``."""
+    references ``run`` and ``source`` and gets a ``NOT_STARTED`` ``PendingJobParseRun``.
+
+    A listing is a duplicate when its link is already known, or when ``module`` can parse
+    a title and a company from its page and both match a job of the same source, already
+    parsed in the DB or earlier in this run (see ``offer_key``). Some sources publish one
+    offer several times (e.g. once per location, with only the URL differing), so source +
+    title + company identifies an offer."""
     links = [job["link"] for job in jobs]
     existing: set[str] = set()
     if links:
         existing = set(session.scalars(select(Job.link).where(Job.link.in_(links))))
+    offers = _known_offers(session, source) if module is not None and jobs else set()
 
     pending: list[PendingJobParseRun] = []
     duplicates = 0
@@ -108,6 +181,13 @@ def save_jobs(
             continue
         existing.add(link)  # the same link may appear twice in one listing page
         html = fetch_page(link)
+        key = offer_key(session, module, html)
+        if key is not None and key in offers:
+            log.info("Skipping duplicate offer of %s: %r - %s", source.key, key, link)
+            duplicates += 1
+            continue
+        if key is not None:
+            offers.add(key)
         new_job = Job(
             link=link,
             source=source,
@@ -183,8 +263,9 @@ def scrape(source: str | None = None) -> dict[str, Any]:
         try:
             for row in rows:
                 result = run_source(row.key)
+                module = result.pop("module", None)
                 tagged = [{**job, "source": row.key} for job in result["jobs"]]
-                row_pending, row_duplicates = save_jobs(session, run, row, tagged)
+                row_pending, row_duplicates = save_jobs(session, run, row, tagged, module)
                 result["new"] = len(row_pending)
                 result["duplicates"] = row_duplicates
                 apply_run_result(
@@ -213,9 +294,12 @@ def scrape(source: str | None = None) -> dict[str, Any]:
             run.error = f"{type(exc).__name__}: {exc}"
             run.finished_at = datetime.now(UTC)
             session.add(run)
+            session.flush()
+            record_scrape_run(session, run)
             session.commit()
             raise
         run.finished_at = datetime.now(UTC)
+        record_scrape_run(session, run)
         session.commit()
 
         # Only enqueue once the jobs and their pending rows are durable, so the parse

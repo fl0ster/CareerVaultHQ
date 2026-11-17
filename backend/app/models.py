@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -29,8 +30,8 @@ class ScrapeSource(Base):
     """One row per scraper plugin module in ``app.tasks.scrape.sources``; ``key`` is the
     module name. Rows are created and refreshed by ``app.services.sources.sync_sources``
     and never deleted (``jobs`` reference them): a module that disappears from disk is kept
-    with ``module_error`` set. ``enabled`` and ``priority`` are edited through
-    ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the scrape task."""
+    with ``module_error`` set. ``enabled`` and ``scrape_interval_seconds`` are edited through ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the
+    scrape task and ``next_scrape_at`` by ``app.scheduler``."""
 
     __tablename__ = "scrape_sources"
 
@@ -60,8 +61,6 @@ class ScrapeSource(Base):
     """The module's ``URL`` (listing page)."""
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     """``False`` excludes the source from "scrape all"; it can still be run by name."""
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    """Manual ranking; higher runs first and lists first."""
     module_error: Mapped[str | None] = mapped_column(Text)
     """Import/contract problem reported by discovery (``None`` when the module is usable)."""
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -73,6 +72,12 @@ class ScrapeSource(Base):
     last_new_count: Mapped[int | None] = mapped_column(Integer)
     """Listings inserted into ``jobs`` by the last run."""
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    scrape_interval_seconds: Mapped[int | None] = mapped_column(Integer)
+    """How often the scheduler scrapes the source; ``None`` uses
+    ``Settings.scrape_interval_seconds``."""
+    next_scrape_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """When the scheduler enqueues the next run (jitter included). ``None`` means "not
+    planned yet": the scheduler computes it on its next tick."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -204,12 +209,19 @@ class Company(Base):
 
     __tablename__ = "companies"
 
+    TAGS = ("favourite", "interested", "avoid")
+    """Allowed values of ``tag``, in the order the UI cycles through them."""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     """Official, clean display name (the first spelling seen until edited by hand)."""
     normalized_name: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     """``app.services.companies.normalize_company_name(name)``; the deterministic lookup key
     and the string fuzzy matching compares against."""
+    notes: Mapped[str] = mapped_column(Text, default="")
+    """Free-text notes about the company, edited by hand (also from its applications)."""
+    tag: Mapped[str | None] = mapped_column(String(32))
+    """One of ``TAGS`` set by hand, or ``None``; shown next to the company's jobs too."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
@@ -456,3 +468,137 @@ class GeneratedCV(Base):
     the timeline log and any warnings (steps that fell back to the original text)."""
 
     job_parse_result: Mapped[JobParseResult] = relationship()
+
+
+class ApplicationStatus(Base):
+    """A state an ``Application`` can be in (``APPLIED``, ``INTERVIEW``, ...). Kept in a
+    table rather than an enum so new states can be added without a schema change; the
+    defaults in ``DEFAULTS`` are created by ``app.services.applications.ensure_statuses``."""
+
+    __tablename__ = "application_statuses"
+
+    DEFAULTS: tuple[tuple[str, str], ...] = (
+        ("SHORTLISTED", "Shortlisted"),
+        ("APPLIED", "Applied"),
+        ("INTERVIEW", "Interview"),
+        ("OFFER", "Offer"),
+        ("REJECTED", "Rejected"),
+    )
+    """``(key, label)`` pairs created on first use, in display order."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    """Stable identifier used by the API, upper case (``APPLIED``)."""
+    label: Mapped[str] = mapped_column(String(128))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    """Display order; lower first."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Application(Base):
+    """A job application made for an evaluated job. One per parsed job (re-evaluating the
+    job against a newer profile does not allow a second one). Its current state is the most
+    recent ``ApplicationEvent``; ``notes`` is free text about the application as a whole."""
+
+    __tablename__ = "applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    job_evaluation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("job_evaluations.id", ondelete="SET NULL"), index=True
+    )
+    """The evaluation the application was created from (``None`` once it is deleted)."""
+    generated_cv_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True
+    )
+    """The CV generated for this application (the latest one when regenerated)."""
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    job_parse_result: Mapped[JobParseResult] = relationship()
+    job_evaluation: Mapped[JobEvaluation | None] = relationship()
+    generated_cv: Mapped[GeneratedCV | None] = relationship()
+    events: Mapped[list[ApplicationEvent]] = relationship(
+        back_populates="application",
+        cascade="all, delete-orphan",
+        order_by="(ApplicationEvent.occurred_at, ApplicationEvent.id)",
+    )
+
+    @property
+    def current_event(self) -> ApplicationEvent | None:
+        """The latest state change (``events`` is ordered oldest first)."""
+        return self.events[-1] if self.events else None
+
+
+class ApplicationEvent(Base):
+    """One state the application went through (applied on X, interview on Y, ...), with a
+    note of its own."""
+
+    __tablename__ = "application_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    status_id: Mapped[int] = mapped_column(
+        ForeignKey("application_statuses.id", ondelete="RESTRICT"), index=True, nullable=False
+    )
+    note: Mapped[str] = mapped_column(Text, default="")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    """When the state was reached (defaults to when it was recorded; editable)."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    application: Mapped[Application] = relationship(back_populates="events")
+    status: Mapped[ApplicationStatus] = relationship()
+
+
+class TimelineEvent(Base):
+    """One entry of the chronological "what happened" log shown on the Timeline tab.
+
+    Append-only and generic: ``type`` names the kind of event (``scrape_run``,
+    ``job_evaluated``, ...) and ``payload`` holds a snapshot of everything needed to render
+    it, so the event survives the referenced rows being cleaned up (the FKs are then
+    nulled). ``id`` is the ordering key: the read cursor and paging use it, not time.
+    Events are written through ``app.services.timeline``.
+    """
+
+    __tablename__ = "timeline_events"
+    __table_args__ = (Index("ix_timeline_events_type_job", "type", "job_id"),)
+
+    TYPE_SCRAPE_RUN = "scrape_run"
+    TYPE_JOB_EVALUATED = "job_evaluated"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), index=True
+    )
+    scrape_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True
+    )
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
+    )
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class TimelineState(Base):
+    """Singleton row (``id`` = 1) with the Timeline read cursor: the furthest event the
+    user has scrolled past. It only ever moves forward."""
+
+    __tablename__ = "timeline_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_read_event_id: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )

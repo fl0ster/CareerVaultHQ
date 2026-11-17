@@ -100,6 +100,23 @@ class Settings(BaseSettings):
     # ``evaluate_retry_backoff_seconds * 2**(attempts-1)``, at most ``evaluate_max_attempts`` times.
     evaluate_max_attempts: int = 3
     evaluate_retry_backoff_seconds: int = 30 * 60
+    # A job with an evaluation whose ``match_probability`` is at or above this is relevant:
+    # ``DELETE /api/cleanup`` never removes it (nor its parse result).
+    relevant_job_threshold: float = 0.6
+
+    # --- Cleanup (app.tasks.cleanup / app.scheduler) ---
+    # How often the scheduler enqueues a cleanup run (seconds; daily by default) ...
+    cleanup_interval_seconds: int = 24 * 3600
+    # ... deleting unprotected jobs / parse results older than this many days.
+    cleanup_max_age_days: int = 45
+
+    # --- Scheduled scraping (app.scheduler) ---
+    # How often each enabled source is scraped unless its row overrides it with
+    # ``scrape_sources.scrape_interval_seconds`` (seconds; 6 hours by default).
+    scrape_interval_seconds: int = 12 * 3600
+    # Each run is pushed back by a random 0..ratio * interval so the sources do not all
+    # hit the queue (and the network) at the same moment.
+    scrape_jitter_ratio: float = 0.1
 
     @field_validator("cors_origins", mode="before")
     @classmethod
