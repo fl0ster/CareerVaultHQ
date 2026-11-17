@@ -12,7 +12,7 @@ import {
   notifyApplicationsChanged,
   serverDate,
 } from './api.ts'
-import ApplicationDetail from './ApplicationDetail.tsx'
+import ApplicationDialog from './ApplicationDialog.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 const PAGE_SIZE = 200
@@ -23,7 +23,9 @@ export default function ApplicationsPage() {
   const [total, setTotal] = useState(0)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [filter, setFilter] = useState('')
-  const [expanded, setExpanded] = useState<number | null>(null)
+  // Kept as an object (not just an id) so the dialog stays open even if a status change
+  // drops the application out of the filtered list.
+  const [selected, setSelected] = useState<Application | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
 
@@ -47,6 +49,7 @@ export default function ApplicationsPage() {
       .then((page) => {
         setApplications(page.items)
         setTotal(page.total)
+        setSelected((prev) => (prev && page.items.find((a) => a.id === prev.id)) ?? prev)
         setError(null)
       })
       .catch((e) => {
@@ -62,7 +65,9 @@ export default function ApplicationsPage() {
   }, [reload])
 
   // Keep polling while a CV is being generated.
-  const pending = applications?.some((a) => a.cv && isInProgress(a.cv)) ?? false
+  const pending =
+    (applications?.some((a) => a.cv && isInProgress(a.cv)) ?? false) ||
+    (selected?.cv != null && isInProgress(selected.cv))
   useEffect(() => {
     if (!pending) return
     const timer = window.setTimeout(reload, CV_POLL_MS)
@@ -70,6 +75,7 @@ export default function ApplicationsPage() {
   }, [pending, tick, reload])
 
   const replace = (updated: Application) => {
+    setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
     // The current status may have changed; the filtered list may no longer contain it.
     if (filter) reload()
@@ -78,7 +84,7 @@ export default function ApplicationsPage() {
   const removed = (id: number) => {
     setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
     setTotal((t) => t - 1)
-    setExpanded(null)
+    setSelected(null)
     notifyApplicationsChanged()
   }
 
@@ -124,46 +130,40 @@ export default function ApplicationsPage() {
       )}
 
       <ul className="app-list">
-        {applications?.map((a) => {
-          const open = expanded === a.id
-          return (
-            <li key={a.id} className={open ? 'app-item open' : 'app-item'}>
-              <button
-                type="button"
-                className="app-row"
-                aria-expanded={open}
-                onClick={() => setExpanded(open ? null : a.id)}
-              >
-                <div className="job-main">
-                  <span className="job-title">{a.job.title ?? a.job.link}</span>
-                  <div className="job-meta">
-                    {a.job.company && <span className="job-company">{a.job.company}</span>}
-                    <span>{a.job.source}</span>
-                    <span>
-                      {a.status
-                        ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
-                        : `created ${serverDate(a.created_at).toLocaleDateString()}`}
-                    </span>
-                  </div>
+        {applications?.map((a) => (
+          <li key={a.id} className={selected?.id === a.id ? 'app-item selected' : 'app-item'}>
+            <button type="button" className="app-row" aria-haspopup="dialog" onClick={() => setSelected(a)}>
+              <div className="job-main">
+                <span className="job-title">{a.job.title ?? a.job.link}</span>
+                <div className="job-meta">
+                  {a.job.company && <span className="job-company">{a.job.company}</span>}
+                  <span>{a.job.source}</span>
+                  <span>
+                    {a.status && a.events.length > 0
+                      ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
+                      : `created ${serverDate(a.created_at).toLocaleDateString()}`}
+                  </span>
                 </div>
-                <div className="app-badges">
-                  <StatusBadge status={a.status} />
-                  {a.cv && <CvStatusBadge status={a.cv.status} />}
-                </div>
-              </button>
-              {open && (
-                <ApplicationDetail
-                  key={a.id}
-                  application={a}
-                  statuses={statuses}
-                  onChange={replace}
-                  onDelete={removed}
-                />
-              )}
-            </li>
-          )
-        })}
+              </div>
+              <div className="app-badges">
+                <StatusBadge status={a.status} />
+                {a.cv && <CvStatusBadge status={a.cv.status} />}
+              </div>
+            </button>
+          </li>
+        ))}
       </ul>
+
+      {selected && (
+        <ApplicationDialog
+          key={selected.id}
+          application={selected}
+          statuses={statuses}
+          onChange={replace}
+          onDelete={removed}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </>
   )
 }

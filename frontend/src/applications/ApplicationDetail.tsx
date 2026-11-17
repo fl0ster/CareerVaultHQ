@@ -217,42 +217,6 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
       </dl>
 
       <section className="app-section">
-        <h3>Notes</h3>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes about this application" rows={4} />
-        <div className="app-buttons">
-          <button type="button" className="small" onClick={saveNotes} disabled={!dirty || notesAction.busy}>
-            {notesAction.busy ? 'Saving…' : 'Save notes'}
-          </button>
-          {dirty && (
-            <button type="button" className="secondary small" onClick={() => setNotes(application.notes)}>
-              Discard
-            </button>
-          )}
-        </div>
-        {notesAction.error && <p className="error">{notesAction.error}</p>}
-      </section>
-
-      <section className="app-section">
-        <h3>Status history</h3>
-        {application.events.length === 0 ? (
-          <p className="muted">No status recorded yet.</p>
-        ) : (
-          <ol className="app-events">
-            {application.events.map((event) => (
-              <EventRow
-                key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}`}
-                application={application}
-                event={event}
-                statuses={statuses}
-                onChange={onChange}
-              />
-            ))}
-          </ol>
-        )}
-        <AddEventForm application={application} statuses={statuses} onChange={onChange} />
-      </section>
-
-      <section className="app-section">
         <h3>CV</h3>
         {cv ? (
           <div className="cv-head">
@@ -277,6 +241,42 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
           </div>
         )}
         {cvAction.error && <p className="error">{cvAction.error}</p>}
+      </section>
+
+      <section className="app-section">
+        <h3>Status history</h3>
+        {application.events.length === 0 ? (
+          <p className="muted">No status recorded yet.</p>
+        ) : (
+          <ol className="app-events">
+            {application.events.map((event) => (
+              <EventRow
+                key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}`}
+                application={application}
+                event={event}
+                statuses={statuses}
+                onChange={onChange}
+              />
+            ))}
+          </ol>
+        )}
+        <AddEventForm application={application} statuses={statuses} onChange={onChange} />
+      </section>
+
+      <section className="app-section">
+        <h3>Notes</h3>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes about this application" rows={4} />
+        <div className="app-buttons">
+          <button type="button" className="small" onClick={saveNotes} disabled={!dirty || notesAction.busy}>
+            {notesAction.busy ? 'Saving…' : 'Save notes'}
+          </button>
+          {dirty && (
+            <button type="button" className="secondary small" onClick={() => setNotes(application.notes)}>
+              Discard
+            </button>
+          )}
+        </div>
+        {notesAction.error && <p className="error">{notesAction.error}</p>}
       </section>
 
       <div className="app-buttons app-danger-zone">

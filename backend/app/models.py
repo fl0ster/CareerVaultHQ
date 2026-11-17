@@ -466,6 +466,7 @@ class ApplicationStatus(Base):
     __tablename__ = "application_statuses"
 
     DEFAULTS: tuple[tuple[str, str], ...] = (
+        ("SHORTLISTED", "Shortlisted"),
         ("APPLIED", "Applied"),
         ("INTERVIEW", "Interview"),
         ("OFFER", "Offer"),
