@@ -1,7 +1,8 @@
 """SQLAlchemy engine / session shared by the API and the workers.
 
 The schema is created with ``init_db()`` (``Base.metadata.create_all``) at API and
-worker startup; there is no Alembic migration history yet.
+worker startup; there is no Alembic migration history yet. ``create_all`` never alters an
+existing table, so ``init_db`` also adds model columns missing from existing tables
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from functools import lru_cache
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -43,7 +44,15 @@ def init_db(engine: Engine | None = None) -> None:
     """Create all tables that do not exist yet."""
     import app.models  # noqa: F401 - register the models on Base.metadata
 
-    Base.metadata.create_all(engine or get_engine())
+    engine = engine or get_engine()
+    Base.metadata.create_all(engine)
+
+
+def _execute(engine: Engine, statements: list[str]) -> None:
+    if statements:
+        with engine.begin() as conn:
+            for statement in statements:
+                conn.exec_driver_sql(statement)
 
 
 def session_factory(engine: Engine | None = None) -> sessionmaker[Session]:

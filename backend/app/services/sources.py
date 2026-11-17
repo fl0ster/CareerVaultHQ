@@ -29,8 +29,8 @@ GOOD_MATCH_PROBABILITY = 0.5
 
 
 def _ordered(query):
-    """Sources are always listed highest ``priority`` first, then by ``key``."""
-    return query.order_by(ScrapeSource.priority.desc(), ScrapeSource.key)
+    """Sources are always listed (and run by "scrape all") by ``key``."""
+    return query.order_by(ScrapeSource.key)
 
 
 def list_sources(session: Session) -> list[ScrapeSource]:

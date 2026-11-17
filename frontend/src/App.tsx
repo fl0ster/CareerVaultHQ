@@ -3,9 +3,7 @@ import './App.css'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidatePage from './candidate/CandidatePage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
-import SourcesPage from './sources/SourcesPage.tsx'
-import CostPage from './cost/CostPage.tsx'
-import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
+import SettingsPage from './settings/SettingsPage.tsx'
 import QueueWidget from './queue/QueueWidget.tsx'
 import ApplicationsPage from './applications/ApplicationsPage.tsx'
 
@@ -13,10 +11,8 @@ const TABS = [
   { id: 'jobs', label: 'Jobs' },
   { id: 'applications', label: 'Applications' },
   { id: 'companies', label: 'Companies' },
-  { id: 'sources', label: 'Sources' },
   { id: 'candidate', label: 'Candidate' },
-  { id: 'generated-cv', label: 'Generated CV' },
-  { id: 'cost', label: 'Cost' },
+  { id: 'settings', label: 'Settings' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
@@ -50,17 +46,11 @@ function App() {
       <section hidden={tab !== 'companies'}>
         <CompaniesPage />
       </section>
-      <section hidden={tab !== 'sources'}>
-        <SourcesPage />
-      </section>
       <section hidden={tab !== 'candidate'}>
         <CandidatePage />
       </section>
-      <section hidden={tab !== 'generated-cv'}>
-        <GeneratedCvPage />
-      </section>
-      <section hidden={tab !== 'cost'}>
-        <CostPage />
+      <section hidden={tab !== 'settings'}>
+        <SettingsPage />
       </section>
 
       <QueueWidget />

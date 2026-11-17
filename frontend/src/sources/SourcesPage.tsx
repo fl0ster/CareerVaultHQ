@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { sourcesApi, type Source, type SourceUpdate } from './api.ts'
+import { MIN_SCRAPE_INTERVAL_SECONDS, sourcesApi, type Source, type SourceUpdate } from './api.ts'
 import { useScrapeJob } from '../tools/useScrapeJob.ts'
 import './sources.css'
 
@@ -19,16 +19,27 @@ function when(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—'
 }
 
+/** Seconds as hours for the interval editor, e.g. 5400 -> "1.5". */
+function toHours(seconds: number | null): string {
+  return seconds === null ? '' : String(Math.round((seconds / 3600) * 100) / 100)
+}
+
+function formatInterval(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600} h`
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`
+  return `${Math.floor(seconds / 3600)} h ${Math.round((seconds % 3600) / 60)} min`
+}
+
 type Props = { source: Source; busy: boolean; onChange: (s: Source) => void; onScrape: () => void; onError: (m: string) => void }
 
 function SourceRow({ source, busy, onChange, onScrape, onError }: Props) {
-  const [priority, setPriority] = useState(String(source.priority))
   const [saving, setSaving] = useState(false)
   // Reset the editor when the row is refreshed from the server (derived-state pattern).
-  const [seenPriority, setSeenPriority] = useState(source.priority)
-  if (seenPriority !== source.priority) {
-    setSeenPriority(source.priority)
-    setPriority(String(source.priority))
+  const [intervalHours, setIntervalHours] = useState(toHours(source.scrape_interval_seconds))
+  const [seenInterval, setSeenInterval] = useState(source.scrape_interval_seconds)
+  if (seenInterval !== source.scrape_interval_seconds) {
+    setSeenInterval(source.scrape_interval_seconds)
+    setIntervalHours(toHours(source.scrape_interval_seconds))
   }
 
   const save = async (patch: SourceUpdate) => {
@@ -42,13 +53,20 @@ function SourceRow({ source, busy, onChange, onScrape, onError }: Props) {
     }
   }
 
-  const commitPriority = () => {
-    const n = Number.parseInt(priority, 10)
-    if (Number.isNaN(n)) {
-      setPriority(String(source.priority))
+  const commitInterval = () => {
+    const reset = () => setIntervalHours(toHours(source.scrape_interval_seconds))
+    if (intervalHours.trim() === '') {
+      if (source.scrape_interval_seconds !== null) save({ scrape_interval_seconds: null })
       return
     }
-    if (n !== source.priority) save({ priority: n })
+    const hours = Number.parseFloat(intervalHours)
+    if (!Number.isFinite(hours)) return reset()
+    const seconds = Math.round(hours * 3600)
+    if (seconds < MIN_SCRAPE_INTERVAL_SECONDS) {
+      onError(`The scrape interval must be at least ${MIN_SCRAPE_INTERVAL_SECONDS / 60} minutes.`)
+      return reset()
+    }
+    if (seconds !== source.scrape_interval_seconds) save({ scrape_interval_seconds: seconds })
   }
 
   const broken = source.module_error !== null
@@ -106,18 +124,34 @@ function SourceRow({ source, busy, onChange, onScrape, onError }: Props) {
         )}
       </td>
       <td>
-        <input
-          type="number"
-          className="priority"
-          value={priority}
-          disabled={saving}
-          onChange={(e) => setPriority(e.target.value)}
-          onBlur={commitPriority}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-          }}
-          aria-label={`${source.name} priority`}
-        />
+        <div className="schedule">
+          <input
+            type="number"
+            className="interval"
+            min={MIN_SCRAPE_INTERVAL_SECONDS / 3600}
+            step="any"
+            value={intervalHours}
+            placeholder={toHours(source.default_scrape_interval_seconds)}
+            disabled={saving}
+            onChange={(e) => setIntervalHours(e.target.value)}
+            onBlur={commitInterval}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            }}
+            aria-label={`${source.name} scrape interval in hours`}
+            title="Hours between scheduled scrapes; empty uses the default"
+          />
+          <span className="muted">h</span>
+        </div>
+        <div className="muted">
+          {source.scrape_interval_seconds === null &&
+            `default ${formatInterval(source.default_scrape_interval_seconds)} · `}
+          {!source.enabled || broken
+            ? 'not scheduled'
+            : source.next_scrape_at
+              ? `next ${when(source.next_scrape_at)}`
+              : 'planning…'}
+        </div>
       </td>
       <td>
         <button type="button" className="secondary" disabled={busy || broken} onClick={onScrape}>
@@ -164,8 +198,9 @@ export default function SourcesPage() {
       <h1 className="title">Scrape sources</h1>
       <p>
         One row per scraper module in <code>app/tasks/scrape/sources/</code>. Disabled sources are
-        skipped by "scrape all" but can still be run here. Higher priority runs first. Relevance is
-        how the source's jobs score against the current candidate profile.
+        skipped by "scrape all" and by the scheduler but can still be run here. Enabled sources are scraped automatically every <em>Every</em> hours (empty uses the
+        default), with a small random delay so they don't all run at once. Relevance is how the
+        source's jobs score against the current candidate profile.
       </p>
 
       <div className="sources-toolbar">
@@ -197,7 +232,7 @@ export default function SourcesPage() {
               <th>Health</th>
               <th>Last run</th>
               <th>Relevance</th>
-              <th>Priority</th>
+              <th>Every</th>
               <th></th>
             </tr>
           </thead>

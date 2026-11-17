@@ -1,3 +1,6 @@
+import random
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -6,7 +9,11 @@ from rq import Queue
 from rq.job import Job, JobStatus
 
 from app.config import Settings
+from app.db import session_factory
 from app.scheduler import scheduler
+from app.services import sources as sources_service
+from app.tasks.scrape.sources import SourceInfo
+from tests.conftest import ensure_source
 
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -106,3 +113,104 @@ def test_cleanup_enqueued_daily_with_max_age(cleanup_sched, queue):
 
     job.set_status(JobStatus.FINISHED)
     assert cleanup_sched.tick(T0 + timedelta(days=1)) == "enqueued"
+
+
+# --- ScrapeScheduler ---
+
+HOUR = timedelta(hours=1)
+
+
+@pytest.fixture
+def scrape_sched(queue, engine, monkeypatch):
+    monkeypatch.setattr(
+        sources_service,
+        "discover_sources",
+        lambda: [
+            SourceInfo("alpha", "Alpha", "https://alpha.example"),
+            SourceInfo("beta", "Beta", "https://beta.example"),
+            SourceInfo("off", "Off", "https://off.example"),
+            SourceInfo("bad", "bad", None, error="missing NAME"),
+        ],
+    )
+    with session_factory(engine)() as session:
+        for key in ("alpha", "beta", "off"):
+            ensure_source(session, key)
+        sources_service.get_source(session, "off").enabled = False
+        session.commit()
+    settings = Settings(cors_origins=[], scrape_interval_seconds=3600, scrape_jitter_ratio=0.5)
+    return scheduler.ScrapeScheduler(
+        queue, settings, sessions=session_factory(engine), rng=random.Random(1)
+    )
+
+
+def _row(engine, key):
+    with session_factory(engine)() as session:
+        return sources_service.get_source(session, key)
+
+
+def _next(engine, key):
+    return scheduler._aware(_row(engine, key).next_scrape_at)
+
+
+def test_scrape_plans_only_enabled_usable_sources_with_jitter(scrape_sched, engine, queue):
+    assert scrape_sched.tick(T0) == {"alpha": "planned", "beta": "planned"}
+    assert queue.jobs == []
+
+    alpha, beta = _next(engine, "alpha"), _next(engine, "beta")
+    for planned in (alpha, beta):
+        assert T0 <= planned <= T0 + HOUR / 2  # never ran: now + up to 50% of the interval
+    assert alpha != beta  # spread out, not at the same moment
+    assert _row(engine, "off").next_scrape_at is None
+
+
+def test_scrape_enqueues_due_source_and_replans(scrape_sched, engine, queue):
+    scrape_sched.tick(T0)
+    alpha = _next(engine, "alpha")
+    beta = _next(engine, "beta")
+    first, second = sorted([("alpha", alpha), ("beta", beta)], key=lambda kv: kv[1])
+
+    actions = scrape_sched.tick(first[1])
+    assert actions[first[0]] == "enqueued"
+    assert actions[second[0]] == "waiting"
+
+    (job,) = queue.jobs
+    assert job.id == scheduler.SCRAPE_JOB_ID_PREFIX + first[0]
+    assert job.func_name == "app.tasks.scrape.scrape.scrape"
+    assert job.args == (first[0],)
+    assert job.meta["source"] == first[0]
+
+    replanned = _next(engine, first[0])
+    assert first[1] + HOUR <= replanned <= first[1] + HOUR * 1.5
+
+
+def test_scrape_does_not_enqueue_while_previous_run_is_active(scrape_sched, engine, queue):
+    scrape_sched.tick(T0)
+    due = _next(engine, "alpha")
+    scrape_sched.tick(due)
+    later = _next(engine, "alpha")
+
+    assert scrape_sched.tick(later)["alpha"] == "active"  # still queued
+    assert len([j for j in queue.jobs if j.args == ("alpha",)]) == 1
+
+    Job.fetch(scheduler.SCRAPE_JOB_ID_PREFIX + "alpha", connection=queue.connection).set_status(
+        JobStatus.FINISHED
+    )
+    assert scrape_sched.tick(later)["alpha"] == "enqueued"
+
+
+def test_scrape_uses_per_source_interval_and_last_run(scrape_sched, engine):
+    with session_factory(engine)() as session:
+        row = sources_service.get_source(session, "alpha")
+        row.scrape_interval_seconds = 4 * 3600
+        row.last_run_at = T0 - HOUR
+        session.commit()
+
+    scrape_sched.tick(T0)
+
+    # last run + 4h = T0 + 3h, plus up to 50% of 4h of jitter
+    assert T0 + 3 * HOUR <= _next(engine, "alpha") <= T0 + 5 * HOUR
+
+
+def test_scheduler_module_imports_on_its_own():
+    """``python -m app.scheduler.scheduler`` loads it first, before anything else."""
+    subprocess.run([sys.executable, "-c", "import app.scheduler.scheduler"], check=True)

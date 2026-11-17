@@ -17,7 +17,6 @@ export type Source = {
   name: string
   url: string | null
   enabled: boolean
-  priority: number
   /** Import/contract problem of the module; null when it is usable. */
   module_error: string | null
   health: SourceHealth
@@ -27,11 +26,23 @@ export type Source = {
   last_scraped_count: number | null
   last_new_count: number | null
   consecutive_failures: number
+  /** Per-source scrape interval; null means `default_scrape_interval_seconds` applies. */
+  scrape_interval_seconds: number | null
+  default_scrape_interval_seconds: number
+  /** When the scheduler scrapes the source next; null while disabled or not planned yet. */
+  next_scrape_at: string | null
   updated_at: string
   relevance: SourceRelevance
 }
 
-export type SourceUpdate = { enabled?: boolean; priority?: number }
+export type SourceUpdate = {
+  enabled?: boolean
+  /** null resets the source to the default interval. */
+  scrape_interval_seconds?: number | null
+}
+
+/** Shortest interval the API accepts (seconds). */
+export const MIN_SCRAPE_INTERVAL_SECONDS = 15 * 60
 
 async function parse<T>(res: Response): Promise<T> {
   if (res.ok) return (await res.json()) as T

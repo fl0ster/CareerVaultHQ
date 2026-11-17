@@ -29,8 +29,8 @@ class ScrapeSource(Base):
     """One row per scraper plugin module in ``app.tasks.scrape.sources``; ``key`` is the
     module name. Rows are created and refreshed by ``app.services.sources.sync_sources``
     and never deleted (``jobs`` reference them): a module that disappears from disk is kept
-    with ``module_error`` set. ``enabled`` and ``priority`` are edited through
-    ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the scrape task."""
+    with ``module_error`` set. ``enabled`` and ``scrape_interval_seconds`` are edited through ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the
+    scrape task and ``next_scrape_at`` by ``app.scheduler``."""
 
     __tablename__ = "scrape_sources"
 
@@ -60,8 +60,6 @@ class ScrapeSource(Base):
     """The module's ``URL`` (listing page)."""
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     """``False`` excludes the source from "scrape all"; it can still be run by name."""
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    """Manual ranking; higher runs first and lists first."""
     module_error: Mapped[str | None] = mapped_column(Text)
     """Import/contract problem reported by discovery (``None`` when the module is usable)."""
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -73,6 +71,12 @@ class ScrapeSource(Base):
     last_new_count: Mapped[int | None] = mapped_column(Integer)
     """Listings inserted into ``jobs`` by the last run."""
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    scrape_interval_seconds: Mapped[int | None] = mapped_column(Integer)
+    """How often the scheduler scrapes the source; ``None`` uses
+    ``Settings.scrape_interval_seconds``."""
+    next_scrape_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """When the scheduler enqueues the next run (jitter included). ``None`` means "not
+    planned yet": the scheduler computes it on its next tick."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

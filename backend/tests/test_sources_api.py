@@ -17,7 +17,6 @@ def test_list_syncs_modules_and_reports_health_and_relevance(client, db_session)
     assert skillshot["name"] == "Skillshot"
     assert skillshot["url"].startswith("https://www.skillshot.pl")
     assert skillshot["enabled"] is True
-    assert skillshot["priority"] == 0
     assert skillshot["module_error"] is None
     assert skillshot["health"] == "unknown"
     assert skillshot["last_run_at"] is None
@@ -29,9 +28,7 @@ def test_list_syncs_modules_and_reports_health_and_relevance(client, db_session)
     }
 
 
-def test_list_orders_by_priority_and_includes_broken_and_job_counts(
-    client, db_session, monkeypatch
-):
+def test_list_orders_by_key_and_includes_broken_and_job_counts(client, db_session, monkeypatch):
     monkeypatch.setattr(
         service,
         "discover_sources",
@@ -40,7 +37,7 @@ def test_list_orders_by_priority_and_includes_broken_and_job_counts(
             SourceInfo("bad", "bad", None, error="missing NAME"),
         ],
     )
-    alpha = ensure_source(db_session, "alpha", priority=3)
+    alpha = ensure_source(db_session, "alpha")
     alpha.last_run_at = datetime(2026, 11, 16, tzinfo=UTC)
     alpha.last_scraped_count = 5
     alpha.last_new_count = 2
@@ -57,20 +54,15 @@ def test_list_orders_by_priority_and_includes_broken_and_job_counts(
     assert body[1]["module_error"] == "missing NAME"
 
 
-def test_patch_updates_enabled_and_priority(client, db_session):
+def test_patch_updates_enabled(client, db_session):
     client.get(BASE)  # creates the skillshot row
 
     body = client.patch(f"{BASE}/skillshot", json={"enabled": False}).json()
     assert body["enabled"] is False
-    assert body["priority"] == 0
-
-    body = client.patch(f"{BASE}/skillshot", json={"priority": 5}).json()
-    assert body["enabled"] is False  # untouched
-    assert body["priority"] == 5
 
     row = service.get_source(db_session, "skillshot")
     db_session.refresh(row)
-    assert (row.enabled, row.priority) == (False, 5)
+    assert row.enabled is False
 
 
 def test_patch_unknown_source_is_404(client):
@@ -79,4 +71,39 @@ def test_patch_unknown_source_is_404(client):
 
 def test_patch_rejects_bad_payload(client):
     client.get(BASE)
-    assert client.patch(f"{BASE}/skillshot", json={"priority": "high"}).status_code == 422
+    assert client.patch(f"{BASE}/skillshot", json={"enabled": "maybe"}).status_code == 422
+
+
+def test_list_reports_schedule(client):
+    (skillshot,) = [s for s in client.get(BASE).json() if s["key"] == "skillshot"]
+    assert skillshot["scrape_interval_seconds"] is None
+    assert skillshot["default_scrape_interval_seconds"] > 0
+    assert skillshot["next_scrape_at"] is None
+
+
+def test_patch_interval_replans_and_null_resets_to_default(client, db_session):
+    client.get(BASE)
+    row = service.get_source(db_session, "skillshot")
+    row.next_scrape_at = datetime(2026, 11, 20, tzinfo=UTC)
+    db_session.commit()
+
+    body = client.patch(f"{BASE}/skillshot", json={"scrape_interval_seconds": 7200}).json()
+    assert body["scrape_interval_seconds"] == 7200
+    assert body["next_scrape_at"] is None  # the scheduler re-plans it
+
+    db_session.refresh(row)
+    row.next_scrape_at = datetime(2026, 11, 20, tzinfo=UTC)
+    db_session.commit()
+    body = client.patch(f"{BASE}/skillshot", json={"enabled": True}).json()  # already on
+    assert body["next_scrape_at"].startswith("2026-11-20T00:00:00")  # untouched, UTC
+    assert body["next_scrape_at"].endswith(("Z", "+00:00"))
+
+    body = client.patch(f"{BASE}/skillshot", json={"scrape_interval_seconds": None}).json()
+    assert body["scrape_interval_seconds"] is None
+
+
+def test_patch_rejects_too_short_interval(client):
+    client.get(BASE)
+    assert (
+        client.patch(f"{BASE}/skillshot", json={"scrape_interval_seconds": 60}).status_code == 422
+    )

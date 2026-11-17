@@ -17,23 +17,36 @@ Currently scheduled:
 * :class:`CleanupScheduler` - a ``cleanup_old_jobs`` run every ``cleanup_interval_seconds``
   (daily), deleting unprotected jobs and parse results older than
   ``cleanup_max_age_days`` (see :mod:`app.services.cleanup`). Runs once at startup.
+* :class:`ScrapeScheduler` - a ``scrape`` run per enabled, importable source every
+  ``scrape_sources.scrape_interval_seconds`` (``scrape_interval_seconds`` from the settings
+  when the row leaves it empty). Every planned time gets a random delay of up to
+  ``scrape_jitter_ratio`` of the interval so the sources do not all fire at once. The plan
+  lives in ``scrape_sources.next_scrape_at``, so it survives a scheduler restart; clearing
+  it (the API does when the interval changes or a source is re-enabled) makes the scheduler
+  re-plan from the source's ``last_run_at``.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import random
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from rq import Queue
 from rq.exceptions import NoSuchJobError
 from rq.job import Job, JobStatus
+from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
+from app.db import init_db, session_factory
+from app.models import ScrapeSource
 from app.queue import get_queue
 from app.tasks.cleanup import cleanup_old_jobs
 from app.tasks.evaluate import evaluate_pending_jobs
+from app.tasks.scrape import scrape
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +60,11 @@ EVALUATE_TIMEOUT = 3600
 CLEANUP_JOB_ID = "scheduler-cleanup-old-jobs"
 """Fixed RQ job id of the cleanup run; only one can exist in the queue at a time."""
 CLEANUP_TIMEOUT = 600
+
+SCRAPE_JOB_ID_PREFIX = "scheduler-scrape-"
+"""Scheduled scrape of source ``key`` runs under the fixed RQ job id ``prefix + key``."""
+SCRAPE_TIMEOUT = 600
+"""Same ``job_timeout`` as a manual ``POST /api/scrape``."""
 
 ACTIVE_STATUSES = frozenset(
     {JobStatus.QUEUED, JobStatus.STARTED, JobStatus.DEFERRED, JobStatus.SCHEDULED}
@@ -158,9 +176,105 @@ class CleanupScheduler:
         return "enqueued"
 
 
+def _aware(value: datetime | None) -> datetime | None:
+    """SQLite drops the tzinfo of ``DateTime(timezone=True)``; the stored values are UTC."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+class ScrapeScheduler:
+    """Enqueues ``scrape(key)`` for every enabled source whose ``next_scrape_at`` has come.
+
+    ``tick(now)`` returns ``{source key: action}`` for the sources it looked at, the action
+    being ``"planned"`` (``next_scrape_at`` was empty and got computed), ``"enqueued"``,
+    ``"active"`` (its previous scheduled run is still queued/running) or ``"waiting"``.
+    Disabled and broken sources are skipped entirely.
+    """
+
+    def __init__(
+        self,
+        queue: Queue,
+        settings: Settings | None = None,
+        sessions: Callable[[], Session] | None = None,
+        rng: random.Random | None = None,
+    ) -> None:
+        self.queue = queue
+        self.settings = settings or get_settings()
+        self.sessions = sessions or session_factory()
+        self.rng = rng or random.Random()
+
+    def interval_for(self, row: ScrapeSource) -> timedelta:
+        return timedelta(
+            seconds=row.scrape_interval_seconds or self.settings.scrape_interval_seconds
+        )
+
+    def _jitter(self, interval: timedelta) -> timedelta:
+        return interval * self.rng.uniform(0, max(self.settings.scrape_jitter_ratio, 0))
+
+    def _plan(self, row: ScrapeSource, now: datetime) -> datetime:
+        """First run time of a source without a plan: one interval after its last run (at
+        once if it never ran or that time has passed), plus jitter."""
+        last_run = _aware(row.last_run_at)
+        base = now if last_run is None else max(now, last_run + self.interval_for(row))
+        return base + self._jitter(self.interval_for(row))
+
+    def _active(self, key: str) -> bool:
+        try:
+            previous = Job.fetch(SCRAPE_JOB_ID_PREFIX + key, connection=self.queue.connection)
+        except NoSuchJobError:
+            return False
+        if previous.get_status() in ACTIVE_STATUSES:
+            return True
+        previous.delete()  # free the id; the run itself is recorded in scrape_runs
+        return False
+
+    def _enqueue(self, key: str) -> None:
+        self.queue.enqueue(
+            scrape,
+            key,
+            job_id=SCRAPE_JOB_ID_PREFIX + key,
+            job_timeout=SCRAPE_TIMEOUT,
+            result_ttl=self.settings.job_result_ttl,
+            failure_ttl=self.settings.job_result_ttl,
+            meta={"source": key, "scheduled": True},
+            description=f"scheduled scrape {key}",
+        )
+
+    def tick(self, now: datetime | None = None) -> dict[str, str]:
+        # Imported here: app.services.sources and app.tasks.scrape import each other, and
+        # the cycle only resolves when app.tasks.scrape is loaded first (it is, above).
+        from app.services.sources import runnable_sources, sync_sources
+
+        now = now or datetime.now(UTC)
+        actions: dict[str, str] = {}
+        with self.sessions() as session:
+            sync_sources(session)
+            for row in runnable_sources(session):
+                next_at = _aware(row.next_scrape_at)
+                if next_at is None:
+                    row.next_scrape_at = self._plan(row, now)
+                    actions[row.key] = "planned"
+                    log.info("Planned scrape of %s at %s", row.key, row.next_scrape_at)
+                elif now < next_at:
+                    actions[row.key] = "waiting"
+                elif self._active(row.key):
+                    actions[row.key] = "active"
+                    log.info("Scheduled scrape of %s is still active", row.key)
+                else:
+                    self._enqueue(row.key)
+                    interval = self.interval_for(row)
+                    row.next_scrape_at = now + interval + self._jitter(interval)
+                    actions[row.key] = "enqueued"
+                    log.info("Enqueued scrape of %s; next at %s", row.key, row.next_scrape_at)
+            session.commit()
+        return actions
+
+
 def run_scheduler() -> None:
+    init_db()  # the scrape scheduler reads and writes scrape_sources
     queue = get_queue()
-    schedulers = [EvaluationScheduler(queue), CleanupScheduler(queue)]
+    schedulers = [EvaluationScheduler(queue), CleanupScheduler(queue), ScrapeScheduler(queue)]
     while True:
         for scheduled in schedulers:
             try:

@@ -31,7 +31,7 @@ table.sources {
   tr.disabled td:last-child {
     opacity: 1;
   }
-  input.priority {
+  input.interval {
     width: 4em;
     padding: 4px 6px;
     font: inherit;
@@ -56,6 +56,13 @@ table.sources {
     font-size: 12px;
     color: var(--text);
   }
+}
+
+.schedule {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
 }
 
 .source-error {

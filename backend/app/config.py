@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     # ... deleting unprotected jobs / parse results older than this many days.
     cleanup_max_age_days: int = 45
 
+    # --- Scheduled scraping (app.scheduler) ---
+    # How often each enabled source is scraped unless its row overrides it with
+    # ``scrape_sources.scrape_interval_seconds`` (seconds; 6 hours by default).
+    scrape_interval_seconds: int = 12 * 3600
+    # Each run is pushed back by a random 0..ratio * interval so the sources do not all
+    # hit the queue (and the network) at the same moment.
+    scrape_jitter_ratio: float = 0.1
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

@@ -2,7 +2,7 @@
 
 Runs the scraper plugins in ``app.tasks.scrape.sources`` through their ``scrape_sources``
 rows (``app.services.sources``): the rows are synced from the modules first, a "scrape all"
-run takes the enabled, importable sources highest priority first, and a run limited to one
+run takes the enabled, importable sources (by key), and a run limited to one
 source takes that row even when it is disabled (so a fix can be tested by hand).
 
 Every run is recorded as a ``ScrapeRun`` row; listings whose link is not in the ``jobs``

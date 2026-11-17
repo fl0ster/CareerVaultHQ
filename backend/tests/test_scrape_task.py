@@ -233,7 +233,7 @@ def test_broken_source_cannot_be_run_by_name(task_engine, fake_sources, monkeypa
     assert _source(task_engine, "junk").health == "broken"
 
 
-def test_scrape_all_runs_usable_sources_in_priority_order(task_engine, parse_queue, monkeypatch):
+def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, monkeypatch):
     order: list[str] = []
 
     def stub(key: str) -> types.ModuleType:
@@ -250,22 +250,13 @@ def test_scrape_all_runs_usable_sources_in_priority_order(task_engine, parse_que
         monkeypatch.setitem(sys.modules, f"app.tasks.scrape.sources.{key}", stub(key))
     monkeypatch.setattr(scrape_task, "fetch_page", lambda url: "<html></html>")
 
-    with session_factory(task_engine)() as session:
-        from app.services.sources import sync_sources
-
-        rows = {r.key: r for r in sync_sources(session)}
-        rows["gamma"].priority = 10
-        rows["beta"].priority = 5
-        rows["alpha"].priority = 5
-        session.commit()
-
     result = scrape_task.scrape(None)
 
-    assert order == ["gamma", "alpha", "beta"]
-    assert [s["source"] for s in result["sources"]] == ["gamma", "alpha", "beta"]
+    assert order == ["alpha", "beta", "gamma"]
+    assert [s["source"] for s in result["sources"]] == ["alpha", "beta", "gamma"]
     assert result["new"] == 3
     with session_factory(task_engine)() as session:
         jobs = session.scalars(select(models.Job).order_by(models.Job.id)).all()
-        assert [j.source.key for j in jobs] == ["gamma", "alpha", "beta"]
+        assert [j.source.key for j in jobs] == ["alpha", "beta", "gamma"]
         run = session.scalar(select(models.ScrapeRun))
         assert run.source is None
