@@ -12,6 +12,8 @@ import {
   notifyApplicationsChanged,
   serverDate,
 } from './api.ts'
+import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import '../companies/tags.css'
 import ApplicationDialog from './ApplicationDialog.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
@@ -136,7 +138,11 @@ export default function ApplicationsPage() {
               <div className="job-main">
                 <span className="job-title">{a.job.title ?? a.job.link}</span>
                 <div className="job-meta">
-                  {a.job.company && <span className="job-company">{a.job.company}</span>}
+                  {a.job.company && (
+                    <span className="job-company">
+                      {a.job.company} <CompanyTagBadge companyId={a.job.company_id} tag={a.job.company_tag} />
+                    </span>
+                  )}
                   <span>{a.job.source}</span>
                   <span>
                     {a.status && a.events.length > 0

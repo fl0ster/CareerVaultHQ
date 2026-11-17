@@ -86,6 +86,12 @@ class ApplicationJobOut(BaseModel):
     """``jobs.id``"""
     title: str | None
     company: str | None
+    company_id: int | None = None
+    """``companies.id`` of the hiring company, when it was resolved."""
+    company_notes: str | None = None
+    """The company's own notes (shared by every application to it); ``None`` without a company."""
+    company_tag: str | None = None
+    """The company's tag (``Company.TAGS``), if any."""
     link: str
     source: str
 
@@ -229,6 +235,9 @@ def _to_out(
             id=job.id,
             title=parsed.title,
             company=parsed.company.name if parsed.company is not None else None,
+            company_id=parsed.company.id if parsed.company is not None else None,
+            company_notes=(parsed.company.notes or "") if parsed.company is not None else None,
+            company_tag=parsed.company.tag if parsed.company is not None else None,
             link=job.link,
             source=job.source.key,
         ),

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
 import CvStatusBadge from '../cv/CvStatusBadge.tsx'
 import type { Application, ApplicationStatus } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
@@ -40,7 +41,11 @@ export default function ApplicationDialog({ application, statuses, onChange, onD
           <div className="job-main">
             <h2>{job.title ?? 'Untitled job'}</h2>
             <div className="job-meta">
-              {job.company && <span className="job-company">{job.company}</span>}
+              {job.company && (
+                <span className="job-company">
+                  {job.company} <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                </span>
+              )}
               <span>{job.source}</span>
             </div>
             <div className="app-badges app-dialog-badges">

@@ -5,6 +5,8 @@ import { type EvaluatedJob, type JobSortOrder, isHighlighted, isRelevant, jobsAp
 import JobDialog from './JobDialog.tsx'
 import CreateApplicationButton from './CreateApplicationButton.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
+import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import '../companies/tags.css'
 
 const PAGE_SIZE = 50
 /** Vertical offset currently applied by a running transform animation, in px. */
@@ -78,7 +80,11 @@ function JobRow({
               {job.application_id != null && <span className="badge app-status applied">Application</span>}
             </span>
             <div className="job-meta">
-              {job.company && <span className="job-company">{job.company}</span>}
+              {job.company && (
+                <span className="job-company">
+                  {job.company} <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />
+                </span>
+              )}
               <span>{job.source}</span>
               <span>evaluated {new Date(job.evaluation.created_at).toLocaleDateString()}</span>
             </div>

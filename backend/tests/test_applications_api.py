@@ -73,6 +73,14 @@ def test_create_application_queues_cv(client, db_session, fake_queue):
     assert body["status"]["key"] == "APPLIED"
     assert [(e["status"]["key"], e["note"]) for e in body["events"]] == [("APPLIED", "x")]
     assert body["job"]["title"] == "Title 0" and body["job"]["company"] == "Acme 0"
+    assert body["job"]["company_id"] is not None and body["job"]["company_notes"] == ""
+
+    # Company notes edited on the company show up on its applications.
+    client.patch(f"/api/companies/{body['job']['company_id']}", json={"notes": "met at a meetup"})
+    assert client.get(f"{BASE}/{body['id']}").json()["job"]["company_notes"] == "met at a meetup"
+    assert body["job"]["company_tag"] is None
+    client.patch(f"/api/companies/{body['job']['company_id']}", json={"tag": "avoid"})
+    assert client.get(f"{BASE}/{body['id']}").json()["job"]["company_tag"] == "avoid"
     assert body["evaluation"]["match_probability"] == 0.8
     assert body["cv"]["status"] == "queued"
     assert [j.args for j in _cv_jobs(fake_queue)] == [(body["cv"]["id"],)]

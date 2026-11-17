@@ -161,6 +161,10 @@ class EvaluatedJobOut(BaseModel):
     has_html: bool
     title: str | None
     company: str | None
+    company_id: int | None = None
+    """``companies.id`` of the resolved company."""
+    company_tag: str | None = None
+    """The company's tag (``Company.TAGS``), if any."""
     parsed_at: datetime
     evaluation: EvaluationOut
     application_id: int | None = None
@@ -216,6 +220,8 @@ def _evaluated(
         "has_html": bool(job.html),
         "title": parsed.title,
         "company": parsed.company.name if parsed.company is not None else None,
+        "company_id": parsed.company.id if parsed.company is not None else None,
+        "company_tag": parsed.company.tag if parsed.company is not None else None,
         "parsed_at": parsed.parsed_at,
         "evaluation": _evaluation_out(evaluation, threshold),
         "application_id": application_id,

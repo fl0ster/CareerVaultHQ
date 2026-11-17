@@ -113,3 +113,40 @@ def test_get_company_lists_latest_jobs_first(client, db_session):
 
 def test_get_unknown_company_is_404(client):
     assert client.get("/api/companies/999").status_code == 404
+
+
+def test_update_company_notes(client, db_session):
+    ids = seed(db_session)
+
+    res = client.patch(f"/api/companies/{ids['techland']}", json={"notes": "Great culture"})
+    assert res.status_code == 200
+    assert res.json()["notes"] == "Great culture"
+    assert res.json()["job_count"] == 3
+
+    assert client.get(f"/api/companies/{ids['techland']}").json()["notes"] == "Great culture"
+    listed = {c["name"]: c["notes"] for c in client.get("/api/companies").json()["items"]}
+    assert listed == {"ACME": "", "Techland": "Great culture"}
+
+    assert client.patch("/api/companies/9999", json={"notes": "x"}).status_code == 404
+    assert client.patch(f"/api/companies/{ids['acme']}", json={}).status_code == 422
+
+
+def test_update_company_tag(client, db_session):
+    ids = seed(db_session)
+    url = f"/api/companies/{ids['techland']}"
+
+    assert client.get("/api/companies/tags").json() == ["favourite", "interested", "avoid"]
+    assert client.get(url).json()["tag"] is None
+
+    client.patch(url, json={"notes": "keep me"})
+    res = client.patch(url, json={"tag": "favourite"})
+    assert res.status_code == 200
+    assert res.json()["tag"] == "favourite"
+    assert res.json()["notes"] == "keep me"  # untouched when not sent
+
+    listed = {c["name"]: c["tag"] for c in client.get("/api/companies").json()["items"]}
+    assert listed == {"ACME": None, "Techland": "favourite"}
+
+    assert client.patch(url, json={"tag": None}).json()["tag"] is None
+    assert client.patch(url, json={"tag": "bogus"}).status_code == 422
+    assert client.patch(url, json={"notes": None}).status_code == 422

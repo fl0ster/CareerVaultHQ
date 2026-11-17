@@ -32,7 +32,17 @@ export type Application = {
   updated_at: string
   status: ApplicationStatus | null
   events: ApplicationEvent[]
-  job: { id: number; title: string | null; company: string | null; link: string; source: string }
+  job: {
+    id: number
+    title: string | null
+    company: string | null
+    /** Set when the company was resolved; its notes are shared by all its applications. */
+    company_id: number | null
+    company_notes: string | null
+    company_tag: string | null
+    link: string
+    source: string
+  }
   evaluation: { id: number; candidate_profile_id: number; match_probability: number } | null
   cv: GeneratedCv | null
 }

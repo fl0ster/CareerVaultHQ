@@ -136,6 +136,7 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
     assert body["evaluation"]["match_probability"] == 1 / 3
     assert body["evaluation"]["model"] == "m"
     assert body["company"] == "Company 1"
+    assert body["company_id"] is not None and body["company_tag"] is None
 
     unscored = client.get("/api/jobs/3").json()  # parsed, only scored against the old profile
     assert unscored["description"] == "Desc 2"

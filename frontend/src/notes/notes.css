@@ -1,0 +1,76 @@
+.notes-editor {
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 6px 0;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-h);
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+  }
+}
+
+.notes-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.notes-unsaved {
+  font-size: 12px;
+}
+
+/* Application / Company switch above the notes */
+.notes-switch {
+  display: inline-flex;
+  margin-bottom: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+
+  button {
+    margin: 0;
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid var(--border);
+    }
+    &[aria-selected='true'] {
+      background: var(--accent-bg);
+      color: var(--accent);
+    }
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+}
+
+.notes-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+}
+
+@media (max-width: 600px) {
+  .notes-switch button,
+  .notes-buttons button {
+    width: auto;
+  }
+}

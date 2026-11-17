@@ -19,6 +19,8 @@ export type EvaluatedJob = {
   has_html: boolean
   title: string | null
   company: string | null
+  company_id: number | null
+  company_tag: string | null
   parsed_at: string
   evaluation: JobEvaluation
   /** Set when an application was already created for this job. */

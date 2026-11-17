@@ -204,12 +204,19 @@ class Company(Base):
 
     __tablename__ = "companies"
 
+    TAGS = ("favourite", "interested", "avoid")
+    """Allowed values of ``tag``, in the order the UI cycles through them."""
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     """Official, clean display name (the first spelling seen until edited by hand)."""
     normalized_name: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     """``app.services.companies.normalize_company_name(name)``; the deterministic lookup key
     and the string fuzzy matching compares against."""
+    notes: Mapped[str] = mapped_column(Text, default="")
+    """Free-text notes about the company, edited by hand (also from its applications)."""
+    tag: Mapped[str | None] = mapped_column(String(32))
+    """One of ``TAGS`` set by hand, or ``None``; shown next to the company's jobs too."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

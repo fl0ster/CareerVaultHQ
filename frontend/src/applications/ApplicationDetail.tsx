@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { describeError, isInProgress } from '../cv/api.ts'
 import CvActions from '../cv/CvActions.tsx'
 import CvStatusBadge from '../cv/CvStatusBadge.tsx'
+import { updateCompanyNotes } from '../companies/api.ts'
+import NotesEditor from '../notes/NotesEditor.tsx'
 import {
   type Application,
   type ApplicationEvent,
   type ApplicationStatus,
   applicationsApi,
   fromLocalInput,
+  notifyApplicationsChanged,
   serverDate,
   toLocalInput,
 } from './api.ts'
@@ -180,17 +183,37 @@ function AddEventForm({
 }
 
 export default function ApplicationDetail({ application, statuses, onChange, onDelete }: Props) {
-  const [notes, setNotes] = useState(application.notes)
-  const notesAction = useAction()
+  const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
   const cvAction = useAction()
   const deleteAction = useAction()
   const cv = application.cv
-  const dirty = notes !== application.notes
+  const { company, company_id: companyId, company_notes: companyNotes } = application.job
 
-  const saveNotes = async () => {
-    const updated = await notesAction.run(() => applicationsApi.updateNotes(application.id, notes))
-    if (updated) onChange(updated)
+  const saveNotes = async (notes: string) => {
+    onChange(await applicationsApi.updateNotes(application.id, notes))
   }
+
+  const saveCompanyNotes = async (notes: string) => {
+    if (companyId == null) return
+    const updated = await updateCompanyNotes(companyId, notes)
+    onChange({ ...application, job: { ...application.job, company_notes: updated.notes } })
+    // Other applications to the same company show these notes too.
+    notifyApplicationsChanged()
+  }
+
+  const tab = (key: 'application' | 'company', label: string, hasNotes: boolean, disabled = false) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={notesTab === key}
+      disabled={disabled}
+      title={disabled ? 'The job has no resolved company' : undefined}
+      onClick={() => setNotesTab(key)}
+    >
+      {label}
+      {hasNotes && <span className="notes-dot" aria-label="(has notes)" />}
+    </button>
+  )
 
   const regenerate = async () => {
     const updated = await cvAction.run(() => applicationsApi.regenerateCv(application.id))
@@ -265,18 +288,29 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
 
       <section className="app-section">
         <h3>Notes</h3>
-        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes about this application" rows={4} />
-        <div className="app-buttons">
-          <button type="button" className="small" onClick={saveNotes} disabled={!dirty || notesAction.busy}>
-            {notesAction.busy ? 'Saving…' : 'Save notes'}
-          </button>
-          {dirty && (
-            <button type="button" className="secondary small" onClick={() => setNotes(application.notes)}>
-              Discard
-            </button>
-          )}
+        <div className="notes-switch" role="tablist" aria-label="Notes">
+          {tab('application', 'Application', !!application.notes)}
+          {tab('company', company ? `Company: ${company}` : 'Company', !!companyNotes, companyId == null)}
         </div>
-        {notesAction.error && <p className="error">{notesAction.error}</p>}
+        {/* Both stay mounted so switching tabs keeps unsaved drafts. */}
+        <div hidden={notesTab !== 'application'}>
+          <NotesEditor
+            label="Application notes"
+            value={application.notes}
+            placeholder="Notes about this application"
+            onSave={saveNotes}
+          />
+        </div>
+        {companyId != null && (
+          <div hidden={notesTab !== 'company'}>
+            <NotesEditor
+              label="Company notes"
+              value={companyNotes ?? ''}
+              placeholder="Notes about this company (shared by all its applications)"
+              onSave={saveCompanyNotes}
+            />
+          </div>
+        )}
       </section>
 
       <div className="app-buttons app-danger-zone">
