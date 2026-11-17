@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
-import JobsPage from './jobs/JobsPage.tsx'
 import CandidatePage from './candidate/CandidatePage.tsx'
-import CompaniesPage from './companies/CompaniesPage.tsx'
 import SettingsPage from './settings/SettingsPage.tsx'
 import QueueWidget from './queue/QueueWidget.tsx'
 import ApplicationsPage from './applications/ApplicationsPage.tsx'
