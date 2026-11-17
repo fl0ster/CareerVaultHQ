@@ -104,6 +104,12 @@ class Settings(BaseSettings):
     # ``DELETE /api/cleanup`` never removes it (nor its parse result).
     relevant_job_threshold: float = 0.6
 
+    # --- Cleanup (app.tasks.cleanup / app.scheduler) ---
+    # How often the scheduler enqueues a cleanup run (seconds; daily by default) ...
+    cleanup_interval_seconds: int = 24 * 3600
+    # ... deleting unprotected jobs / parse results older than this many days.
+    cleanup_max_age_days: int = 45
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

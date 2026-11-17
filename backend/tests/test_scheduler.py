@@ -87,3 +87,22 @@ def test_success_after_failures_resets_backoff(sched, queue):
     assert sched.tick(T0 + timedelta(minutes=30)) == "enqueued"
     assert sched.consecutive_failures == 0
     assert sched.next_run_at == T0 + timedelta(minutes=40)
+
+
+@pytest.fixture
+def cleanup_sched(queue):
+    settings = Settings(cors_origins=[], cleanup_interval_seconds=86400, cleanup_max_age_days=45)
+    return scheduler.CleanupScheduler(queue, settings)
+
+
+def test_cleanup_enqueued_daily_with_max_age(cleanup_sched, queue):
+    assert cleanup_sched.tick(T0) == "enqueued"
+    job = Job.fetch(scheduler.CLEANUP_JOB_ID, connection=queue.connection)
+    assert job.func_name == "app.tasks.cleanup.cleanup_old_jobs"
+    assert job.args == (45,)
+
+    assert cleanup_sched.tick(T0 + timedelta(hours=23)) == "waiting"
+    assert cleanup_sched.tick(T0 + timedelta(days=1)) == "active"  # still queued
+
+    job.set_status(JobStatus.FINISHED)
+    assert cleanup_sched.tick(T0 + timedelta(days=1)) == "enqueued"
