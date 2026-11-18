@@ -197,3 +197,25 @@ def test_event_dates_are_stored_in_utc(client, db_session):
         json={"status": "INTERVIEW", "occurred_at": "2030-01-01T12:00:00+02:00"},
     )
     assert res.json()["events"][-1]["occurred_at"].startswith("2030-01-01T10:00:00")
+
+
+def test_company_application_stats(client, db_session):
+    seed_cv_inputs(client, db_session)
+    profile = CandidateProfile(content="p")
+    flows = [["APPLIED"], ["APPLIED", "INTERVIEW"], ["APPLIED", "INTERVIEW", "REJECTED"],
+             ["INTERVIEW", "OFFER"], []]
+    company_ids = []
+    for i, flow in enumerate(flows):
+        evaluation = seed_evaluation(db_session, i, profile)
+        company_ids.append(evaluation.job_parse_result.company_id)
+        app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+        for key in flow:
+            client.post(f"{BASE}/{app_id}/events", json={"status": key})
+
+    stats = client.get("/api/companies/application-stats").json()
+    assert stats == {
+        str(company_ids[0]): {"APPLIED": 1},
+        str(company_ids[1]): {"INTERVIEW": 1},
+        str(company_ids[2]): {"REJECTED": 1},
+        str(company_ids[3]): {"OFFER": 1},
+    }

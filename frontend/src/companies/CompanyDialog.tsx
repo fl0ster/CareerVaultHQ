@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { notifyApplicationsChanged } from '../applications/api.ts'
 import NotesEditor from '../notes/NotesEditor.tsx'
-import { CompanyTagToggle } from './CompanyTag.tsx'
+import { CompanyTagBadge } from './CompanyTag.tsx'
 import './tags.css'
 import { getCompany, updateCompanyNotes, type CompanyDetail } from './api.ts'
 
@@ -49,7 +49,7 @@ export default function CompanyDialog({ companyId, onClose }: Props) {
         <div className="company-dialog-head">
           <div className="company-dialog-title">
             <h2 className="title">{detail?.name ?? 'Company'}</h2>
-            {detail && <CompanyTagToggle companyId={detail.id} tag={detail.tag} />}
+            {detail && <CompanyTagBadge companyId={detail.id} tag={detail.tag} />}
           </div>
           <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
             Close

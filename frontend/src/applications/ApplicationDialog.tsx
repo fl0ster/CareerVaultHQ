@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
+import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import type { GeneratedCv } from '../cv/api.ts'
 import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
 import { type Application, type ApplicationStatus, applicationsApi } from './api.ts'
@@ -77,23 +77,10 @@ export default function ApplicationDialog({
               <div className="job-meta">
                 {job.company && (
                   <span className="job-company">
-                    <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                    <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />&nbsp;
                     <CompanyLink name={job.company} companyId={job.company_id} onOpen={onOpenCompany} />{' '}
                   </span>
                 )}
-                <span>{job.source}</span>
-              </div>
-              <div className="app-badges app-dialog-badges">
-                <StatusBadge
-                  status={application.status}
-                  statuses={statuses}
-                  onSelect={(key) =>
-                    applicationsApi
-                      .addEvent(application.id, { status: key })
-                      .then(onChange)
-                      .catch((e) => window.alert(`Could not change status: ${e instanceof Error ? e.message : e}`))
-                  }
-                />
               </div>
             </div>
             <button type="button" className="secondary small" onClick={onClose} aria-label="Close">

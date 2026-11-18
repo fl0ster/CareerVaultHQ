@@ -330,3 +330,8 @@
     outline: 1px solid var(--border);
   }
 }
+
+.app-status-main.alone {
+  border-radius: 999px;
+  padding-right: 8px;
+}

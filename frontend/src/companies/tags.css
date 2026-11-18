@@ -1,4 +1,4 @@
-/* Company tag pill and its toggle; used on the companies, jobs and applications pages. */
+/* Company tag pill (interactive, see CompanyTagBadge); used on the companies, jobs and applications pages. */
 .company-tag {
   display: inline-flex;
   align-items: center;
@@ -28,42 +28,28 @@
   color: var(--tag-fg);
 }
 
-.company-tag-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-}
-
-.company-tag-toggle {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--tag-fg, var(--text));
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-
-  &.none {
-    opacity: 0.55;
-  }
-  &:hover:not(:disabled),
-  &:focus-visible {
-    border-color: var(--border);
-    background: var(--tag-bg, var(--accent-bg));
-    opacity: 1;
-  }
-  &:disabled {
-    cursor: progress;
-  }
+.badge.company-tag.none {
+  background: var(--border);
+  color: var(--text);
+  opacity: 0.7;
 }
 
 .company-tag-error {
   font-size: 12px;
+}
+
+/* Applications to the company by outcome, in the right part of the tag pill */
+.company-app-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 5px;
+  font-size: 11px;
+}
+
+.company-app-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
 }

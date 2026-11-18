@@ -1,3 +1,4 @@
+import { refreshCompanyApplicationStats } from '../companies/applicationStats.ts'
 import type { GeneratedCv } from '../cv/api.ts'
 
 const API = '/api/applications'
@@ -111,6 +112,12 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 })
 
+/** Passes a mutation's result through, refreshing what depends on the applications. */
+function changed<T>(result: T): T {
+  refreshCompanyApplicationStats()
+  return result
+}
+
 export const applicationsApi = {
   statuses: (signal?: AbortSignal) =>
     fetch(`${API}/statuses`, { signal }).then((r) => parse<ApplicationStatus[]>(r)),
@@ -120,15 +127,15 @@ export const applicationsApi = {
     return fetch(`${API}?${params}`, { signal }).then((r) => parse<ApplicationPage>(r))
   },
   get: (id: number, signal?: AbortSignal) => fetch(`${API}/${id}`, { signal }).then((r) => parse<Application>(r)),
-  create: (payload: CreateApplication) => fetch(API, json('POST', payload)).then((r) => parse<Application>(r)),
+  create: (payload: CreateApplication) => fetch(API, json('POST', payload)).then((r) => parse<Application>(r)).then(changed),
   updateNotes: (id: number, notes: string) =>
     fetch(`${API}/${id}`, json('PATCH', { notes })).then((r) => parse<Application>(r)),
-  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
+  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)).then(changed),
   regenerateCv: (id: number) => fetch(`${API}/${id}/cv`, { method: 'POST' }).then((r) => parse<Application>(r)),
   addEvent: (id: number, event: EventInput) =>
-    fetch(`${API}/${id}/events`, json('POST', event)).then((r) => parse<Application>(r)),
+    fetch(`${API}/${id}/events`, json('POST', event)).then((r) => parse<Application>(r)).then(changed),
   updateEvent: (id: number, eventId: number, event: Partial<EventInput>) =>
-    fetch(`${API}/${id}/events/${eventId}`, json('PATCH', event)).then((r) => parse<Application>(r)),
+    fetch(`${API}/${id}/events/${eventId}`, json('PATCH', event)).then((r) => parse<Application>(r)).then(changed),
   removeEvent: (id: number, eventId: number) =>
-    fetch(`${API}/${id}/events/${eventId}`, { method: 'DELETE' }).then((r) => parse<Application>(r)),
+    fetch(`${API}/${id}/events/${eventId}`, { method: 'DELETE' }).then((r) => parse<Application>(r)).then(changed),
 }
