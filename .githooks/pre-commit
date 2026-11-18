@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Type-check the frontend before committing (only when frontend files are staged).
+set -e
+if git diff --cached --name-only | grep -q '^frontend/'; then
+  echo "pre-commit: type-checking frontend..."
+  cd "$(git rev-parse --show-toplevel)/frontend"
+  if ! npx --no-install tsc -b --noEmit; then
+    echo "pre-commit: TypeScript errors found — commit aborted (bypass with --no-verify)."
+    exit 1
+  fi
+fi
