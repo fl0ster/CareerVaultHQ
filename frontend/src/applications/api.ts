@@ -121,9 +121,13 @@ function changed<T>(result: T): T {
 export const applicationsApi = {
   statuses: (signal?: AbortSignal) =>
     fetch(`${API}/statuses`, { signal }).then((r) => parse<ApplicationStatus[]>(r)),
-  list: ({ offset = 0, limit = 50, status }: { offset?: number; limit?: number; status?: string } = {}, signal?: AbortSignal) => {
+  list: (
+    { offset = 0, limit = 50, status, q }: { offset?: number; limit?: number; status?: string; q?: string } = {},
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
     if (status) params.set('status', status)
+    if (q) params.set('q', q)
     return fetch(`${API}?${params}`, { signal }).then((r) => parse<ApplicationPage>(r))
   },
   get: (id: number, signal?: AbortSignal) => fetch(`${API}/${id}`, { signal }).then((r) => parse<Application>(r)),

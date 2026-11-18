@@ -20,11 +20,16 @@ import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 
 const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
+const SEARCH_MIN_CHARS = 3
+const SEARCH_DEBOUNCE_MS = 300
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [filter, setFilter] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  // The term actually sent to the API: debounced, and empty until it has enough characters.
+  const [search, setSearch] = useState('')
   // Kept as an object (not just an id) so the dialog stays open even if a status change
   // drops the application out of the filtered list.
   const [selected, setSelected] = useState<Application | null>(null)
@@ -47,9 +52,16 @@ export default function ApplicationsPage() {
   }, [])
 
   useEffect(() => {
+    const term = searchInput.trim()
+    const next = term.length >= SEARCH_MIN_CHARS ? term : ''
+    const timer = window.setTimeout(() => setSearch(next), next ? SEARCH_DEBOUNCE_MS : 0)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
     const controller = new AbortController()
     applicationsApi
-      .list({ limit: PAGE_SIZE, status: filter || undefined }, controller.signal)
+      .list({ limit: PAGE_SIZE, status: filter || undefined, q: search || undefined }, controller.signal)
       .then((page) => {
         setApplications(page.items)
         setSelected((prev) => (prev && page.items.find((a) => a.id === prev.id)) ?? prev)
@@ -59,7 +71,7 @@ export default function ApplicationsPage() {
         if (!controller.signal.aborted) setError(`Could not load applications: ${describeError(e)}`)
       })
     return () => controller.abort()
-  }, [filter, tick])
+  }, [filter, search, tick])
 
   // Applications created or changed elsewhere (e.g. from the job dialog).
   useEffect(() => {
@@ -81,7 +93,7 @@ export default function ApplicationsPage() {
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
     // The current status may have changed; the filtered list may no longer contain it.
-    if (filter) reload()
+    if (filter || search) reload()
   }
 
   const removed = (id: number) => {
@@ -112,16 +124,23 @@ export default function ApplicationsPage() {
           </select>
         </label>
 
-        <button type="button" className="secondary small" onClick={reload}>
-          Refresh
-        </button>
+        <input
+          type="search"
+          className="app-search"
+          placeholder="Search company or title…"
+          aria-label="Search applications by company or title"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+        />
       </div>
 
       {error && <p className="error">{error}</p>}
 
       {applications !== null && applications.length === 0 && (
         <p className="muted">
-          {filter
+          {search
+            ? 'No applications match your search.'
+            : filter
             ? 'No applications with this status.'
             : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
         </p>

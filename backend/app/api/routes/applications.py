@@ -4,7 +4,7 @@
   (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
   ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job.
 * ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
-  current state); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
+  current state, ``?q=acme`` by job title or company name); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
   ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
@@ -368,6 +368,12 @@ def create_application(
     return _reload_out(session, application.id, request, queue)
 
 
+def _matches(application: Application, needle: str) -> bool:
+    parsed = application.job_parse_result
+    company = parsed.company.name if parsed.company is not None else None
+    return any(needle in (text or "").casefold() for text in (parsed.title, company))
+
+
 @router.get("", response_model=ApplicationPage)
 def list_applications(
     request: Request,
@@ -376,14 +382,19 @@ def list_applications(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     status_key: Annotated[str | None, Query(alias="status")] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ApplicationPage:
-    """Applications, newest first; ``status`` keeps those whose current state matches."""
+    """Applications, newest first; ``status`` keeps those whose current state matches,
+    ``q`` those whose job title or company name contains it (case-insensitive)."""
     applications = session.scalars(_query().order_by(Application.id.desc())).unique().all()
     if status_key:
         key = status_key.upper()
         applications = [
             a for a in applications if a.current_event and a.current_event.status.key == key
         ]
+    needle = (q or "").strip().casefold()
+    if needle:
+        applications = [a for a in applications if _matches(a, needle)]
     page = applications[offset : offset + limit]
     return ApplicationPage(
         items=[_to_out(a, request, session, queue) for a in page],
