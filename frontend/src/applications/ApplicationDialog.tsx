@@ -3,6 +3,7 @@ import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
 import CvStatusBadge from '../cv/CvStatusBadge.tsx'
 import type { Application, ApplicationStatus } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
+import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 type Props = {
@@ -10,11 +11,12 @@ type Props = {
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
   onDelete: (id: number) => void
+  onOpenCompany: (companyId: number) => void
   onClose: () => void
 }
 
 /** Modal with the full details of one application; closes on ✕, Escape or a backdrop click. */
-export default function ApplicationDialog({ application, statuses, onChange, onDelete, onClose }: Props) {
+export default function ApplicationDialog({ application, statuses, onChange, onDelete, onOpenCompany, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -43,7 +45,8 @@ export default function ApplicationDialog({ application, statuses, onChange, onD
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
-                  {job.company} <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                  <CompanyLink name={job.company} companyId={job.company_id} onOpen={onOpenCompany} />{' '}
+                  <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
                 </span>
               )}
               <span>{job.source}</span>

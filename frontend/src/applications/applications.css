@@ -244,3 +244,14 @@
     align-items: flex-start;
   }
 }
+
+.company-link {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.company-link:hover,
+.company-link:focus-visible {
+  text-decoration-style: solid;
+}

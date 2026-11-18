@@ -14,7 +14,9 @@ import {
 } from './api.ts'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
+import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationDialog from './ApplicationDialog.tsx'
+import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 const PAGE_SIZE = 200
@@ -28,6 +30,8 @@ export default function ApplicationsPage() {
   // Kept as an object (not just an id) so the dialog stays open even if a status change
   // drops the application out of the filtered list.
   const [selected, setSelected] = useState<Application | null>(null)
+  // Company popup; stacks on top of the application popup when opened from it.
+  const [companyId, setCompanyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
 
@@ -98,14 +102,6 @@ export default function ApplicationsPage() {
 
   return (
     <>
-      <h1 className="title">Applications</h1>
-      <p>
-        {applications === null ? 'Loading…' : `${total} application${total === 1 ? '' : 's'}${filter ? ' with this status' : ''}.`}{' '}
-        <button type="button" className="secondary small" onClick={reload}>
-          Refresh
-        </button>
-      </p>
-
       <div className="jobs-controls">
         <label>
           Status{' '}
@@ -119,6 +115,10 @@ export default function ApplicationsPage() {
             ))}
           </select>
         </label>
+
+        <button type="button" className="secondary small" onClick={reload}>
+          Refresh
+        </button>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -140,7 +140,8 @@ export default function ApplicationsPage() {
                 <div className="job-meta">
                   {a.job.company && (
                     <span className="job-company">
-                      {a.job.company} <CompanyTagBadge companyId={a.job.company_id} tag={a.job.company_tag} />
+                      <CompanyTagBadge companyId={a.job.company_id} tag={a.job.company_tag} />&nbsp;
+                      <CompanyLink name={a.job.company} companyId={a.job.company_id} onOpen={setCompanyId} />{' '}
                     </span>
                   )}
                   <span>{a.job.source}</span>
@@ -153,7 +154,6 @@ export default function ApplicationsPage() {
               </div>
               <div className="app-badges">
                 <StatusBadge status={a.status} />
-                {a.cv && <CvStatusBadge status={a.cv.status} />}
               </div>
             </button>
           </li>
@@ -167,8 +167,15 @@ export default function ApplicationsPage() {
           statuses={statuses}
           onChange={replace}
           onDelete={removed}
+          onOpenCompany={setCompanyId}
           onClose={() => setSelected(null)}
         />
+      )}
+
+      {/* Rendered after the application dialog so it opens on top of it; closing it
+          returns to the application dialog. */}
+      {companyId != null && (
+        <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
       )}
     </>
   )
