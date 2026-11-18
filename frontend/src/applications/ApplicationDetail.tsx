@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { describeError, isInProgress } from '../cv/api.ts'
+import { describeError, type GeneratedCv, isInProgress } from '../cv/api.ts'
 import CvActions from '../cv/CvActions.tsx'
 import CvStatusBadge from '../cv/CvStatusBadge.tsx'
 import { updateCompanyNotes } from '../companies/api.ts'
@@ -21,6 +21,8 @@ type Props = {
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
   onDelete: (id: number) => void
+  /** Opens the generation breakdown of the attached CV. */
+  onShowPipeline?: (cv: GeneratedCv) => void
 }
 
 /** Runs an API call, tracking busy state and turning failures into an error message. */
@@ -67,8 +69,15 @@ function EventRow({
   }
 
   const save = async () => {
+    // The input only has minute precision: re-sending an untouched value would truncate
+    // the stored timestamp, so the date is sent only when the user actually changed it.
+    const dateChanged = when !== toLocalInput(event.occurred_at)
     const updated = await run(() =>
-      applicationsApi.updateEvent(application.id, event.id, { status, note, occurred_at: fromLocalInput(when) }),
+      applicationsApi.updateEvent(application.id, event.id, {
+        status,
+        note,
+        ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
+      }),
     )
     if (updated) {
       onChange(updated)
@@ -182,7 +191,7 @@ function AddEventForm({
   )
 }
 
-export default function ApplicationDetail({ application, statuses, onChange, onDelete }: Props) {
+export default function ApplicationDetail({ application, statuses, onChange, onDelete, onShowPipeline }: Props) {
   const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
   const cvAction = useAction()
   const deleteAction = useAction()
@@ -245,19 +254,25 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
           <div className="cv-head">
             <div className="cv-main">
               <div className="cv-meta">
-                <CvStatusBadge status={cv.status} />
                 <span>#{cv.id}</span>
                 {cv.headline_role && <span>{cv.headline_role}</span>}
               </div>
               {cv.status === 'failed' && cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
             </div>
-            <CvActions cv={cv} />
+            {cv.status === 'finished'
+              ? <CvActions cv={cv} />
+              : <CvStatusBadge status={cv.status} />}
           </div>
         ) : (
           <p className="muted">No CV attached.</p>
         )}
         {(!cv || !isInProgress(cv)) && (
           <div className="app-buttons">
+            {cv?.status === 'finished' && onShowPipeline && (
+              <button type="button" className="secondary small" onClick={() => onShowPipeline(cv)}>
+                How it was generated
+              </button>
+            )}
             <button type="button" className="secondary small" onClick={regenerate} disabled={cvAction.busy}>
               {cvAction.busy ? 'Requesting…' : cv ? 'Generate again' : 'Generate CV'}
             </button>

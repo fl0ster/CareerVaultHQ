@@ -262,25 +262,7 @@ def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, m
         assert run.source is None
 
 
-def test_finished_run_is_recorded_on_the_timeline(task_engine, fake_sources, parse_queue):
-    result = scrape_task.scrape("skillshot")
-
-    with session_factory(task_engine)() as session:
-        events = session.scalars(select(models.TimelineEvent)).all()
-        assert len(events) == 1
-        event = events[0]
-        assert event.type == "scrape_run"
-        assert event.scrape_run_id == result["scrape_run_id"]
-        assert event.payload["status"] == "finished"
-        assert event.payload["source_key"] == "skillshot"
-        assert (event.payload["scraped"], event.payload["new"], event.payload["duplicates"]) == (
-            3,
-            2,
-            1,
-        )
-
-
-def test_crashed_run_is_recorded_on_the_timeline(
+def test_crashed_run_is_marked_failed(
     task_engine, fake_sources, parse_queue, monkeypatch
 ):
     def boom(*_args, **_kwargs):
@@ -291,9 +273,10 @@ def test_crashed_run_is_recorded_on_the_timeline(
         scrape_task.scrape("skillshot")
 
     with session_factory(task_engine)() as session:
-        (event,) = session.scalars(select(models.TimelineEvent)).all()
-        assert event.payload["status"] == "failed"
-        assert "db exploded" in event.payload["error"]
+        run = session.scalar(select(models.ScrapeRun))
+        assert run.status == "failed"
+        assert "db exploded" in run.error
+        assert run.finished_at is not None
 
 
 def test_same_offer_under_different_links_is_deduplicated(

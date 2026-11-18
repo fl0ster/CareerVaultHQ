@@ -42,7 +42,6 @@ from app.models import (
 from app.queue import get_queue
 from app.services.companies import normalize_company_name
 from app.services.sources import apply_run_result, get_source, runnable_sources, sync_sources
-from app.services.timeline import record_scrape_run
 from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import load_source
 
@@ -294,12 +293,9 @@ def scrape(source: str | None = None) -> dict[str, Any]:
             run.error = f"{type(exc).__name__}: {exc}"
             run.finished_at = datetime.now(UTC)
             session.add(run)
-            session.flush()
-            record_scrape_run(session, run)
             session.commit()
             raise
         run.finished_at = datetime.now(UTC)
-        record_scrape_run(session, run)
         session.commit()
 
         # Only enqueue once the jobs and their pending rows are durable, so the parse

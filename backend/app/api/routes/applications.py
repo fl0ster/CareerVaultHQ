@@ -38,11 +38,13 @@ from app.models import (
     ApplicationStatus,
     GeneratedCV,
     Job,
+    JobDecision,
     JobEvaluation,
     JobParseResult,
 )
 from app.queue import get_queue
-from app.services.applications import ensure_statuses
+from app.services.applications import ensure_statuses, set_job_decision
+from app.services.relevance import relevance
 
 router = APIRouter()
 
@@ -60,6 +62,8 @@ class StatusOut(BaseModel):
     key: str
     label: str
     position: int
+    next_key: str | None = None
+    """Default next state (``key``), if any."""
 
 
 class StatusCreate(BaseModel):
@@ -99,7 +103,8 @@ class ApplicationJobOut(BaseModel):
 class ApplicationEvaluationOut(BaseModel):
     id: int
     candidate_profile_id: int
-    match_probability: float
+    relevance: float
+    """``match_probability`` on the [-1, 1] display scale (see ``relevance``)."""
 
 
 class ApplicationOut(BaseModel):
@@ -244,7 +249,7 @@ def _to_out(
         evaluation=ApplicationEvaluationOut(
             id=evaluation.id,
             candidate_profile_id=evaluation.candidate_profile_id,
-            match_probability=evaluation.match_probability,
+            relevance=relevance(evaluation.match_probability, get_settings().relevant_job_threshold),
         )
         if evaluation is not None
         else None,
@@ -334,6 +339,7 @@ def create_application(
     if initial is not None:
         application.events.append(ApplicationEvent(status=initial, note=payload.status_note))
     session.add(application)
+    set_job_decision(session, evaluation.job_parse_result_id, JobDecision.ACCEPTED)
     session.commit()
 
     cv = enqueue_cv(session, queue, settings, evaluation.job_parse_result)

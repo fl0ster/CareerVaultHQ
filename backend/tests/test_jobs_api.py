@@ -150,6 +150,74 @@ def test_get_job_unparsed_is_404(client, db_session):
     assert client.get("/api/jobs/1").status_code == 404
 
 
+# --- inbox / feed / decisions --------------------------------------------------------
+
+
+def test_inbox_lists_undecided_relevant_jobs_best_first(client, db_session):
+    seed_evaluated(db_session, 10)  # new-profile scores 0.0 .. 0.8; threshold 0.6
+
+    body = client.get("/api/jobs/inbox").json()
+    assert body["count"] == 3
+    assert [i["evaluation"]["match_probability"] for i in body["items"]] == [0.8, 0.7, 0.6]
+    assert all(i["decision"] is None for i in body["items"])
+
+    feed = client.get("/api/jobs/feed").json()
+    assert len(feed["items"]) == 6  # the rest, newest evaluation first
+    ids = [i["evaluation"]["id"] for i in feed["items"]]
+    assert ids == sorted(ids, reverse=True)
+    assert feed["has_more"] is False
+
+
+def test_decisions_move_jobs_from_inbox_to_feed(client, db_session):
+    seed_evaluated(db_session, 10)
+    top = client.get("/api/jobs/inbox").json()["items"]
+
+    rejected = client.put(f"/api/jobs/{top[0]['id']}/decision", json={"decision": "rejected"})
+    assert rejected.status_code == 200
+    assert rejected.json()["decision"] == "rejected"
+    accepted = client.put(f"/api/jobs/{top[1]['id']}/decision", json={"decision": "accepted"})
+    assert accepted.json()["decision"] == "accepted"
+
+    inbox = client.get("/api/jobs/inbox").json()
+    assert inbox["count"] == 1 and inbox["items"][0]["id"] == top[2]["id"]
+    feed = client.get("/api/jobs/feed").json()["items"]
+    decisions = {i["id"]: i["decision"] for i in feed}
+    assert decisions[top[0]["id"]] == "rejected"
+    assert decisions[top[1]["id"]] == "accepted"
+
+    bad = client.put(f"/api/jobs/{top[2]['id']}/decision", json={"decision": "maybe"})
+    assert bad.status_code == 422
+    assert client.put("/api/jobs/999/decision", json={"decision": "rejected"}).status_code == 404
+
+
+def test_feed_keyset_pagination_and_polling(client, db_session):
+    seed_evaluated(db_session, 10)
+
+    first = client.get("/api/jobs/feed", params={"limit": 4}).json()
+    assert len(first["items"]) == 4 and first["has_more"] is True
+    oldest = first["items"][-1]["evaluation"]["id"]
+    second = client.get("/api/jobs/feed", params={"limit": 4, "before": oldest}).json()
+    assert len(second["items"]) == 2 and second["has_more"] is False
+    assert all(i["evaluation"]["id"] < oldest for i in second["items"])
+
+    newest = first["items"][0]["evaluation"]["id"]
+    assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
+    older = client.get("/api/jobs/feed", params={"after": oldest}).json()["items"]
+    assert [i["evaluation"]["id"] for i in older] == [
+        i["evaluation"]["id"] for i in first["items"][:3]
+    ]
+
+
+def test_inbox_and_feed_without_profile(client, db_session):
+    seed(db_session, 2)
+    assert client.get("/api/jobs/inbox").json() == {
+        "items": [], "count": 0, "candidate_profile_id": None,
+    }  # fmt: skip
+    assert client.get("/api/jobs/feed").json() == {
+        "items": [], "has_more": False, "candidate_profile_id": None,
+    }  # fmt: skip
+
+
 # --- raw scraped jobs -----------------------------------------------------------------
 
 

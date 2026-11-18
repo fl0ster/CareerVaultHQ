@@ -30,7 +30,7 @@ export default function CreateApplicationButton({ evaluationId, onCreated }: Pro
   return (
     <span className="create-application">
       <button type="button" className="small" onClick={create} disabled={creating}>
-        {creating ? 'Creating…' : 'Apply!'}
+        {creating ? 'Creating…' : 'Apply'}
       </button>
       {error && <span className="error">{error}</span>}
     </span>

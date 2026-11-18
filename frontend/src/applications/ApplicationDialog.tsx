@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
-import CvStatusBadge from '../cv/CvStatusBadge.tsx'
-import type { Application, ApplicationStatus } from './api.ts'
+import type { GeneratedCv } from '../cv/api.ts'
+import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
+import { type Application, type ApplicationStatus, applicationsApi } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
+import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 type Props = {
@@ -10,62 +12,106 @@ type Props = {
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
   onDelete: (id: number) => void
+  onOpenCompany: (companyId: number) => void
   onClose: () => void
 }
 
 /** Modal with the full details of one application; closes on ✕, Escape or a backdrop click. */
-export default function ApplicationDialog({ application, statuses, onChange, onDelete, onClose }: Props) {
+export default function ApplicationDialog({
+  application,
+  statuses,
+  onChange,
+  onDelete,
+  onOpenCompany,
+  onClose,
+}: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
+  // The pipeline breakdown replaces this dialog while open; this one stays mounted (closed)
+  // so unsaved drafts survive, and reopens when the breakdown is closed.
+  const [pipelineCv, setPipelineCv] = useState<GeneratedCv | null>(null)
+  const suspended = useRef(false)
 
   useEffect(() => {
     const el = dialog.current
     if (!el) return
     el.showModal()
-    return () => el.close()
+    return () => {
+      suspended.current = true
+      el.close()
+    }
   }, [])
+
+  const showPipeline = (cv: GeneratedCv) => {
+    suspended.current = true
+    dialog.current?.close()
+    setPipelineCv(cv)
+  }
+
+  const hidePipeline = () => {
+    setPipelineCv(null)
+    suspended.current = false
+    // The pipeline dialog can report its close twice (user close, then unmount).
+    if (dialog.current && !dialog.current.open) dialog.current.showModal()
+  }
 
   const { job } = application
 
   return (
-    <dialog
-      ref={dialog}
-      className="job-dialog app-dialog"
-      onClose={onClose}
-      onClick={(e) => {
-        // Clicks on the backdrop land on the dialog element itself.
-        if (e.target === dialog.current) onClose()
-      }}
-    >
-      <div className="job-dialog-body">
-        <div className="job-dialog-head">
-          <div className="job-main">
-            <h2>{job.title ?? 'Untitled job'}</h2>
-            <div className="job-meta">
-              {job.company && (
-                <span className="job-company">
-                  {job.company} <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
-                </span>
-              )}
-              <span>{job.source}</span>
+    <>
+      <dialog
+        ref={dialog}
+        className="job-dialog app-dialog"
+        onClose={() => {
+          // Closed programmatically to make room for the pipeline dialog: not a user close.
+          if (!suspended.current) onClose()
+        }}
+        onClick={(e) => {
+          // Clicks on the backdrop land on the dialog element itself.
+          if (e.target === dialog.current) onClose()
+        }}
+      >
+        <div className="job-dialog-body">
+          <div className="job-dialog-head">
+            <div className="job-main">
+              <h2>{job.title ?? 'Untitled job'}</h2>
+              <div className="job-meta">
+                {job.company && (
+                  <span className="job-company">
+                    <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                    <CompanyLink name={job.company} companyId={job.company_id} onOpen={onOpenCompany} />{' '}
+                  </span>
+                )}
+                <span>{job.source}</span>
+              </div>
+              <div className="app-badges app-dialog-badges">
+                <StatusBadge
+                  status={application.status}
+                  statuses={statuses}
+                  onSelect={(key) =>
+                    applicationsApi
+                      .addEvent(application.id, { status: key })
+                      .then(onChange)
+                      .catch((e) => window.alert(`Could not change status: ${e instanceof Error ? e.message : e}`))
+                  }
+                />
+              </div>
             </div>
-            <div className="app-badges app-dialog-badges">
-              <StatusBadge status={application.status} />
-              {application.cv && <CvStatusBadge status={application.cv.status} />}
-            </div>
+            <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
+              ✕
+            </button>
           </div>
-          <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
 
-        <ApplicationDetail
-          key={application.id}
-          application={application}
-          statuses={statuses}
-          onChange={onChange}
-          onDelete={onDelete}
-        />
-      </div>
-    </dialog>
+          <ApplicationDetail
+            key={application.id}
+            application={application}
+            statuses={statuses}
+            onChange={onChange}
+            onDelete={onDelete}
+            onShowPipeline={showPipeline}
+          />
+        </div>
+      </dialog>
+      {pipelineCv && <CvPipelineDialog key={pipelineCv.id} cv={pipelineCv} onClose={hidePipeline} />}
+    </>
   )
 }

@@ -50,8 +50,9 @@ services:
     networks:
       - careervaulthq-net
 
-  # Scheduler: enqueues periodic jobs (e.g. the catch-up job evaluation) on the worker's
-  # queue. It only talks to Redis, so it needs no /data volume or API key.
+  # Scheduler: enqueues periodic jobs (catch-up evaluation, cleanup, scrapes) on the
+  # worker's queue. The scrape scheduler reads/writes scrape_sources, so it needs the
+  # same SQLite database on the /data volume (but no API key).
   scheduler:
     image: ${IMAGE:-ghcr.io/fl0ster/careervaulthq:main}
     container_name: careervaulthq-scheduler
@@ -59,8 +60,11 @@ services:
     command: ["python", "-m", "app.scheduler.scheduler"]
     environment:
       DEBUG: "false"
+      DATABASE_URL: sqlite:////data/careervault.db
       REDIS_URL: redis://redis:6379/0
       SCHEDULER_SLEEP_SECONDS: 30
+    volumes:
+      - careervaulthq-data:/data
     depends_on:
       - redis
       - worker

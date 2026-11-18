@@ -15,6 +15,8 @@ export type ApplicationStatus = {
   key: string
   label: string
   position: number
+  /** Default next state (one click on the badge); null when there is none. */
+  next_key: string | null
 }
 
 export type ApplicationEvent = {
@@ -43,7 +45,7 @@ export type Application = {
     link: string
     source: string
   }
-  evaluation: { id: number; candidate_profile_id: number; match_probability: number } | null
+  evaluation: { id: number; candidate_profile_id: number; relevance: number } | null
   cv: GeneratedCv | null
 }
 

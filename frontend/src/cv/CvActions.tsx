@@ -14,13 +14,7 @@ export default function CvActions({ cv, onDelete, deleting }: Props) {
       {cv.status === 'finished' && (
         <>
           <a className="button small" href={cvApi.pdfUrl(cv.id)} download>
-            Download PDF
-          </a>
-          <a className="button small secondary" href={cvApi.pdfUrl(cv.id)} target="_blank" rel="noreferrer">
-            Open
-          </a>
-          <a className="button small secondary" href={cvApi.texUrl(cv.id)} download>
-            .tex
+            Download
           </a>
         </>
       )}
