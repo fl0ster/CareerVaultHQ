@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import type { GeneratedCv } from '../cv/api.ts'
 import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
-import { type Application, type ApplicationStatus, applicationsApi } from './api.ts'
+import { type Application, type ApplicationStatus } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
-import StatusBadge from './StatusBadge.tsx'
 
 type Props = {
   application: Application
