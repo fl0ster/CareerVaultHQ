@@ -53,3 +53,18 @@
   gap: 2px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Company name in the middle part of the tag pill */
+.company-tag-name {
+  padding: 0 8px 0 5px;
+}
+
+/* Tag label for screen readers only; the pill shows just the icon */
+.company-tag .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

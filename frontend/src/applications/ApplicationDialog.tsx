@@ -4,7 +4,6 @@ import type { GeneratedCv } from '../cv/api.ts'
 import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
 import { type Application, type ApplicationStatus, applicationsApi } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
-import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 type Props = {
@@ -77,8 +76,12 @@ export default function ApplicationDialog({
               <div className="job-meta">
                 {job.company && (
                   <span className="job-company">
-                    <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />&nbsp;
-                    <CompanyLink name={job.company} companyId={job.company_id} onOpen={onOpenCompany} />{' '}
+                    <CompanyTagBadge
+                      companyId={job.company_id}
+                      tag={job.company_tag}
+                      name={job.company}
+                      onOpenCompany={onOpenCompany}
+                    />{' '}
                   </span>
                 )}
               </div>

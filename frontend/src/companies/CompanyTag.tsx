@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import CompanyLink from '../applications/CompanyLink.tsx'
 import { PickerPill } from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
 import { OUTCOMES, useCompanyApplicationStats } from './applicationStats.ts'
@@ -9,6 +10,10 @@ type Props = {
   companyId: number | null | undefined
   /** The tag as loaded from the server; changes made in this session take precedence. */
   tag: string | null | undefined
+  /** When given, the company name is shown inside the pill, between the tag icon and the stats. */
+  name?: string
+  /** Opens the company popup when the name is clicked. */
+  onOpenCompany?: (companyId: number) => void
 }
 
 const NONE = ''
@@ -32,10 +37,10 @@ const OPTIONS = [...COMPANY_TAGS.map((t) => t.key), NONE].map((key) => ({
   label: pill(key),
 }))
 
-/** The company's tag pill. Clicking it cycles the tag (none → each tag → none); its right part
+/** The company's tag pill. With `name`, the pill reads: tag icon | company name | stats. Clicking the tag cycles the tag (none → each tag → none); its right part
  * counts the applications to the company by outcome, when there are any. Safe to use inside
  * another button. Renders nothing without a company id. */
-export function CompanyTagBadge({ companyId, tag }: Props) {
+export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) {
   const current = useCompanyTag(companyId, tag)
   const [error, setError] = useState<string | null>(null)
   const stats = useCompanyApplicationStats(companyId)
@@ -52,7 +57,7 @@ export function CompanyTagBadge({ companyId, tag }: Props) {
   }
 
   const shown = OUTCOMES.filter((o) => (stats[o.key] ?? 0) > 0)
-  const extra = shown.length ? (
+  const statsEl = shown.length ? (
     <span className="company-app-stats">
       {shown.map((o) => (
         <span key={o.key} className={`company-app-stat ${o.key.toLowerCase()}`} title={`${o.label}: ${stats[o.key]}`}>
@@ -62,6 +67,23 @@ export function CompanyTagBadge({ companyId, tag }: Props) {
       ))}
     </span>
   ) : null
+  const extra =
+    name != null ? (
+      <>
+        <span className="company-tag-name">
+          {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
+        </span>
+        {statsEl && (
+          <>
+            <span className="app-status-sep" aria-hidden="true" />
+            {statsEl}
+          </>
+        )}
+      </>
+    ) : (
+      statsEl
+    )
+  const tagTitle = info ? info.label : 'No tag'
 
   return (
     <>
@@ -72,9 +94,10 @@ export function CompanyTagBadge({ companyId, tag }: Props) {
         nextKey={nextTag(current) ?? NONE}
         onSelect={select}
         extra={extra}
-        title={error ? `Could not save the tag: ${error}` : undefined}
+        title={error ? `Could not save the tag: ${error}` : `${tagTitle} — click to change`}
       >
-        <span aria-hidden="true">{info?.icon ?? '☆'}</span> {info?.label ?? ''}
+        <span aria-hidden="true">{info?.icon ?? '☆'}</span>
+        <span className="visually-hidden">{tagTitle}</span>
       </PickerPill>
       {error && <span className="error company-tag-error"> Not saved</span>}
     </>

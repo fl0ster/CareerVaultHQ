@@ -15,7 +15,6 @@ import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationDialog from './ApplicationDialog.tsx'
-import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 
@@ -138,8 +137,12 @@ export default function ApplicationsPage() {
                 <div className="job-meta">
                   {a.job.company && (
                     <span className="job-company">
-                      <CompanyTagBadge companyId={a.job.company_id} tag={a.job.company_tag} />&nbsp;
-                      <CompanyLink name={a.job.company} companyId={a.job.company_id} onOpen={setCompanyId} />{' '}
+                      <CompanyTagBadge
+                        companyId={a.job.company_id}
+                        tag={a.job.company_tag}
+                        name={a.job.company}
+                        onOpenCompany={setCompanyId}
+                      />{' '}
                     </span>
                   )}
                   <span>{a.job.source}</span>
