@@ -3,7 +3,6 @@ import './applications.css'
 import '../cv/cv.css'
 import '../jobs/jobs.css'
 import { describeError, isInProgress } from '../cv/api.ts'
-import CvStatusBadge from '../cv/CvStatusBadge.tsx'
 import {
   APPLICATIONS_CHANGED,
   type Application,
@@ -18,6 +17,7 @@ import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationDialog from './ApplicationDialog.tsx'
 import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
+import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 
 const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
@@ -136,7 +136,8 @@ export default function ApplicationsPage() {
           <li key={a.id} className={selected?.id === a.id ? 'app-item selected' : 'app-item'}>
             <button type="button" className="app-row" aria-haspopup="dialog" onClick={() => setSelected(a)}>
               <div className="job-main">
-                <span className="job-title">{a.job.title ?? a.job.link}</span>
+                {a.evaluation && <RelevanceMeter relevance={a.evaluation.relevance} />}
+                <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
                 <div className="job-meta">
                   {a.job.company && (
                     <span className="job-company">
@@ -153,6 +154,7 @@ export default function ApplicationsPage() {
                 </div>
               </div>
               <div className="app-badges">
+
                 <StatusBadge status={a.status} />
               </div>
             </button>

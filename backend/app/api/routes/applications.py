@@ -31,6 +31,7 @@ from app.api.routes.cv import (
     reconcile_cv,
 )
 from app.config import Settings, get_settings
+from app.services.relevance import relevance
 from app.db import get_session
 from app.models import (
     Application,
@@ -99,7 +100,8 @@ class ApplicationJobOut(BaseModel):
 class ApplicationEvaluationOut(BaseModel):
     id: int
     candidate_profile_id: int
-    match_probability: float
+    relevance: float
+    """``match_probability`` on the [-1, 1] display scale (see ``relevance``)."""
 
 
 class ApplicationOut(BaseModel):
@@ -244,7 +246,7 @@ def _to_out(
         evaluation=ApplicationEvaluationOut(
             id=evaluation.id,
             candidate_profile_id=evaluation.candidate_profile_id,
-            match_probability=evaluation.match_probability,
+            relevance=relevance(evaluation.match_probability, get_settings().relevant_job_threshold),
         )
         if evaluation is not None
         else None,
