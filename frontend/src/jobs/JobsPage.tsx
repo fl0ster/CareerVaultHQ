@@ -6,6 +6,7 @@ import JobDialog from './JobDialog.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
+import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from '../applications/api.ts'
 import { describeError } from '../cv/api.ts'
 
@@ -74,6 +75,7 @@ function JobRow({
   error,
   onSelect,
   onDecide,
+  onOpenCompany,
 }: {
   job: EvaluatedJob
   /** Undecided relevant job: shows the accept / reject buttons. */
@@ -82,6 +84,7 @@ function JobRow({
   error: string | null
   onSelect: (job: EvaluatedJob) => void
   onDecide: (job: EvaluatedJob, decision: JobDecision) => void
+  onOpenCompany: (companyId: number) => void
 }) {
   const classes = ['job-item']
   if (inbox) classes.push('match')
@@ -100,7 +103,16 @@ function JobRow({
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
-                  {job.company} <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />
+                  {job.company_id != null ? (
+                    <CompanyTagBadge
+                      companyId={job.company_id}
+                      tag={job.company_tag}
+                      name={job.company}
+                      onOpenCompany={onOpenCompany}
+                    />
+                  ) : (
+                    job.company
+                  )}
                 </span>
               )}
               <span>{job.source}</span>
@@ -155,6 +167,7 @@ export default function JobsPage({ onInboxCountChange }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
+  const [companyId, setCompanyId] = useState<number | null>(null)
   const [busy, setBusy] = useState<Set<number>>(new Set())
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map())
   const sentinel = useRef<HTMLDivElement>(null)
@@ -424,6 +437,7 @@ export default function JobsPage({ onInboxCountChange }: Props) {
                 error={rowErrors.get(job.id) ?? null}
                 onSelect={setSelected}
                 onDecide={decide}
+                onOpenCompany={setCompanyId}
               />
             )
           })}
@@ -442,6 +456,10 @@ export default function JobsPage({ onInboxCountChange }: Props) {
           onClose={() => setSelected(null)}
           onApplicationCreated={(applicationId) => applicationCreated(selected.id, applicationId)}
         />
+      )}
+
+      {companyId != null && (
+        <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
       )}
     </>
   )

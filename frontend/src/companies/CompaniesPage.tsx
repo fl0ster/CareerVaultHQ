@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { listCompanies, type Company } from './api.ts'
 import CompanyDialog from './CompanyDialog.tsx'
-import { CompanyTagToggle } from './CompanyTag.tsx'
+import { CompanyTagBadge } from './CompanyTag.tsx'
 import './tags.css'
 import './companies.css'
 
@@ -98,7 +98,7 @@ export default function CompaniesPage() {
         <ul className="company-list">
           {companies.map((company) => (
             <li key={company.id} className="company-item">
-              <CompanyTagToggle companyId={company.id} tag={company.tag} />
+              <CompanyTagBadge companyId={company.id} tag={company.tag} />
               <button type="button" className="company-row" onClick={() => setSelected(company.id)}>
                 <span className="company-name">{company.name}</span>
                 <span className="company-jobs-count">

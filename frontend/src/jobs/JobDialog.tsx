@@ -6,7 +6,7 @@ import { type Application, applicationsApi } from '../applications/api.ts'
 import StatusBadge from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
 import CreateApplicationButton from './CreateApplicationButton.tsx'
-import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
+import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 
 /** The job's application, or a button to create one when the job is relevant enough. */
 function JobApplicationSection({
@@ -118,7 +118,7 @@ export default function JobDialog({ job, onClose, onApplicationCreated }: Props)
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
-                  {job.company} <CompanyTagToggle companyId={job.company_id} tag={job.company_tag} />
+                  {job.company} <CompanyTagBadge companyId={job.company_id} tag={job.company_tag} />
                 </span>
               )}
               <span>{job.source}</span>

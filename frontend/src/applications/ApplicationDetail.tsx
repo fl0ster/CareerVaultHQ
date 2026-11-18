@@ -8,6 +8,10 @@ import {
   type Application,
   type ApplicationEvent,
   type ApplicationStatus,
+  isFinalStatus,
+  APPLIED_STATUS,
+  INITIAL_ONLY_STATUS,
+  pickableStatuses,
   applicationsApi,
   fromLocalInput,
   notifyApplicationsChanged,
@@ -60,6 +64,7 @@ function EventRow({
   const [note, setNote] = useState(event.note)
   const [when, setWhen] = useState(toLocalInput(event.occurred_at))
   const { busy, error, run } = useAction()
+  const locked = event.status.key === INITIAL_ONLY_STATUS
 
   const startEdit = () => {
     setStatus(event.status.key)
@@ -74,7 +79,7 @@ function EventRow({
     const dateChanged = when !== toLocalInput(event.occurred_at)
     const updated = await run(() =>
       applicationsApi.updateEvent(application.id, event.id, {
-        status,
+        ...(locked ? {} : { status }),
         note,
         ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
       }),
@@ -95,13 +100,23 @@ function EventRow({
     return (
       <li className="app-event editing">
         <div className="app-form-row">
+          {locked ? (
+            <StatusBadge status={event.status} />
+          ) : (
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            {statuses.map((s) => (
+            {pickableStatuses(statuses)
+              .filter(
+                (s) =>
+                  s.key !== APPLIED_STATUS ||
+                  !application.events.some((e) => e.id !== event.id && e.status.key === APPLIED_STATUS),
+              )
+              .map((s) => (
               <option key={s.key} value={s.key}>
                 {s.label}
               </option>
             ))}
           </select>
+          )}
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         </div>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state" rows={3} />
@@ -127,9 +142,11 @@ function EventRow({
           <button type="button" className="secondary small" onClick={startEdit} disabled={busy}>
             Edit
           </button>
-          <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
-            Remove
-          </button>
+          {!locked && (
+            <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
+              Remove
+            </button>
+          )}
         </span>
       </div>
       {event.note && <p className="app-note">{event.note}</p>}
@@ -151,7 +168,8 @@ function AddEventForm({
   const [note, setNote] = useState('')
   const [when, setWhen] = useState('')
   const { busy, error, run } = useAction()
-  const selected = status || statuses[0]?.key || ''
+  const options = pickableStatuses(statuses, application.status?.key ?? null)
+  const selected = status || options[0]?.key || ''
 
   const add = async () => {
     const updated = await run(() =>
@@ -168,7 +186,7 @@ function AddEventForm({
     <div className="app-add-event">
       <div className="app-form-row">
         <select value={selected} onChange={(e) => setStatus(e.target.value)} aria-label="New status">
-          {statuses.map((s) => (
+          {options.map((s) => (
             <option key={s.key} value={s.key}>
               {s.label}
             </option>
@@ -298,7 +316,11 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
             ))}
           </ol>
         )}
-        <AddEventForm application={application} statuses={statuses} onChange={onChange} />
+        {isFinalStatus(application.status) ? (
+          <p className="muted">{application.status?.label} is final — remove that state to record new ones.</p>
+        ) : (
+          <AddEventForm application={application} statuses={statuses} onChange={onChange} />
+        )}
       </section>
 
       <section className="app-section">

@@ -1,21 +1,37 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ApplicationStatus } from './api.ts'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ApplicationStatus, isFinalStatus, pickableStatuses } from './api.ts'
+import './applications.css'
 
-type Props = {
-  status: ApplicationStatus | null
-  /** All states; needed (with `onSelect`) to make the badge interactive. */
-  statuses?: ApplicationStatus[]
-  /** Switches the application to the state with this key. Without it the badge is read-only. */
-  onSelect?: (key: string) => Promise<unknown> | void
+export type PillOption = {
+  key: string
+  /** Contents of the option in the picker. */
+  label: ReactNode
+  /** Text used in hints ("Move to …"). */
+  text: string
+}
+
+type PillProps = {
+  /** Classes of the pill (badge colour). */
+  className: string
+  children: ReactNode
+  options: PillOption[]
+  currentKey: string | null
+  /** Option a click on the pill moves to; without it only the ⋮ picker works. */
+  nextKey?: string | null
+  /** Switches to the option with this key. */
+  onSelect: (key: string) => Promise<unknown> | void
+  /** Overrides the hover hint of the pill (e.g. to show an error). */
+  title?: string
+  /** Replaces the ⋮ picker with this content (e.g. read-only extras); `null` shows nothing. */
+  extra?: ReactNode
 }
 
 /**
- * Application state pill; known states get a colour, custom ones the neutral badge.
- * When `onSelect` is given, clicking the pill moves to the state's default next state
- * (`next_key`), and the ⋮ part opens a picker with every state. Rendered with spans with
- * button semantics because it may sit inside another button (the application list row).
+ * Interactive pill: clicking it moves to `nextKey`, the ⋮ part (unless replaced by `extra`)
+ * opens a picker with every option. Rendered with spans with button semantics because it may sit inside another
+ * button (a list row).
  */
-export default function StatusBadge({ status, statuses = [], onSelect }: Props) {
+export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra }: PillProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
@@ -39,11 +55,8 @@ export default function StatusBadge({ status, statuses = [], onSelect }: Props) 
     }
   }, [open])
 
-  const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
-  const label = status ? status.label : 'No status'
-  if (!onSelect) return <span className={cls}>{label}</span>
-
-  const next = status?.next_key ? statuses.find((s) => s.key === status.next_key) : undefined
+  const main = extra === undefined || extra != null ? 'app-status-main' : 'app-status-main alone'
+  const next = nextKey != null ? options.find((o) => o.key === nextKey) : undefined
 
   const select = async (key: string) => {
     setOpen(false)
@@ -72,49 +85,97 @@ export default function StatusBadge({ status, statuses = [], onSelect }: Props) 
   })
 
   return (
-    <span ref={root} className={`${cls} app-status-control${busy ? ' busy' : ''}`}>
+    <span ref={root} className={`${className} app-status-control${busy ? ' busy' : ''}`}>
       <span
         role="button"
         tabIndex={next && !busy ? 0 : -1}
         aria-disabled={!next || busy}
-        className={`app-status-main${next ? ' clickable' : ''}`}
-        title={next ? `Move to ${next.label}` : undefined}
+        className={`${main}${next ? ' clickable' : ''}`}
+        title={title ?? (next ? `Move to ${next.text}` : undefined)}
         {...handler(() => {
           if (next && !busy) void select(next.key)
         })}
       >
-        {label}
+        {children}
       </span>
-      <span className="app-status-sep" aria-hidden="true" />
-      <span
-        role="button"
-        tabIndex={busy ? -1 : 0}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Choose status"
-        title="Choose status"
-        className="app-status-more"
-        {...handler(() => {
-          if (!busy) setOpen((o) => !o)
-        })}
-      >
-        ⋮
-      </span>
+      {extra !== undefined ? (
+        extra != null && (
+          <>
+            <span className="app-status-sep" aria-hidden="true" />
+            {extra}
+          </>
+        )
+      ) : (
+        <>
+          <span className="app-status-sep" aria-hidden="true" />
+          <span
+            role="button"
+            tabIndex={busy ? -1 : 0}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label="Choose"
+            title="Choose"
+            className="app-status-more"
+            {...handler(() => {
+              if (!busy) setOpen((o) => !o)
+            })}
+          >
+            ⋮
+          </span>
+        </>
+      )}
       {open && (
         <span role="menu" className="app-status-menu">
-          {statuses.map((s) => (
+          {options.map((o) => (
             <span
-              key={s.key}
+              key={o.key}
               role="menuitem"
               tabIndex={0}
-              className={`app-status-option${s.key === status?.key ? ' current' : ''}`}
-              {...handler(() => void select(s.key))}
+              className={`app-status-option${o.key === currentKey ? ' current' : ''}`}
+              {...handler(() => void select(o.key))}
             >
-              <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>
+              {o.label}
             </span>
           ))}
         </span>
       )}
     </span>
+  )
+}
+
+type Props = {
+  status: ApplicationStatus | null
+  /** All states; needed (with `onSelect`) to make the badge interactive. */
+  statuses?: ApplicationStatus[]
+  /** Switches the application to the state with this key. Without it the badge is read-only. */
+  onSelect?: (key: string) => Promise<unknown> | void
+}
+
+/**
+ * Application state pill; known states get a colour, custom ones the neutral badge.
+ * With `onSelect` it is a `PickerPill`: click moves to the state's `next_key`, ⋮ picks any state.
+ */
+export default function StatusBadge({ status, statuses = [], onSelect }: Props) {
+  const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
+  const label = status ? status.label : 'No status'
+  if (!onSelect) return <span className={cls}>{label}</span>
+  const final = isFinalStatus(status)
+
+  return (
+    <PickerPill
+      className={cls}
+      options={pickableStatuses(statuses, status?.key ?? null).map((s) => ({
+        key: s.key,
+        text: s.label,
+        label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
+      }))}
+      currentKey={status?.key ?? null}
+      // A state whose default successor is itself (INTERVIEW) is not advanced by a click.
+      nextKey={final || status?.next_key === status?.key ? null : status?.next_key}
+      onSelect={onSelect}
+      extra={final ? null : undefined}
+    >
+      {label}
+    </PickerPill>
   )
 }

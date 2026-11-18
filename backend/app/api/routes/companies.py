@@ -5,6 +5,7 @@ with how many parsed jobs reference each one. ``GET /api/companies/{id}?jobs_lim
 the aliases (every spelling that was mapped to the company) and its latest parsed jobs.
 ``PATCH /api/companies/{id}`` with ``{"notes": "..."}`` and/or ``{"tag": "favourite" | null}``
 updates the company's notes / tag (``GET /api/companies/tags`` lists the allowed tags).
+``GET /api/companies/application-stats`` counts each company's applications by outcome.
 """
 
 from __future__ import annotations
@@ -18,7 +19,16 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import Company, CompanyAlias, Job, JobParseResult, ScrapeSource
+from app.models import (
+    Application,
+    ApplicationEvent,
+    ApplicationStatus,
+    Company,
+    CompanyAlias,
+    Job,
+    JobParseResult,
+    ScrapeSource,
+)
 from app.services.companies import normalize_company_name
 
 router = APIRouter()
@@ -172,6 +182,44 @@ def list_companies(
 def list_company_tags() -> list[str]:
     """The tags a company can have, in display order."""
     return list(Company.TAGS)
+
+
+APPLICATION_OUTCOMES = ("APPLIED", "INTERVIEW", "REJECTED", "OFFER")
+"""Buckets of ``GET /application-stats``, from least to most decisive."""
+
+
+def _outcome(keys: set[str]) -> str | None:
+    """The bucket of an application that went through the states ``keys``: ``OFFER`` if it
+    got one, else ``REJECTED`` if rejected, else ``INTERVIEW`` if interviewed, else
+    ``APPLIED`` if applied; ``None`` (not counted) otherwise, e.g. only shortlisted."""
+    for key in reversed(APPLICATION_OUTCOMES):
+        if key in keys:
+            return key
+    return None
+
+
+@router.get("/application-stats", response_model=dict[int, dict[str, int]])
+def application_stats(session: Annotated[Session, Depends(get_session)]) -> dict[int, dict[str, int]]:
+    """``{company_id: {outcome: count}}`` over every application to a resolved company,
+    each counted once in its most decisive outcome (see ``_outcome``). Zero counts and
+    companies without counted applications are left out."""
+    rows = session.execute(
+        select(JobParseResult.company_id, Application.id, ApplicationStatus.key)
+        .join(Application, Application.job_parse_result_id == JobParseResult.id)
+        .join(ApplicationEvent, ApplicationEvent.application_id == Application.id)
+        .join(ApplicationStatus, ApplicationStatus.id == ApplicationEvent.status_id)
+        .where(JobParseResult.company_id.is_not(None))
+    ).all()
+    states: dict[tuple[int, int], set[str]] = {}
+    for company_id, application_id, key in rows:
+        states.setdefault((company_id, application_id), set()).add(key)
+    stats: dict[int, dict[str, int]] = {}
+    for (company_id, _), keys in states.items():
+        outcome = _outcome(keys)
+        if outcome is not None:
+            counts = stats.setdefault(company_id, {})
+            counts[outcome] = counts.get(outcome, 0) + 1
+    return stats
 
 
 @router.get("/{company_id}", response_model=CompanyFull)
