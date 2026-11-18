@@ -10,6 +10,18 @@ under ``GET /api/jobs/raw`` and ``GET /api/jobs/raw/{job_id}``.
 
 Every list endpoint returns ``total`` and ``has_more`` so clients can load further pages
 progressively.
+
+The Jobs tab uses two views of the same evaluations:
+
+* ``GET /api/jobs/inbox`` - the *undecided relevant* jobs (score at or above
+  ``settings.relevant_job_threshold``, no ``job_decisions`` row and no application), best
+  match first. Its ``count`` drives the badge on the tab.
+* ``GET /api/jobs/feed`` - everything else, newest evaluation first, keyset-paginated by
+  evaluation id (``before`` for older pages, ``after`` to poll for newer rows) so pages stay
+  stable while jobs move out of the inbox.
+
+``PUT /api/jobs/{job_id}/decision`` records ``accepted`` / ``rejected`` (creating an
+application through ``POST /api/applications`` records ``accepted`` by itself).
 """
 
 from __future__ import annotations
@@ -19,7 +31,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, and_, func, not_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
@@ -28,10 +40,12 @@ from app.models import (
     Application,
     CandidateProfile,
     Job,
+    JobDecision,
     JobEvaluation,
     JobParseResult,
     ScrapeSource,
 )
+from app.services.applications import set_job_decision
 from app.services.relevance import relevance
 
 router = APIRouter()
@@ -160,6 +174,8 @@ class EvaluatedJobOut(BaseModel):
     evaluation: EvaluationOut
     application_id: int | None = None
     """``applications.id`` when an application was already created for the job."""
+    decision: str | None = None
+    """``accepted`` / ``rejected`` (``JobDecision``), ``None`` while undecided."""
 
 
 class EvaluatedJobDetail(EvaluatedJobOut):
@@ -182,6 +198,18 @@ def _latest_profile_id(session: Session) -> int | None:
     return session.scalar(select(func.max(CandidateProfile.id)))
 
 
+def _decisions(session: Session, parse_result_ids: list[int]) -> dict[int, str]:
+    """``{job_parse_result_id: decision}`` for the parse results that have one."""
+    if not parse_result_ids:
+        return {}
+    rows = session.execute(
+        select(JobDecision.job_parse_result_id, JobDecision.decision).where(
+            JobDecision.job_parse_result_id.in_(parse_result_ids)
+        )
+    ).all()
+    return dict(rows)
+
+
 def _application_ids(session: Session, parse_result_ids: list[int]) -> dict[int, int]:
     """``{job_parse_result_id: application_id}`` for the parse results that have one."""
     if not parse_result_ids:
@@ -202,6 +230,7 @@ def _evaluated(
     threshold: float,
     description: bool,
     application_id: int | None = None,
+    decision: str | None = None,
 ) -> dict:
     data = {
         "id": job.id,
@@ -216,6 +245,7 @@ def _evaluated(
         "parsed_at": parsed.parsed_at,
         "evaluation": _evaluation_out(evaluation, threshold),
         "application_id": application_id,
+        "decision": decision,
     }
     if description:
         data["description"] = parsed.description
@@ -234,6 +264,136 @@ def _evaluated_query(profile_id: int) -> Select:
             joinedload(JobEvaluation.openrouter_call),
         )
     )
+
+
+def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
+    parse_ids = [parsed.id for _, parsed, _ in rows]
+    applications = _application_ids(session, parse_ids)
+    decisions = _decisions(session, parse_ids)
+    return [
+        EvaluatedJobOut(
+            **_evaluated(
+                job,
+                parsed,
+                evaluation,
+                threshold=threshold,
+                description=False,
+                application_id=applications.get(parsed.id),
+                decision=decisions.get(parsed.id),
+            )
+        )
+        for job, parsed, evaluation in rows
+    ]
+
+
+def _undecided_relevant(threshold: float) -> ColumnElement[bool]:
+    """Relevant, not decided on and without an application: the inbox condition."""
+    decided = select(JobDecision.id).where(
+        JobDecision.job_parse_result_id == JobParseResult.id
+    )
+    applied = select(Application.id).where(
+        Application.job_parse_result_id == JobParseResult.id
+    )
+    return and_(
+        JobEvaluation.match_probability >= threshold,
+        not_(decided.exists()),
+        not_(applied.exists()),
+    )
+
+
+class InboxOut(BaseModel):
+    items: list[EvaluatedJobOut]
+    count: int
+    candidate_profile_id: int | None
+
+
+class FeedPage(BaseModel):
+    items: list[EvaluatedJobOut]
+    """Newest evaluation first."""
+    has_more: bool
+    """More (older) rows exist before the last item; only meaningful without ``after``."""
+    candidate_profile_id: int | None
+
+
+INBOX_LIMIT = 500
+
+
+@router.get("/inbox", response_model=InboxOut)
+def jobs_inbox(
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InboxOut:
+    """Undecided relevant jobs against the latest profile, best match first."""
+    profile_id = _latest_profile_id(session)
+    if profile_id is None:
+        return InboxOut(items=[], count=0, candidate_profile_id=None)
+    query = _evaluated_query(profile_id).where(
+        _undecided_relevant(settings.relevant_job_threshold)
+    )
+    count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = session.execute(
+        query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(
+            INBOX_LIMIT
+        )
+    ).all()
+    return InboxOut(
+        items=_items(session, rows, settings.relevant_job_threshold),
+        count=count,
+        candidate_profile_id=profile_id,
+    )
+
+
+@router.get("/feed", response_model=FeedPage)
+def jobs_feed(
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    before: Annotated[int | None, Query(ge=1)] = None,
+    after: Annotated[int | None, Query(ge=0)] = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
+) -> FeedPage:
+    """Every evaluated job not in the inbox, newest evaluation first.
+
+    ``before=<evaluation id>`` returns the next older page; ``after=<evaluation id>``
+    returns rows newer than it (up to ``limit``, still newest first) for polling.
+    """
+    profile_id = _latest_profile_id(session)
+    if profile_id is None:
+        return FeedPage(items=[], has_more=False, candidate_profile_id=None)
+    query = _evaluated_query(profile_id).where(
+        not_(_undecided_relevant(settings.relevant_job_threshold))
+    )
+    if before is not None:
+        query = query.where(JobEvaluation.id < before)
+    if after is not None:
+        query = query.where(JobEvaluation.id > after)
+    rows = session.execute(query.order_by(JobEvaluation.id.desc()).limit(limit + 1)).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    return FeedPage(
+        items=_items(session, rows, settings.relevant_job_threshold),
+        has_more=has_more,
+        candidate_profile_id=profile_id,
+    )
+
+
+class DecisionIn(BaseModel):
+    decision: Literal["accepted", "rejected"]
+
+
+@router.put("/{job_id}/decision", response_model=EvaluatedJobDetail)
+def decide_job(
+    job_id: int,
+    payload: DecisionIn,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EvaluatedJobDetail:
+    """Record the user's decision about a parsed job (moves it out of the inbox)."""
+    parsed = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job_id))
+    if parsed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
+    set_job_decision(session, parsed.id, payload.decision)
+    session.commit()
+    return get_job(job_id, session, settings)
 
 
 @router.get("", response_model=EvaluatedJobPage)
@@ -274,20 +434,7 @@ def list_jobs(
     else:
         query = query.order_by(JobEvaluation.id.desc())
     rows = session.execute(query.offset(offset).limit(limit)).all()
-    applications = _application_ids(session, [parsed.id for _, parsed, _ in rows])
-    items = [
-        EvaluatedJobOut(
-            **_evaluated(
-                job,
-                parsed,
-                evaluation,
-                threshold=settings.relevant_job_threshold,
-                description=False,
-                application_id=applications.get(parsed.id),
-            )
-        )
-        for job, parsed, evaluation in rows
-    ]
+    items = _items(session, rows, settings.relevant_job_threshold)
     return EvaluatedJobPage(
         items=items,
         total=total,
@@ -337,5 +484,6 @@ def get_job(
             threshold=settings.relevant_job_threshold,
             description=True,
             application_id=application_id,
+            decision=_decisions(session, [parsed.id]).get(parsed.id),
         )
     )

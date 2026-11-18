@@ -1,14 +1,18 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
-import { type EvaluatedJob, type JobSortOrder, isHighlighted, isRelevant, jobsApi } from './api.ts'
+import { type EvaluatedJob, type JobDecision, isRelevant, jobsApi } from './api.ts'
 import JobDialog from './JobDialog.tsx'
-import CreateApplicationButton from './CreateApplicationButton.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
+import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from '../applications/api.ts'
+import { describeError } from '../cv/api.ts'
 
 const PAGE_SIZE = 50
+/** How often the tab checks for newly evaluated jobs, in ms. */
+const POLL_INTERVAL = 30_000
+
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
   const transform = getComputedStyle(el).transform
@@ -29,7 +33,7 @@ function currentTranslateY(el: HTMLElement): number {
  * `previous` holds each row's *layout* position (transform excluded) from the
  * last commit. If a row is still mid-glide when the order changes again, its
  * in-flight offset is read first, the old animation is cancelled, and the new
- * glide starts from where the row visually is, so rapid slider drags stay smooth.
+ * glide starts from where the row visually is.
  */
 function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   const previous = useRef(new Map<string, number>())
@@ -60,18 +64,32 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   }, [listRef, order])
 }
 
+/** Feed order: newest evaluation first. */
+const byEvaluationDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.evaluation.id - a.evaluation.id
+
 function JobRow({
   job,
+  inbox,
+  busy,
+  error,
   onSelect,
-  onApplicationCreated,
+  onDecide,
 }: {
   job: EvaluatedJob
+  /** Undecided relevant job: shows the accept / reject buttons. */
+  inbox: boolean
+  busy: boolean
+  error: string | null
   onSelect: (job: EvaluatedJob) => void
-  onApplicationCreated: (jobId: number, applicationId: number) => void
+  onDecide: (job: EvaluatedJob, decision: JobDecision) => void
 }) {
-  const matching = isHighlighted(job.evaluation)
+  const classes = ['job-item']
+  if (inbox) classes.push('match')
+  else if (!isRelevant(job.evaluation)) classes.push('dimmed')
+  if (!inbox && job.decision === 'rejected') classes.push('rejected')
+
   return (
-    <li className={matching ? 'job-item match' : 'job-item'} data-key={String(job.id)}>
+    <li className={classes.join(' ')} data-key={String(job.id)}>
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
           <div className="job-main">
@@ -89,71 +107,205 @@ function JobRow({
               <span>evaluated {new Date(job.evaluation.created_at).toLocaleDateString()}</span>
             </div>
           </div>
-
         </button>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+        <div className="job-side">
           <RelevanceMeter relevance={job.evaluation.relevance} />
-          {isRelevant(job.evaluation) && job.application_id == null && (
-            <CreateApplicationButton evaluationId={job.evaluation.id} onCreated={(id) => onApplicationCreated(job.id, id)} />
+          {inbox && (
+            <div className="job-decide">
+              <button
+                type="button"
+                className="small decide accept"
+                onClick={() => onDecide(job, 'accepted')}
+                disabled={busy}
+                title="Create an application for this job"
+                aria-label={`Create an application for ${job.title ?? 'this job'}`}
+              >
+                ✓
+              </button>
+              <button
+                type="button"
+                className="small secondary decide reject"
+                onClick={() => onDecide(job, 'rejected')}
+                disabled={busy}
+                title="Not interested"
+                aria-label={`Dismiss ${job.title ?? 'this job'}`}
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
       </div>
+      {error && <p className="error">{error}</p>}
     </li>
   )
 }
 
-export default function JobsPage() {
-  const [jobs, setJobs] = useState<EvaluatedJob[]>([])
-  const [total, setTotal] = useState<number | null>(null)
-  const [profileId, setProfileId] = useState<number | null>(null)
+type Props = {
+  /** Called whenever the number of undecided relevant jobs changes (for the tab badge). */
+  onInboxCountChange?: (count: number) => void
+}
+
+export default function JobsPage({ onInboxCountChange }: Props) {
+  const [inbox, setInbox] = useState<EvaluatedJob[]>([])
+  const [inboxCount, setInboxCount] = useState(0)
+  const [feed, setFeed] = useState<EvaluatedJob[]>([])
+  const [profileId, setProfileId] = useState<number | null | undefined>(undefined)
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [sort, setSort] = useState<JobSortOrder>('newest')
   const [selected, setSelected] = useState<EvaluatedJob | null>(null)
+  const [busy, setBusy] = useState<Set<number>>(new Set())
+  const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map())
   const sentinel = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
-  // Mirrors of state for the observer callback so it never reads stale values.
+
+  // Mirrors of state for async callbacks so they never read stale values.
   const loadingRef = useRef(false)
-  const offsetRef = useRef(0)
   const hasMoreRef = useRef(true)
-  const sortRef = useRef<JobSortOrder>('newest')
+  const profileRef = useRef<number | null | undefined>(undefined)
+  /** Oldest / newest evaluation id the feed endpoint returned (keyset cursors). Rows moved
+   * into the feed locally do not move them, so polling and paging never skip a row. */
+  const oldestRef = useRef<number | null>(null)
+  const newestRef = useRef<number | null>(null)
+  const inboxRef = useRef<EvaluatedJob[]>([])
+  /** Bumped on every local decision; a poll that started before one is discarded. */
+  const mutationRef = useRef(0)
+  const pollingRef = useRef(false)
+
+  useEffect(() => {
+    inboxRef.current = inbox
+  }, [inbox])
+
+  useEffect(() => {
+    onInboxCountChange?.(inboxCount)
+  }, [inboxCount, onInboxCountChange])
+
+  /** Put a job into the loaded part of the feed (replacing an existing copy). A job older
+   * than the loaded pages is left out: it arrives with the page it belongs to. */
+  const putInFeed = useCallback((job: EvaluatedJob) => {
+    setFeed((prev) => {
+      const rest = prev.filter((j) => j.id !== job.id)
+      const oldest = oldestRef.current
+      if (hasMoreRef.current && oldest !== null && job.evaluation.id < oldest) return rest
+      return [...rest, job].sort(byEvaluationDesc)
+    })
+  }, [])
+
+  const mergeFeed = useCallback((items: EvaluatedJob[]) => {
+    if (items.length === 0) return
+    setFeed((prev) => {
+      const incoming = new Map(items.map((j) => [j.id, j]))
+      return [...prev.filter((j) => !incoming.has(j.id)), ...items].sort(byEvaluationDesc)
+    })
+  }, [])
 
   const loadMore = useCallback(async () => {
-    if (loadingRef.current || !hasMoreRef.current) return
+    if (loadingRef.current || !hasMoreRef.current || profileRef.current === undefined) return
     loadingRef.current = true
     setLoading(true)
     setError(null)
     try {
-      const page = await jobsApi.list({ offset: offsetRef.current, limit: PAGE_SIZE, sort: sortRef.current })
-      offsetRef.current += page.items.length
+      const page = await jobsApi.feed({ before: oldestRef.current ?? undefined, limit: PAGE_SIZE })
+      if (page.items.length > 0) {
+        oldestRef.current = page.items[page.items.length - 1].evaluation.id
+        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].evaluation.id)
+      } else if (newestRef.current === null) {
+        newestRef.current = 0
+      }
       hasMoreRef.current = page.has_more
-      setJobs((prev) => [...prev, ...page.items])
-      setTotal(page.total)
-      setProfileId(page.candidate_profile_id)
       setHasMore(page.has_more)
+      mergeFeed(page.items)
     } catch (e) {
-      setError(`Could not load jobs: ${String(e)}`)
+      setError(`Could not load jobs: ${describeError(e)}`)
     } finally {
       loadingRef.current = false
       setLoading(false)
     }
+  }, [mergeFeed])
+
+  const reset = useCallback(() => {
+    oldestRef.current = null
+    newestRef.current = null
+    hasMoreRef.current = true
+    setHasMore(true)
+    setFeed([])
+    setInbox([])
+    setInboxCount(0)
   }, [])
 
-  const reload = useCallback(() => {
-    offsetRef.current = 0
-    hasMoreRef.current = true
-    setJobs([])
-    setTotal(null)
-    setHasMore(true)
-    loadMore()
-  }, [loadMore])
+  /** Fetch the inbox and any newer feed rows. Also used for the first load. */
+  const poll = useCallback(async () => {
+    if (pollingRef.current) return
+    pollingRef.current = true
+    const version = mutationRef.current
+    try {
+      const box = await jobsApi.inbox()
+      if (box.candidate_profile_id !== profileRef.current) {
+        // First load, or a new candidate profile re-scored everything: start over.
+        const first = profileRef.current === undefined
+        profileRef.current = box.candidate_profile_id
+        setProfileId(box.candidate_profile_id)
+        if (!first) reset()
+      }
+      if (version !== mutationRef.current) return
 
-  const changeSort = (next: JobSortOrder) => {
-    sortRef.current = next
-    setSort(next)
-    reload()
-  }
+      // Jobs that left the inbox elsewhere (e.g. an application made on another device)
+      // move into the feed with their fresh state.
+      const stillThere = new Set(box.items.map((j) => j.id))
+      const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
+      inboxRef.current = box.items
+      setInbox(box.items)
+      setInboxCount(box.count)
+      for (const job of left) {
+        jobsApi
+          .get(job.id)
+          .then((fresh) => {
+            if (fresh.evaluation) putInFeed({ ...job, ...fresh, evaluation: fresh.evaluation })
+          })
+          .catch(() => {
+            /* it shows up again on the next reload */
+          })
+      }
+
+      if (newestRef.current === null) {
+        await loadMore()
+      } else {
+        const fresh = await jobsApi.feed({ after: newestRef.current, limit: 200 })
+        if (fresh.items.length > 0) {
+          newestRef.current = Math.max(newestRef.current, fresh.items[0].evaluation.id)
+          mergeFeed(fresh.items)
+        }
+      }
+      setError(null)
+    } catch (e) {
+      setError(`Could not load jobs: ${describeError(e)}`)
+    } finally {
+      pollingRef.current = false
+    }
+  }, [loadMore, mergeFeed, putInFeed, reset])
+
+  // First load, then check for newly evaluated jobs periodically and whenever the window
+  // regains focus or applications change elsewhere in the app.
+  useEffect(() => {
+    const first = window.setTimeout(poll, 0)
+    const timer = window.setInterval(() => {
+      if (!document.hidden) poll()
+    }, POLL_INTERVAL)
+    const onVisible = () => {
+      if (!document.hidden) poll()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    window.addEventListener(APPLICATIONS_CHANGED, onVisible)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      window.removeEventListener(APPLICATIONS_CHANGED, onVisible)
+    }
+  }, [poll])
 
   // Load the next page whenever the sentinel below the list scrolls into view.
   useEffect(() => {
@@ -169,74 +321,118 @@ export default function JobsPage() {
     return () => observer.disconnect()
   }, [loadMore])
 
+  /** Move a decided job out of the inbox into the chronological feed. */
+  const leaveInbox = useCallback(
+    (job: EvaluatedJob) => {
+      mutationRef.current += 1
+      if (inboxRef.current.some((j) => j.id === job.id)) {
+        inboxRef.current = inboxRef.current.filter((j) => j.id !== job.id)
+        setInbox(inboxRef.current)
+        setInboxCount((count) => Math.max(0, count - 1))
+      }
+      putInFeed(job)
+    },
+    [putInFeed],
+  )
+
+  const setRowBusy = (id: number, on: boolean) =>
+    setBusy((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+
+  const setRowError = (id: number, message: string | null) =>
+    setRowErrors((prev) => {
+      const next = new Map(prev)
+      if (message) next.set(id, message)
+      else next.delete(id)
+      return next
+    })
+
+  const decide = async (job: EvaluatedJob, decision: JobDecision) => {
+    setRowBusy(job.id, true)
+    setRowError(job.id, null)
+    mutationRef.current += 1
+    try {
+      if (decision === 'accepted') {
+        const created = await applicationsApi.create({ job_evaluation_id: job.evaluation.id })
+        leaveInbox({ ...job, application_id: created.id, decision: 'accepted' })
+        notifyApplicationsChanged()
+      } else {
+        await jobsApi.decide(job.id, 'rejected')
+        leaveInbox({ ...job, decision: 'rejected' })
+      }
+    } catch (e) {
+      setRowError(job.id, describeError(e))
+    } finally {
+      setRowBusy(job.id, false)
+    }
+  }
+
+  /** An application was created from the details dialog ("Apply"). */
   const applicationCreated = (jobId: number, applicationId: number) => {
-    const update = (j: EvaluatedJob) => (j.id === jobId ? { ...j, application_id: applicationId } : j)
-    setJobs((prev) => prev.map(update))
+    const update = (j: EvaluatedJob): EvaluatedJob =>
+      j.id === jobId ? { ...j, application_id: applicationId, decision: 'accepted' } : j
+    const inInbox = inbox.find((j) => j.id === jobId)
+    if (inInbox) leaveInbox(update(inInbox))
+    else setFeed((prev) => prev.map(update))
     setSelected((prev) => (prev ? update(prev) : prev))
   }
 
-  // Relevant jobs go first; each group keeps the server order (newest first by ID).
-  const isMatch = (j: EvaluatedJob) => isHighlighted(j.evaluation)
-  const matchingJobs = jobs.filter(isMatch)
-  const orderedJobs = [...matchingJobs, ...jobs.filter((j) => !isMatch(j))]
-  const matchingCount = matchingJobs.length
-  useFlip(listRef, orderedJobs.map((j) => j.id).join(','))
+  const ordered = [...inbox, ...feed]
+  useFlip(listRef, ordered.map((j) => j.id).join(','))
+
+  const empty = profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore
 
   return (
     <>
-      <h1 className="title">Evaluated jobs</h1>
       <p>
-        {total === null
+        {profileId === undefined
           ? 'Loading…'
           : profileId === null
             ? 'No candidate profile yet.'
-            : `${jobs.length} of ${total} jobs scored against profile #${profileId}, ${matchingCount} of the loaded ones relevant.`}{' '}
-        <button type="button" className="secondary small" onClick={reload} disabled={loading}>
-          Refresh
-        </button>
+            : null}
       </p>
-
-      <div className="jobs-controls">
-        <label>
-          Sort{' '}
-          <select value={sort} onChange={(e) => changeSort(e.target.value as JobSortOrder)}>
-            <option value="newest">Newest evaluated</option>
-            <option value="match">Best match</option>
-          </select>
-        </label>
-      </div>
 
       {error && (
         <p className="error">
           {error}{' '}
-          <button type="button" className="secondary small" onClick={loadMore}>
+          <button type="button" className="secondary small" onClick={poll}>
             Retry
           </button>
         </p>
       )}
 
-      {total === 0 ? (
+      {empty ? (
         <p>
           {profileId === null
             ? 'Create a candidate profile first; scraped jobs are then scored against it.'
-            : 'No evaluated jobs yet. Run a scrape from the Tools tab and wait for the evaluation to finish.'}
+            : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
         </p>
       ) : (
         <ul className="job-list" ref={listRef}>
-          {orderedJobs.map((job) => (
-            <JobRow
-              key={job.id}
-              job={job}
-              onSelect={setSelected}
-              onApplicationCreated={applicationCreated}
-            />
-          ))}
+          {ordered.map((job, index) => {
+            const inInbox = index < inbox.length
+            return (
+              <JobRow
+                key={job.id}
+                job={job}
+                inbox={inInbox}
+                busy={busy.has(job.id)}
+                error={rowErrors.get(job.id) ?? null}
+                onSelect={setSelected}
+                onDecide={decide}
+              />
+            )
+          })}
         </ul>
       )}
 
       <div ref={sentinel} className="sentinel">
         {loading && <span className="spinner" aria-hidden="true" />}
-        {!hasMore && jobs.length > 0 && <span className="muted">All jobs loaded.</span>}
+        {!hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
       </div>
 
       {selected && (

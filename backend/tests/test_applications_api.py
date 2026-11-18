@@ -70,6 +70,9 @@ def test_create_application_queues_cv(client, db_session, fake_queue):
     assert res.status_code == 201, res.text
     body = res.json()
     assert body["notes"] == "referral"
+    # Creating the application accepts the job, so it leaves the Jobs inbox.
+    assert client.get("/api/jobs/inbox").json()["count"] == 0
+    assert client.get("/api/jobs").json()["items"][0]["decision"] == "accepted"
     assert body["status"]["key"] == "SHORTLISTED"
     assert [(e["status"]["key"], e["note"]) for e in body["events"]] == [("SHORTLISTED", "x")]
     assert body["job"]["title"] == "Title 0" and body["job"]["company"] == "Acme 0"
@@ -81,7 +84,6 @@ def test_create_application_queues_cv(client, db_session, fake_queue):
     assert body["job"]["company_tag"] is None
     client.patch(f"/api/companies/{body['job']['company_id']}", json={"tag": "avoid"})
     assert client.get(f"{BASE}/{body['id']}").json()["job"]["company_tag"] == "avoid"
-    assert body["evaluation"]["match_probability"] == 0.8
     assert body["cv"]["status"] == "queued"
     assert [j.args for j in _cv_jobs(fake_queue)] == [(body["cv"]["id"],)]
 

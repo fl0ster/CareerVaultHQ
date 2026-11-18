@@ -38,11 +38,12 @@ from app.models import (
     ApplicationStatus,
     GeneratedCV,
     Job,
+    JobDecision,
     JobEvaluation,
     JobParseResult,
 )
 from app.queue import get_queue
-from app.services.applications import ensure_statuses
+from app.services.applications import ensure_statuses, set_job_decision
 from app.services.relevance import relevance
 
 router = APIRouter()
@@ -338,6 +339,7 @@ def create_application(
     if initial is not None:
         application.events.append(ApplicationEvent(status=initial, note=payload.status_note))
     session.add(application)
+    set_job_decision(session, evaluation.job_parse_result_id, JobDecision.ACCEPTED)
     session.commit()
 
     cv = enqueue_cv(session, queue, settings, evaluation.job_parse_result)

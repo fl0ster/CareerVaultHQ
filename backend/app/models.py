@@ -374,6 +374,31 @@ class JobEvaluation(Base):
     openrouter_call: Mapped[OpenRouterCall | None] = relationship()
 
 
+class JobDecision(Base):
+    """What the user decided about a parsed job on the Jobs tab: ``accepted`` (an
+    application was created for it) or ``rejected`` (dismissed, shown crossed out). One row
+    per parsed job, so the decision survives re-evaluation against a newer profile. Relevant
+    jobs without a decision (and without an application) form the Jobs tab inbox."""
+
+    __tablename__ = "job_decisions"
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    DECISIONS = (ACCEPTED, REJECTED)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_parse_result_id: Mapped[int] = mapped_column(
+        ForeignKey("job_parse_results.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        nullable=False,
+    )
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class JobEvaluationFailure(Base):
     """Bookkeeping for a (parsed job, profile) pair whose OpenRouter call failed, so the
     evaluation is retried with a backoff instead of on every run. One row per pair; it is

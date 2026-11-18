@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import CandidatePage from './candidate/CandidatePage.tsx'
 import SettingsPage from './settings/SettingsPage.tsx'
 import QueueWidget from './queue/QueueWidget.tsx'
 import ApplicationsPage from './applications/ApplicationsPage.tsx'
+import JobsPage from './jobs/JobsPage.tsx'
 
 const TABS = [
+  { id: 'jobs', label: 'Jobs' },
   { id: 'applications', label: 'Applications' },
   { id: 'candidate', label: 'Candidate' },
   { id: 'settings', label: 'Settings' },
@@ -16,6 +18,8 @@ type Tab = (typeof TABS)[number]['id']
 function App() {
   const [tab, setTab] = useState<Tab>('applications')
   const tabsRef = useRef<HTMLElement>(null)
+  const [jobsInbox, setJobsInbox] = useState(0)
+  const onJobsInboxChange = useCallback((count: number) => setJobsInbox(count), [])
 
   // Expose the sticky tab bar's height so pages can stick their own headers below it.
   useEffect(() => {
@@ -40,11 +44,19 @@ function App() {
             onClick={() => setTab(t.id)}
           >
             {t.label}
+            {t.id === 'jobs' && jobsInbox > 0 && (
+              <span className="tab-pill" title={`${jobsInbox} relevant jobs to review`}>
+                {jobsInbox}
+              </span>
+            )}
           </button>
         ))}
       </nav>
 
       {/* All pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
+      <section hidden={tab !== 'jobs'}>
+        <JobsPage onInboxCountChange={onJobsInboxChange} />
+      </section>
       <section hidden={tab !== 'applications'}>
         <ApplicationsPage />
       </section>

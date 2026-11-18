@@ -242,3 +242,69 @@
     }
   }
 }
+
+/* Jobs tab: relevance meter + accept / reject buttons on the right of a row */
+.job-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.job-decide {
+  display: flex;
+  gap: 6px;
+
+  .decide {
+    width: 32px;
+    height: 28px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+  }
+  .accept {
+    background: #16a34a;
+    border-color: #16a34a;
+    color: #fff;
+  }
+  .accept:hover:not(:disabled) {
+    background: #15803d;
+    border-color: #15803d;
+  }
+  .reject:hover:not(:disabled) {
+    color: #dc2626;
+    border-color: #dc2626;
+  }
+}
+
+.job-item > .error {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+/* Below the relevance threshold: still clickable, just quieter. */
+.job-item.dimmed .job-row-wrap {
+  opacity: 0.5;
+}
+.job-item.dimmed:hover .job-row-wrap {
+  opacity: 0.85;
+}
+
+/* Dismissed with ✕: crossed out, but can still be opened and applied to. */
+.job-item.rejected .job-title,
+.job-item.rejected .job-meta {
+  text-decoration: line-through;
+  text-decoration-color: var(--text);
+}
+.job-item.rejected .job-row-wrap {
+  opacity: 0.55;
+}
+
+@media (max-width: 600px) {
+  .job-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}

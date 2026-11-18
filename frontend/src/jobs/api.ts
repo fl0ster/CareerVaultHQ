@@ -25,6 +25,32 @@ export type EvaluatedJob = {
   evaluation: JobEvaluation
   /** Set when an application was already created for this job. */
   application_id: number | null
+  /** The user's call on the Jobs tab; `null` while undecided. */
+  decision: JobDecision | null
+}
+
+export type JobDecision = 'accepted' | 'rejected'
+
+/** Undecided relevant jobs, best match first. */
+export type JobInbox = {
+  items: EvaluatedJob[]
+  count: number
+  candidate_profile_id: number | null
+}
+
+/** Every other evaluated job, newest evaluation first (keyset-paginated by evaluation id). */
+export type JobFeedPage = {
+  items: EvaluatedJob[]
+  has_more: boolean
+  candidate_profile_id: number | null
+}
+
+export type FeedParams = {
+  /** Evaluation id: return older rows. */
+  before?: number
+  /** Evaluation id: return newer rows (polling). */
+  after?: number
+  limit?: number
 }
 
 export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
@@ -82,6 +108,20 @@ export const jobsApi = {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit), sort })
     return fetch(`${API}?${params}`).then((r) => parse<JobPage>(r))
   },
+  inbox: (signal?: AbortSignal) => fetch(`${API}/inbox`, { signal }).then((r) => parse<JobInbox>(r)),
+  feed: ({ before, after, limit }: FeedParams, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+    if (before !== undefined) params.set('before', String(before))
+    if (after !== undefined) params.set('after', String(after))
+    if (limit !== undefined) params.set('limit', String(limit))
+    return fetch(`${API}/feed?${params}`, { signal }).then((r) => parse<JobFeedPage>(r))
+  },
+  decide: (id: number, decision: JobDecision) =>
+    fetch(`${API}/${id}/decision`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision }),
+    }).then((r) => parse<EvaluatedJobDetail>(r)),
   get: (id: number) => fetch(`${API}/${id}`).then((r) => parse<EvaluatedJobDetail>(r)),
   raw: (id: number) => fetch(`${API}/raw/${id}`).then((r) => parse<{ html: string | null }>(r)),
 }
