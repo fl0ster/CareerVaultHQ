@@ -7,8 +7,8 @@ import ApplicationsPage from './applications/ApplicationsPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 
 const TABS = [
-  { id: 'jobs', label: 'Jobs' },
   { id: 'applications', label: 'Applications' },
+  { id: 'jobs', label: 'Jobs' },
   { id: 'candidate', label: 'Candidate' },
   { id: 'settings', label: 'Settings' },
 ] as const
@@ -54,11 +54,11 @@ function App() {
       </nav>
 
       {/* All pages stay mounted so in-flight jobs and loaded lists survive tab switches. */}
-      <section hidden={tab !== 'jobs'}>
-        <JobsPage onInboxCountChange={onJobsInboxChange} />
-      </section>
       <section hidden={tab !== 'applications'}>
         <ApplicationsPage />
+      </section>
+        <section hidden={tab !== 'jobs'}>
+        <JobsPage onInboxCountChange={onJobsInboxChange} />
       </section>
       <section hidden={tab !== 'candidate'}>
         <CandidatePage />
