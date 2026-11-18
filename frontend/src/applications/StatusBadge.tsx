@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import type { ApplicationStatus } from './api.ts'
+import { type ApplicationStatus, isFinalStatus, pickableStatuses } from './api.ts'
 import './applications.css'
 
 export type PillOption = {
@@ -159,18 +159,21 @@ export default function StatusBadge({ status, statuses = [], onSelect }: Props) 
   const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
   const label = status ? status.label : 'No status'
   if (!onSelect) return <span className={cls}>{label}</span>
+  const final = isFinalStatus(status)
 
   return (
     <PickerPill
       className={cls}
-      options={statuses.map((s) => ({
+      options={pickableStatuses(statuses, status?.key ?? null).map((s) => ({
         key: s.key,
         text: s.label,
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
       }))}
       currentKey={status?.key ?? null}
-      nextKey={status?.next_key}
+      // A state whose default successor is itself (INTERVIEW) is not advanced by a click.
+      nextKey={final || status?.next_key === status?.key ? null : status?.next_key}
       onSelect={onSelect}
+      extra={final ? null : undefined}
     >
       {label}
     </PickerPill>

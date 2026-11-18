@@ -139,3 +139,26 @@ export const applicationsApi = {
   removeEvent: (id: number, eventId: number) =>
     fetch(`${API}/${id}/events/${eventId}`, { method: 'DELETE' }).then((r) => parse<Application>(r)).then(changed),
 }
+
+/** Recorded only when an application is created; it cannot be added, removed or switched to/from. */
+export const INITIAL_ONLY_STATUS = 'SHORTLISTED'
+
+/** Recorded at most once, and only straight after `INITIAL_ONLY_STATUS`. */
+export const APPLIED_STATUS = 'APPLIED'
+
+/**
+ * States the user can pick for a new event (`current` = key of the current state) or, with
+ * `current` omitted, for an edited one.
+ */
+export const pickableStatuses = (statuses: ApplicationStatus[], current?: string | null) =>
+  statuses.filter(
+    (s) =>
+      s.key !== INITIAL_ONLY_STATUS &&
+      (current === undefined || s.key !== APPLIED_STATUS || current === INITIAL_ONLY_STATUS),
+  )
+
+/** Terminal states: while one is current no new state can be added (removing it reopens). */
+export const FINAL_STATUSES: readonly string[] = ['OFFER', 'REJECTED']
+
+export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
+  status != null && FINAL_STATUSES.includes(status.key)

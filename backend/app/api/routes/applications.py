@@ -7,6 +7,10 @@
   current state); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
+  ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
+  to/from later (``422``), though its note and date can be edited. No state can be added
+  while the current one is ``OFFER`` or ``REJECTED`` (``409``) until that state is removed.
+  ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
@@ -50,6 +54,14 @@ router = APIRouter()
 
 MAX_PAGE_SIZE = 200
 DEFAULT_STATUS = "SHORTLISTED"
+INITIAL_ONLY_STATUS = "SHORTLISTED"
+"""Recorded only when the application is created: it cannot be added, removed or
+switched to/from afterwards (its note and date can still be edited)."""
+APPLIED_STATUS = "APPLIED"
+"""Recorded at most once, and only straight after ``SHORTLISTED`` (its current state)."""
+FINAL_STATUSES = frozenset({"OFFER", "REJECTED"})
+"""Terminal states: once one is current, no further state can be added (removing it reopens the
+application)."""
 
 
 # --------------------------------------------------------------------------- models
@@ -192,6 +204,14 @@ def _status_or_422(session: Session, key: str) -> ApplicationStatus:
     if row is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown status {key!r}")
     return row
+
+
+def _reject_initial_only(key: str) -> None:
+    if key.upper() == INITIAL_ONLY_STATUS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{INITIAL_ONLY_STATUS} is only set when the application is created",
+        )
 
 
 def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
@@ -454,7 +474,22 @@ def add_event(
 ) -> ApplicationOut:
     """Record a state change; it becomes the current state unless ``occurred_at`` puts it
     before a later one."""
+    _reject_initial_only(payload.status)
     application = _get_or_404(session, application_id)
+    current = application.current_event
+    if current is not None and current.status.key in FINAL_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"application is {current.status.key}; remove that state to record new ones",
+        )
+    if payload.status.upper() == APPLIED_STATUS:
+        if any(e.status.key == APPLIED_STATUS for e in application.events):
+            raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
+        if current is None or current.status.key != INITIAL_ONLY_STATUS:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}",
+            )
     event = ApplicationEvent(
         application_id=application.id,
         status=_status_or_422(session, payload.status),
@@ -477,8 +512,15 @@ def update_event(
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
     """Change a recorded state's note, date or status; omitted fields are kept."""
-    event = _event_or_404(_get_or_404(session, application_id), event_id)
-    if payload.status is not None:
+    application = _get_or_404(session, application_id)
+    event = _event_or_404(application, event_id)
+    if payload.status is not None and payload.status.upper() != event.status.key:
+        _reject_initial_only(event.status.key)
+        _reject_initial_only(payload.status)
+        if payload.status.upper() == APPLIED_STATUS and any(
+            e.status.key == APPLIED_STATUS for e in application.events
+        ):
+            raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
         event.status = _status_or_422(session, payload.status)
     if payload.note is not None:
         event.note = payload.note
@@ -497,6 +539,8 @@ def delete_event(
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
     application = _get_or_404(session, application_id)
-    session.delete(_event_or_404(application, event_id))
+    event = _event_or_404(application, event_id)
+    _reject_initial_only(event.status.key)
+    session.delete(event)
     session.commit()
     return _reload_out(session, application_id, request, queue)

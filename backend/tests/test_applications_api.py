@@ -1,5 +1,7 @@
 from datetime import UTC, date, datetime, timedelta
 
+import pytest
+
 from app.models import (
     Application,
     CandidateProfile,
@@ -219,3 +221,57 @@ def test_company_application_stats(client, db_session):
         str(company_ids[2]): {"REJECTED": 1},
         str(company_ids[3]): {"OFFER": 1},
     }
+
+
+def test_shortlisted_is_only_set_at_creation(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    shortlisted_id = client.get(f"{BASE}/{app_id}").json()["events"][0]["id"]
+
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "shortlisted"}).status_code == 422
+    assert client.delete(f"{BASE}/{app_id}/events/{shortlisted_id}").status_code == 422
+    url = f"{BASE}/{app_id}/events/{shortlisted_id}"
+    assert client.patch(url, json={"status": "APPLIED"}).status_code == 422
+
+    res = client.patch(url, json={"status": "SHORTLISTED", "note": "nice"})
+    assert res.status_code == 200 and res.json()["events"][0]["note"] == "nice"
+
+    res = client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"})
+    applied_id = res.json()["events"][1]["id"]
+    res = client.patch(f"{BASE}/{app_id}/events/{applied_id}", json={"status": "SHORTLISTED"})
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("final", ["REJECTED", "OFFER"])
+def test_final_state_blocks_new_states_until_removed(client, db_session, final):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    events = client.post(f"{BASE}/{app_id}/events", json={"status": final}).json()["events"]
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"}).status_code == 409
+
+    rejected_id = events[-1]["id"]
+    res = client.patch(f"{BASE}/{app_id}/events/{rejected_id}", json={"note": "ghosted"})
+    assert res.status_code == 200
+    assert client.delete(f"{BASE}/{app_id}/events/{rejected_id}").status_code == 200
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"}).status_code == 201
+
+
+def test_applied_only_once_and_after_shortlisted(client, db_session):
+    seed_cv_inputs(client, db_session)
+    profile = CandidateProfile(content="p")
+    a = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, 0, profile).id})
+    a_id = a.json()["id"]
+    events = f"{BASE}/{a_id}/events"
+    assert client.post(events, json={"status": "APPLIED"}).status_code == 201
+    assert client.post(events, json={"status": "APPLIED"}).status_code == 409
+    res = client.post(events, json={"status": "INTERVIEW"})
+    interview_id = res.json()["events"][-1]["id"]
+    res = client.patch(f"{events}/{interview_id}", json={"status": "APPLIED"})
+    assert res.status_code == 409
+
+    b = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, 1, profile).id})
+    events = f"{BASE}/{b.json()['id']}/events"
+    assert client.post(events, json={"status": "INTERVIEW"}).status_code == 201
+    assert client.post(events, json={"status": "APPLIED"}).status_code == 409
