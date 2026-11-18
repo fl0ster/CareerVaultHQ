@@ -24,7 +24,6 @@ const CV_POLL_MS = 3000
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[] | null>(null)
-  const [total, setTotal] = useState(0)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [filter, setFilter] = useState('')
   // Kept as an object (not just an id) so the dialog stays open even if a status change
@@ -54,7 +53,6 @@ export default function ApplicationsPage() {
       .list({ limit: PAGE_SIZE, status: filter || undefined }, controller.signal)
       .then((page) => {
         setApplications(page.items)
-        setTotal(page.total)
         setSelected((prev) => (prev && page.items.find((a) => a.id === prev.id)) ?? prev)
         setError(null)
       })
@@ -89,7 +87,6 @@ export default function ApplicationsPage() {
 
   const removed = (id: number) => {
     setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
-    setTotal((t) => t - 1)
     setSelected(null)
     notifyApplicationsChanged()
   }
@@ -154,8 +151,16 @@ export default function ApplicationsPage() {
                 </div>
               </div>
               <div className="app-badges">
-
-                <StatusBadge status={a.status} />
+                <StatusBadge
+                  status={a.status}
+                  statuses={statuses}
+                  onSelect={(key) =>
+                    applicationsApi
+                      .addEvent(a.id, { status: key })
+                      .then(replace)
+                      .catch((e) => setError(`Could not change status: ${describeError(e)}`))
+                  }
+                />
               </div>
             </button>
           </li>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CompanyTagToggle } from '../companies/CompanyTag.tsx'
 import type { GeneratedCv } from '../cv/api.ts'
 import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
-import type { Application, ApplicationStatus } from './api.ts'
+import { type Application, type ApplicationStatus, applicationsApi } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
 import CompanyLink from './CompanyLink.tsx'
 import StatusBadge from './StatusBadge.tsx'
@@ -84,7 +84,16 @@ export default function ApplicationDialog({
                 <span>{job.source}</span>
               </div>
               <div className="app-badges app-dialog-badges">
-                <StatusBadge status={application.status} />
+                <StatusBadge
+                  status={application.status}
+                  statuses={statuses}
+                  onSelect={(key) =>
+                    applicationsApi
+                      .addEvent(application.id, { status: key })
+                      .then(onChange)
+                      .catch((e) => window.alert(`Could not change status: ${e instanceof Error ? e.message : e}`))
+                  }
+                />
               </div>
             </div>
             <button type="button" className="secondary small" onClick={onClose} aria-label="Close">

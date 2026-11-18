@@ -177,8 +177,6 @@ export default function WorkHistoryPage() {
 
   return (
     <>
-      <h1 className="title">Work history</h1>
-
       {mode.kind === 'list' && (
         <p>
           {entries === null ? 'Loading…' : `${entries.length} position${entries.length === 1 ? '' : 's'}.`}{' '}

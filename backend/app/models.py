@@ -476,14 +476,15 @@ class ApplicationStatus(Base):
 
     __tablename__ = "application_statuses"
 
-    DEFAULTS: tuple[tuple[str, str], ...] = (
-        ("SHORTLISTED", "Shortlisted"),
-        ("APPLIED", "Applied"),
-        ("INTERVIEW", "Interview"),
-        ("OFFER", "Offer"),
-        ("REJECTED", "Rejected"),
+    DEFAULTS: tuple[tuple[str, str, str], ...] = (
+        ("SHORTLISTED", "Shortlisted", "APPLIED"),
+        ("APPLIED", "Applied", "INTERVIEW"),
+        ("INTERVIEW", "Interview", "INTERVIEW"),
+        ("OFFER", "Offer", ""),
+        ("REJECTED", "Rejected", ""),
     )
-    """``(key, label)`` pairs created on first use, in display order."""
+    """``(key, label, next_key)`` triples created on first use, in display order; an empty
+    ``next_key`` means the state has no default successor."""
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
@@ -491,6 +492,9 @@ class ApplicationStatus(Base):
     label: Mapped[str] = mapped_column(String(128))
     position: Mapped[int] = mapped_column(Integer, default=0)
     """Display order; lower first."""
+    next_key: Mapped[str | None] = mapped_column(String(64))
+    """``key`` of the state an application usually moves to from this one (one click in
+    the UI); ``None`` when there is no default next state."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

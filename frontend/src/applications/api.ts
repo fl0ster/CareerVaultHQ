@@ -15,6 +15,8 @@ export type ApplicationStatus = {
   key: string
   label: string
   position: number
+  /** Default next state (one click on the badge); null when there is none. */
+  next_key: string | null
 }
 
 export type ApplicationEvent = {

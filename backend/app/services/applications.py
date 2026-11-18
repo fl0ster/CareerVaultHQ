@@ -13,8 +13,8 @@ def ensure_statuses(session: Session) -> None:
     existing rows, including edited labels and custom statuses, are left alone)."""
     existing = set(session.scalars(select(ApplicationStatus.key)))
     missing = [
-        ApplicationStatus(key=key, label=label, position=i * 10)
-        for i, (key, label) in enumerate(ApplicationStatus.DEFAULTS)
+        ApplicationStatus(key=key, label=label, position=i * 10, next_key=next_key or None)
+        for i, (key, label, next_key) in enumerate(ApplicationStatus.DEFAULTS)
         if key not in existing
     ]
     if missing:

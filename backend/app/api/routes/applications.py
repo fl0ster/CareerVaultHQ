@@ -31,7 +31,6 @@ from app.api.routes.cv import (
     reconcile_cv,
 )
 from app.config import Settings, get_settings
-from app.services.relevance import relevance
 from app.db import get_session
 from app.models import (
     Application,
@@ -44,6 +43,7 @@ from app.models import (
 )
 from app.queue import get_queue
 from app.services.applications import ensure_statuses
+from app.services.relevance import relevance
 
 router = APIRouter()
 
@@ -61,6 +61,8 @@ class StatusOut(BaseModel):
     key: str
     label: str
     position: int
+    next_key: str | None = None
+    """Default next state (``key``), if any."""
 
 
 class StatusCreate(BaseModel):

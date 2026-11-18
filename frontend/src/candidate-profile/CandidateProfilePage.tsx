@@ -68,7 +68,6 @@ export default function CandidateProfilePage() {
 
   return (
     <>
-      <h1 className="title">Candidate profile</h1>
 
       <CandidateDetailsForm />
 

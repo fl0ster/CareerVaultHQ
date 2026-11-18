@@ -69,8 +69,15 @@ function EventRow({
   }
 
   const save = async () => {
+    // The input only has minute precision: re-sending an untouched value would truncate
+    // the stored timestamp, so the date is sent only when the user actually changed it.
+    const dateChanged = when !== toLocalInput(event.occurred_at)
     const updated = await run(() =>
-      applicationsApi.updateEvent(application.id, event.id, { status, note, occurred_at: fromLocalInput(when) }),
+      applicationsApi.updateEvent(application.id, event.id, {
+        status,
+        note,
+        ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
+      }),
     )
     if (updated) {
       onChange(updated)
