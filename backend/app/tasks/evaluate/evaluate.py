@@ -40,7 +40,6 @@ from app.services.openrouter import (
     OpenRouterNotConfigured,
     OpenRouterService,
 )
-from app.services.timeline import record_job_evaluated
 
 log = logging.getLogger(__name__)
 
@@ -262,8 +261,6 @@ def _evaluate(
             continue
         session.add(evaluation)
         try:
-            # Same transaction as the evaluation: both are stored, or neither.
-            record_job_evaluated(session, parsed, evaluation)
             _clear_failure(session, profile, parsed)
             session.commit()
         except IntegrityError:

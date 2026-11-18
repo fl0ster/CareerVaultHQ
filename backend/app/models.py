@@ -11,7 +11,6 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Index,
     Integer,
     String,
     Text,
@@ -558,47 +557,3 @@ class ApplicationEvent(Base):
 
     application: Mapped[Application] = relationship(back_populates="events")
     status: Mapped[ApplicationStatus] = relationship()
-
-
-class TimelineEvent(Base):
-    """One entry of the chronological "what happened" log shown on the Timeline tab.
-
-    Append-only and generic: ``type`` names the kind of event (``scrape_run``,
-    ``job_evaluated``, ...) and ``payload`` holds a snapshot of everything needed to render
-    it, so the event survives the referenced rows being cleaned up (the FKs are then
-    nulled). ``id`` is the ordering key: the read cursor and paging use it, not time.
-    Events are written through ``app.services.timeline``.
-    """
-
-    __tablename__ = "timeline_events"
-    __table_args__ = (Index("ix_timeline_events_type_job", "type", "job_id"),)
-
-    TYPE_SCRAPE_RUN = "scrape_run"
-    TYPE_JOB_EVALUATED = "job_evaluated"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    type: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    job_id: Mapped[int | None] = mapped_column(
-        ForeignKey("jobs.id", ondelete="SET NULL"), index=True
-    )
-    scrape_run_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True
-    )
-    source_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
-    )
-    payload: Mapped[dict] = mapped_column(JSON, default=dict)
-
-
-class TimelineState(Base):
-    """Singleton row (``id`` = 1) with the Timeline read cursor: the furthest event the
-    user has scrolled past. It only ever moves forward."""
-
-    __tablename__ = "timeline_state"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    last_read_event_id: Mapped[int] = mapped_column(Integer, default=0)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
