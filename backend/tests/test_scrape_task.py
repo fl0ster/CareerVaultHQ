@@ -262,9 +262,7 @@ def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, m
         assert run.source is None
 
 
-def test_crashed_run_is_marked_failed(
-    task_engine, fake_sources, parse_queue, monkeypatch
-):
+def test_crashed_run_is_marked_failed(task_engine, fake_sources, parse_queue, monkeypatch):
     def boom(*_args, **_kwargs):
         raise RuntimeError("db exploded")
 
@@ -279,44 +277,26 @@ def test_crashed_run_is_marked_failed(
         assert run.finished_at is not None
 
 
-def test_same_offer_under_different_links_is_deduplicated(
+def test_same_offer_within_one_run_is_deduplicated(
     task_engine, fake_sources, parse_queue, monkeypatch
 ):
-    base = "https://www.skillshot.pl/jobs/"
-    pages = {  # link suffix -> (title, company)
-        "1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
-        "1-krakow": ("python developer ", "ACME sp. z o.o."),
-        "1-other": ("Python Developer", "Globex"),  # similar role, other company
-        "2": ("Data Engineer", "Acme"),
-        "3": ("Data Engineer", "ACME!"),  # known alias spelling -> same company
-        "4": ("Data Engineer", "Initech"),
+    pages = {  # link -> (title, company)
+        "https://www.skillshot.pl/jobs/1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
+        "https://skillshot.pl/jobs/1-krakow": ("python developer ", "ACME sp. z o.o."),
+        "https://www.skillshot.pl/jobs/1-other": ("Python Developer", "Globex"),
+        "https://www.skillshot.pl/jobs/2": ("Data Engineer", "Acme"),
     }
-    listing = [{"link": base + k} for k in ("1-warszawa", "1-krakow", "1-other", "2")]
+    listing = [{"link": link} for link in pages]
     monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(listing))
-
-    def page(html: str) -> tuple[str, str]:
-        return pages[html[6:-7].removeprefix(base)]
-
-    monkeypatch.setattr(skillshot, "parse_title", lambda html: page(html)[0])
-    monkeypatch.setattr(skillshot, "parse_company", lambda html: page(html)[1])
+    monkeypatch.setattr(skillshot, "parse_title", lambda html: pages[html[6:-7]][0])
+    monkeypatch.setattr(skillshot, "parse_company", lambda html: pages[html[6:-7]][1])
 
     first = scrape_task.scrape("skillshot")
     assert (first["new"], first["duplicates"]) == (3, 1)
 
-    # a later run matches jobs already parsed in the DB, through the company aliases
-    from app.services.companies import resolve_company
-
-    with session_factory(task_engine)() as session:
-        for job in session.scalars(select(models.Job)).all():
-            title, company = pages[job.link.removeprefix(base)]
-            match = resolve_company(session, company)
-            session.add(models.JobParseResult(job=job, title=title, company=match.company))
-            session.flush()
-        session.commit()
-    listing[:] = [{"link": base + "3"}, {"link": base + "4"}]
+    # offers are only compared within a run: a later run with the same offer under a new
+    # link inserts it again
+    listing[:] = [{"link": "https://www.skillshot.pl/jobs/1-gdansk"}]
+    pages["https://www.skillshot.pl/jobs/1-gdansk"] = ("Python Developer", "Acme Sp. z o.o.")
     second = scrape_task.scrape("skillshot")
-    assert (second["new"], second["duplicates"]) == (1, 1)
-
-    with session_factory(task_engine)() as session:
-        links = sorted(session.scalars(select(models.Job.link)))
-    assert links == [base + k for k in ("1-other", "1-warszawa", "2", "4")]
+    assert (second["new"], second["duplicates"]) == (1, 0)

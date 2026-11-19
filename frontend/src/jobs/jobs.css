@@ -6,7 +6,7 @@
 }
 
 .job-item {
-  padding: 12px 0;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   /* Rows glide between positions (see useFlip); keep them above neighbours while moving. */
   position: relative;
@@ -42,9 +42,11 @@
   pre {
     max-height: 400px;
     overflow: auto;
-    padding: 12px;
-    background: var(--border);
-    border-radius: 6px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    color: var(--text-h);
     font-size: 12px;
     white-space: pre-wrap;
     margin: 0;
@@ -92,11 +94,7 @@
 .job-item.match {
   z-index: 1;
   background: var(--accent-bg);
-  border-left: 3px solid var(--accent);
-  margin-left: -12px;
-  padding-left: 9px;
-  padding-right: 8px;
-  border-radius: 0 6px 6px 0;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .job-title {
@@ -139,7 +137,7 @@
     opacity: 0.45;
   }
   &.above .relevance-fill {
-    background: #22c55e;
+    background: var(--success-solid);
     opacity: 1;
   }
 }
@@ -159,7 +157,7 @@
   box-shadow: var(--shadow);
 
   &::backdrop {
-    background: rgba(0, 0, 0, 0.45);
+    background: var(--backdrop);
   }
 }
 
@@ -178,6 +176,35 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+/* Job and application details: a view inside the layout, reached from the list. */
+.detail-view {
+  animation: rise-in var(--t-med) var(--ease-out);
+}
+
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.detail-card {
+  padding: 24px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+
+  h2 {
+    overflow-wrap: anywhere;
+  }
+}
+
+.detail-status {
+  padding: 24px 0;
 }
 
 .job-facts {
@@ -208,6 +235,11 @@
   line-height: 1.5;
 }
 
+/* On its own page the description flows with the page instead of scrolling in a box. */
+.job-view .job-desc pre.description {
+  max-height: none;
+}
+
 .job-html {
   margin-top: 16px;
 
@@ -215,9 +247,11 @@
     margin-top: 10px;
     max-height: 300px;
     overflow: auto;
-    padding: 12px;
-    background: var(--border);
-    border-radius: 6px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    color: var(--text-h);
     font-size: 12px;
     white-space: pre-wrap;
   }
@@ -227,7 +261,8 @@
   .jobs-controls label {
     width: 100%;
   }
-  .job-dialog-body {
+  .job-dialog-body,
+  .detail-card {
     padding: 16px;
   }
   .job-facts {
@@ -236,8 +271,7 @@
 
     dt {
       font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-weight: 600;
       margin-top: 8px;
     }
   }
@@ -264,17 +298,17 @@
     line-height: 1;
   }
   .accept {
-    background: #16a34a;
-    border-color: #16a34a;
-    color: #fff;
+    background: var(--success-strong);
+    border-color: var(--success-strong);
+    color: var(--on-strong);
   }
   .accept:hover:not(:disabled) {
-    background: #15803d;
-    border-color: #15803d;
+    background: var(--success-strong-hover);
+    border-color: var(--success-strong-hover);
   }
   .reject:hover:not(:disabled) {
-    color: #dc2626;
-    border-color: #dc2626;
+    color: var(--danger-fg);
+    border-color: var(--danger-fg);
   }
 }
 

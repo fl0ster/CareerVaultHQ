@@ -126,6 +126,12 @@ def test_list_and_filter_by_job(client, db_session):
     paged = client.get(BASE, params={"limit": 2}).json()
     assert paged["has_more"] is True and len(paged["items"]) == 2
 
+    by_company = client.get(BASE, params={"q": "acme"}).json()
+    assert [i["id"] for i in by_company["items"]] == [c, a] and by_company["total"] == 2
+    by_title = client.get(BASE, params={"q": "TITLE 1"}).json()
+    assert [i["id"] for i in by_title["items"]] == [b]
+    assert client.get(BASE, params={"q": "100%"}).json()["total"] == 0
+
     assert client.get(f"{BASE}/{a}").json()["id"] == a
     assert client.get(f"{BASE}/999").status_code == 404
 

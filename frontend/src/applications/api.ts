@@ -24,9 +24,29 @@ export type ApplicationEvent = {
   id: number
   status: ApplicationStatus
   note: string
+  /** Kind of interview round ("Culture match", "Technical", ...). */
+  title: string
+  duration_minutes: number | null
   occurred_at: string
+  /** `gmail` when the Gmail rejection monitor recorded the state automatically. */
+  source: EventSource
   created_at: string
 }
+
+export type EventSource = 'manual' | 'gmail'
+
+/** The state was recorded by an automation rather than by hand. */
+export function isAutoEvent(event: { source?: EventSource } | null | undefined): boolean {
+  return event?.source === 'gmail'
+}
+
+/** The latest held state of the application (its current state), if any. */
+export function currentEvent(application: Application): ApplicationEvent | undefined {
+  return application.events[application.events.length - 1]
+}
+
+/** An interview round planned but not held yet; `occurred_at` is its optional schedule. */
+export type PlannedRound = Omit<ApplicationEvent, 'occurred_at'> & { occurred_at: string | null }
 
 export type Application = {
   id: number
@@ -34,7 +54,10 @@ export type Application = {
   created_at: string
   updated_at: string
   status: ApplicationStatus | null
+  /** State history, oldest first (planned rounds left out). */
   events: ApplicationEvent[]
+  /** Interview rounds planned but not held yet, in round order. */
+  planned_events: PlannedRound[]
   job: {
     id: number
     title: string | null
@@ -69,6 +92,17 @@ export type EventInput = {
   status: string
   note?: string
   occurred_at?: string
+}
+
+export type EventUpdate = {
+  status?: string
+  note?: string
+  /** `null` clears the schedule of a planned round. */
+  occurred_at?: string | null
+  title?: string
+  duration_minutes?: number | null
+  /** `false` marks a planned round as held. */
+  planned?: false
 }
 
 /** The API stores UTC timestamps without an offset; read those as UTC, not local time. */
@@ -122,11 +156,18 @@ export const applicationsApi = {
   statuses: (signal?: AbortSignal) =>
     fetch(`${API}/statuses`, { signal }).then((r) => parse<ApplicationStatus[]>(r)),
   list: (
-    { offset = 0, limit = 50, status, q }: { offset?: number; limit?: number; status?: string; q?: string } = {},
+    {
+      offset = 0,
+      limit = 50,
+      status,
+      excludeStatus,
+      q,
+    }: { offset?: number; limit?: number; status?: string; excludeStatus?: string; q?: string } = {},
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
     if (status) params.set('status', status)
+    if (excludeStatus) params.set('exclude_status', excludeStatus)
     if (q) params.set('q', q)
     return fetch(`${API}?${params}`, { signal }).then((r) => parse<ApplicationPage>(r))
   },
@@ -134,11 +175,16 @@ export const applicationsApi = {
   create: (payload: CreateApplication) => fetch(API, json('POST', payload)).then((r) => parse<Application>(r)).then(changed),
   updateNotes: (id: number, notes: string) =>
     fetch(`${API}/${id}`, json('PATCH', { notes })).then((r) => parse<Application>(r)),
+  /** Sets the number of interview rounds (held + planned); 0 drops the planned ones. */
+  setInterviewRounds: (id: number, rounds: number) =>
+    fetch(`${API}/${id}`, json('PATCH', { interview_rounds: rounds }))
+      .then((r) => parse<Application>(r))
+      .then(changed),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)).then(changed),
   regenerateCv: (id: number) => fetch(`${API}/${id}/cv`, { method: 'POST' }).then((r) => parse<Application>(r)),
   addEvent: (id: number, event: EventInput) =>
     fetch(`${API}/${id}/events`, json('POST', event)).then((r) => parse<Application>(r)).then(changed),
-  updateEvent: (id: number, eventId: number, event: Partial<EventInput>) =>
+  updateEvent: (id: number, eventId: number, event: EventUpdate) =>
     fetch(`${API}/${id}/events/${eventId}`, json('PATCH', event)).then((r) => parse<Application>(r)).then(changed),
   removeEvent: (id: number, eventId: number) =>
     fetch(`${API}/${id}/events/${eventId}`, { method: 'DELETE' }).then((r) => parse<Application>(r)).then(changed),
@@ -162,7 +208,33 @@ export const pickableStatuses = (statuses: ApplicationStatus[], current?: string
   )
 
 /** Terminal states: while one is current no new state can be added (removing it reopens). */
-export const FINAL_STATUSES: readonly string[] = ['OFFER', 'REJECTED']
+export const FINAL_STATUSES: readonly string[] = ['OFFER', 'REJECTED', 'CLOSED']
 
 export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
   status != null && FINAL_STATUSES.includes(status.key)
+
+/** State of interview rounds; every one is a round, planned rounds always have it. */
+export const INTERVIEW_STATUS = 'INTERVIEW'
+
+export const MAX_INTERVIEW_ROUNDS = 20
+
+/** Interview rounds already held, oldest first. */
+export const heldRounds = (app: Application) => app.events.filter((e) => e.status.key === INTERVIEW_STATUS)
+
+/** "1 h 30 min", "45 min"; empty without a duration. */
+export function formatDuration(minutes: number | null): string {
+  if (!minutes) return ''
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return [h ? `${h} h` : '', m ? `${m} min` : ''].filter(Boolean).join(' ')
+}
+
+/** Name of the round at `index` (0-based): its title, or "Round n". */
+export const roundLabel = (round: { title: string }, index: number) => round.title || `Round ${index + 1}`
+
+/** "round 2 (Technical)" for the next planned round, if there is one. */
+export function nextRoundLabel(app: Application): string | undefined {
+  const next = app.planned_events[0]
+  if (!next) return undefined
+  return `round ${heldRounds(app).length + 1}${next.title ? ` (${next.title})` : ''}`
+}

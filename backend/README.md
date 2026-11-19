@@ -65,6 +65,11 @@ app/
   tasks/cv/        CV tailored to one parsed job (worker job generate_cv): history.py builds the
                    coherent timeline from relevance-scored roles, render.py fills cv_template.tex,
                    generate.py orchestrates the OpenRouter calls and the pdflatex compile
+  tasks/gmail/     Gmail rejection monitor (worker job check_rejection_mails, scheduled by
+                   scheduler/gmail.py): Jev is_rejection -> chat extraction of company/role ->
+                   unique match against open applications -> REJECTED event (source "gmail")
+  integrations/gmail/  Apps Script web app (apps_script.gs, pasted into the monitored Google
+                   account) and its HTTP client; setup instructions live in Settings > Gmail monitor
   services/
     openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
                    the openrouter_calls table. Routes/tasks use OpenRouterService directly;

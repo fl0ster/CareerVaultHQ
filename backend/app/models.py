@@ -507,6 +507,7 @@ class ApplicationStatus(Base):
         ("INTERVIEW", "Interview", "INTERVIEW"),
         ("OFFER", "Offer", ""),
         ("REJECTED", "Rejected", ""),
+        ("CLOSED", "Closed", ""),
     )
     """``(key, label, next_key)`` triples created on first use, in display order; an empty
     ``next_key`` means the state has no default successor."""
@@ -561,14 +562,25 @@ class Application(Base):
     )
 
     @property
+    def history(self) -> list[ApplicationEvent]:
+        """States the application actually went through, oldest first (planned rounds left out)."""
+        return [e for e in self.events if not e.planned]
+
+    @property
+    def plan(self) -> list[ApplicationEvent]:
+        """Planned interview rounds not held yet, in round order."""
+        return sorted((e for e in self.events if e.planned), key=lambda e: e.id)
+
+    @property
     def current_event(self) -> ApplicationEvent | None:
-        """The latest state change (``events`` is ordered oldest first)."""
-        return self.events[-1] if self.events else None
+        """The latest state change (planned rounds do not count)."""
+        return next((e for e in reversed(self.events) if not e.planned), None)
 
 
 class ApplicationEvent(Base):
     """One state the application went through (applied on X, interview on Y, ...), with a
-    note of its own."""
+    note of its own, or, with ``planned``, an interview round that is expected but not held
+    yet (always ``INTERVIEW``). Recording an interview fills the first planned round."""
 
     __tablename__ = "application_events"
 
@@ -580,9 +592,105 @@ class ApplicationEvent(Base):
         ForeignKey("application_statuses.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     note: Mapped[str] = mapped_column(Text, default="")
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    """When the state was reached (defaults to when it was recorded; editable)."""
+    planned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    """A planned interview round that has not happened yet."""
+    title: Mapped[str] = mapped_column(String(128), default="")
+    """Kind of interview round ("Culture match", "Technical", ...)."""
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
+    """When the state was reached (defaults to when it was recorded; editable). For a planned
+    round the optional scheduled time; always set on held events."""
+    source: Mapped[str] = mapped_column(String(16), default="manual", server_default="manual")
+    """Who recorded the state: ``SOURCE_MANUAL`` (the user) or ``SOURCE_GMAIL`` (the Gmail
+    rejection monitor, shown with a lightning bolt in the UI)."""
+    source_ref: Mapped[str | None] = mapped_column(String(128))
+    """Reference to what triggered an automatic event (the Gmail message id)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    SOURCE_MANUAL = "manual"
+    SOURCE_GMAIL = "gmail"
 
     application: Mapped[Application] = relationship(back_populates="events")
     status: Mapped[ApplicationStatus] = relationship()
+
+
+class GmailMonitorSettings(Base):
+    """Configuration and run state of the Gmail rejection monitor. A single row (``id`` 1),
+    created on first use by ``app.services.gmail_monitor.get_monitor_settings``.
+
+    The monitored mailbox is reached through a Google Apps Script web app the user deploys
+    in that account (``script_url``); every request carries ``secret``."""
+
+    __tablename__ = "gmail_monitor_settings"
+
+    DEFAULT_LABEL = "rejection-registered"
+    DEFAULT_INTERVAL_SECONDS = 30 * 60
+    DEFAULT_LOOKBACK_DAYS = 7
+    DEFAULT_THRESHOLD = 0.9
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    email: Mapped[str] = mapped_column(String(320), default="")
+    """Address of the monitored account; the script must report the same one."""
+    script_url: Mapped[str] = mapped_column(String(1024), default="")
+    """``https://script.google.com/macros/s/.../exec`` of the deployed web app."""
+    secret: Mapped[str] = mapped_column(String(128), nullable=False)
+    """Shared token embedded in the script and sent with every request."""
+    label: Mapped[str] = mapped_column(String(128), default=DEFAULT_LABEL)
+    """Gmail label added to the mails whose rejection was registered."""
+    interval_seconds: Mapped[int] = mapped_column(Integer, default=DEFAULT_INTERVAL_SECONDS)
+    lookback_days: Mapped[int] = mapped_column(Integer, default=DEFAULT_LOOKBACK_DAYS)
+    """Only unread mails received within this many days are checked."""
+    threshold: Mapped[float] = mapped_column(Float, default=DEFAULT_THRESHOLD)
+    """Minimum probability (0-1) that a mail is a rejection before it is acted on."""
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    """When the scheduler runs the check next; ``None`` means as soon as possible."""
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(16))
+    """``ok`` or ``failed``."""
+    last_error: Mapped[str | None] = mapped_column(Text)
+    last_summary: Mapped[dict | None] = mapped_column(JSON)
+    """Counts of the last run: ``{"checked": n, "applied": n, ...}``."""
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class GmailProcessedMail(Base):
+    """A mail the Gmail rejection monitor looked at, whatever the outcome, so it is never
+    sent to OpenRouter twice. Only ``OUTCOME_APPLIED`` mails are marked read and labelled;
+    the others are left untouched in the inbox."""
+
+    __tablename__ = "gmail_processed_mails"
+
+    OUTCOME_APPLIED = "applied"
+    """Rejection registered on ``application_id``; the mail was marked read and labelled."""
+    OUTCOME_NOT_REJECTION = "not_rejection"
+    """Not a rejection with enough confidence."""
+    OUTCOME_EXTRACTION_FAILED = "extraction_failed"
+    """Company could not be read from the mail."""
+    OUTCOME_NO_MATCH = "no_match"
+    """No open application matches the company (and role)."""
+    OUTCOME_AMBIGUOUS = "ambiguous"
+    """Several open applications match and the role does not single one out."""
+    OUTCOME_MARK_FAILED = "mark_failed"
+    """Rejection registered, but the mail could not be marked read / labelled."""
+    OUTCOME_ERROR = "error"
+    """Processing failed unexpectedly (see ``error``)."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    message_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128))
+    subject: Mapped[str] = mapped_column(String(1024), default="")
+    sender: Mapped[str] = mapped_column(String(512), default="")
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    probability: Mapped[float | None] = mapped_column(Float)
+    """Probability that the mail is a rejection (Jev ``is_rejection``)."""
+    company: Mapped[str | None] = mapped_column(String(512))
+    role: Mapped[str | None] = mapped_column(String(512))
+    application_id: Mapped[int | None] = mapped_column(
+        ForeignKey("applications.id", ondelete="SET NULL"), index=True
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -26,12 +26,12 @@ from pydantic import BaseModel
 from rq import Queue
 from rq.exceptions import NoSuchJobError
 from rq.job import Job as RqJob
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import CandidateDetails, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
+from app.models import CandidateDetails, Company, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
 from app.queue import get_queue
 from app.tasks.cv import generate_cv
 from app.tasks.cv.generate import CvGenerationError, check_details, cv_dir
@@ -270,11 +270,21 @@ def list_cvs(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     job_id: int | None = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> GeneratedCvPage:
-    """Generated CVs, newest first, each with the job it was generated for."""
+    """Generated CVs, newest first, each with the job it was generated for;
+    ``q`` keeps those whose job title or company name contains it (case-insensitive)."""
     query = _query()
     if job_id is not None:
         query = query.where(Job.id == job_id)
+    needle = (q or "").strip().lower()
+    if needle:
+        query = query.outerjoin(Company, Company.id == JobParseResult.company_id).where(
+            or_(
+                func.lower(JobParseResult.title).contains(needle, autoescape=True),
+                func.lower(Company.name).contains(needle, autoescape=True),
+            )
+        )
     total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     cvs = session.scalars(query.order_by(GeneratedCV.id.desc()).offset(offset).limit(limit)).all()
     for cv in cvs:

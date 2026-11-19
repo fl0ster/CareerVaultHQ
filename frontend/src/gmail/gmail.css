@@ -1,0 +1,162 @@
+/* Gmail rejection monitor (Settings) */
+.gmail-section {
+  margin: 28px 0;
+
+  h2 {
+    font-size: 18px;
+    margin: 0 0 12px;
+  }
+}
+
+.gmail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px 20px;
+  margin: 12px 0;
+}
+
+.gmail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+
+  input {
+    padding: 6px 8px;
+    font: inherit;
+    color: var(--text-h);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .muted,
+  .error {
+    font-size: 12px;
+    margin: 0;
+  }
+}
+
+.gmail-field-label {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.gmail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.gmail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.gmail-ok {
+  color: var(--success-fg);
+}
+
+.gmail-setup {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-h);
+  }
+  ol {
+    padding-left: 20px;
+    line-height: 1.7;
+  }
+}
+
+.gmail-inline-buttons {
+  display: inline-flex;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.gmail-script {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.gmail-status {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  font-size: 14px;
+
+  dt {
+    font-weight: 600;
+    color: var(--text-h);
+  }
+  dd {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+table.gmail-mails {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+
+  th,
+  td {
+    text-align: left;
+    padding: 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .nowrap {
+    white-space: nowrap;
+  }
+  .muted {
+    font-size: 12px;
+  }
+}
+
+.gmail-subject {
+  color: var(--text-h);
+}
+
+.gmail-error {
+  max-width: 320px;
+}
+
+.gmail-outcome {
+  &.applied {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+  &.mark_failed,
+  &.ambiguous,
+  &.error {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+  }
+}

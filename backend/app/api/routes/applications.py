@@ -3,14 +3,22 @@
 * ``POST /api/applications`` with ``{"job_evaluation_id": ...}`` creates the application
   (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
   ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job.
-* ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
+* ``GET /api/applications`` lists them grouped by state, newest first within each (``?status=INTERVIEW`` filters by
   current state, ``?q=acme`` by job title or company name); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
   ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
   to/from later (``422``), though its note and date can be edited. No state can be added
-  while the current one is ``OFFER`` or ``REJECTED`` (``409``) until that state is removed.
+  while the current one is ``OFFER``, ``REJECTED`` or ``CLOSED`` (``409``) until that state is removed.
   ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
+* Interview rounds: every ``INTERVIEW`` event is a round. ``PATCH /api/applications/{id}``
+  with ``{"interview_rounds": 5}`` plans the rounds not held yet as *planned* events
+  (``planned_events``, never the current state; ``0`` drops them) whose title, duration,
+  schedule and note can be edited like any event. Recording ``INTERVIEW`` fills the first
+  planned round; ``PATCH .../events/{id}`` with ``{"planned": false}`` holds a specific one.
+  Deleting a planned round drops it; deleting a held one makes it planned again. Planned
+  rounds stay (not held) while the application is ``OFFER``/``REJECTED``/``CLOSED`` but cannot be held
+  then (``409``).
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
@@ -19,7 +27,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -47,21 +55,26 @@ from app.models import (
     JobParseResult,
 )
 from app.queue import get_queue
-from app.services.applications import ensure_statuses, set_job_decision
+from app.services.applications import (
+    APPLIED_STATUS,
+    INTERVIEW_STATUS,
+    EventRejected,
+    ensure_statuses,
+    held_rounds,
+    record_event,
+    reject_if_final,
+    reject_initial_only,
+    set_interview_rounds,
+    set_job_decision,
+    status_by_key,
+)
 from app.services.relevance import relevance
 
 router = APIRouter()
 
 MAX_PAGE_SIZE = 200
+MAX_INTERVIEW_ROUNDS = 20
 DEFAULT_STATUS = "SHORTLISTED"
-INITIAL_ONLY_STATUS = "SHORTLISTED"
-"""Recorded only when the application is created: it cannot be added, removed or
-switched to/from afterwards (its note and date can still be edited)."""
-APPLIED_STATUS = "APPLIED"
-"""Recorded at most once, and only straight after ``SHORTLISTED`` (its current state)."""
-FINAL_STATUSES = frozenset({"OFFER", "REJECTED"})
-"""Terminal states: once one is current, no further state can be added (removing it reopens the
-application)."""
 
 
 # --------------------------------------------------------------------------- models
@@ -93,7 +106,13 @@ class EventOut(BaseModel):
     id: int
     status: StatusOut
     note: str
-    occurred_at: datetime
+    title: str = ""
+    """Kind of interview round."""
+    duration_minutes: int | None = None
+    occurred_at: datetime | None
+    """When it happened; for a planned round the optional scheduled time."""
+    source: Literal["manual", "gmail"] = "manual"
+    """``gmail`` when the state was recorded automatically by the Gmail rejection monitor."""
     created_at: datetime
 
 
@@ -127,7 +146,9 @@ class ApplicationOut(BaseModel):
     status: StatusOut | None
     """Current state (that of the latest event); ``None`` when no state was recorded."""
     events: list[EventOut]
-    """State history, oldest first."""
+    """State history, oldest first (planned rounds left out)."""
+    planned_events: list[EventOut] = []
+    """Interview rounds planned but not held yet, in round order."""
     job: ApplicationJobOut
     evaluation: ApplicationEvaluationOut | None
     cv: GeneratedCvOut | None
@@ -150,7 +171,9 @@ class ApplicationCreate(BaseModel):
 
 
 class ApplicationUpdate(BaseModel):
-    notes: str
+    notes: str | None = None
+    interview_rounds: int | None = Field(default=None, ge=0, le=MAX_INTERVIEW_ROUNDS)
+    """Number of interview rounds, held + planned (``0`` drops the planned ones)."""
 
 
 def _to_utc(value: datetime | None) -> datetime | None:
@@ -172,6 +195,12 @@ class EventUpdate(BaseModel):
     status: str | None = None
     note: str | None = None
     occurred_at: datetime | None = None
+    """Only applied when sent; ``null`` clears the schedule of a planned round."""
+    title: str | None = Field(default=None, max_length=128)
+    duration_minutes: int | None = Field(default=None, ge=0, le=24 * 60)
+    """Only applied when sent; ``null`` clears it."""
+    planned: Literal[False] | None = None
+    """``false`` marks a planned round as held."""
 
     _utc = field_validator("occurred_at")(_to_utc)
 
@@ -198,20 +227,25 @@ def _get_or_404(session: Session, application_id: int) -> Application:
     return application
 
 
+def _http_error(exc: EventRejected) -> HTTPException:
+    code = (
+        status.HTTP_422_UNPROCESSABLE_CONTENT if exc.kind == "invalid" else status.HTTP_409_CONFLICT
+    )
+    return HTTPException(code, str(exc))
+
+
 def _status_or_422(session: Session, key: str) -> ApplicationStatus:
-    ensure_statuses(session)
-    row = session.scalar(select(ApplicationStatus).where(ApplicationStatus.key == key.upper()))
-    if row is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown status {key!r}")
-    return row
+    try:
+        return status_by_key(session, key)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _reject_initial_only(key: str) -> None:
-    if key.upper() == INITIAL_ONLY_STATUS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"{INITIAL_ONLY_STATUS} is only set when the application is created",
-        )
+    try:
+        reject_initial_only(key)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
@@ -225,6 +259,26 @@ def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
             joinedload(GeneratedCV.job_parse_result).joinedload(JobParseResult.company),
         )
     )
+
+
+def _event_out(e: ApplicationEvent) -> EventOut:
+    return EventOut(
+        id=e.id,
+        status=StatusOut.model_validate(e.status),
+        note=e.note or "",
+        title=e.title or "",
+        duration_minutes=e.duration_minutes,
+        occurred_at=e.occurred_at,
+        source=e.source or ApplicationEvent.SOURCE_MANUAL,
+        created_at=e.created_at,
+    )
+
+
+def _reject_if_final(application: Application) -> None:
+    try:
+        reject_if_final(application)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _to_out(
@@ -246,16 +300,8 @@ def _to_out(
         created_at=application.created_at,
         updated_at=application.updated_at,
         status=StatusOut.model_validate(current.status) if current else None,
-        events=[
-            EventOut(
-                id=e.id,
-                status=StatusOut.model_validate(e.status),
-                note=e.note or "",
-                occurred_at=e.occurred_at,
-                created_at=e.created_at,
-            )
-            for e in application.events
-        ],
+        events=[_event_out(e) for e in application.history],
+        planned_events=[_event_out(e) for e in application.plan],
         job=ApplicationJobOut(
             id=job.id,
             title=parsed.title,
@@ -368,6 +414,19 @@ def create_application(
     return _reload_out(session, application.id, request, queue)
 
 
+_STATUS_RANK = {"SHORTLISTED": 0, "INTERVIEW": 1, "OFFER": 2, "APPLIED": 3, "REJECTED": 4, "CLOSED": 5}
+_EPOCH = datetime.min.replace(tzinfo=UTC)
+
+
+def _sort_key(application: Application) -> tuple[int, float]:
+    """Group by current state (shortlisted, interview, offer, applied, rejected, closed, then any
+    custom state), newest state change first within a group."""
+    current = application.current_event
+    rank = _STATUS_RANK.get(current.status.key, len(_STATUS_RANK)) if current else 99
+    when = _to_utc(current.occurred_at if current else None) or _to_utc(application.created_at)
+    return rank, -(when or _EPOCH).timestamp()
+
+
 def _matches(application: Application, needle: str) -> bool:
     parsed = application.job_parse_result
     company = parsed.company.name if parsed.company is not None else None
@@ -382,15 +441,23 @@ def list_applications(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     status_key: Annotated[str | None, Query(alias="status")] = None,
+    exclude_status: Annotated[str | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ApplicationPage:
-    """Applications, newest first; ``status`` keeps those whose current state matches,
+    """Applications grouped by current state (see ``_sort_key``); ``status`` keeps those whose current state matches,
+    ``exclude_status`` drops them,
     ``q`` those whose job title or company name contains it (case-insensitive)."""
     applications = session.scalars(_query().order_by(Application.id.desc())).unique().all()
+    applications = sorted(applications, key=_sort_key)
     if status_key:
         key = status_key.upper()
         applications = [
             a for a in applications if a.current_event and a.current_event.status.key == key
+        ]
+    if exclude_status:
+        excluded = exclude_status.upper()
+        applications = [
+            a for a in applications if not (a.current_event and a.current_event.status.key == excluded)
         ]
     needle = (q or "").strip().casefold()
     if needle:
@@ -423,9 +490,19 @@ def update_application(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Replace the application's notes."""
+    """Replace the application's notes and/or its number of interview rounds (``422`` when
+    fewer than the rounds already held)."""
     application = _get_or_404(session, application_id)
-    application.notes = payload.notes
+    if payload.notes is not None:
+        application.notes = payload.notes
+    if payload.interview_rounds is not None:
+        held = len(held_rounds(application))
+        if 0 < payload.interview_rounds < held:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, f"{held} interview round(s) already held"
+            )
+        interview = _status_or_422(session, INTERVIEW_STATUS)
+        set_interview_rounds(session, application, payload.interview_rounds, interview)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -485,30 +562,13 @@ def add_event(
 ) -> ApplicationOut:
     """Record a state change; it becomes the current state unless ``occurred_at`` puts it
     before a later one."""
-    _reject_initial_only(payload.status)
     application = _get_or_404(session, application_id)
-    current = application.current_event
-    if current is not None and current.status.key in FINAL_STATUSES:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"application is {current.status.key}; remove that state to record new ones",
+    try:
+        record_event(
+            session, application, payload.status, note=payload.note, occurred_at=payload.occurred_at
         )
-    if payload.status.upper() == APPLIED_STATUS:
-        if any(e.status.key == APPLIED_STATUS for e in application.events):
-            raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
-        if current is None or current.status.key != INITIAL_ONLY_STATUS:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}",
-            )
-    event = ApplicationEvent(
-        application_id=application.id,
-        status=_status_or_422(session, payload.status),
-        note=payload.note,
-    )
-    if payload.occurred_at is not None:
-        event.occurred_at = payload.occurred_at
-    session.add(event)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -522,10 +582,16 @@ def update_event(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Change a recorded state's note, date or status; omitted fields are kept."""
+    """Change a recorded state's note, date, status, title or duration, or (``planned:
+    false``) mark a planned round as held; omitted fields are kept."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
+    sent = payload.model_fields_set
     if payload.status is not None and payload.status.upper() != event.status.key:
+        if event.planned:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "a planned round is always INTERVIEW"
+            )
         _reject_initial_only(event.status.key)
         _reject_initial_only(payload.status)
         if payload.status.upper() == APPLIED_STATUS and any(
@@ -535,8 +601,16 @@ def update_event(
         event.status = _status_or_422(session, payload.status)
     if payload.note is not None:
         event.note = payload.note
-    if payload.occurred_at is not None:
-        event.occurred_at = payload.occurred_at
+    if "occurred_at" in sent and (payload.occurred_at is not None or event.planned):
+        event.occurred_at = payload.occurred_at  # null only clears a planned round's schedule
+    if payload.title is not None:
+        event.title = payload.title.strip()
+    if "duration_minutes" in sent:
+        event.duration_minutes = payload.duration_minutes or None
+    if payload.planned is False and event.planned:
+        _reject_if_final(application)
+        event.planned = False
+        event.occurred_at = event.occurred_at or datetime.now(UTC)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -549,9 +623,13 @@ def delete_event(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
+    """Remove a state; a held interview round becomes a planned one again instead."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
     _reject_initial_only(event.status.key)
-    session.delete(event)
+    if event.status.key == INTERVIEW_STATUS and not event.planned:
+        event.planned = True
+    else:
+        session.delete(event)
     session.commit()
     return _reload_out(session, application_id, request, queue)

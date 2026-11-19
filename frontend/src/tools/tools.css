@@ -39,14 +39,14 @@
 
 /* Job status badge variants */
 .badge.finished {
-  background: rgba(34, 197, 94, 0.2);
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 .badge.failed,
 .badge.stopped,
 .badge.canceled {
-  background: rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
 }
 .badge.started {
   background: var(--accent-bg);
@@ -134,8 +134,7 @@ table.jobs {
     }
     dt {
       font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-weight: 600;
       margin-top: 10px;
     }
     dt:first-child {

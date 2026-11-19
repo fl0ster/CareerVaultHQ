@@ -6,7 +6,7 @@
 }
 
 .wh-item {
-  padding: 14px 0;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -46,7 +46,7 @@
   flex-shrink: 0;
 
   .danger {
-    color: #b91c1c;
+    color: var(--danger-fg);
   }
 }
 

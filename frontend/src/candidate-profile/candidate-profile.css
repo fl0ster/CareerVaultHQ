@@ -127,7 +127,7 @@
 }
 
 .cd-form .danger {
-  color: #b91c1c;
+  color: var(--danger-fg);
 }
 
 @media (max-width: 600px) {

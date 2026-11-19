@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ApplicationStatus, JobDecision
+from app.models import Application, ApplicationEvent, ApplicationStatus, JobDecision
 
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
@@ -33,3 +35,129 @@ def ensure_statuses(session: Session) -> None:
     if missing:
         session.add_all(missing)
         session.commit()
+
+
+INTERVIEW_STATUS = "INTERVIEW"
+"""State of interview rounds; planned rounds always have it."""
+INITIAL_ONLY_STATUS = "SHORTLISTED"
+"""Recorded only when the application is created: it cannot be added, removed or switched
+to/from afterwards (its note and date can still be edited)."""
+APPLIED_STATUS = "APPLIED"
+"""Recorded at most once, and only straight after ``SHORTLISTED`` (its current state)."""
+REJECTED_STATUS = "REJECTED"
+CLOSED_STATUS = "CLOSED"
+"""The recruitment was paused, closed or cancelled through no fault of the candidate."""
+FINAL_STATUSES = frozenset({"OFFER", REJECTED_STATUS, CLOSED_STATUS})
+"""Terminal states: once one is current, no further state can be added (removing it reopens
+the application)."""
+
+
+class EventRejected(Exception):
+    """A state change that breaks the application rules. ``kind`` is ``"invalid"`` (the
+    request itself is wrong; HTTP 422) or ``"conflict"`` (not allowed in the application's
+    current state; HTTP 409)."""
+
+    def __init__(self, message: str, kind: str = "conflict") -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
+def status_by_key(session: Session, key: str) -> ApplicationStatus:
+    """The ``ApplicationStatus`` row for ``key`` (case-insensitive); ``EventRejected``
+    (``invalid``) when there is none."""
+    ensure_statuses(session)
+    row = session.scalar(select(ApplicationStatus).where(ApplicationStatus.key == key.upper()))
+    if row is None:
+        raise EventRejected(f"unknown status {key!r}", "invalid")
+    return row
+
+
+def reject_initial_only(key: str) -> None:
+    if key.upper() == INITIAL_ONLY_STATUS:
+        raise EventRejected(
+            f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid"
+        )
+
+
+def reject_if_final(application: Application) -> None:
+    current = application.current_event
+    if current is not None and current.status.key in FINAL_STATUSES:
+        raise EventRejected(
+            f"application is {current.status.key}; remove that state to record new ones"
+        )
+
+
+def is_open(application: Application) -> bool:
+    """The application has been sent (``APPLIED`` recorded) and has no final state yet."""
+    current = application.current_event
+    if current is None or current.status.key in FINAL_STATUSES:
+        return False
+    return any(e.status.key == APPLIED_STATUS for e in application.history)
+
+
+def record_event(
+    session: Session,
+    application: Application,
+    status_key: str,
+    *,
+    note: str = "",
+    occurred_at: datetime | None = None,
+    source: str = ApplicationEvent.SOURCE_MANUAL,
+    source_ref: str | None = None,
+) -> ApplicationEvent:
+    """Record a state change on ``application`` following the application rules (see
+    ``app.api.routes.applications``); ``EventRejected`` when they forbid it. Recording
+    ``INTERVIEW`` holds the first planned round instead of adding one. Not committed."""
+    reject_initial_only(status_key)
+    reject_if_final(application)
+    key = status_key.upper()
+    if key == APPLIED_STATUS:
+        current = application.current_event
+        if any(e.status.key == APPLIED_STATUS for e in application.events):
+            raise EventRejected(f"application is already {APPLIED_STATUS}")
+        if current is None or current.status.key != INITIAL_ONLY_STATUS:
+            raise EventRejected(f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}")
+    plan = application.plan
+    if key == INTERVIEW_STATUS and plan:
+        # Hold the next planned round instead of adding a new one.
+        event = plan[0]
+        event.planned = False
+        event.occurred_at = occurred_at or event.occurred_at or datetime.now(UTC)
+        event.note = note or event.note
+        event.source = source
+        event.source_ref = source_ref
+        return event
+    event = ApplicationEvent(
+        status=status_by_key(session, key),
+        note=note,
+        source=source,
+        source_ref=source_ref,
+        occurred_at=occurred_at or datetime.now(UTC),
+    )
+    # Appended (rather than only added to the session) so ``application.events`` and
+    # ``current_event`` stay right for callers that keep using the object.
+    application.events.append(event)
+    session.flush()
+    session.expire(application, ["events"])
+    return event
+
+
+def held_rounds(application: Application) -> list[ApplicationEvent]:
+    """Interview rounds that already took place."""
+    return [e for e in application.history if e.status.key == INTERVIEW_STATUS]
+
+
+def set_interview_rounds(
+    session: Session, application: Application, rounds: int, interview: ApplicationStatus
+) -> None:
+    """Add blank planned rounds at the end, or drop them from the end, so the application has
+    ``rounds`` interview rounds (held + planned; at least the held ones). Not committed."""
+    plan = application.plan
+    wanted = max(rounds - len(held_rounds(application)), 0)
+    for event in plan[wanted:]:
+        application.events.remove(event)
+        session.delete(event)
+    for _ in range(wanted - len(plan)):
+        application.events.append(
+            ApplicationEvent(status=interview, planned=True, occurred_at=None)
+        )

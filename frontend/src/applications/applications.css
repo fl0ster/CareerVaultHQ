@@ -1,4 +1,4 @@
-/* Applications page, its detail dialog and the application section of the job dialog */
+/* Applications page, its detail view and the application section of the job view */
 .app-list {
   list-style: none;
   margin: 0;
@@ -6,7 +6,13 @@
 }
 
 .app-item {
+  padding: 0 18px;
   border-bottom: 1px solid var(--border);
+  transition: background-color var(--t-fast) ease;
+
+  &:hover {
+    background: var(--surface-2);
+  }
 }
 
 .app-row {
@@ -15,7 +21,7 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: 12px 0;
+  padding: 14px 0;
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -23,6 +29,9 @@
   color: inherit;
   font: inherit;
 
+  &:hover:not(:disabled) {
+    border-color: transparent;
+  }
   &:hover:not(:disabled) .job-title {
     color: var(--accent);
   }
@@ -39,35 +48,30 @@
 
 .app-status {
   &.applied {
-    background: var(--accent-bg);
-    color: var(--accent);
+    background: var(--info-bg);
+    color: var(--info-fg);
   }
   &.interview {
-    background: rgba(245, 158, 11, 0.2);
-    color: #b45309;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
   }
   &.offer {
-    background: rgba(34, 197, 94, 0.2);
-    color: #15803d;
+    background: var(--success-bg);
+    color: var(--success-fg);
   }
   &.rejected {
-    background: rgba(239, 68, 68, 0.2);
-    color: #b91c1c;
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+  &.closed {
+    background: var(--neutral-bg);
+    color: var(--neutral-fg);
   }
   &.none {
     background: transparent;
     border: 1px dashed var(--border);
     color: var(--text);
   }
-}
-
-.app-item.selected .job-title {
-  color: var(--accent);
-}
-
-.app-dialog-badges {
-  justify-content: flex-start;
-  margin-top: 8px;
 }
 
 .app-detail {
@@ -110,7 +114,7 @@
     margin: 6px 0;
   }
   .danger {
-    color: #b91c1c;
+    color: var(--danger-fg);
   }
 }
 
@@ -159,6 +163,141 @@
   white-space: pre-wrap;
   font-size: 14px;
   color: var(--text-h);
+}
+
+/* Planned interview rounds: dashed until they are held */
+.app-event.planned {
+  margin: 6px 0;
+  padding: 8px 10px 4px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+
+  &.not-held {
+    opacity: 0.55;
+  }
+
+  textarea {
+    margin: 6px 0 4px;
+  }
+}
+
+.app-round-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn-fg);
+}
+
+.app-event.planned.not-held .app-round-label {
+  color: var(--text);
+  text-decoration: line-through;
+}
+
+.app-round-title {
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.app-round-fields {
+  margin-top: 6px;
+
+  input[type='text'] {
+    flex: 1 1 180px;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+  }
+}
+
+.app-plan {
+  margin-bottom: 12px;
+}
+
+.app-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  input[type='number'] {
+    width: 3.5em;
+    font: inherit;
+    font-size: 14px;
+    padding: 4px 6px;
+    text-align: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+  }
+}
+
+/* Interview progress: one segment per round */
+.interview-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.interview-progress-track {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.interview-progress-seg {
+  width: 22px;
+  height: 8px;
+  border-radius: 4px;
+  box-sizing: border-box;
+
+  &.held {
+    background: var(--warn-solid);
+  }
+  &.planned {
+    border: 1.5px dashed var(--border);
+  }
+  &.next {
+    border-color: var(--warn-solid);
+  }
+}
+
+.interview-progress.compact {
+  gap: 6px;
+  font-size: 12px;
+
+  .interview-progress-seg {
+    width: 12px;
+    height: 6px;
+    border-radius: 3px;
+  }
+}
+
+.interview-progress.offer .interview-progress-seg.held {
+  background: var(--success-solid);
+}
+
+.interview-progress.closed {
+  .interview-progress-seg.held {
+    background: var(--neutral-solid);
+  }
+  .interview-progress-seg.planned {
+    opacity: 0.4;
+  }
+}
+
+.interview-progress.rejected {
+  .interview-progress-seg.held {
+    background: var(--danger-solid);
+  }
+  .interview-progress-seg.planned {
+    opacity: 0.4;
+  }
 }
 
 .app-add-event {
@@ -296,7 +435,7 @@
   line-height: 1;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.08);
+    background: var(--hover-tint);
   }
 }
 
@@ -313,7 +452,7 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   text-align: left;
 }
 
@@ -340,4 +479,51 @@
   min-width: 14rem;
   flex: 1 1 14rem;
   max-width: 24rem;
+}
+
+/* Search on the left, status filter pushed to the right */
+.app-status-filter {
+  margin-left: auto;
+}
+
+/* Lightning bolt on states recorded automatically (Gmail rejection monitor). */
+.app-status-auto {
+  margin-right: 3px;
+  font-size: 0.9em;
+  line-height: 1;
+  cursor: help;
+}
+
+/* Page toolbars (Applications switch + filters, Jobs search): stick under the top bar while the list scrolls.
+   Bleeds into the content padding so the stuck background spans the full column. */
+.app-toolbar {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 40;
+  margin: -8px -36px 0;
+  padding: 8px 36px 0;
+  border-bottom: 1px solid transparent;
+  transition:
+    background-color var(--t-fast) ease,
+    border-color var(--t-fast) ease;
+
+  .segmented {
+    margin-bottom: 0;
+  }
+  .jobs-controls {
+    margin: 12px 0;
+  }
+
+  &.stuck {
+    background: color-mix(in srgb, var(--canvas) 84%, transparent);
+    backdrop-filter: blur(12px) saturate(1.3);
+    border-bottom-color: color-mix(in srgb, var(--border) 70%, transparent);
+  }
+}
+
+@media (max-width: 900px) {
+  .app-toolbar {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
 }

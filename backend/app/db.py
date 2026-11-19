@@ -2,7 +2,8 @@
 
 The schema is created with ``init_db()`` (``Base.metadata.create_all``) at API and
 worker startup; there is no Alembic migration history yet. ``create_all`` never alters an
-existing table, so ``init_db`` also adds model columns missing from existing tables
+existing table, so ``init_db`` also adds the columns listed in ``ADDED_COLUMNS`` to
+tables created before those columns existed.
 """
 
 from __future__ import annotations
@@ -46,6 +47,30 @@ def init_db(engine: Engine | None = None) -> None:
 
     engine = engine or get_engine()
     Base.metadata.create_all(engine)
+    _execute(engine, _missing_columns(engine))
+
+
+ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "application_events": {
+        "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
+        "source_ref": "VARCHAR(128)",
+    },
+}
+"""Columns added to tables after they were first created: ``create_all`` only creates
+missing tables, so these are added to existing databases with ``ALTER TABLE``."""
+
+
+def _missing_columns(engine: Engine) -> list[str]:
+    inspector = inspect(engine)
+    statements = []
+    for table, columns in ADDED_COLUMNS.items():
+        existing = {column["name"] for column in inspector.get_columns(table)}
+        statements += [
+            f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"
+            for name, ddl in columns.items()
+            if name not in existing
+        ]
+    return statements
 
 
 def _execute(engine: Engine, statements: list[str]) -> None:

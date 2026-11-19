@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type ApplicationStatus, isFinalStatus, pickableStatuses } from './api.ts'
+import { type ApplicationStatus, INTERVIEW_STATUS, isFinalStatus, pickableStatuses } from './api.ts'
 import './applications.css'
 
 export type PillOption = {
@@ -149,17 +149,38 @@ type Props = {
   statuses?: ApplicationStatus[]
   /** Switches the application to the state with this key. Without it the badge is read-only. */
   onSelect?: (key: string) => Promise<unknown> | void
+  /** Label of the next planned interview round ("round 2 (Technical)"), if any: a click on
+   * an INTERVIEW pill records that round as held (without one it records another round). */
+  nextRound?: string
+  /** The state was recorded automatically (Gmail rejection monitor): shows a lightning bolt. */
+  auto?: boolean
+}
+
+function AutoMark() {
+  return (
+    <span className="app-status-auto" title="Recorded automatically from a Gmail rejection mail" aria-label="automatic">
+      ⚡
+    </span>
+  )
 }
 
 /**
  * Application state pill; known states get a colour, custom ones the neutral badge.
  * With `onSelect` it is a `PickerPill`: click moves to the state's `next_key`, ⋮ picks any state.
  */
-export default function StatusBadge({ status, statuses = [], onSelect }: Props) {
+export default function StatusBadge({ status, statuses = [], onSelect, nextRound, auto = false }: Props) {
   const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
-  const label = status ? status.label : 'No status'
+  const label = (
+    <>
+      {auto && <AutoMark />}
+      {status ? status.label : 'No status'}
+    </>
+  )
   if (!onSelect) return <span className={cls}>{label}</span>
   const final = isFinalStatus(status)
+  // A click on INTERVIEW records the next round; other states whose default successor is
+  // themselves are not advanced by a click.
+  const interview = status?.key === INTERVIEW_STATUS
 
   return (
     <PickerPill
@@ -170,9 +191,9 @@ export default function StatusBadge({ status, statuses = [], onSelect }: Props) 
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
       }))}
       currentKey={status?.key ?? null}
-      // A state whose default successor is itself (INTERVIEW) is not advanced by a click.
-      nextKey={final || status?.next_key === status?.key ? null : status?.next_key}
+      nextKey={final || (status?.next_key === status?.key && !interview) ? null : status?.next_key}
       onSelect={onSelect}
+      title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
     >
       {label}
