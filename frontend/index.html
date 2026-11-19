@@ -4,7 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>careervaulthq</title>
+    <title>CareerVault HQ</title>
+    <meta name="theme-color" content="#eef3f4" />
+    <script>
+      // Apply a saved light/dark choice before the first paint to avoid a flash.
+      try {
+        const t = localStorage.getItem('cv-theme')
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

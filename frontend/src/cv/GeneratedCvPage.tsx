@@ -142,8 +142,7 @@ export default function GeneratedCvPage() {
 
   return (
     <>
-      <h1 className="title">Generated CV</h1>
-      <p>
+      <p className="page-intro">
         {total === null
           ? 'Loading…'
           : `${cvs.length} of ${total} CV${total === 1 ? '' : 's'} generated for jobs.`}{' '}

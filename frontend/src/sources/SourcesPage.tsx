@@ -195,8 +195,7 @@ export default function SourcesPage() {
 
   return (
     <>
-      <h1 className="title">Scrape sources</h1>
-      <p>
+      <p className="page-intro">
         One row per scraper module in <code>app/tasks/scrape/sources/</code>. Disabled sources are
         skipped by "scrape all" and by the scheduler but can still be run here. Enabled sources are scraped automatically every <em>Every</em> hours (empty uses the
         default), with a small random delay so they don't all run at once. Relevance is how the

@@ -62,7 +62,7 @@
 }
 
 .gmail-ok {
-  color: #15803d;
+  color: var(--success-fg);
 }
 
 .gmail-setup {
@@ -150,13 +150,13 @@ table.gmail-mails {
 
 .gmail-outcome {
   &.applied {
-    background: rgba(239, 68, 68, 0.2);
-    color: #b91c1c;
+    background: var(--danger-bg);
+    color: var(--danger-fg);
   }
   &.mark_failed,
   &.ambiguous,
   &.error {
-    background: rgba(245, 158, 11, 0.2);
-    color: #b45309;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
   }
 }

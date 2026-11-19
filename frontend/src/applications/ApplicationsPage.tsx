@@ -129,7 +129,7 @@ export default function ApplicationsPage() {
 
   return (
     <>
-      <nav className="tabs subtabs" aria-label="Application sections">
+      <nav className="segmented" aria-label="Application sections">
         {SUBTABS.map((t) => (
           <button
             key={t.id}

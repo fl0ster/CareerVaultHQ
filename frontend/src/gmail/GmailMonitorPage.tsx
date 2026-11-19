@@ -327,7 +327,6 @@ export default function GmailMonitorPage() {
   if (!settings) {
     return (
       <>
-        <h1 className="title">Gmail rejection monitor</h1>
         {error ? <p className="error">{error}</p> : <span className="spinner" aria-hidden="true" />}
       </>
     )
@@ -338,8 +337,7 @@ export default function GmailMonitorPage() {
 
   return (
     <>
-      <h1 className="title">Gmail rejection monitor</h1>
-      <p>
+      <p className="page-intro">
         Watches the unread inbox of a Gmail account for rejection mails. A mail is acted on only when the model is
         confident it is a rejection and it matches exactly one open application (applied, not yet rejected or offered)
         by company, and by role when there are several at that company. That application gets the{' '}

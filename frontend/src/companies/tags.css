@@ -11,16 +11,16 @@
 }
 
 .tag-favourite {
-  --tag-bg: rgba(245, 158, 11, 0.2);
-  --tag-fg: #b45309;
+  --tag-bg: var(--warn-bg);
+  --tag-fg: var(--warn-fg);
 }
 .tag-interested {
   --tag-bg: var(--accent-bg);
   --tag-fg: var(--accent);
 }
 .tag-avoid {
-  --tag-bg: rgba(239, 68, 68, 0.2);
-  --tag-fg: #b91c1c;
+  --tag-bg: var(--danger-bg);
+  --tag-fg: var(--danger-fg);
 }
 
 .badge.company-tag {

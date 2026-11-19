@@ -6,7 +6,7 @@
 }
 
 .cv-item {
-  padding: 14px 0;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -71,7 +71,7 @@
     display: inline-block;
   }
   .danger {
-    color: #b91c1c;
+    color: var(--danger-fg);
   }
 }
 
@@ -85,12 +85,12 @@
     height: 10px;
   }
   &.finished {
-    background: rgba(34, 197, 94, 0.2);
-    color: #15803d;
+    background: var(--success-bg);
+    color: var(--success-fg);
   }
   &.failed {
-    background: rgba(239, 68, 68, 0.2);
-    color: #b91c1c;
+    background: var(--danger-bg);
+    color: var(--danger-fg);
   }
   &.running,
   &.queued {
@@ -191,7 +191,7 @@
 
 /* ---------------------------------------------------------------- pipeline dialog */
 .cv-warning-count {
-  color: #b45309;
+  color: var(--warn-fg);
 }
 
 .pl-dialog {
@@ -199,9 +199,9 @@
 
   /* Outcome colours (status palette: good / warning / critical). Marks wear them,
      text never does: each outcome also carries an icon and a label. */
-  --ok: #0ca30c;
-  --warn: #fab219;
-  --bad: #d03b3b;
+  --ok: var(--success-solid);
+  --warn: var(--warn-solid);
+  --bad: var(--danger-solid);
 
   h2 {
     font-size: 22px;
@@ -268,8 +268,8 @@
 .pl-warnings {
   margin: 0 0 16px;
   padding: 10px 14px 10px 30px;
-  border: 1px solid rgba(250, 178, 25, 0.5);
-  background: rgba(250, 178, 25, 0.08);
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
   border-radius: 8px;
 }
 
@@ -448,8 +448,7 @@
   display: block;
   margin-bottom: 2px;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
   color: var(--text);
 }
 
