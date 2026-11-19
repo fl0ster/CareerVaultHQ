@@ -1,23 +1,15 @@
-import { type Application, formatDuration, interviewRounds, isFinalStatus, roundLabel } from './api.ts'
-
-type Props = {
-  application: Application
-  /** Smaller variant for list rows. */
-  compact?: boolean
-}
+import { type Application, formatDuration, heldRounds, isFinalStatus, roundLabel } from './api.ts'
 
 /**
- * Interview progress of an application with a plan (`interview_rounds` set): one segment per
- * round, filled when held, dashed while planned. Renders nothing without a plan.
+ * One segment per interview round: filled when held, dashed while planned (the next one
+ * highlighted). Green after an offer, red after a rejection. Nothing without rounds.
  */
-export default function InterviewProgress({ application, compact = false }: Props) {
-  if (application.interview_rounds == null) return null
-  const rounds = interviewRounds(application)
-  const held = rounds.filter((r) => r.held).length
+export default function InterviewProgress({ application, compact = false }: { application: Application; compact?: boolean }) {
+  const held = heldRounds(application).length
+  const rounds = [...heldRounds(application), ...application.planned_events]
+  if (rounds.length === 0) return null
   const final = isFinalStatus(application.status) ? application.status!.key.toLowerCase() : null
-  const summary = `${held} / ${rounds.length} interview rounds${
-    final === 'rejected' ? ' (rejected)' : final === 'offer' ? ' (offer)' : ''
-  }`
+  const summary = `${held} / ${rounds.length} interview rounds${final ? ` (${final})` : ''}`
 
   return (
     <span
@@ -30,16 +22,14 @@ export default function InterviewProgress({ application, compact = false }: Prop
       title={summary}
     >
       <span className="interview-progress-track">
-        {rounds.map(({ event, held: done }, i) => {
-          const next = !done && !final && i === held
-          const duration = formatDuration(event.duration_minutes)
+        {rounds.map((round, i) => {
+          const state = i < held ? 'held' : final ? 'not held' : 'planned'
+          const duration = formatDuration(round.duration_minutes)
           return (
             <span
-              key={event.id}
-              className={`interview-progress-seg${done ? ' held' : ' planned'}${next ? ' next' : ''}`}
-              title={`${roundLabel(event, i)}${duration ? ` · ${duration}` : ''}${
-                done ? ' · held' : final ? ' · not held' : ' · planned'
-              }`}
+              key={round.id}
+              className={`interview-progress-seg ${i < held ? 'held' : 'planned'}${!final && i === held ? ' next' : ''}`}
+              title={[roundLabel(round, i), duration, state].filter(Boolean).join(' · ')}
             />
           )
         })}

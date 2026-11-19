@@ -189,10 +189,7 @@
   text-decoration: line-through;
 }
 
-.app-round-info {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
+.app-round-title {
   font-size: 14px;
   color: var(--text-h);
 }

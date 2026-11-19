@@ -545,9 +545,6 @@ class Application(Base):
         ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True
     )
     """The CV generated for this application (the latest one when regenerated)."""
-    interview_rounds: Mapped[int | None] = mapped_column(Integer)
-    """Declared number of interview rounds (held + planned); ``None`` when there is no plan.
-    Kept in sync with the planned events by ``app.services.applications.sync_interview_plan``."""
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -571,13 +568,12 @@ class Application(Base):
     @property
     def plan(self) -> list[ApplicationEvent]:
         """Planned interview rounds not held yet, in round order."""
-        return sorted((e for e in self.events if e.planned), key=lambda e: e.id or 0)
+        return sorted((e for e in self.events if e.planned), key=lambda e: e.id)
 
     @property
     def current_event(self) -> ApplicationEvent | None:
         """The latest state change (planned rounds do not count)."""
-        history = self.history
-        return history[-1] if history else None
+        return next((e for e in reversed(self.events) if not e.planned), None)
 
 
 class ApplicationEvent(Base):

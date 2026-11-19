@@ -163,10 +163,9 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
   const label = status ? status.label : 'No status'
   if (!onSelect) return <span className={cls}>{label}</span>
   const final = isFinalStatus(status)
-  const repeats = status?.next_key === status?.key
-  // A state whose default successor is itself is not advanced by a click, except INTERVIEW:
-  // a click records the next interview round (the planned one, or a new one).
-  const advancesRound = repeats && status?.key === INTERVIEW_STATUS
+  // A click on INTERVIEW records the next round; other states whose default successor is
+  // themselves are not advanced by a click.
+  const interview = status?.key === INTERVIEW_STATUS
 
   return (
     <PickerPill
@@ -177,11 +176,9 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
       }))}
       currentKey={status?.key ?? null}
-      nextKey={final || (repeats && !advancesRound) ? null : status?.next_key}
+      nextKey={final || (status?.next_key === status?.key && !interview) ? null : status?.next_key}
       onSelect={onSelect}
-      title={
-        advancesRound ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined
-      }
+      title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
     >
       {label}

@@ -169,12 +169,10 @@ export default function ApplicationsPage() {
                   <span>{a.job.source}</span>
                   <span>
                     {a.status && a.events.length > 0
-                      ? `since ${serverDate(
-                          a.events[a.events.length - 1].occurred_at ?? a.events[a.events.length - 1].created_at,
-                        ).toLocaleDateString()}`
+                      ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
                       : `created ${serverDate(a.created_at).toLocaleDateString()}`}
                   </span>
-                  {a.interview_rounds != null && <InterviewProgress application={a} compact />}
+                  <InterviewProgress application={a} compact />
                 </div>
               </div>
               <div className="app-badges">
