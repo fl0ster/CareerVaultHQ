@@ -507,6 +507,7 @@ class ApplicationStatus(Base):
         ("INTERVIEW", "Interview", "INTERVIEW"),
         ("OFFER", "Offer", ""),
         ("REJECTED", "Rejected", ""),
+        ("CLOSED", "Closed", ""),
     )
     """``(key, label, next_key)`` triples created on first use, in display order; an empty
     ``next_key`` means the state has no default successor."""

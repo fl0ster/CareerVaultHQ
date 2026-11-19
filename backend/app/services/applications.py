@@ -45,7 +45,9 @@ to/from afterwards (its note and date can still be edited)."""
 APPLIED_STATUS = "APPLIED"
 """Recorded at most once, and only straight after ``SHORTLISTED`` (its current state)."""
 REJECTED_STATUS = "REJECTED"
-FINAL_STATUSES = frozenset({"OFFER", REJECTED_STATUS})
+CLOSED_STATUS = "CLOSED"
+"""The recruitment was paused, closed or cancelled through no fault of the candidate."""
+FINAL_STATUSES = frozenset({"OFFER", REJECTED_STATUS, CLOSED_STATUS})
 """Terminal states: once one is current, no further state can be added (removing it reopens
 the application)."""
 

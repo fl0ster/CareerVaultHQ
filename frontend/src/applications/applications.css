@@ -54,6 +54,10 @@
     background: rgba(239, 68, 68, 0.2);
     color: #b91c1c;
   }
+  &.closed {
+    background: rgba(107, 114, 128, 0.18);
+    color: #6b7280;
+  }
   &.none {
     background: transparent;
     border: 1px dashed var(--border);
@@ -276,6 +280,15 @@
 
 .interview-progress.offer .interview-progress-seg.held {
   background: #22c55e;
+}
+
+.interview-progress.closed {
+  .interview-progress-seg.held {
+    background: #9ca3af;
+  }
+  .interview-progress-seg.planned {
+    opacity: 0.4;
+  }
 }
 
 .interview-progress.rejected {

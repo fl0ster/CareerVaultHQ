@@ -9,7 +9,7 @@
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
   ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
   to/from later (``422``), though its note and date can be edited. No state can be added
-  while the current one is ``OFFER`` or ``REJECTED`` (``409``) until that state is removed.
+  while the current one is ``OFFER``, ``REJECTED`` or ``CLOSED`` (``409``) until that state is removed.
   ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
 * Interview rounds: every ``INTERVIEW`` event is a round. ``PATCH /api/applications/{id}``
   with ``{"interview_rounds": 5}`` plans the rounds not held yet as *planned* events
@@ -17,7 +17,7 @@
   schedule and note can be edited like any event. Recording ``INTERVIEW`` fills the first
   planned round; ``PATCH .../events/{id}`` with ``{"planned": false}`` holds a specific one.
   Deleting a planned round drops it; deleting a held one makes it planned again. Planned
-  rounds stay (not held) while the application is ``OFFER``/``REJECTED`` but cannot be held
+  rounds stay (not held) while the application is ``OFFER``/``REJECTED``/``CLOSED`` but cannot be held
   then (``409``).
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
@@ -414,12 +414,12 @@ def create_application(
     return _reload_out(session, application.id, request, queue)
 
 
-_STATUS_RANK = {"SHORTLISTED": 0, "INTERVIEW": 1, "OFFER": 2, "APPLIED": 3, "REJECTED": 4}
+_STATUS_RANK = {"SHORTLISTED": 0, "INTERVIEW": 1, "OFFER": 2, "APPLIED": 3, "REJECTED": 4, "CLOSED": 5}
 _EPOCH = datetime.min.replace(tzinfo=UTC)
 
 
 def _sort_key(application: Application) -> tuple[int, float]:
-    """Group by current state (shortlisted, interview, offer, applied, rejected, then any
+    """Group by current state (shortlisted, interview, offer, applied, rejected, closed, then any
     custom state), newest state change first within a group."""
     current = application.current_event
     rank = _STATUS_RANK.get(current.status.key, len(_STATUS_RANK)) if current else 99

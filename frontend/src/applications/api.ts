@@ -208,7 +208,7 @@ export const pickableStatuses = (statuses: ApplicationStatus[], current?: string
   )
 
 /** Terminal states: while one is current no new state can be added (removing it reopens). */
-export const FINAL_STATUSES: readonly string[] = ['OFFER', 'REJECTED']
+export const FINAL_STATUSES: readonly string[] = ['OFFER', 'REJECTED', 'CLOSED']
 
 export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
   status != null && FINAL_STATUSES.includes(status.key)

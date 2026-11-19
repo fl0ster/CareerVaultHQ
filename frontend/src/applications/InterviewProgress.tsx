@@ -2,7 +2,7 @@ import { type Application, formatDuration, heldRounds, isFinalStatus, roundLabel
 
 /**
  * One segment per interview round: filled when held, dashed while planned (the next one
- * highlighted). Green after an offer, red after a rejection. Nothing without rounds.
+ * highlighted). Green after an offer, red after a rejection, grey once closed. Nothing without rounds.
  */
 export default function InterviewProgress({ application, compact = false }: { application: Application; compact?: boolean }) {
   const held = heldRounds(application).length

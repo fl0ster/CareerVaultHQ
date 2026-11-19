@@ -53,7 +53,7 @@ def _cv_jobs(fake_queue):
 
 def test_statuses_are_seeded_and_extensible(client):
     keys = [s["key"] for s in client.get(f"{BASE}/statuses").json()]
-    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED"]
+    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED", "CLOSED"]
 
     res = client.post(f"{BASE}/statuses", json={"key": "ghosted"})
     assert res.status_code == 201
@@ -243,7 +243,7 @@ def test_shortlisted_is_only_set_at_creation(client, db_session):
     assert res.status_code == 422
 
 
-@pytest.mark.parametrize("final", ["REJECTED", "OFFER"])
+@pytest.mark.parametrize("final", ["REJECTED", "OFFER", "CLOSED"])
 def test_final_state_blocks_new_states_until_removed(client, db_session, final):
     seed_cv_inputs(client, db_session)
     evaluation = seed_evaluation(db_session)
