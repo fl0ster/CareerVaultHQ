@@ -94,6 +94,25 @@ def _find_fuzzy(session: Session, normalized: str, threshold: float) -> tuple[in
     return best
 
 
+def find_company(
+    session: Session, raw_name: str, *, threshold: float = FUZZY_THRESHOLD
+) -> Company | None:
+    """Read-only counterpart of ``resolve_company``: the canonical ``Company`` that
+    ``raw_name`` refers to (known alias, exact name, then closest fuzzy match), or ``None``.
+    Nothing is added to the session."""
+    normalized = normalize_company_name(raw_name or "")
+    if not normalized:
+        return None
+    alias = session.scalar(select(CompanyAlias).where(CompanyAlias.normalized_alias == normalized))
+    if alias is not None:
+        return alias.company
+    company = session.scalar(select(Company).where(Company.normalized_name == normalized))
+    if company is not None:
+        return company
+    fuzzy = _find_fuzzy(session, normalized, threshold)
+    return session.get(Company, fuzzy[0]) if fuzzy is not None else None
+
+
 def resolve_company(
     session: Session,
     raw_name: str,

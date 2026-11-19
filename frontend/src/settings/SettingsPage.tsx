@@ -2,10 +2,12 @@ import { useState } from 'react'
 import SourcesPage from '../sources/SourcesPage.tsx'
 import GeneratedCvPage from '../cv/GeneratedCvPage.tsx'
 import CostPage from '../cost/CostPage.tsx'
+import GmailMonitorPage from '../gmail/GmailMonitorPage.tsx'
 
 const SUBTABS = [
   { id: 'sources', label: 'Sources' },
   { id: 'generated-cv', label: 'Generated CV' },
+  { id: 'gmail', label: 'Gmail monitor' },
   { id: 'cost', label: 'Cost' },
 ] as const
 
@@ -36,6 +38,9 @@ export default function SettingsPage() {
       </section>
       <section hidden={subTab !== 'generated-cv'}>
         <GeneratedCvPage />
+      </section>
+      <section hidden={subTab !== 'gmail'}>
+        <GmailMonitorPage />
       </section>
       <section hidden={subTab !== 'cost'}>
         <CostPage />

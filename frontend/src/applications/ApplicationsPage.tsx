@@ -8,6 +8,8 @@ import {
   type Application,
   type ApplicationStatus,
   applicationsApi,
+  currentEvent,
+  isAutoEvent,
   notifyApplicationsChanged,
   nextRoundLabel,
   serverDate,
@@ -178,6 +180,7 @@ export default function ApplicationsPage() {
               <div className="app-badges">
                 <StatusBadge
                   status={a.status}
+                  auto={isAutoEvent(currentEvent(a))}
                   nextRound={nextRoundLabel(a)}
                   statuses={statuses}
                   onSelect={(key) =>

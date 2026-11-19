@@ -7,6 +7,7 @@ from app.api.routes import (
     cleanup,
     companies,
     cv,
+    gmail_monitor,
     health,
     jobs,
     latex,
@@ -36,3 +37,4 @@ api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openro
 api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
 api_router.include_router(cleanup.router, prefix="/cleanup", tags=["cleanup"])
 api_router.include_router(applications.router, prefix="/applications", tags=["applications"])
+api_router.include_router(gmail_monitor.router, prefix="/gmail-monitor", tags=["gmail-monitor"])

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { type EvaluatedJob, type EvaluatedJobDetail, isRelevant, jobsApi } from './api.ts'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import '../applications/applications.css'
-import { type Application, applicationsApi } from '../applications/api.ts'
+import { type Application, applicationsApi, currentEvent, isAutoEvent } from '../applications/api.ts'
 import StatusBadge from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
 import CreateApplicationButton from './CreateApplicationButton.tsx'
@@ -39,7 +39,7 @@ function JobApplicationSection({
       {applicationId != null ? (
         application ? (
           <div className="app-buttons">
-            <StatusBadge status={application.status} />
+            <StatusBadge status={application.status} auto={isAutoEvent(currentEvent(application))} />
             <span className="muted">Application #{application.id} · manage it on the Applications tab.</span>
           </div>
         ) : (

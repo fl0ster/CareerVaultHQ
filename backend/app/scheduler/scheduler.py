@@ -7,6 +7,7 @@ executed by ``app.workers.worker``. Each scheduled task lives in its own module:
 * :mod:`app.scheduler.evaluation` - catch-up ``evaluate_pending_jobs`` with backoff.
 * :mod:`app.scheduler.cleanup` - daily ``cleanup_old_jobs``.
 * :mod:`app.scheduler.scrape` - per-source ``scrape`` with jitter, planned in the DB.
+* :mod:`app.scheduler.gmail` - ``check_rejection_mails`` while the Gmail monitor is on.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from app.scheduler.cleanup import CLEANUP_JOB_ID, CLEANUP_TIMEOUT, CleanupSchedu
 from app.scheduler.common import ACTIVE_STATUSES
 from app.scheduler.common import aware as _aware
 from app.scheduler.evaluation import EVALUATE_JOB_ID, EVALUATE_TIMEOUT, EvaluationScheduler
+from app.scheduler.gmail import GMAIL_JOB_ID, GmailMonitorScheduler
 from app.scheduler.scrape import SCRAPE_JOB_ID_PREFIX, SCRAPE_TIMEOUT, ScrapeScheduler
 
 __all__ = [
@@ -30,10 +32,12 @@ __all__ = [
     "CLEANUP_TIMEOUT",
     "EVALUATE_JOB_ID",
     "EVALUATE_TIMEOUT",
+    "GMAIL_JOB_ID",
     "SCRAPE_JOB_ID_PREFIX",
     "SCRAPE_TIMEOUT",
     "CleanupScheduler",
     "EvaluationScheduler",
+    "GmailMonitorScheduler",
     "ScrapeScheduler",
     "_aware",
     "run_scheduler",
@@ -45,9 +49,14 @@ SCHEDULER_SLEEP_SECONDS = int(os.getenv("SCHEDULER_SLEEP_SECONDS") or 60)
 
 
 def run_scheduler() -> None:
-    init_db()  # the scrape scheduler reads and writes scrape_sources
+    init_db()  # the scrape and Gmail schedulers keep their plan in the DB
     queue = get_queue()
-    schedulers = [EvaluationScheduler(queue), CleanupScheduler(queue), ScrapeScheduler(queue)]
+    schedulers = [
+        EvaluationScheduler(queue),
+        CleanupScheduler(queue),
+        ScrapeScheduler(queue),
+        GmailMonitorScheduler(queue),
+    ]
     while True:
         for scheduled in schedulers:
             try:

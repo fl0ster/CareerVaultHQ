@@ -20,6 +20,7 @@ import {
   formatDuration,
   fromLocalInput,
   heldRounds,
+  isAutoEvent,
   nextRoundLabel,
   notifyApplicationsChanged,
   roundLabel,
@@ -165,7 +166,7 @@ function EventRow({
       <li className="app-event editing">
         <div className="app-form-row">
           {locked ? (
-            <StatusBadge status={event.status} />
+            <StatusBadge status={event.status} auto={isAutoEvent(event)} />
           ) : (
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             {pickableStatuses(statuses)
@@ -214,7 +215,7 @@ function EventRow({
   return (
     <li className="app-event">
       <div className="app-event-head">
-        <StatusBadge status={event.status} />
+        <StatusBadge status={event.status} auto={isAutoEvent(event)} />
         {event.title && <strong className="app-round-title">{event.title}</strong>}
         {event.duration_minutes && <span className="muted">{formatDuration(event.duration_minutes)}</span>}
         <span className="muted">{serverDate(event.occurred_at).toLocaleString()}</span>

@@ -360,3 +360,13 @@ def test_final_state_keeps_planned_rounds_but_blocks_them(client, db_session):
     assert body["status"]["key"] == "REJECTED" and len(body["planned_events"]) == 2
     assert client.post(f"{url}/events", json={"status": "INTERVIEW"}).status_code == 409
     assert client.patch(f"{url}/events/{planned}", json={"planned": False}).status_code == 409
+
+
+def test_manual_events_are_marked_manual(client, db_session):
+    evaluation = seed_evaluation(db_session)
+    seed_cv_inputs(client, db_session)
+    application = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
+
+    body = client.post(f"{BASE}/{application['id']}/events", json={"status": "APPLIED"}).json()
+
+    assert [e["source"] for e in body["events"]] == ["manual", "manual"]

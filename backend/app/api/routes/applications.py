@@ -56,11 +56,17 @@ from app.models import (
 )
 from app.queue import get_queue
 from app.services.applications import (
+    APPLIED_STATUS,
     INTERVIEW_STATUS,
+    EventRejected,
     ensure_statuses,
     held_rounds,
+    record_event,
+    reject_if_final,
+    reject_initial_only,
     set_interview_rounds,
     set_job_decision,
+    status_by_key,
 )
 from app.services.relevance import relevance
 
@@ -69,14 +75,6 @@ router = APIRouter()
 MAX_PAGE_SIZE = 200
 MAX_INTERVIEW_ROUNDS = 20
 DEFAULT_STATUS = "SHORTLISTED"
-INITIAL_ONLY_STATUS = "SHORTLISTED"
-"""Recorded only when the application is created: it cannot be added, removed or
-switched to/from afterwards (its note and date can still be edited)."""
-APPLIED_STATUS = "APPLIED"
-"""Recorded at most once, and only straight after ``SHORTLISTED`` (its current state)."""
-FINAL_STATUSES = frozenset({"OFFER", "REJECTED"})
-"""Terminal states: once one is current, no further state can be added (removing it reopens the
-application)."""
 
 
 # --------------------------------------------------------------------------- models
@@ -113,6 +111,8 @@ class EventOut(BaseModel):
     duration_minutes: int | None = None
     occurred_at: datetime | None
     """When it happened; for a planned round the optional scheduled time."""
+    source: Literal["manual", "gmail"] = "manual"
+    """``gmail`` when the state was recorded automatically by the Gmail rejection monitor."""
     created_at: datetime
 
 
@@ -227,20 +227,25 @@ def _get_or_404(session: Session, application_id: int) -> Application:
     return application
 
 
+def _http_error(exc: EventRejected) -> HTTPException:
+    code = (
+        status.HTTP_422_UNPROCESSABLE_CONTENT if exc.kind == "invalid" else status.HTTP_409_CONFLICT
+    )
+    return HTTPException(code, str(exc))
+
+
 def _status_or_422(session: Session, key: str) -> ApplicationStatus:
-    ensure_statuses(session)
-    row = session.scalar(select(ApplicationStatus).where(ApplicationStatus.key == key.upper()))
-    if row is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown status {key!r}")
-    return row
+    try:
+        return status_by_key(session, key)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _reject_initial_only(key: str) -> None:
-    if key.upper() == INITIAL_ONLY_STATUS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"{INITIAL_ONLY_STATUS} is only set when the application is created",
-        )
+    try:
+        reject_initial_only(key)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
@@ -264,17 +269,16 @@ def _event_out(e: ApplicationEvent) -> EventOut:
         title=e.title or "",
         duration_minutes=e.duration_minutes,
         occurred_at=e.occurred_at,
+        source=e.source or ApplicationEvent.SOURCE_MANUAL,
         created_at=e.created_at,
     )
 
 
 def _reject_if_final(application: Application) -> None:
-    current = application.current_event
-    if current is not None and current.status.key in FINAL_STATUSES:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"application is {current.status.key}; remove that state to record new ones",
-        )
+    try:
+        reject_if_final(application)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
 
 
 def _to_out(
@@ -537,34 +541,13 @@ def add_event(
 ) -> ApplicationOut:
     """Record a state change; it becomes the current state unless ``occurred_at`` puts it
     before a later one."""
-    _reject_initial_only(payload.status)
     application = _get_or_404(session, application_id)
-    _reject_if_final(application)
-    current = application.current_event
-    if payload.status.upper() == APPLIED_STATUS:
-        if any(e.status.key == APPLIED_STATUS for e in application.events):
-            raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
-        if current is None or current.status.key != INITIAL_ONLY_STATUS:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}",
-            )
-    plan = application.plan
-    if payload.status.upper() == INTERVIEW_STATUS and plan:
-        # Hold the next planned round instead of adding a new one.
-        event = plan[0]
-        event.planned = False
-        event.occurred_at = payload.occurred_at or event.occurred_at or datetime.now(UTC)
-        event.note = payload.note or event.note
-    else:
-        event = ApplicationEvent(
-            application_id=application.id,
-            status=_status_or_422(session, payload.status),
-            note=payload.note,
+    try:
+        record_event(
+            session, application, payload.status, note=payload.note, occurred_at=payload.occurred_at
         )
-        if payload.occurred_at is not None:
-            event.occurred_at = payload.occurred_at
-        session.add(event)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
     session.commit()
     return _reload_out(session, application_id, request, queue)
 

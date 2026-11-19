@@ -467,3 +467,11 @@
   flex: 1 1 14rem;
   max-width: 24rem;
 }
+
+/* Lightning bolt on states recorded automatically (Gmail rejection monitor). */
+.app-status-auto {
+  margin-right: 3px;
+  font-size: 0.9em;
+  line-height: 1;
+  cursor: help;
+}

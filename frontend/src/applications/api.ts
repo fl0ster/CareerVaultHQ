@@ -28,7 +28,21 @@ export type ApplicationEvent = {
   title: string
   duration_minutes: number | null
   occurred_at: string
+  /** `gmail` when the Gmail rejection monitor recorded the state automatically. */
+  source: EventSource
   created_at: string
+}
+
+export type EventSource = 'manual' | 'gmail'
+
+/** The state was recorded by an automation rather than by hand. */
+export function isAutoEvent(event: { source?: EventSource } | null | undefined): boolean {
+  return event?.source === 'gmail'
+}
+
+/** The latest held state of the application (its current state), if any. */
+export function currentEvent(application: Application): ApplicationEvent | undefined {
+  return application.events[application.events.length - 1]
 }
 
 /** An interview round planned but not held yet; `occurred_at` is its optional schedule. */
