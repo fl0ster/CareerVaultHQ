@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './cost.css'
 import { getCostReport, type CostQuery, type CostReport, type Granularity } from './api.ts'
 import { BreakdownChart, TimeChart } from './charts.tsx'
@@ -30,7 +30,7 @@ type Filters = {
   status: string
 }
 
-/** What the report should show, plus a counter bumped by every change and by Refresh. */
+/** What the report should show, plus a counter bumped by every change and on each page visit. */
 type Request = { filters: Filters; n: number }
 
 const DEFAULT_FILTERS: Filters = {
@@ -55,8 +55,8 @@ function toQuery(f: Filters): CostQuery {
   }
 }
 
-export default function CostPage() {
-  // ``n`` is bumped by every filter change and by Refresh; ``loadedFor`` tracks which
+export default function CostPage({ active }: { active: boolean }) {
+  // ``n`` is bumped by every filter change and each time the page is entered; ``loadedFor`` tracks which
   // request the shown report belongs to, so ``loading`` needs no state of its own.
   const [request, setRequest] = useState<Request>({ filters: DEFAULT_FILTERS, n: 0 })
   const [loadedFor, setLoadedFor] = useState(-1)
@@ -82,9 +82,16 @@ export default function CostPage() {
     return () => controller.abort()
   }, [request])
 
+  // The page stays mounted while hidden, so reload whenever it becomes visible again.
+  // Skip the first run: the mount already triggered a load.
+  const mounted = useRef(false)
+  useEffect(() => {
+    if (mounted.current && active) setRequest((prev) => ({ ...prev, n: prev.n + 1 }))
+    mounted.current = true
+  }, [active])
+
   const update = (patch: Partial<Filters>) =>
     setRequest((prev) => ({ filters: { ...prev.filters, ...patch }, n: prev.n + 1 }))
-  const refresh = () => setRequest((prev) => ({ ...prev, n: prev.n + 1 }))
   const setRange = (range: RangeId) => {
     const preset = RANGES.find((r) => r.id === range)!
     update({ range, granularity: preset.granularity })
@@ -140,9 +147,6 @@ export default function CostPage() {
             Clear
           </button>
         )}
-        <button type="button" className="small secondary" onClick={refresh} disabled={loading}>
-          Refresh
-        </button>
         {loading && <span className="spinner" aria-label="Loading" />}
       </div>
 

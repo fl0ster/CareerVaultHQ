@@ -11,6 +11,7 @@ import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from
 import { describeError } from '../cv/api.ts'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
+import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 50
 /** How often the tab checks for newly evaluated jobs, in ms. */
@@ -220,6 +221,9 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const detailOpen = detailId != null
   const openId = detailId != null && /^\d+$/.test(detailId) ? Number(detailId) : null
   useDetailScroll(detailOpen, active)
+  // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(toolbarRef, active && !detailOpen)
 
   const onDetailTitle = useCallback(
     (title: string | null) => onCrumbsChange([{ label: title ?? 'Not found' }]),
@@ -523,6 +527,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
               : null}
         </p>
 
+        <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
         <div className="jobs-controls">
           <input
             type="search"
@@ -532,6 +537,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
+        </div>
         </div>
 
         {error && (

@@ -97,7 +97,7 @@ function App() {
     sources: <SourcesPage />,
     'generated-cv': <GeneratedCvPage />,
     gmail: <GmailMonitorPage />,
-    cost: <CostPage />,
+    cost: <CostPage active={page === 'cost'} />,
   }
 
   return (

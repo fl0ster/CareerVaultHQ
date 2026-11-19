@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './applications.css'
 import '../cv/cv.css'
 import '../jobs/jobs.css'
@@ -23,6 +23,7 @@ import StatusBadge from './StatusBadge.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import { type Crumb, pageHref } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
+import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
@@ -80,6 +81,10 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+
+  // The toolbar sticks under the top bar; once stuck it gets the top bar's translucent look.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(toolbarRef, active && detailId == null)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
   const detailOpen = detailId != null
@@ -215,6 +220,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
 
       {/* The list stays mounted under an open application so its filters and search survive. */}
       <div hidden={detailOpen}>
+        <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
         <nav className="segmented centered" aria-label="Application sections">
           {SUBTABS.map((t) => (
             <button
@@ -260,6 +266,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
                 ))}
             </select>
           )}
+        </div>
         </div>
 
         {error && <p className="error">{error}</p>}
