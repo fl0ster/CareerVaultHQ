@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type ApplicationStatus, isFinalStatus, pickableStatuses } from './api.ts'
+import { type ApplicationStatus, INTERVIEW_STATUS, isFinalStatus, pickableStatuses } from './api.ts'
 import './applications.css'
 
 export type PillOption = {
@@ -149,17 +149,24 @@ type Props = {
   statuses?: ApplicationStatus[]
   /** Switches the application to the state with this key. Without it the badge is read-only. */
   onSelect?: (key: string) => Promise<unknown> | void
+  /** Label of the next planned interview round ("round 2 (Technical)"), if any: a click on
+   * an INTERVIEW pill records that round as held (without one it records another round). */
+  nextRound?: string
 }
 
 /**
  * Application state pill; known states get a colour, custom ones the neutral badge.
  * With `onSelect` it is a `PickerPill`: click moves to the state's `next_key`, ⋮ picks any state.
  */
-export default function StatusBadge({ status, statuses = [], onSelect }: Props) {
+export default function StatusBadge({ status, statuses = [], onSelect, nextRound }: Props) {
   const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
   const label = status ? status.label : 'No status'
   if (!onSelect) return <span className={cls}>{label}</span>
   const final = isFinalStatus(status)
+  const repeats = status?.next_key === status?.key
+  // A state whose default successor is itself is not advanced by a click, except INTERVIEW:
+  // a click records the next interview round (the planned one, or a new one).
+  const advancesRound = repeats && status?.key === INTERVIEW_STATUS
 
   return (
     <PickerPill
@@ -170,9 +177,11 @@ export default function StatusBadge({ status, statuses = [], onSelect }: Props) 
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
       }))}
       currentKey={status?.key ?? null}
-      // A state whose default successor is itself (INTERVIEW) is not advanced by a click.
-      nextKey={final || status?.next_key === status?.key ? null : status?.next_key}
+      nextKey={final || (repeats && !advancesRound) ? null : status?.next_key}
       onSelect={onSelect}
+      title={
+        advancesRound ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined
+      }
       extra={final ? null : undefined}
     >
       {label}

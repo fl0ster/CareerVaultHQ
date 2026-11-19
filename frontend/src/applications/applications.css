@@ -161,6 +161,135 @@
   color: var(--text-h);
 }
 
+/* Planned interview rounds: dashed until they are held */
+.app-event.planned {
+  margin: 6px 0;
+  padding: 8px 10px 4px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+
+  &.not-held {
+    opacity: 0.55;
+  }
+
+  textarea {
+    margin: 6px 0 4px;
+  }
+}
+
+.app-round-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.app-event.planned.not-held .app-round-label {
+  color: var(--text);
+  text-decoration: line-through;
+}
+
+.app-round-info {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.app-round-fields {
+  margin-top: 6px;
+
+  input[type='text'] {
+    flex: 1 1 180px;
+    min-width: 0;
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+  }
+}
+
+.app-plan {
+  margin-bottom: 12px;
+}
+
+.app-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  input[type='number'] {
+    width: 3.5em;
+    font: inherit;
+    font-size: 14px;
+    padding: 4px 6px;
+    text-align: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+  }
+}
+
+/* Interview progress: one segment per round */
+.interview-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.interview-progress-track {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.interview-progress-seg {
+  width: 22px;
+  height: 8px;
+  border-radius: 4px;
+  box-sizing: border-box;
+
+  &.held {
+    background: #f59e0b;
+  }
+  &.planned {
+    border: 1.5px dashed var(--border);
+  }
+  &.next {
+    border-color: #f59e0b;
+  }
+}
+
+.interview-progress.compact {
+  gap: 6px;
+  font-size: 12px;
+
+  .interview-progress-seg {
+    width: 12px;
+    height: 6px;
+    border-radius: 3px;
+  }
+}
+
+.interview-progress.offer .interview-progress-seg.held {
+  background: #22c55e;
+}
+
+.interview-progress.rejected {
+  .interview-progress-seg.held {
+    background: #ef4444;
+  }
+  .interview-progress-seg.planned {
+    opacity: 0.4;
+  }
+}
+
 .app-add-event {
   padding-top: 8px;
   border-top: 1px dashed var(--border);

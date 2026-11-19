@@ -545,6 +545,9 @@ class Application(Base):
         ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True
     )
     """The CV generated for this application (the latest one when regenerated)."""
+    interview_rounds: Mapped[int | None] = mapped_column(Integer)
+    """Declared number of interview rounds (held + planned); ``None`` when there is no plan.
+    Kept in sync with the planned events by ``app.services.applications.sync_interview_plan``."""
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -561,14 +564,26 @@ class Application(Base):
     )
 
     @property
+    def history(self) -> list[ApplicationEvent]:
+        """States the application actually went through, oldest first (planned rounds left out)."""
+        return [e for e in self.events if not e.planned]
+
+    @property
+    def plan(self) -> list[ApplicationEvent]:
+        """Planned interview rounds not held yet, in round order."""
+        return sorted((e for e in self.events if e.planned), key=lambda e: e.id or 0)
+
+    @property
     def current_event(self) -> ApplicationEvent | None:
-        """The latest state change (``events`` is ordered oldest first)."""
-        return self.events[-1] if self.events else None
+        """The latest state change (planned rounds do not count)."""
+        history = self.history
+        return history[-1] if history else None
 
 
 class ApplicationEvent(Base):
     """One state the application went through (applied on X, interview on Y, ...), with a
-    note of its own."""
+    note of its own, or, with ``planned``, an interview round that is expected but not held
+    yet (always ``INTERVIEW``). Recording an interview fills the first planned round."""
 
     __tablename__ = "application_events"
 
@@ -580,8 +595,14 @@ class ApplicationEvent(Base):
         ForeignKey("application_statuses.id", ondelete="RESTRICT"), index=True, nullable=False
     )
     note: Mapped[str] = mapped_column(Text, default="")
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    """When the state was reached (defaults to when it was recorded; editable)."""
+    planned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    """A planned interview round that has not happened yet."""
+    title: Mapped[str] = mapped_column(String(128), default="")
+    """Kind of interview round ("Culture match", "Technical", ...)."""
+    duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
+    """When the state was reached (defaults to when it was recorded; editable). For a planned
+    round the optional scheduled time; always set on held events."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     application: Mapped[Application] = relationship(back_populates="events")

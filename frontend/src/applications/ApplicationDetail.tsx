@@ -11,13 +11,19 @@ import {
   isFinalStatus,
   APPLIED_STATUS,
   INITIAL_ONLY_STATUS,
+  INTERVIEW_STATUS,
+  MAX_INTERVIEW_ROUNDS,
   pickableStatuses,
   applicationsApi,
+  formatDuration,
   fromLocalInput,
+  interviewRounds,
   notifyApplicationsChanged,
+  roundLabel,
   serverDate,
   toLocalInput,
 } from './api.ts'
+import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
 
 type Props = {
@@ -48,6 +54,62 @@ function useAction() {
   return { busy, error, run }
 }
 
+/** Suggestions for the kind of an interview round. */
+const ROUND_TYPES = [
+  'HR screening',
+  'Culture match',
+  'Technical',
+  'Live coding',
+  'System design',
+  'Home assignment',
+  'Hiring manager',
+  'Team meeting',
+  'Final',
+]
+const ROUND_TYPES_ID = 'interview-round-types'
+
+const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240]
+
+/** `<select>` of common round lengths (keeps an unusual stored value selectable). */
+function DurationSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number | null
+  onChange: (minutes: number | null) => void
+  disabled?: boolean
+}) {
+  const options = value && !DURATIONS.includes(value) ? [...DURATIONS, value].sort((a, b) => a - b) : DURATIONS
+  return (
+    <select
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      disabled={disabled}
+      aria-label="Duration"
+      title="Duration"
+    >
+      <option value="">Duration…</option>
+      {options.map((m) => (
+        <option key={m} value={m}>
+          {formatDuration(m)}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** Title + duration of an interview round, shown next to its badge. */
+function RoundInfo({ title, duration }: { title: string; duration: number | null }) {
+  if (!title && !duration) return null
+  return (
+    <span className="app-round-info">
+      {title && <strong>{title}</strong>}
+      {duration ? <span className="muted">{formatDuration(duration)}</span> : null}
+    </span>
+  )
+}
+
 function EventRow({
   application,
   event,
@@ -62,25 +124,33 @@ function EventRow({
   const [editing, setEditing] = useState(false)
   const [status, setStatus] = useState(event.status.key)
   const [note, setNote] = useState(event.note)
-  const [when, setWhen] = useState(toLocalInput(event.occurred_at))
+  const [title, setTitle] = useState(event.title)
+  const [duration, setDuration] = useState(event.duration_minutes)
+  const occurred = event.occurred_at ?? event.created_at
+  const [when, setWhen] = useState(toLocalInput(occurred))
   const { busy, error, run } = useAction()
   const locked = event.status.key === INITIAL_ONLY_STATUS
+  const isRound = status === INTERVIEW_STATUS
 
   const startEdit = () => {
     setStatus(event.status.key)
     setNote(event.note)
-    setWhen(toLocalInput(event.occurred_at))
+    setTitle(event.title)
+    setDuration(event.duration_minutes)
+    setWhen(toLocalInput(occurred))
     setEditing(true)
   }
 
   const save = async () => {
     // The input only has minute precision: re-sending an untouched value would truncate
     // the stored timestamp, so the date is sent only when the user actually changed it.
-    const dateChanged = when !== toLocalInput(event.occurred_at)
+    const dateChanged = when !== toLocalInput(occurred)
     const updated = await run(() =>
       applicationsApi.updateEvent(application.id, event.id, {
         ...(locked ? {} : { status }),
         note,
+        title,
+        duration_minutes: duration,
         ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
       }),
     )
@@ -90,8 +160,12 @@ function EventRow({
     }
   }
 
+  const backToPlan = application.interview_rounds != null && event.status.key === INTERVIEW_STATUS
   const remove = async () => {
-    if (!window.confirm(`Remove the "${event.status.label}" state?`)) return
+    const question = backToPlan
+      ? `Mark this ${event.title ? `"${event.title}" ` : ''}round as not held? It goes back to the planned rounds.`
+      : `Remove the "${event.status.label}" state?`
+    if (!window.confirm(question)) return
     const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))
     if (updated) onChange(updated)
   }
@@ -119,6 +193,20 @@ function EventRow({
           )}
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         </div>
+        {isRound && (
+          <div className="app-form-row app-round-fields">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              list={ROUND_TYPES_ID}
+              placeholder="Kind of round (e.g. Technical)"
+              aria-label="Kind of round"
+              maxLength={128}
+            />
+            <DurationSelect value={duration} onChange={setDuration} />
+          </div>
+        )}
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state" rows={3} />
         <div className="app-buttons">
           <button type="button" className="small" onClick={save} disabled={busy}>
@@ -137,14 +225,15 @@ function EventRow({
     <li className="app-event">
       <div className="app-event-head">
         <StatusBadge status={event.status} />
-        <span className="muted">{serverDate(event.occurred_at).toLocaleString()}</span>
+        <RoundInfo title={event.title} duration={event.duration_minutes} />
+        <span className="muted">{serverDate(occurred).toLocaleString()}</span>
         <span className="app-buttons">
           <button type="button" className="secondary small" onClick={startEdit} disabled={busy}>
             Edit
           </button>
           {!locked && (
             <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
-              Remove
+              {backToPlan ? 'Not held' : 'Remove'}
             </button>
           )}
         </span>
@@ -152,6 +241,203 @@ function EventRow({
       {event.note && <p className="app-note">{event.note}</p>}
       {error && <p className="error">{error}</p>}
     </li>
+  )
+}
+
+/** A planned interview round: dashed, edited inline (each field saves when it is left;
+ * the parent remounts it when the stored values change). */
+function PlannedEventRow({
+  application,
+  event,
+  index,
+  onChange,
+}: {
+  application: Application
+  event: ApplicationEvent
+  /** Position among all rounds (0-based). */
+  index: number
+  onChange: (application: Application) => void
+}) {
+  const [title, setTitle] = useState(event.title)
+  const [note, setNote] = useState(event.note)
+  const [when, setWhen] = useState(event.occurred_at ? toLocalInput(event.occurred_at) : '')
+  const { busy, error, run } = useAction()
+  const final = isFinalStatus(application.status)
+
+  const save = async (changes: Parameters<typeof applicationsApi.updateEvent>[2]) => {
+    const updated = await run(() => applicationsApi.updateEvent(application.id, event.id, changes))
+    if (updated) onChange(updated)
+  }
+
+  const saveTitle = () => {
+    if (title.trim() !== event.title) void save({ title: title.trim() })
+  }
+  const saveNote = () => {
+    if (note !== event.note) void save({ note })
+  }
+  const saveWhen = () => {
+    const stored = event.occurred_at ? toLocalInput(event.occurred_at) : ''
+    if (when !== stored) void save({ occurred_at: when ? fromLocalInput(when) : null })
+  }
+
+  const markHeld = async () => {
+    const updated = await run(() =>
+      applicationsApi.updateEvent(application.id, event.id, {
+        planned: false,
+        // An unscheduled round is recorded as held now.
+        ...(event.occurred_at ? {} : { occurred_at: new Date().toISOString() }),
+      }),
+    )
+    if (updated) onChange(updated)
+  }
+
+  const remove = async () => {
+    if (!window.confirm(`Remove ${roundLabel(event, index)} from the plan (one round fewer)?`)) return
+    const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))
+    if (updated) onChange(updated)
+  }
+
+  return (
+    <li className={`app-event planned${final ? ' not-held' : ''}`}>
+      <div className="app-event-head">
+        <span className="app-round-label">
+          Round {index + 1} · {final ? 'not held' : 'planned'}
+        </span>
+        <span className="app-buttons">
+          {!final && (
+            <button type="button" className="secondary small" onClick={markHeld} disabled={busy}>
+              Mark held
+            </button>
+          )}
+          <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
+            Remove round
+          </button>
+        </span>
+      </div>
+      <div className="app-form-row app-round-fields">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={saveTitle}
+          onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
+          list={ROUND_TYPES_ID}
+          placeholder="Kind of round (e.g. Technical)"
+          aria-label={`Round ${index + 1}: kind`}
+          maxLength={128}
+          disabled={busy}
+        />
+        <DurationSelect
+          value={event.duration_minutes}
+          onChange={(minutes) => void save({ duration_minutes: minutes })}
+          disabled={busy}
+        />
+        <input
+          type="datetime-local"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+          onBlur={saveWhen}
+          aria-label={`Round ${index + 1}: scheduled for`}
+          title="Scheduled for (optional)"
+          disabled={busy}
+        />
+      </div>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onBlur={saveNote}
+        placeholder="Note (optional)"
+        rows={1}
+        disabled={busy}
+      />
+      {error && <p className="error">{error}</p>}
+    </li>
+  )
+}
+
+/** Number of interview rounds: −/+ stepper with an editable count; empty means no plan. */
+function InterviewPlan({
+  application,
+  onChange,
+}: {
+  application: Application
+  onChange: (application: Application) => void
+}) {
+  const { busy, error, run } = useAction()
+  const rounds = application.interview_rounds
+  const held = interviewRounds(application).filter((r) => r.held).length
+  const min = Math.max(held, 1)
+  // Keyed by the stored count by the parent, so this starts from it after every change.
+  const [draft, setDraft] = useState(rounds == null ? '' : String(rounds))
+
+  const set = async (n: number | null) => {
+    if (n === rounds) return
+    if (
+      n == null &&
+      application.planned_events.some((e) => e.title || e.note || e.duration_minutes || e.occurred_at) &&
+      !window.confirm('Clear the interview plan? Details of the planned rounds are lost.')
+    ) {
+      setDraft(rounds == null ? '' : String(rounds))
+      return
+    }
+    const updated = await run(() => applicationsApi.setInterviewRounds(application.id, n))
+    if (updated) onChange(updated)
+    else setDraft(rounds == null ? '' : String(rounds))
+  }
+
+  const commitDraft = () => {
+    const n = draft.trim() === '' ? null : Math.round(Number(draft))
+    if (n != null && !Number.isFinite(n)) return setDraft(rounds == null ? '' : String(rounds))
+    void set(n == null || n <= 0 ? null : Math.min(Math.max(n, min), MAX_INTERVIEW_ROUNDS))
+  }
+
+  return (
+    <div className="app-plan">
+      <div className="app-form-row">
+        <span>Interview rounds</span>
+        <span className="app-stepper">
+          <button
+            type="button"
+            className="secondary small"
+            aria-label="One round fewer"
+            onClick={() => set(rounds != null && rounds > min ? rounds - 1 : rounds)}
+            disabled={busy || rounds == null || rounds <= min}
+          >
+            −
+          </button>
+          <input
+            type="number"
+            min={min}
+            max={MAX_INTERVIEW_ROUNDS}
+            value={draft}
+            placeholder="—"
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => e.key === 'Enter' && commitDraft()}
+            aria-label="Number of interview rounds"
+            disabled={busy}
+          />
+          <button
+            type="button"
+            className="secondary small"
+            aria-label="One more round"
+            onClick={() => set(Math.min((rounds ?? held) + 1, MAX_INTERVIEW_ROUNDS))}
+            disabled={busy || (rounds ?? 0) >= MAX_INTERVIEW_ROUNDS}
+          >
+            +
+          </button>
+        </span>
+        {rounds != null && (
+          <>
+            <InterviewProgress application={application} />
+            <button type="button" className="secondary small" onClick={() => set(null)} disabled={busy}>
+              Clear plan
+            </button>
+          </>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
   )
 }
 
@@ -170,6 +456,8 @@ function AddEventForm({
   const { busy, error, run } = useAction()
   const options = pickableStatuses(statuses, application.status?.key ?? null)
   const selected = status || options[0]?.key || ''
+  const nextRound = selected === INTERVIEW_STATUS ? application.planned_events[0] : undefined
+  const nextIndex = application.events.filter((e) => e.status.key === INTERVIEW_STATUS).length
 
   const add = async () => {
     const updated = await run(() =>
@@ -200,7 +488,11 @@ function AddEventForm({
           title="When (defaults to now)"
         />
         <button type="button" className="small" onClick={add} disabled={busy || !selected}>
-          {busy ? 'Adding…' : 'Add status'}
+          {busy
+            ? 'Adding…'
+            : nextRound
+              ? `Record round ${nextIndex + 1}${nextRound.title ? ` (${nextRound.title})` : ''}`
+              : 'Add status'}
         </button>
       </div>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state (optional)" rows={2} />
@@ -214,6 +506,7 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
   const cvAction = useAction()
   const deleteAction = useAction()
   const cv = application.cv
+  const heldRounds = application.events.filter((e) => e.status.key === INTERVIEW_STATUS).length
   const { company, company_id: companyId, company_notes: companyNotes } = application.job
 
   const saveNotes = async (notes: string) => {
@@ -301,16 +594,32 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
 
       <section className="app-section">
         <h3>Status history</h3>
-        {application.events.length === 0 ? (
+        <InterviewPlan key={application.interview_rounds ?? 'none'} application={application} onChange={onChange} />
+        <datalist id={ROUND_TYPES_ID}>
+          {ROUND_TYPES.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+        {application.events.length === 0 && application.planned_events.length === 0 ? (
           <p className="muted">No status recorded yet.</p>
         ) : (
           <ol className="app-events">
             {application.events.map((event) => (
               <EventRow
-                key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}`}
+                key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}:${event.title}:${event.duration_minutes}`}
                 application={application}
                 event={event}
                 statuses={statuses}
+                onChange={onChange}
+              />
+            ))}
+            {application.planned_events.map((event, i) => (
+              <PlannedEventRow
+                // Remounted (fresh field drafts) whenever the stored round changes.
+                key={`${event.id}:${event.title}:${event.note}:${event.occurred_at}`}
+                application={application}
+                event={event}
+                index={heldRounds + i}
                 onChange={onChange}
               />
             ))}

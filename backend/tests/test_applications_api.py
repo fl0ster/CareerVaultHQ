@@ -275,3 +275,108 @@ def test_applied_only_once_and_after_shortlisted(client, db_session):
     events = f"{BASE}/{b.json()['id']}/events"
     assert client.post(events, json={"status": "INTERVIEW"}).status_code == 201
     assert client.post(events, json={"status": "APPLIED"}).status_code == 409
+
+
+def _rounds(body):
+    held = [e for e in body["events"] if e["status"]["key"] == "INTERVIEW"]
+    return len(held), [(e["title"], e["planned"]) for e in body["planned_events"]]
+
+
+def test_interview_plan_sizes_follow_rounds(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"})
+    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+
+    body = client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 5}).json()
+    assert body["interview_rounds"] == 5
+    assert _rounds(body) == (1, [("", True)] * 4)
+    # Planned rounds are never the current state.
+    assert body["status"]["key"] == "INTERVIEW"
+    assert body["notes"] == ""
+
+    first = body["planned_events"][0]["id"]
+    body = client.patch(
+        f"{BASE}/{app_id}/events/{first}", json={"title": "Culture match", "duration_minutes": 60}
+    ).json()
+    assert body["planned_events"][0]["title"] == "Culture match"
+    assert body["planned_events"][0]["duration_minutes"] == 60
+
+    # Shrinking drops blank rounds first, keeping the named one.
+    body = client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 3}).json()
+    assert _rounds(body) == (1, [("Culture match", True), ("", True)])
+
+    res = client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 0})
+    assert res.json()["interview_rounds"] is None and res.json()["planned_events"] == []
+    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+    assert client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 1}).status_code == 422
+    # Notes alone leave the plan alone.
+    client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 4})
+    body = client.patch(f"{BASE}/{app_id}", json={"notes": "n"}).json()
+    assert body["notes"] == "n" and body["interview_rounds"] == 4
+
+
+def test_recording_an_interview_fills_the_plan(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"})
+    body = client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 2}).json()
+    first, second = (e["id"] for e in body["planned_events"])
+    # Planned rounds are not interviews yet (current state, company stats).
+    assert body["status"]["key"] == "APPLIED"
+    stats = client.get("/api/companies/application-stats").json()
+    assert stats[str(body["job"]["company_id"])] == {"APPLIED": 1}
+    client.patch(f"{BASE}/{app_id}/events/{first}", json={"title": "HR", "note": "plan note"})
+
+    body = client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"}).json()
+    filled = body["events"][-1]
+    assert (filled["id"], filled["title"], filled["note"], filled["planned"]) == (
+        first, "HR", "plan note", False
+    )
+    assert filled["occurred_at"] is not None
+    assert [e["id"] for e in body["planned_events"]] == [second]
+
+    # Marking a specific round held, then one beyond the plan grows it.
+    body = client.patch(f"{BASE}/{app_id}/events/{second}", json={"planned": False}).json()
+    assert body["planned_events"] == [] and body["interview_rounds"] == 2
+    extra_round = {"status": "INTERVIEW", "title": "Extra"}
+    body = client.post(f"{BASE}/{app_id}/events", json=extra_round).json()
+    assert body["interview_rounds"] == 3 and body["events"][-1]["title"] == "Extra"
+
+    # Deleting a held round makes it planned again; deleting a planned one drops a round.
+    extra = body["events"][-1]["id"]
+    body = client.delete(f"{BASE}/{app_id}/events/{extra}").json()
+    assert [(e["id"], e["title"]) for e in body["planned_events"]] == [(extra, "Extra")]
+    assert body["interview_rounds"] == 3
+    body = client.delete(f"{BASE}/{app_id}/events/{extra}").json()
+    assert body["planned_events"] == [] and body["interview_rounds"] == 2
+
+
+def test_final_state_keeps_plan_but_blocks_it(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"})
+    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+    body = client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 3}).json()
+    planned = body["planned_events"][0]["id"]
+
+    body = client.post(f"{BASE}/{app_id}/events", json={"status": "REJECTED"}).json()
+    assert body["status"]["key"] == "REJECTED" and len(body["planned_events"]) == 2
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"}).status_code == 409
+    res = client.patch(f"{BASE}/{app_id}/events/{planned}", json={"planned": False})
+    assert res.status_code == 409
+
+
+def test_recording_an_interview_without_a_plan_starts_one(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    body = client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"}).json()
+    assert body["interview_rounds"] is None
+    body = client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"}).json()
+    assert body["interview_rounds"] == 1 and body["planned_events"] == []
+    body = client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"}).json()
+    assert body["interview_rounds"] == 2

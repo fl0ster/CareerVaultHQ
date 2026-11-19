@@ -11,6 +11,15 @@
   to/from later (``422``), though its note and date can be edited. No state can be added
   while the current one is ``OFFER`` or ``REJECTED`` (``409``) until that state is removed.
   ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
+* Interview plan: ``PATCH /api/applications/{id}`` with ``{"interview_rounds": 5}`` declares
+  the number of interview rounds; the rounds not held yet are kept as *planned* events
+  (``planned_events``, never the current state) whose title, duration, schedule and note can
+  be edited like any event. Recording ``INTERVIEW`` fills the first planned round (without a
+  plan it starts one: every recorded interview is a round);
+  ``PATCH .../events/{id}`` with ``{"planned": false}`` marks a specific one as held.
+  Deleting a planned round drops it from the plan; deleting a held round while a plan exists
+  turns it back into a planned one. Planned rounds are kept (shown as not held) while the
+  application is ``OFFER``/``REJECTED`` but cannot be held then (``409``).
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
@@ -47,12 +56,19 @@ from app.models import (
     JobParseResult,
 )
 from app.queue import get_queue
-from app.services.applications import ensure_statuses, set_job_decision
+from app.services.applications import (
+    INTERVIEW_STATUS,
+    ensure_statuses,
+    held_rounds,
+    set_job_decision,
+    sync_interview_plan,
+)
 from app.services.relevance import relevance
 
 router = APIRouter()
 
 MAX_PAGE_SIZE = 200
+MAX_INTERVIEW_ROUNDS = 20
 DEFAULT_STATUS = "SHORTLISTED"
 INITIAL_ONLY_STATUS = "SHORTLISTED"
 """Recorded only when the application is created: it cannot be added, removed or
@@ -93,7 +109,13 @@ class EventOut(BaseModel):
     id: int
     status: StatusOut
     note: str
-    occurred_at: datetime
+    planned: bool = False
+    """A planned interview round not held yet."""
+    title: str = ""
+    """Kind of interview round."""
+    duration_minutes: int | None = None
+    occurred_at: datetime | None
+    """When it happened; for a planned round the optional scheduled time."""
     created_at: datetime
 
 
@@ -127,7 +149,11 @@ class ApplicationOut(BaseModel):
     status: StatusOut | None
     """Current state (that of the latest event); ``None`` when no state was recorded."""
     events: list[EventOut]
-    """State history, oldest first."""
+    """State history, oldest first (planned rounds left out)."""
+    planned_events: list[EventOut] = []
+    """Interview rounds planned but not held yet, in round order."""
+    interview_rounds: int | None = None
+    """Declared number of interview rounds (held + planned); ``None`` without a plan."""
     job: ApplicationJobOut
     evaluation: ApplicationEvaluationOut | None
     cv: GeneratedCvOut | None
@@ -150,7 +176,9 @@ class ApplicationCreate(BaseModel):
 
 
 class ApplicationUpdate(BaseModel):
-    notes: str
+    notes: str | None = None
+    interview_rounds: int | None = Field(default=None, ge=0, le=MAX_INTERVIEW_ROUNDS)
+    """Number of interview rounds; ``0``/``null`` clears the plan. Only applied when sent."""
 
 
 def _to_utc(value: datetime | None) -> datetime | None:
@@ -164,6 +192,8 @@ class EventCreate(BaseModel):
     status: str
     note: str = ""
     occurred_at: datetime | None = None
+    title: str | None = Field(default=None, max_length=128)
+    duration_minutes: int | None = Field(default=None, ge=0, le=24 * 60)
 
     _utc = field_validator("occurred_at")(_to_utc)
 
@@ -172,6 +202,12 @@ class EventUpdate(BaseModel):
     status: str | None = None
     note: str | None = None
     occurred_at: datetime | None = None
+    """Only applied when sent; ``null`` clears the schedule of a planned round."""
+    title: str | None = Field(default=None, max_length=128)
+    duration_minutes: int | None = Field(default=None, ge=0, le=24 * 60)
+    """Only applied when sent; ``null`` clears it."""
+    planned: bool | None = None
+    """``false`` marks a planned round as held."""
 
     _utc = field_validator("occurred_at")(_to_utc)
 
@@ -227,6 +263,28 @@ def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
     )
 
 
+def _event_out(e: ApplicationEvent) -> EventOut:
+    return EventOut(
+        id=e.id,
+        status=StatusOut.model_validate(e.status),
+        note=e.note or "",
+        planned=bool(e.planned),
+        title=e.title or "",
+        duration_minutes=e.duration_minutes,
+        occurred_at=e.occurred_at,
+        created_at=e.created_at,
+    )
+
+
+def _reject_if_final(application: Application) -> None:
+    current = application.current_event
+    if current is not None and current.status.key in FINAL_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"application is {current.status.key}; remove that state to record new ones",
+        )
+
+
 def _to_out(
     application: Application, request: Request, session: Session, queue: Queue
 ) -> ApplicationOut:
@@ -246,16 +304,9 @@ def _to_out(
         created_at=application.created_at,
         updated_at=application.updated_at,
         status=StatusOut.model_validate(current.status) if current else None,
-        events=[
-            EventOut(
-                id=e.id,
-                status=StatusOut.model_validate(e.status),
-                note=e.note or "",
-                occurred_at=e.occurred_at,
-                created_at=e.created_at,
-            )
-            for e in application.events
-        ],
+        events=[_event_out(e) for e in application.history],
+        planned_events=[_event_out(e) for e in application.plan],
+        interview_rounds=application.interview_rounds,
         job=ApplicationJobOut(
             id=job.id,
             title=parsed.title,
@@ -423,9 +474,21 @@ def update_application(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Replace the application's notes."""
+    """Replace the application's notes and/or its number of interview rounds (``422`` when
+    fewer than the rounds already held)."""
     application = _get_or_404(session, application_id)
-    application.notes = payload.notes
+    if "notes" in payload.model_fields_set and payload.notes is not None:
+        application.notes = payload.notes
+    if "interview_rounds" in payload.model_fields_set:
+        rounds = payload.interview_rounds or None
+        held = len(held_rounds(application))
+        if rounds is not None and rounds < held:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"{held} interview round(s) already held",
+            )
+        application.interview_rounds = rounds
+        sync_interview_plan(session, application)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -487,12 +550,8 @@ def add_event(
     before a later one."""
     _reject_initial_only(payload.status)
     application = _get_or_404(session, application_id)
+    _reject_if_final(application)
     current = application.current_event
-    if current is not None and current.status.key in FINAL_STATUSES:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"application is {current.status.key}; remove that state to record new ones",
-        )
     if payload.status.upper() == APPLIED_STATUS:
         if any(e.status.key == APPLIED_STATUS for e in application.events):
             raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
@@ -501,14 +560,32 @@ def add_event(
                 status.HTTP_409_CONFLICT,
                 f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}",
             )
-    event = ApplicationEvent(
-        application_id=application.id,
-        status=_status_or_422(session, payload.status),
-        note=payload.note,
-    )
-    if payload.occurred_at is not None:
-        event.occurred_at = payload.occurred_at
-    session.add(event)
+    plan = application.plan
+    if payload.status.upper() == INTERVIEW_STATUS and plan:
+        # Fill in the next planned round instead of adding a new one.
+        event = plan[0]
+        event.planned = False
+        event.occurred_at = payload.occurred_at or event.occurred_at or datetime.now(UTC)
+        if payload.note:
+            event.note = payload.note
+    else:
+        event = ApplicationEvent(
+            application_id=application.id,
+            status=_status_or_422(session, payload.status),
+            note=payload.note,
+        )
+        if payload.occurred_at is not None:
+            event.occurred_at = payload.occurred_at
+        application.events.append(event)
+    if payload.title is not None:
+        event.title = payload.title.strip()
+    if payload.duration_minutes is not None:
+        event.duration_minutes = payload.duration_minutes or None
+    session.flush()
+    if payload.status.upper() == INTERVIEW_STATUS and application.interview_rounds is None:
+        # Every interview recorded is a round: start tracking them (one round per interview).
+        application.interview_rounds = len(held_rounds(application))
+    sync_interview_plan(session, application)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -522,9 +599,25 @@ def update_event(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Change a recorded state's note, date or status; omitted fields are kept."""
+    """Change a recorded state's note, date, status, title or duration, or (``planned:
+    false``) mark a planned round as held; omitted fields are kept."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
+    sent = payload.model_fields_set
+    changes_status = payload.status is not None and payload.status.upper() != event.status.key
+    if event.planned and changes_status:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "a planned round is always INTERVIEW"
+        )
+    if payload.planned is True and not event.planned:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "a held state cannot become planned"
+        )
+    if payload.planned is False and event.planned:
+        _reject_if_final(application)
+        event.planned = False
+        if "occurred_at" not in sent or payload.occurred_at is None:
+            event.occurred_at = event.occurred_at or datetime.now(UTC)
     if payload.status is not None and payload.status.upper() != event.status.key:
         _reject_initial_only(event.status.key)
         _reject_initial_only(payload.status)
@@ -537,6 +630,14 @@ def update_event(
         event.note = payload.note
     if payload.occurred_at is not None:
         event.occurred_at = payload.occurred_at
+    elif "occurred_at" in sent and event.planned:
+        event.occurred_at = None
+    if payload.title is not None:
+        event.title = payload.title.strip()
+    if "duration_minutes" in sent:
+        event.duration_minutes = payload.duration_minutes or None
+    session.flush()
+    sync_interview_plan(session, application)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 
@@ -549,9 +650,22 @@ def delete_event(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
+    """Remove a state. A planned round is dropped from the plan (one round fewer); a held
+    interview round of an application with a plan becomes planned again."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
     _reject_initial_only(event.status.key)
-    session.delete(event)
+    if event.planned:
+        application.events.remove(event)
+        session.delete(event)
+        if application.interview_rounds:
+            application.interview_rounds -= 1
+    elif application.interview_rounds and event.status.key == INTERVIEW_STATUS:
+        event.planned = True
+    else:
+        application.events.remove(event)
+        session.delete(event)
+    session.flush()
+    sync_interview_plan(session, application)
     session.commit()
     return _reload_out(session, application_id, request, queue)

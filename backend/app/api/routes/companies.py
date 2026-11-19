@@ -208,7 +208,7 @@ def application_stats(session: Annotated[Session, Depends(get_session)]) -> dict
         .join(Application, Application.job_parse_result_id == JobParseResult.id)
         .join(ApplicationEvent, ApplicationEvent.application_id == Application.id)
         .join(ApplicationStatus, ApplicationStatus.id == ApplicationEvent.status_id)
-        .where(JobParseResult.company_id.is_not(None))
+        .where(JobParseResult.company_id.is_not(None), ApplicationEvent.planned.is_(False))
     ).all()
     states: dict[tuple[int, int], set[str]] = {}
     for company_id, application_id, key in rows:

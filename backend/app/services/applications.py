@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ApplicationStatus, JobDecision
+from app.models import Application, ApplicationEvent, ApplicationStatus, JobDecision
 
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
@@ -33,3 +33,46 @@ def ensure_statuses(session: Session) -> None:
     if missing:
         session.add_all(missing)
         session.commit()
+
+
+INTERVIEW_STATUS = "INTERVIEW"
+"""State of interview rounds; planned rounds always have it."""
+
+
+def held_rounds(application: Application) -> list[ApplicationEvent]:
+    """Interview rounds that already took place."""
+    return [e for e in application.history if e.status.key == INTERVIEW_STATUS]
+
+
+def sync_interview_plan(session: Session, application: Application) -> None:
+    """Make the planned rounds match ``interview_rounds`` (not committed).
+
+    ``interview_rounds`` never drops below the rounds already held (an extra round recorded
+    beyond the plan grows it); planned rounds are added blank at the end, or removed from the
+    end (blank ones first) when there are too many. ``None``/``0`` clears the plan."""
+    plan = application.plan
+    if not application.interview_rounds:
+        application.interview_rounds = None
+        for event in plan:
+            application.events.remove(event)
+            session.delete(event)
+        return
+    held = len(held_rounds(application))
+    application.interview_rounds = max(application.interview_rounds, held)
+    wanted = application.interview_rounds - held
+    if len(plan) < wanted:
+        ensure_statuses(session)
+        status = session.scalar(
+            select(ApplicationStatus).where(ApplicationStatus.key == INTERVIEW_STATUS)
+        )
+        for _ in range(wanted - len(plan)):
+            application.events.append(
+                ApplicationEvent(status=status, planned=True, occurred_at=None, note="", title="")
+            )
+    elif len(plan) > wanted:
+        blank = [e for e in plan if not (e.title or e.note or e.duration_minutes or e.occurred_at)]
+        filled = [e for e in plan if e not in blank]
+        # Drop blank rounds from the end first, then filled ones from the end.
+        for event in (blank[::-1] + filled[::-1])[: len(plan) - wanted]:
+            application.events.remove(event)
+            session.delete(event)
