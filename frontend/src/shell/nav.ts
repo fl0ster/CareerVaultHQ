@@ -74,7 +74,7 @@ const SETTINGS: NavGroup = {
   icon: Settings,
   items: [
     { id: 'sources', label: 'Sources', title: 'Scrape sources', icon: Rss },
-    { id: 'generated-cv', label: 'Generated CVs', icon: FileText },
+    { id: 'generated-cv', label: 'Generated CVs', icon: FileText, hideHeader: true },
     { id: 'gmail', label: 'Gmail monitor', title: 'Gmail rejection monitor', icon: Mail },
     { id: 'cost', label: 'Cost', icon: Coins },
   ],

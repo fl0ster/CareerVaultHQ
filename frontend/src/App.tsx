@@ -95,7 +95,7 @@ function App() {
     'candidate-profile': <CandidateProfilePage />,
     'work-history': <WorkHistoryPage />,
     sources: <SourcesPage />,
-    'generated-cv': <GeneratedCvPage />,
+    'generated-cv': <GeneratedCvPage active={page === 'generated-cv'} />,
     gmail: <GmailMonitorPage />,
     cost: <CostPage active={page === 'cost'} />,
   }

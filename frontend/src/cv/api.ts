@@ -92,6 +92,8 @@ export type ListCvParams = {
   offset?: number
   limit?: number
   job_id?: number
+  /** Job title or company name contains it (case-insensitive). */
+  q?: string
 }
 
 /** Still being generated: the UI keeps polling while any CV is in this state. */
@@ -128,9 +130,10 @@ export const cvApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ job_id: jobId }),
     }).then((r) => parse<GeneratedCv>(r)),
-  list: ({ offset = 0, limit = 50, job_id }: ListCvParams = {}, signal?: AbortSignal) => {
+  list: ({ offset = 0, limit = 50, job_id, q }: ListCvParams = {}, signal?: AbortSignal) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
     if (job_id !== undefined) params.set('job_id', String(job_id))
+    if (q) params.set('q', q)
     return fetch(`${API}?${params}`, { signal }).then((r) => parse<GeneratedCvPage>(r))
   },
   get: (id: number, signal?: AbortSignal) =>

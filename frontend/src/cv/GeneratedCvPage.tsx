@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './cv.css'
+import '../jobs/jobs.css'
+import '../applications/applications.css'
 import { cvApi, describeError, type GeneratedCv, isInProgress } from './api.ts'
 import CvActions from './CvActions.tsx'
 import CvStatusBadge from './CvStatusBadge.tsx'
 import CvPipelineDialog from './CvPipelineDialog.tsx'
 import { formatUsd } from '../cost/format.ts'
+import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 50
 const POLL_MS = 3000
+const SEARCH_MIN_CHARS = 3
+const SEARCH_DEBOUNCE_MS = 300
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
@@ -65,7 +70,12 @@ function CvRow({ cv, onDelete, onOpen, deleting }: RowProps) {
   )
 }
 
-export default function GeneratedCvPage() {
+type Props = {
+  /** The Generated CVs page is the one on screen; the list is reloaded each time it becomes so. */
+  active: boolean
+}
+
+export default function GeneratedCvPage({ active }: Props) {
   const [cvs, setCvs] = useState<GeneratedCv[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -73,16 +83,36 @@ export default function GeneratedCvPage() {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<number | null>(null)
   const [openId, setOpenId] = useState<number | null>(null)
-  // Bumped by Refresh and by the poll timer; the first page is re-fetched on every change.
+  const [searchInput, setSearchInput] = useState('')
+  // The term actually sent to the API: debounced, and empty until it has enough characters.
+  const [search, setSearch] = useState('')
+  // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(toolbarRef, active)
+  // Bumped on activating the page and by the poll timer; the first page is re-fetched on every change.
   // ``loadedFor`` is the tick whose page was last received, so ``loading`` needs no state.
   const [tick, setTick] = useState(0)
   const [loadedFor, setLoadedFor] = useState(-1)
   const loading = loadedFor !== tick || loadingMore
 
+  // Reload whenever the page becomes the one on screen (the first load happens on mount).
+  const wasActive = useRef(active)
+  useEffect(() => {
+    if (active && !wasActive.current) setTick((t) => t + 1)
+    wasActive.current = active
+  }, [active])
+
+  useEffect(() => {
+    const term = searchInput.trim()
+    const next = term.length >= SEARCH_MIN_CHARS ? term : ''
+    const timer = window.setTimeout(() => setSearch(next), next ? SEARCH_DEBOUNCE_MS : 0)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
   useEffect(() => {
     const controller = new AbortController()
     cvApi
-      .list({ offset: 0, limit: PAGE_SIZE }, controller.signal)
+      .list({ offset: 0, limit: PAGE_SIZE, q: search || undefined }, controller.signal)
       .then((page) => {
         setCvs(page.items)
         setTotal(page.total)
@@ -96,7 +126,7 @@ export default function GeneratedCvPage() {
         if (!controller.signal.aborted) setLoadedFor(tick)
       })
     return () => controller.abort()
-  }, [tick])
+  }, [tick, search])
 
   // Keep polling while any CV is still being generated.
   const pending = cvs.some(isInProgress)
@@ -114,7 +144,7 @@ export default function GeneratedCvPage() {
     if (loading || !hasMore) return
     setLoadingMore(true)
     try {
-      const page = await cvApi.list({ offset: cvs.length, limit: PAGE_SIZE })
+      const page = await cvApi.list({ offset: cvs.length, limit: PAGE_SIZE, q: search || undefined })
       setCvs((prev) => [...prev, ...page.items])
       setTotal(page.total)
       setHasMore(page.has_more)
@@ -142,14 +172,23 @@ export default function GeneratedCvPage() {
 
   return (
     <>
-      <p className="page-intro">
-        {total === null
-          ? 'Loading…'
-          : `${cvs.length} of ${total} CV${total === 1 ? '' : 's'} generated for jobs.`}{' '}
-        <button type="button" className="secondary small" onClick={refresh} disabled={loading}>
-          Refresh
-        </button>
-      </p>
+      <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
+        <div className="jobs-controls">
+          <input
+            type="search"
+            className="app-search"
+            placeholder="Search company or title…"
+            aria-label="Search generated CVs by company or title"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+          {total !== null && (
+            <span className="muted">
+              {cvs.length} of {total} CV{total === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
 
       {error && (
         <p className="error">
@@ -160,7 +199,9 @@ export default function GeneratedCvPage() {
         </p>
       )}
 
-      {total === 0 ? (
+      {total === 0 && search ? (
+        <p className="muted">No CVs match your search.</p>
+      ) : total === 0 ? (
         <p>No CVs yet. Open a job on the Jobs tab and press "Generate CV".</p>
       ) : (
         <ul className="cv-list">
