@@ -3,7 +3,7 @@
 * ``POST /api/applications`` with ``{"job_evaluation_id": ...}`` creates the application
   (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
   ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job.
-* ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
+* ``GET /api/applications`` lists them grouped by state, newest first within each (``?status=INTERVIEW`` filters by
   current state, ``?q=acme`` by job title or company name); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
@@ -414,6 +414,19 @@ def create_application(
     return _reload_out(session, application.id, request, queue)
 
 
+_STATUS_RANK = {"SHORTLISTED": 0, "INTERVIEW": 1, "OFFER": 2, "APPLIED": 3, "REJECTED": 4}
+_EPOCH = datetime.min.replace(tzinfo=UTC)
+
+
+def _sort_key(application: Application) -> tuple[int, float]:
+    """Group by current state (shortlisted, interview, offer, applied, rejected, then any
+    custom state), newest state change first within a group."""
+    current = application.current_event
+    rank = _STATUS_RANK.get(current.status.key, len(_STATUS_RANK)) if current else 99
+    when = _to_utc(current.occurred_at if current else None) or _to_utc(application.created_at)
+    return rank, -(when or _EPOCH).timestamp()
+
+
 def _matches(application: Application, needle: str) -> bool:
     parsed = application.job_parse_result
     company = parsed.company.name if parsed.company is not None else None
@@ -428,15 +441,23 @@ def list_applications(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     status_key: Annotated[str | None, Query(alias="status")] = None,
+    exclude_status: Annotated[str | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ApplicationPage:
-    """Applications, newest first; ``status`` keeps those whose current state matches,
+    """Applications grouped by current state (see ``_sort_key``); ``status`` keeps those whose current state matches,
+    ``exclude_status`` drops them,
     ``q`` those whose job title or company name contains it (case-insensitive)."""
     applications = session.scalars(_query().order_by(Application.id.desc())).unique().all()
+    applications = sorted(applications, key=_sort_key)
     if status_key:
         key = status_key.upper()
         applications = [
             a for a in applications if a.current_event and a.current_event.status.key == key
+        ]
+    if exclude_status:
+        excluded = exclude_status.upper()
+        applications = [
+            a for a in applications if not (a.current_event and a.current_event.status.key == excluded)
         ]
     needle = (q or "").strip().casefold()
     if needle:

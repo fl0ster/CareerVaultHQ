@@ -156,11 +156,18 @@ export const applicationsApi = {
   statuses: (signal?: AbortSignal) =>
     fetch(`${API}/statuses`, { signal }).then((r) => parse<ApplicationStatus[]>(r)),
   list: (
-    { offset = 0, limit = 50, status, q }: { offset?: number; limit?: number; status?: string; q?: string } = {},
+    {
+      offset = 0,
+      limit = 50,
+      status,
+      excludeStatus,
+      q,
+    }: { offset?: number; limit?: number; status?: string; excludeStatus?: string; q?: string } = {},
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })
     if (status) params.set('status', status)
+    if (excludeStatus) params.set('exclude_status', excludeStatus)
     if (q) params.set('q', q)
     return fetch(`${API}?${params}`, { signal }).then((r) => parse<ApplicationPage>(r))
   },

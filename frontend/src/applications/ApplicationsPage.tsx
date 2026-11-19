@@ -26,10 +26,19 @@ const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
 const SEARCH_MIN_CHARS = 3
 const SEARCH_DEBOUNCE_MS = 300
+const OFFER_STATUS = 'OFFER'
+
+const SUBTABS = [
+  { id: 'pending', label: 'Pending' },
+  { id: 'offers', label: 'Offers' },
+] as const
+
+type SubTab = (typeof SUBTABS)[number]['id']
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
+  const [subTab, setSubTab] = useState<SubTab>('pending')
   const [filter, setFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
   // The term actually sent to the API: debounced, and empty until it has enough characters.
@@ -65,7 +74,12 @@ export default function ApplicationsPage() {
   useEffect(() => {
     const controller = new AbortController()
     applicationsApi
-      .list({ limit: PAGE_SIZE, status: filter || undefined, q: search || undefined }, controller.signal)
+      .list(
+        subTab === 'offers'
+          ? { limit: PAGE_SIZE, status: OFFER_STATUS, q: search || undefined }
+          : { limit: PAGE_SIZE, status: filter || undefined, excludeStatus: OFFER_STATUS, q: search || undefined },
+        controller.signal,
+      )
       .then((page) => {
         setApplications(page.items)
         setSelected((prev) => (prev && page.items.find((a) => a.id === prev.id)) ?? prev)
@@ -75,7 +89,7 @@ export default function ApplicationsPage() {
         if (!controller.signal.aborted) setError(`Could not load applications: ${describeError(e)}`)
       })
     return () => controller.abort()
-  }, [filter, search, tick])
+  }, [subTab, filter, search, tick])
 
   // Applications created or changed elsewhere (e.g. from the job dialog).
   useEffect(() => {
@@ -96,8 +110,9 @@ export default function ApplicationsPage() {
   const replace = (updated: Application) => {
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
-    // The current status may have changed; the filtered list may no longer contain it.
-    if (filter || search) reload()
+    // The current status may have changed; reaching (or leaving) the offer stage moves
+    // the application to the other subtab.
+    reload()
   }
 
   const removed = (id: number) => {
@@ -114,19 +129,40 @@ export default function ApplicationsPage() {
 
   return (
     <>
+      <nav className="tabs subtabs" aria-label="Application sections">
+        {SUBTABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={subTab === t.id ? 'tab active' : 'tab'}
+            aria-current={subTab === t.id ? 'page' : undefined}
+            onClick={() => {
+              setApplications(null)
+              setSubTab(t.id)
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
       <div className="jobs-controls">
-        <label>
-          Status{' '}
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-            <option value="">All</option>
-            {statuses.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-                {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        {subTab === 'pending' && (
+          <label>
+            Status{' '}
+            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option value="">All</option>
+              {statuses
+                .filter((s) => s.key !== OFFER_STATUS)
+                .map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                    {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
 
         <input
           type="search"
@@ -144,6 +180,8 @@ export default function ApplicationsPage() {
         <p className="muted">
           {search
             ? 'No applications match your search.'
+            : subTab === 'offers'
+            ? 'No offers yet.'
             : filter
             ? 'No applications with this status.'
             : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
