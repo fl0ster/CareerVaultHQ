@@ -34,11 +34,11 @@ def task_engine(engine, monkeypatch, evaluate_queue):
     return engine
 
 
-def _make_pending(engine, *, source="skillshot", html=HTML) -> int:
+def _make_pending(
+    engine, *, source="skillshot", html=HTML, link="https://www.skillshot.pl/jobs/1"
+) -> int:
     with session_factory(engine)() as session:
-        job = models.Job(
-            link="https://www.skillshot.pl/jobs/1", source=ensure_source(session, source), html=html
-        )
+        job = models.Job(link=link, source=ensure_source(session, source), html=html)
         pending = models.PendingJobParseRun(job=job)
         session.add_all([job, pending])
         session.commit()

@@ -18,9 +18,12 @@ The returned summary is stored as the RQ job result.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
+from types import ModuleType
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from rq import get_current_job
@@ -36,6 +39,7 @@ from app.models import (
     ScrapeSource,
 )
 from app.queue import get_queue
+from app.services.companies import normalize_company_name
 from app.services.sources import apply_run_result, get_source, runnable_sources, sync_sources
 from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import load_source
@@ -55,7 +59,7 @@ def run_source(name: str) -> dict[str, Any]:
         log.exception("Scraper %r failed", name)
         return {"source": name, "ok": False, "error": f"{type(exc).__name__}: {exc}", "jobs": []}
     log.info("Scraper %s returned %d jobs", name, len(jobs))
-    return {"source": name, "ok": True, "error": None, "jobs": jobs}
+    return {"source": name, "ok": True, "error": None, "jobs": jobs, "module": module}
 
 
 def _resolve_sources(session: Session, source: str | None) -> list[ScrapeSource]:
@@ -93,16 +97,62 @@ def fetch_page(url: str) -> str:
     return html
 
 
+def normalize_title(title: str | None) -> str:
+    """Title as searched and compared for duplicates: whitespace collapsed, lowercased."""
+    return re.sub(r"\s+", " ", title or "").strip().lower()
+
+
+def link_domain(link: str) -> str:
+    """Domain of ``link``, lowercased and without a leading ``www.``."""
+    return urlparse(link).netloc.lower().removeprefix("www.")
+
+
+OfferKey = tuple[str, str, str]
+"""``(link domain, normalized title, normalized company)`` identifying an offer."""
+
+
+def _parse_field(module: ModuleType | None, field: str, html: str) -> str:
+    """``module.parse_<field>(html)``; ``""`` when there is no page, no parser, or the
+    parser fails. Pure HTML parsing, no database access."""
+    parser = getattr(module, f"parse_{field}", None)
+    if not html or parser is None:
+        return ""
+    try:
+        return parser(html) or ""
+    except Exception as exc:  # noqa: BLE001 - a parser bug must not fail the run
+        log.warning("parse_%s failed during dedupe: %s", field, exc)
+        return ""
+
+
+def offer_key(module: ModuleType | None, link: str, html: str) -> OfferKey | None:
+    """Duplicate-detection key of a fetched job page, or ``None`` when its title or
+    company cannot be parsed (such jobs are never deduplicated)."""
+    title = normalize_title(_parse_field(module, "title", html))
+    company = normalize_company_name(_parse_field(module, "company", html))
+    if not title or not company:
+        return None
+    return link_domain(link), title, company
+
+
 def save_jobs(
     session: Session,
     run: ScrapeRun,
     source: ScrapeSource,
     jobs: list[dict[str, Any]],
+    module: ModuleType | None = None,
+    seen_offers: set[OfferKey] | None = None,
 ) -> tuple[list[PendingJobParseRun], int]:
     """Insert listings of ``source`` not yet in the DB (fetching their page HTML) and return
     ``(pending parse runs for the inserted jobs, duplicates)``. Each inserted job
     references ``run`` and ``source`` and gets a ``NOT_STARTED`` ``PendingJobParseRun``.
-    A listing is a duplicate when its link is already known."""
+    A listing is a duplicate when its link is already known, or when it is the same offer
+    (``offer_key``: link domain + title + company parsed with ``module``) as a job saved
+    earlier in this run; ``seen_offers`` carries those keys across sources. Some sources
+    publish one offer once per location, with only the URL differing. Offers are only
+    compared within the current batch: the database is never scanned for them, since a
+    company may legitimately post a similar role again later."""
+    if seen_offers is None:
+        seen_offers = set()
     links = [job["link"] for job in jobs]
     existing: set[str] = set()
     if links:
@@ -117,6 +167,13 @@ def save_jobs(
             continue
         existing.add(link)  # the same link may appear twice in one listing page
         html = fetch_page(link)
+        key = offer_key(module, link, html)
+        if key is not None:
+            if key in seen_offers:
+                log.info("Skipping duplicate offer %r: %s", key, link)
+                duplicates += 1
+                continue
+            seen_offers.add(key)
         new_job = Job(
             link=link,
             source=source,
@@ -189,11 +246,15 @@ def scrape(source: str | None = None) -> dict[str, Any]:
         jobs: list[dict[str, Any]] = []
         pending: list[PendingJobParseRun] = []
         duplicates = 0
+        seen_offers: set[OfferKey] = set()
         try:
             for row in rows:
                 result = run_source(row.key)
+                module = result.pop("module", None)
                 tagged = [{**job, "source": row.key} for job in result["jobs"]]
-                row_pending, row_duplicates = save_jobs(session, run, row, tagged)
+                row_pending, row_duplicates = save_jobs(
+                    session, run, row, tagged, module, seen_offers
+                )
                 result["new"] = len(row_pending)
                 result["duplicates"] = row_duplicates
                 apply_run_result(

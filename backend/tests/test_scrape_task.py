@@ -262,9 +262,7 @@ def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, m
         assert run.source is None
 
 
-def test_crashed_run_is_marked_failed(
-    task_engine, fake_sources, parse_queue, monkeypatch
-):
+def test_crashed_run_is_marked_failed(task_engine, fake_sources, parse_queue, monkeypatch):
     def boom(*_args, **_kwargs):
         raise RuntimeError("db exploded")
 
@@ -278,3 +276,27 @@ def test_crashed_run_is_marked_failed(
         assert "db exploded" in run.error
         assert run.finished_at is not None
 
+
+def test_same_offer_within_one_run_is_deduplicated(
+    task_engine, fake_sources, parse_queue, monkeypatch
+):
+    pages = {  # link -> (title, company)
+        "https://www.skillshot.pl/jobs/1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
+        "https://skillshot.pl/jobs/1-krakow": ("python developer ", "ACME sp. z o.o."),
+        "https://www.skillshot.pl/jobs/1-other": ("Python Developer", "Globex"),
+        "https://www.skillshot.pl/jobs/2": ("Data Engineer", "Acme"),
+    }
+    listing = [{"link": link} for link in pages]
+    monkeypatch.setattr(skillshot, "fetch_jobs", lambda: list(listing))
+    monkeypatch.setattr(skillshot, "parse_title", lambda html: pages[html[6:-7]][0])
+    monkeypatch.setattr(skillshot, "parse_company", lambda html: pages[html[6:-7]][1])
+
+    first = scrape_task.scrape("skillshot")
+    assert (first["new"], first["duplicates"]) == (3, 1)
+
+    # offers are only compared within a run: a later run with the same offer under a new
+    # link inserts it again
+    listing[:] = [{"link": "https://www.skillshot.pl/jobs/1-gdansk"}]
+    pages["https://www.skillshot.pl/jobs/1-gdansk"] = ("Python Developer", "Acme Sp. z o.o.")
+    second = scrape_task.scrape("skillshot")
+    assert (second["new"], second["duplicates"]) == (1, 0)

@@ -29,6 +29,7 @@ from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
 from app.services.companies import CompanyMatch, resolve_company
 from app.tasks.evaluate import evaluate_parse_results
+from app.tasks.scrape.scrape import normalize_title
 from app.tasks.scrape.sources import load_source
 
 log = logging.getLogger(__name__)
