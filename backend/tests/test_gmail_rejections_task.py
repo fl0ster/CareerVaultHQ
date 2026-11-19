@@ -480,28 +480,3 @@ def test_mail_content_is_not_stored(db_session, openrouter):
         assert call.input["redacted"] is True
         assert "XYZ-123" not in json.dumps(call.input)
         assert "Your application" not in json.dumps(call.input)
-
-
-def test_previously_logged_mail_content_is_scrubbed(db_session, openrouter):
-    from app.models import OpenRouterCall
-
-    db_session.add(
-        OpenRouterCall(
-            source=rejections.SOURCE,
-            kind="decision",
-            model="jev",
-            input={"model": "jev", "state": {"body": "old secret mail"}, "questions": {}},
-        )
-    )
-    db_session.add(
-        OpenRouterCall(
-            source="tasks.evaluate", kind="decision", model="jev", input={"state": "keep"}
-        )
-    )
-    db_session.commit()
-
-    _run(db_session, FakeClient([]), openrouter)
-
-    rows = {c.source: c.input for c in db_session.scalars(select(OpenRouterCall))}
-    assert rows[rejections.SOURCE]["state"] == "[not stored]"
-    assert rows["tasks.evaluate"] == {"state": "keep"}

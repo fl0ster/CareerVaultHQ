@@ -101,8 +101,6 @@ export default function CostPage({ active }: { active: boolean }) {
 
   return (
     <>
-      <p className="page-intro">Spend on OpenRouter calls, as reported by the API for every logged request.</p>
-
       <div className="cost-filters" role="group" aria-label="Filters">
         <div className="cost-ranges" role="radiogroup" aria-label="Period">
           {RANGES.map((r) => (
