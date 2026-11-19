@@ -393,7 +393,9 @@ def test_client_follows_redirect_and_sends_token():
 )
 def test_client_errors(response, message):
     client = AppsScriptClient(
-        "https://script.google.com/x/exec", "s", transport=httpx.MockTransport(lambda r: response)
+        "https://script.google.com/macros/s/abc_DEF-1/exec",
+        "s",
+        transport=httpx.MockTransport(lambda r: response),
     )
     with pytest.raises(AppsScriptError, match=message):
         client.list_messages(7, "l")
@@ -413,7 +415,7 @@ def test_client_parses_messages():
         ]
     }
     client = AppsScriptClient(
-        "https://script.google.com/x/exec",
+        "https://script.google.com/macros/s/abc_DEF-1/exec",
         "s",
         transport=httpx.MockTransport(lambda r: httpx.Response(200, json=payload)),
     )
@@ -430,7 +432,9 @@ def test_client_sends_only_lookback_and_label():
         return httpx.Response(200, json={"messages": []})
 
     client = AppsScriptClient(
-        "https://script.google.com/x/exec", "s", transport=httpx.MockTransport(handle)
+        "https://script.google.com/macros/s/abc_DEF-1/exec",
+        "s",
+        transport=httpx.MockTransport(handle),
     )
     client.list_messages(7, "rejection-registered", 30)
     assert seen == [
@@ -442,3 +446,62 @@ def test_client_sends_only_lookback_and_label():
             "max": 30,
         }
     ]
+
+
+def test_client_refuses_non_google_urls():
+    with pytest.raises(AppsScriptError, match="script.google.com"):
+        AppsScriptClient("https://evil.example/macros/s/abc/exec", "s")
+
+
+def test_client_does_not_follow_redirects_off_google():
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "script.google.com":
+            return httpx.Response(302, headers={"Location": "https://evil.example/steal"})
+        raise AssertionError("must not be called")
+
+    client = AppsScriptClient(
+        "https://script.google.com/macros/s/abc/exec", "s", transport=httpx.MockTransport(handle)
+    )
+    with pytest.raises(AppsScriptError, match="unexpected host"):
+        client.ping()
+
+
+def test_mail_content_is_not_stored(db_session, openrouter):
+    from app.models import OpenRouterCall
+
+    _application(db_session, _company(db_session, "Acme"), "Dev", i=1)
+    secret_body = "We will not move forward. Reference code XYZ-123."
+
+    _run(db_session, FakeClient([_message(body=secret_body)]), openrouter)
+
+    calls = db_session.scalars(select(OpenRouterCall)).all()
+    assert len(calls) == 2
+    for call in calls:
+        assert call.input["redacted"] is True
+        assert "XYZ-123" not in json.dumps(call.input)
+        assert "Your application" not in json.dumps(call.input)
+
+
+def test_previously_logged_mail_content_is_scrubbed(db_session, openrouter):
+    from app.models import OpenRouterCall
+
+    db_session.add(
+        OpenRouterCall(
+            source=rejections.SOURCE,
+            kind="decision",
+            model="jev",
+            input={"model": "jev", "state": {"body": "old secret mail"}, "questions": {}},
+        )
+    )
+    db_session.add(
+        OpenRouterCall(
+            source="tasks.evaluate", kind="decision", model="jev", input={"state": "keep"}
+        )
+    )
+    db_session.commit()
+
+    _run(db_session, FakeClient([]), openrouter)
+
+    rows = {c.source: c.input for c in db_session.scalars(select(OpenRouterCall))}
+    assert rows[rejections.SOURCE]["state"] == "[not stored]"
+    assert rows["tasks.evaluate"] == {"state": "keep"}

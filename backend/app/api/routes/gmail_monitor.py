@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -31,6 +32,7 @@ from app.db import get_session
 from app.integrations.gmail import (
     LABEL_PATTERN,
     MAX_LOOKBACK_DAYS,
+    SCRIPT_URL_PATTERN,
     AppsScriptError,
     script_source,
 )
@@ -94,8 +96,10 @@ class MonitorSettingsUpdate(BaseModel):
     @field_validator("script_url")
     @classmethod
     def _url(cls, value: str | None) -> str | None:
-        if value and not value.startswith("https://"):
-            raise ValueError("the web app URL must start with https://")
+        if value and re.fullmatch(SCRIPT_URL_PATTERN, value) is None:
+            raise ValueError(
+                "the web app URL must look like https://script.google.com/macros/s/<id>/exec"
+            )
         return value
 
 

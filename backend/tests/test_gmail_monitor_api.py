@@ -48,6 +48,9 @@ def test_settings_defaults_and_update(client):
     [
         {"email": "not-an-address"},
         {"script_url": "http://insecure.example"},
+        {"script_url": "https://evil.example/macros/s/abc/exec"},
+        {"script_url": "https://script.google.com.evil.example/macros/s/abc/exec"},
+        {"script_url": "https://script.google.com/macros/s/abc/exec?x=https://evil"},
         {"threshold": 0.2},
         {"interval_seconds": 5},
         {"lookback_days": 31},
@@ -86,7 +89,7 @@ def test_interval_change_resets_schedule(client, db_session):
 
 def _fake_client(email):
     return AppsScriptClient(
-        "https://script.google.com/x/exec",
+        "https://script.google.com/macros/s/abc_DEF-1/exec",
         "s",
         transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"email": email})),
     )
@@ -180,7 +183,7 @@ def test_scheduler_enqueues_when_due_and_plans_next(scheduler, engine):
         engine,
         enabled=True,
         email="me@gmail.com",
-        script_url="https://script.google.com/x/exec",
+        script_url="https://script.google.com/macros/s/abc_DEF-1/exec",
         interval_seconds=600,
     )
 
@@ -202,3 +205,8 @@ def test_new_settings_get_a_secret(db_session):
     row = get_monitor_settings(db_session)
     assert len(row.secret) >= 32
     assert gmail_monitor.get_monitor_settings(db_session).secret == row.secret
+
+
+def test_workspace_script_url_is_accepted(client):
+    url = "https://script.google.com/a/macros/example.com/s/AKfy_cb-1/exec"
+    assert client.patch(f"{BASE}/settings", json={"script_url": url}).json()["script_url"] == url

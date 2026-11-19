@@ -181,9 +181,11 @@ class OpenRouterService:
         temperature: float | None = None,
         max_tokens: int | None = None,
         extra: dict[str, Any] | None = None,
+        private: bool = False,
     ) -> ChatResult:
         """Free-text chat completion. Pass either ``prompt`` (+ optional ``system``) or a
-        full ``messages`` list."""
+        full ``messages`` list. With ``private`` the user/assistant message contents are not
+        stored in ``openrouter_calls.input`` (see ``redact_input``)."""
         body = self._body(
             model or self.settings.openrouter_chat_model,
             self._messages(prompt, messages, system),
@@ -193,7 +195,12 @@ class OpenRouterService:
         )
         url = f"{self.settings.openrouter_base_url.rstrip('/')}/chat/completions"
         raw, usage, call = self._call(
-            url, body, source=source, kind=OpenRouterCall.KIND_CHAT, result_key="choices"
+            url,
+            body,
+            source=source,
+            kind=OpenRouterCall.KIND_CHAT,
+            result_key="choices",
+            private=private,
         )
         return ChatResult(
             text=self._content(raw),
@@ -211,11 +218,13 @@ class OpenRouterService:
         source: str,
         model: str | None = None,
         extra: dict[str, Any] | None = None,
+        private: bool = False,
     ) -> DecisionResult:
         """Jev Decisions API call. ``state`` is the content to judge (string, object or
         array); ``questions`` maps a name of your choice to a question such as
         ``{"type": "noul", "instructions": "...", "criteria": {"true": "...", "false": "..."}}``.
         ``extra`` is merged into the request body (``assets``, ``provider``, ``trace``, ...).
+        With ``private`` the ``state`` is not stored in ``openrouter_calls.input``.
         """
         if not questions:
             raise ValueError("at least one question is required")
@@ -232,6 +241,7 @@ class OpenRouterService:
             source=source,
             kind=OpenRouterCall.KIND_DECISION,
             result_key="answers",
+            private=private,
         )
         answers = raw.get("answers")
         if not isinstance(answers, dict):
@@ -302,14 +312,27 @@ class OpenRouterService:
         return headers
 
     def _call(
-        self, url: str, body: dict[str, Any], *, source: str, kind: str, result_key: str
+        self,
+        url: str,
+        body: dict[str, Any],
+        *,
+        source: str,
+        kind: str,
+        result_key: str,
+        private: bool = False,
     ) -> tuple[dict[str, Any], Usage, OpenRouterCall]:
         """POST ``body`` to ``url``, record the call and return the parsed JSON response.
-        ``result_key`` is the field a successful response must contain."""
+        ``result_key`` is the field a successful response must contain; with ``private``
+        the recorded input is ``redact_input(body)``."""
         if not self.settings.openrouter_api_key:
             raise OpenRouterNotConfigured("OPENROUTER_API_KEY is not set")
 
-        call = OpenRouterCall(source=source, kind=kind, model=body["model"], input=body)
+        call = OpenRouterCall(
+            source=source,
+            kind=kind,
+            model=body["model"],
+            input=redact_input(body) if private else body,
+        )
         self.session.add(call)
         self.session.commit()
 
@@ -378,6 +401,24 @@ class OpenRouterService:
         if started is not None:
             call.latency_ms = int((time.perf_counter() - started) * 1000)
         self.session.commit()
+
+
+REDACTED = "[not stored]"
+
+
+def redact_input(body: dict[str, Any]) -> dict[str, Any]:
+    """Copy of a request body without its private content, for ``openrouter_calls.input``:
+    the decision ``state`` and the user/assistant message contents are replaced (system
+    prompts, questions and parameters are kept). Marked with ``"redacted": True``."""
+    redacted = {key: value for key, value in body.items() if key not in ("state", "messages")}
+    if "state" in body:
+        redacted["state"] = REDACTED
+    if "messages" in body:
+        redacted["messages"] = [
+            m if m.get("role") == "system" else {**m, "content": REDACTED} for m in body["messages"]
+        ]
+    redacted["redacted"] = True
+    return redacted
 
 
 def get_openrouter(

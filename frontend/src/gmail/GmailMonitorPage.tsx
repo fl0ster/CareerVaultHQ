@@ -10,6 +10,7 @@ import {
   type ProcessedMail,
   LABEL_PATTERN,
   MAX_LOOKBACK_DAYS,
+  SCRIPT_URL_PATTERN,
 } from './api.ts'
 import { isTerminal } from '../tools/api.ts'
 import { notifyApplicationsChanged } from '../applications/api.ts'
@@ -363,7 +364,9 @@ export default function GmailMonitorPage() {
             value={settings.script_url}
             placeholder="https://script.google.com/macros/s/…/exec"
             toPatch={(t) =>
-              t.trim() && !t.trim().startsWith('https://') ? 'The URL must start with https://' : { script_url: t.trim() }
+              t.trim() && !SCRIPT_URL_PATTERN.test(t.trim())
+                ? 'Must be the web app URL: https://script.google.com/macros/s/…/exec'
+                : { script_url: t.trim() }
             }
             onSave={save}
           />

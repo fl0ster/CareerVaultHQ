@@ -82,6 +82,10 @@ export const OUTCOME_LABEL: Record<MailOutcome, string> = {
 /** Longest lookback the Apps Script allows (days). */
 export const MAX_LOOKBACK_DAYS = 30
 
+/** Deployed Apps Script web app URLs (consumer and Workspace accounts); the backend
+ * refuses anything else because the secret is sent to it. */
+export const SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/(?:a\/macros\/[A-Za-z0-9.-]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/
+
 /** Label names the Apps Script accepts. */
 export const LABEL_PATTERN = /^[\w ./-]{1,128}$/
 

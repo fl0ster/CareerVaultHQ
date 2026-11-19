@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -15,6 +17,18 @@ MAX_LOOKBACK_DAYS = 30
 LABEL_PATTERN = r"^[\w .\/-]{1,128}$"
 """Label names the script accepts (``LABEL_PATTERN`` in ``apps_script.gs``)."""
 DEFAULT_TIMEOUT = 60.0
+SCRIPT_URL_PATTERN = (
+    r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]+/exec$"
+)
+"""Deployed Apps Script web apps only (consumer and Workspace accounts). The secret is sent
+to this URL, so nothing else is accepted."""
+REDIRECT_HOSTS = frozenset({"script.google.com", "script.googleusercontent.com"})
+"""Hosts the web app may redirect to (its output is served from googleusercontent)."""
+MAX_REDIRECTS = 5
+
+
+def is_script_url(url: str) -> bool:
+    return re.fullmatch(SCRIPT_URL_PATTERN, url or "") is not None
 
 
 class AppsScriptError(Exception):
@@ -68,6 +82,10 @@ class AppsScriptClient:
     ) -> None:
         if not url:
             raise AppsScriptError("the Apps Script web app URL is not configured")
+        if not is_script_url(url):
+            raise AppsScriptError(
+                "the web app URL must look like https://script.google.com/macros/s/<id>/exec"
+            )
         self.url = url
         self.secret = secret
         self.timeout = timeout
@@ -93,13 +111,28 @@ class AppsScriptClient:
         """Mark the message read and add ``label`` to its thread (created when missing)."""
         self._call("mark", id=message_id, label=label)
 
+    @staticmethod
+    def _follow(client: httpx.Client, response: httpx.Response) -> httpx.Response:
+        """Follow the web app's redirects (as GETs, without the request body) to Google
+        hosts only."""
+        for _ in range(MAX_REDIRECTS):
+            if not response.is_redirect:
+                return response
+            location = urljoin(str(response.request.url), response.headers.get("location", ""))
+            parts = urlsplit(location)
+            if parts.scheme != "https" or parts.hostname not in REDIRECT_HOSTS:
+                raise AppsScriptError(
+                    f"the web app redirected to an unexpected host: {parts.hostname}"
+                )
+            response = client.get(location)
+        raise AppsScriptError("too many redirects from the Apps Script web app")
+
     def _call(self, action: str, **params: Any) -> dict[str, Any]:
         body = {"token": self.secret, "action": action, **params}
         try:
-            with httpx.Client(
-                timeout=self.timeout, follow_redirects=True, transport=self._transport
-            ) as client:
+            with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
                 response = client.post(self.url, json=body)
+                response = self._follow(client, response)
         except httpx.HTTPError as exc:
             raise AppsScriptError(f"cannot reach the Apps Script web app: {exc}") from exc
         if response.status_code >= 400:

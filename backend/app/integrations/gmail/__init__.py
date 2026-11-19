@@ -10,6 +10,7 @@ candidate mails and to mark the handled ones read and labelled.
 from app.integrations.gmail.client import (
     LABEL_PATTERN,
     MAX_LOOKBACK_DAYS,
+    SCRIPT_URL_PATTERN,
     AppsScriptClient,
     AppsScriptError,
     GmailMessage,
@@ -19,6 +20,7 @@ from app.integrations.gmail.client import (
 __all__ = [
     "LABEL_PATTERN",
     "MAX_LOOKBACK_DAYS",
+    "SCRIPT_URL_PATTERN",
     "AppsScriptClient",
     "AppsScriptError",
     "GmailMessage",
