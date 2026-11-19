@@ -15,6 +15,8 @@ import { useDetailScroll } from '../shell/useDetailScroll.ts'
 const PAGE_SIZE = 50
 /** How often the tab checks for newly evaluated jobs, in ms. */
 const POLL_INTERVAL = 30_000
+const SEARCH_MIN_CHARS = 3
+const SEARCH_DEBOUNCE_MS = 300
 
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
@@ -184,6 +186,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [busy, setBusy] = useState<Set<number>>(new Set())
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map())
+  const [searchInput, setSearchInput] = useState('')
+  // The term actually sent to the API: debounced, and empty until it has enough characters.
+  const [search, setSearch] = useState('')
+  /** Search results (null while loading the first page); unused without a search term. */
+  const [results, setResults] = useState<EvaluatedJob[] | null>(null)
+  const [resultsHasMore, setResultsHasMore] = useState(false)
+  const [resultsLoading, setResultsLoading] = useState(false)
   const sentinel = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
 
@@ -347,19 +356,70 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }, [poll])
 
+  useEffect(() => {
+    const term = searchInput.trim()
+    const next = term.length >= SEARCH_MIN_CHARS ? term : ''
+    const timer = window.setTimeout(() => setSearch(next), next ? SEARCH_DEBOUNCE_MS : 0)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  const searchControllerRef = useRef<AbortController | null>(null)
+  const resultsRef = useRef<EvaluatedJob[] | null>(null)
+  const loadResults = useCallback(
+    async (fresh: boolean) => {
+      if (!search) return
+      if (!fresh && (searchControllerRef.current || !resultsRef.current)) return
+      searchControllerRef.current?.abort()
+      const controller = new AbortController()
+      searchControllerRef.current = controller
+      const prev = fresh ? [] : (resultsRef.current ?? [])
+      const before = prev.length > 0 ? prev[prev.length - 1].evaluation.id : undefined
+      setResultsLoading(true)
+      try {
+        const page = await jobsApi.feed({ q: search, before, limit: PAGE_SIZE }, controller.signal)
+        resultsRef.current = [...prev, ...page.items]
+        setResults(resultsRef.current)
+        setResultsHasMore(page.has_more)
+        setError(null)
+      } catch (e) {
+        if (!controller.signal.aborted) setError(`Could not search jobs: ${describeError(e)}`)
+      } finally {
+        if (searchControllerRef.current === controller) searchControllerRef.current = null
+        if (!controller.signal.aborted || !searchControllerRef.current) setResultsLoading(false)
+      }
+    },
+    [search],
+  )
+
+  // A new term clears the previous results right away; the effect below fetches the new ones.
+  const [resultsFor, setResultsFor] = useState('')
+  if (resultsFor !== search) {
+    setResultsFor(search)
+    setResults(null)
+    setResultsHasMore(false)
+  }
+  useEffect(() => {
+    resultsRef.current = null
+    if (search) loadResults(true)
+    return () => searchControllerRef.current?.abort()
+  }, [search, loadResults])
+
   // Load the next page whenever the sentinel below the list scrolls into view.
   useEffect(() => {
     const el = sentinel.current
     if (!el) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) loadMore()
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        if (search) {
+          if (resultsHasMore) loadResults(false)
+        } else loadMore()
       },
       { rootMargin: '400px' },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadMore])
+  }, [loadMore, loadResults, search, resultsHasMore])
 
   /** Move a decided job out of the inbox into the chronological feed. */
   const leaveInbox = useCallback(
@@ -371,6 +431,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         setInboxCount((count) => Math.max(0, count - 1))
       }
       putInFeed(job)
+      setResults((prev) => prev?.map((j) => (j.id === job.id ? job : j)) ?? prev)
     },
     [putInFeed],
   )
@@ -417,10 +478,15 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       j.id === jobId ? { ...j, application_id: applicationId, decision: 'accepted' } : j
     const inInbox = inbox.find((j) => j.id === jobId)
     if (inInbox) leaveInbox(update(inInbox))
-    else setFeed((prev) => prev.map(update))
+    else {
+      setFeed((prev) => prev.map(update))
+      setResults((prev) => prev?.map(update) ?? prev)
+    }
   }
 
-  const ordered = [...inbox, ...feed]
+  const searching = search !== ''
+  const inboxIds = new Set(inbox.map((j) => j.id))
+  const ordered = searching ? (results ?? []) : [...inbox, ...feed]
   useFlip(listRef, ordered.map((j) => j.id).join(','))
 
   const empty = profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore
@@ -432,7 +498,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           <JobView
             key={openId}
             jobId={openId}
-            initial={ordered.find((j) => j.id === openId) ?? null}
+            initial={[...inbox, ...feed, ...(results ?? [])].find((j) => j.id === openId) ?? null}
             onBack={onBack}
             onOpenCompany={setCompanyId}
             onApplicationCreated={(applicationId) => applicationCreated(openId, applicationId)}
@@ -457,16 +523,33 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
               : null}
         </p>
 
+        <div className="jobs-controls">
+          <input
+            type="search"
+            className="app-search"
+            placeholder="Search company or title…"
+            aria-label="Search jobs by company or title"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
+
         {error && (
           <p className="error">
             {error}{' '}
-            <button type="button" className="secondary small" onClick={poll}>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => (searching ? loadResults(true) : poll())}
+            >
               Retry
             </button>
           </p>
         )}
 
-        {empty ? (
+        {searching && results !== null && results.length === 0 ? (
+          <p className="muted">No jobs match your search.</p>
+        ) : !searching && empty ? (
           <p>
             {profileId === null
               ? 'Create a candidate profile first; scraped jobs are then scored against it.'
@@ -475,7 +558,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         ) : (
           <ul className="job-list" ref={listRef}>
             {ordered.map((job, index) => {
-              const inInbox = index < inbox.length
+              const inInbox = searching ? inboxIds.has(job.id) : index < inbox.length
               return (
                 <JobRow
                   key={job.id}
@@ -493,8 +576,8 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         )}
 
         <div ref={sentinel} className="sentinel">
-          {loading && <span className="spinner" aria-hidden="true" />}
-          {!hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
+          {(searching ? resultsLoading : loading) && <span className="spinner" aria-hidden="true" />}
+          {!searching && !hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
         </div>
       </div>
 

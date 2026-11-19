@@ -31,7 +31,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import ColumnElement, Select, and_, func, not_, select
+from sqlalchemy import ColumnElement, Select, and_, func, not_, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
@@ -39,6 +39,7 @@ from app.db import get_session
 from app.models import (
     Application,
     CandidateProfile,
+    Company,
     Job,
     JobDecision,
     JobEvaluation,
@@ -350,8 +351,12 @@ def jobs_feed(
     before: Annotated[int | None, Query(ge=1)] = None,
     after: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
+    q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FeedPage:
     """Every evaluated job not in the inbox, newest evaluation first.
+
+    ``q`` turns the feed into a search: every evaluated job (inbox included) whose title
+    or company name contains it (case-insensitive).
 
     ``before=<evaluation id>`` returns the next older page; ``after=<evaluation id>``
     returns rows newer than it (up to ``limit``, still newest first) for polling.
@@ -359,9 +364,19 @@ def jobs_feed(
     profile_id = _latest_profile_id(session)
     if profile_id is None:
         return FeedPage(items=[], has_more=False, candidate_profile_id=None)
-    query = _evaluated_query(profile_id).where(
-        not_(_undecided_relevant(settings.relevant_job_threshold))
-    )
+    needle = (q or "").strip()
+    query = _evaluated_query(profile_id)
+    if needle:
+        escaped = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        query = query.outerjoin(Company, Company.id == JobParseResult.company_id).where(
+            or_(
+                JobParseResult.title.ilike(pattern, escape="\\"),
+                Company.name.ilike(pattern, escape="\\"),
+            )
+        )
+    else:
+        query = query.where(not_(_undecided_relevant(settings.relevant_job_threshold)))
     if before is not None:
         query = query.where(JobEvaluation.id < before)
     if after is not None:

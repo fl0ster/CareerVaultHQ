@@ -51,6 +51,8 @@ export type FeedParams = {
   /** Evaluation id: return newer rows (polling). */
   after?: number
   limit?: number
+  /** Search term: every evaluated job (inbox included) whose title or company contains it. */
+  q?: string
 }
 
 export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
@@ -109,11 +111,12 @@ export const jobsApi = {
     return fetch(`${API}?${params}`).then((r) => parse<JobPage>(r))
   },
   inbox: (signal?: AbortSignal) => fetch(`${API}/inbox`, { signal }).then((r) => parse<JobInbox>(r)),
-  feed: ({ before, after, limit }: FeedParams, signal?: AbortSignal) => {
+  feed: ({ before, after, limit, q }: FeedParams, signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (before !== undefined) params.set('before', String(before))
     if (after !== undefined) params.set('after', String(after))
     if (limit !== undefined) params.set('limit', String(limit))
+    if (q) params.set('q', q)
     return fetch(`${API}/feed?${params}`, { signal }).then((r) => parse<JobFeedPage>(r))
   },
   decide: (id: number, decision: JobDecision) =>
