@@ -14,6 +14,8 @@ const KIND_LABELS: Record<string, string> = {
   cleanup_old_jobs: 'Cleanup',
 }
 
+const CELEBRATE_DELAY_MS = 2000
+
 function kindLabel(job: QueueJob): string {
   return KIND_LABELS[job.kind] ?? job.kind
 }
@@ -46,7 +48,7 @@ function JobRow({ job, running, now }: { job: QueueJob; running?: boolean; now: 
 
 /**
  * Background worker status, told by the magpie: it works while a job runs, eyes the
- * letters while jobs wait, hops when a job finishes and frets when the worker is unreachable.
+ * letters while jobs wait, hops once all queued jobs are finished and frets when the worker is unreachable.
  * Click it for the current and pending jobs.
  */
 export default function WorkerMascot() {
@@ -58,18 +60,35 @@ export default function WorkerMascot() {
   const pending = status?.pending ?? []
   const pendingCount = status?.pending_count ?? 0
 
-  // Hop once whenever the running job finishes (or is replaced by the next one).
+  // Hop once the whole batch is done: wait for the queue to stay empty for a moment so
+  // jobs scheduled back-to-back don't trigger a celebration after each one.
   const currentId = current?.job_id ?? null
-  const [prevId, setPrevId] = useState(currentId)
+  const busy = currentId !== null || pendingCount > 0
+  const hasStatus = status != null
+  const hadWork = useRef(false)
   const [hops, setHops] = useState(0)
   const [celebrating, setCelebrating] = useState(false)
-  if (currentId !== prevId) {
-    setPrevId(currentId)
-    if (prevId !== null) {
+  const [prevBusyKey, setPrevBusyKey] = useState(`${currentId}|${pendingCount}`)
+  const busyKey = `${currentId}|${pendingCount}`
+  if (busyKey !== prevBusyKey) {
+    setPrevBusyKey(busyKey)
+    // The queue changed: drop any celebration in progress.
+    if (celebrating) setCelebrating(false)
+  }
+
+  useEffect(() => {
+    if (busy) {
+      hadWork.current = true
+      return
+    }
+    if (!hadWork.current || !hasStatus || error) return
+    const timer = setTimeout(() => {
+      hadWork.current = false
       setHops((n) => n + 1)
       setCelebrating(true)
-    }
-  }
+    }, CELEBRATE_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [busy, busyKey, hasStatus, error])
 
   useEffect(() => {
     if (!open) return
