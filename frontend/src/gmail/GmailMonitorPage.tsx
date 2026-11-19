@@ -337,14 +337,6 @@ export default function GmailMonitorPage() {
 
   return (
     <>
-      <p className="page-intro">
-        Watches the unread inbox of a Gmail account for rejection mails. A mail is acted on only when the model is
-        confident it is a rejection and it matches exactly one open application (applied, not yet rejected or offered)
-        by company, and by role when there are several at that company. That application gets the{' '}
-        <span className="badge app-status rejected">⚡ Rejected</span> state, and the mail is marked as read and labelled.
-        Anything else stays unread in your inbox.
-      </p>
-
       <section className="gmail-section">
         <h2>Connection</h2>
         <div className="gmail-grid">

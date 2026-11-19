@@ -73,10 +73,10 @@ const SETTINGS: NavGroup = {
   label: 'Settings',
   icon: Settings,
   items: [
-    { id: 'sources', label: 'Sources', title: 'Scrape sources', icon: Rss },
+    { id: 'sources', label: 'Sources', title: 'Scrape sources', icon: Rss, hideHeader: true },
     { id: 'generated-cv', label: 'Generated CVs', icon: FileText, hideHeader: true },
-    { id: 'gmail', label: 'Gmail monitor', title: 'Gmail rejection monitor', icon: Mail },
-    { id: 'cost', label: 'Cost', icon: Coins },
+    { id: 'gmail', label: 'Gmail monitor', title: 'Gmail rejection monitor', icon: Mail, hideHeader: true },
+    { id: 'cost', label: 'Cost', icon: Coins, hideHeader: true },
   ],
 }
 
