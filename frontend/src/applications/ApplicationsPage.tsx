@@ -17,10 +17,12 @@ import {
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
-import ApplicationDialog from './ApplicationDialog.tsx'
+import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
+import { type Crumb, pageHref } from '../shell/nav.ts'
+import { useDetailScroll } from '../shell/useDetailScroll.ts'
 
 const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
@@ -35,7 +37,21 @@ const SUBTABS = [
 
 type SubTab = (typeof SUBTABS)[number]['id']
 
-export default function ApplicationsPage() {
+type Props = {
+  /** Id of the application shown in place of the list (from the URL), or null for the list. */
+  detailId: string | null
+  /** The Applications page is the one on screen. */
+  active: boolean
+  onOpen: (id: number) => void
+  onBack: () => void
+  /** Breadcrumb entries after "Applications" while a detail is open. */
+  onCrumbsChange: (crumbs: Crumb[]) => void
+}
+
+const subTabOf = (application: Application): SubTab =>
+  application.status?.key === OFFER_STATUS ? 'offers' : 'pending'
+
+export default function ApplicationsPage({ detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [subTab, setSubTab] = useState<SubTab>('pending')
@@ -43,15 +59,31 @@ export default function ApplicationsPage() {
   const [searchInput, setSearchInput] = useState('')
   // The term actually sent to the API: debounced, and empty until it has enough characters.
   const [search, setSearch] = useState('')
-  // Kept as an object (not just an id) so the dialog stays open even if a status change
-  // drops the application out of the filtered list.
+  // The open application. Kept as its own object (fetched by id) so the view stays put even
+  // when the application is not in the current list (filter, search, a deep link).
+  const openId = detailId != null && /^\d+$/.test(detailId) ? Number(detailId) : null
   const [selected, setSelected] = useState<Application | null>(null)
-  // Company popup; stacks on top of the application popup when opened from it.
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [shownId, setShownId] = useState<number | null>(null)
+  if (openId !== shownId) {
+    // Show the list's copy right away; the fetch below brings the full, fresh one.
+    setShownId(openId)
+    setSelected(openId == null ? null : (applications?.find((a) => a.id === openId) ?? null))
+    setDetailError(null)
+  }
+  // The list behind the open application is the subtab it belongs to, so Back lands next to it.
+  if (selected && subTabOf(selected) !== subTab) {
+    setApplications(null)
+    setSubTab(subTabOf(selected))
+  }
+  // Company popup; also opens over the application view.
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
+  const detailOpen = detailId != null
+  useDetailScroll(detailOpen, active)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -82,7 +114,6 @@ export default function ApplicationsPage() {
       )
       .then((page) => {
         setApplications(page.items)
-        setSelected((prev) => (prev && page.items.find((a) => a.id === prev.id)) ?? prev)
         setError(null)
       })
       .catch((e) => {
@@ -90,6 +121,33 @@ export default function ApplicationsPage() {
       })
     return () => controller.abort()
   }, [subTab, filter, search, tick])
+
+  // The open application, refetched on every reload so it stays current wherever it was changed.
+  useEffect(() => {
+    if (openId == null) return
+    const controller = new AbortController()
+    applicationsApi
+      .get(openId, controller.signal)
+      .then((a) => {
+        setSelected(a)
+        setDetailError(null)
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) setDetailError(describeError(e))
+      })
+    return () => controller.abort()
+  }, [openId, tick])
+
+  const title = selected ? (selected.job.title ?? 'Untitled job') : null
+  const isOffer = selected != null && subTabOf(selected) === 'offers'
+  const placeholder = detailOpen && !selected ? (detailError || openId == null ? 'Not found' : 'Loading…') : null
+  useEffect(() => {
+    const crumbs: Crumb[] = []
+    if (isOffer) crumbs.push({ label: 'Offers', href: pageHref('applications') })
+    if (title !== null) crumbs.push({ label: title })
+    else if (placeholder) crumbs.push({ label: placeholder })
+    onCrumbsChange(crumbs)
+  }, [isOffer, title, placeholder, onCrumbsChange])
 
   // Applications created or changed elsewhere (e.g. from the job dialog).
   useEffect(() => {
@@ -117,8 +175,8 @@ export default function ApplicationsPage() {
 
   const removed = (id: number) => {
     setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
-    setSelected(null)
     notifyApplicationsChanged()
+    onBack()
   }
 
   const counts = new Map<string, number>()
@@ -129,127 +187,142 @@ export default function ApplicationsPage() {
 
   return (
     <>
-      <nav className="segmented centered" aria-label="Application sections">
-        {SUBTABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={subTab === t.id ? 'tab active' : 'tab'}
-            aria-current={subTab === t.id ? 'page' : undefined}
-            onClick={() => {
-              setApplications(null)
-              setSubTab(t.id)
-            }}
-          >
-            {t.label}
-          </button>
+      {detailOpen &&
+        (selected ? (
+          <ApplicationView
+            key={selected.id}
+            application={selected}
+            statuses={statuses}
+            onChange={replace}
+            onDelete={removed}
+            onOpenCompany={setCompanyId}
+            onBack={onBack}
+          />
+        ) : (
+          <div className="detail-view detail-status">
+            {detailError || openId == null ? (
+              <>
+                <p className="error">Could not load the application: {detailError ?? 'not found'}</p>
+                <button type="button" className="secondary small" onClick={onBack}>
+                  Back to applications
+                </button>
+              </>
+            ) : (
+              <span className="spinner" aria-hidden="true" />
+            )}
+          </div>
         ))}
-      </nav>
 
-      <div className="jobs-controls">
-        <input
-          type="search"
-          className="app-search"
-          placeholder="Search company or title…"
-          aria-label="Search applications by company or title"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-        />
+      {/* The list stays mounted under an open application so its filters and search survive. */}
+      <div hidden={detailOpen}>
+        <nav className="segmented centered" aria-label="Application sections">
+          {SUBTABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={subTab === t.id ? 'tab active' : 'tab'}
+              aria-current={subTab === t.id ? 'page' : undefined}
+              onClick={() => {
+                setApplications(null)
+                setSubTab(t.id)
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-        {subTab === 'pending' && (
-          <select
-            className="app-status-filter"
-            aria-label="Filter by status"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            {statuses
-              .filter((s) => s.key !== OFFER_STATUS)
-              .map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label}
-                  {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
-                </option>
-              ))}
-          </select>
+        <div className="jobs-controls">
+          <input
+            type="search"
+            className="app-search"
+            placeholder="Search company or title…"
+            aria-label="Search applications by company or title"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+
+          {subTab === 'pending' && (
+            <select
+              className="app-status-filter"
+              aria-label="Filter by status"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              {statuses
+                .filter((s) => s.key !== OFFER_STATUS)
+                .map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label}
+                    {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
+                  </option>
+                ))}
+            </select>
+          )}
+        </div>
+
+        {error && <p className="error">{error}</p>}
+
+        {applications !== null && applications.length === 0 && (
+          <p className="muted">
+            {search
+              ? 'No applications match your search.'
+              : subTab === 'offers'
+              ? 'No offers yet.'
+              : filter
+              ? 'No applications with this status.'
+              : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
+          </p>
         )}
+
+        <ul className="app-list">
+          {applications?.map((a) => (
+            <li key={a.id} className="app-item">
+              <button type="button" className="app-row" onClick={() => onOpen(a.id)}>
+                <div className="job-main">
+                  {a.evaluation && <RelevanceMeter relevance={a.evaluation.relevance} />}
+                  <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
+                  <div className="job-meta">
+                    {a.job.company && (
+                      <span className="job-company">
+                        <CompanyTagBadge
+                          companyId={a.job.company_id}
+                          tag={a.job.company_tag}
+                          name={a.job.company}
+                          onOpenCompany={setCompanyId}
+                        />{' '}
+                      </span>
+                    )}
+                    <span>{a.job.source}</span>
+                    <span>
+                      {a.status && a.events.length > 0
+                        ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
+                        : `created ${serverDate(a.created_at).toLocaleDateString()}`}
+                    </span>
+                    <InterviewProgress application={a} compact />
+                  </div>
+                </div>
+                <div className="app-badges">
+                  <StatusBadge
+                    status={a.status}
+                    auto={isAutoEvent(currentEvent(a))}
+                    nextRound={nextRoundLabel(a)}
+                    statuses={statuses}
+                    onSelect={(key) =>
+                      applicationsApi
+                        .addEvent(a.id, { status: key })
+                        .then(replace)
+                        .catch((e) => setError(`Could not change status: ${describeError(e)}`))
+                    }
+                  />
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      {error && <p className="error">{error}</p>}
-
-      {applications !== null && applications.length === 0 && (
-        <p className="muted">
-          {search
-            ? 'No applications match your search.'
-            : subTab === 'offers'
-            ? 'No offers yet.'
-            : filter
-            ? 'No applications with this status.'
-            : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
-        </p>
-      )}
-
-      <ul className="app-list">
-        {applications?.map((a) => (
-          <li key={a.id} className={selected?.id === a.id ? 'app-item selected' : 'app-item'}>
-            <button type="button" className="app-row" aria-haspopup="dialog" onClick={() => setSelected(a)}>
-              <div className="job-main">
-                {a.evaluation && <RelevanceMeter relevance={a.evaluation.relevance} />}
-                <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
-                <div className="job-meta">
-                  {a.job.company && (
-                    <span className="job-company">
-                      <CompanyTagBadge
-                        companyId={a.job.company_id}
-                        tag={a.job.company_tag}
-                        name={a.job.company}
-                        onOpenCompany={setCompanyId}
-                      />{' '}
-                    </span>
-                  )}
-                  <span>{a.job.source}</span>
-                  <span>
-                    {a.status && a.events.length > 0
-                      ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
-                      : `created ${serverDate(a.created_at).toLocaleDateString()}`}
-                  </span>
-                  <InterviewProgress application={a} compact />
-                </div>
-              </div>
-              <div className="app-badges">
-                <StatusBadge
-                  status={a.status}
-                  auto={isAutoEvent(currentEvent(a))}
-                  nextRound={nextRoundLabel(a)}
-                  statuses={statuses}
-                  onSelect={(key) =>
-                    applicationsApi
-                      .addEvent(a.id, { status: key })
-                      .then(replace)
-                      .catch((e) => setError(`Could not change status: ${describeError(e)}`))
-                  }
-                />
-              </div>
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {selected && (
-        <ApplicationDialog
-          key={selected.id}
-          application={selected}
-          statuses={statuses}
-          onChange={replace}
-          onDelete={removed}
-          onOpenCompany={setCompanyId}
-          onClose={() => setSelected(null)}
-        />
-      )}
-
-      {/* Rendered after the application dialog so it opens on top of it; closing it
-          returns to the application dialog. */}
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
       )}

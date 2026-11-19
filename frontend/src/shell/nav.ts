@@ -119,7 +119,18 @@ export function findPage(id: PageId): { group: NavGroup | null; item: NavItem } 
   throw new Error(`Unknown page ${id}`)
 }
 
-export function pageFromHash(hash: string): PageId {
-  const id = hash.replace(/^#\/?/, '')
-  return NAV_ITEMS.some((i) => i.id === id) ? (id as PageId) : DEFAULT_PAGE
+/** Where the app is: a page and, for pages with detail views, the open item's id. */
+export type Route = { page: PageId; detail: string | null }
+
+/** Extra breadcrumb entries a page shows after its own name (e.g. the open item's title). */
+export type Crumb = { label: string; href?: string }
+
+/** Parses `#/<page>` and `#/<page>/<id>`; anything unknown falls back to the default page. */
+export function routeFromHash(hash: string): Route {
+  const [id, detail] = hash.replace(/^#\/?/, '').split('/')
+  if (!NAV_ITEMS.some((i) => i.id === id)) return { page: DEFAULT_PAGE, detail: null }
+  return { page: id as PageId, detail: detail ? decodeURIComponent(detail) : null }
 }
+
+export const pageHref = (page: PageId, detail?: string | number | null) =>
+  detail == null ? `#/${page}` : `#/${page}/${encodeURIComponent(String(detail))}`

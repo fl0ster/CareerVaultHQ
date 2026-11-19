@@ -1,4 +1,4 @@
-/* Applications page, its detail dialog and the application section of the job dialog */
+/* Applications page, its detail view and the application section of the job view */
 .app-list {
   list-style: none;
   margin: 0;
@@ -72,15 +72,6 @@
     border: 1px dashed var(--border);
     color: var(--text);
   }
-}
-
-.app-item.selected .job-title {
-  color: var(--accent);
-}
-
-.app-dialog-badges {
-  justify-content: flex-start;
-  margin-top: 8px;
 }
 
 .app-detail {

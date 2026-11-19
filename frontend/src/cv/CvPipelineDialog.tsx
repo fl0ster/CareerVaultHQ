@@ -381,11 +381,11 @@ export default function CvPipelineDialog({ cv, onClose }: Props) {
   const [showLog, setShowLog] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
 
+  // No close() on cleanup: unmounting removes the dialog anyway, and in dev StrictMode the
+  // close event from a cleanup would land after the remount and shut the dialog again.
   useEffect(() => {
     const el = dialog.current
-    if (!el) return
-    el.showModal()
-    return () => el.close()
+    if (el && !el.open) el.showModal()
   }, [])
 
   useEffect(() => {

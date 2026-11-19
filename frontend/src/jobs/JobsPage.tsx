@@ -2,13 +2,15 @@ import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import './jobs.css'
 import '../applications/applications.css'
 import { type EvaluatedJob, type JobDecision, isRelevant, jobsApi } from './api.ts'
-import JobDialog from './JobDialog.tsx'
+import JobView from './JobView.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from '../applications/api.ts'
 import { describeError } from '../cv/api.ts'
+import type { Crumb } from '../shell/nav.ts'
+import { useDetailScroll } from '../shell/useDetailScroll.ts'
 
 const PAGE_SIZE = 50
 /** How often the tab checks for newly evaluated jobs, in ms. */
@@ -42,6 +44,11 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   useLayoutEffect(() => {
     const list = listRef.current
     if (!list) return
+    // Hidden behind a job view: nothing to animate, and hidden rows have no position.
+    if (list.offsetParent === null) {
+      previous.current.clear()
+      return
+    }
     const rows = Array.from(list.children) as HTMLElement[]
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const next = new Map<string, number>()
@@ -154,11 +161,19 @@ function JobRow({
 }
 
 type Props = {
+  /** Id of the job shown in place of the list (from the URL), or null for the list. */
+  detailId: string | null
+  /** The Jobs page is the one on screen. */
+  active: boolean
+  onOpen: (id: number) => void
+  onBack: () => void
+  /** Breadcrumb entries after "Jobs" while a detail is open. */
+  onCrumbsChange: (crumbs: Crumb[]) => void
   /** Called whenever the number of undecided relevant jobs changes (for the tab badge). */
   onInboxCountChange?: (count: number) => void
 }
 
-export default function JobsPage({ onInboxCountChange }: Props) {
+export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsChange, onInboxCountChange }: Props) {
   const [inbox, setInbox] = useState<EvaluatedJob[]>([])
   const [inboxCount, setInboxCount] = useState(0)
   const [feed, setFeed] = useState<EvaluatedJob[]>([])
@@ -166,7 +181,6 @@ export default function JobsPage({ onInboxCountChange }: Props) {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<EvaluatedJob | null>(null)
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [busy, setBusy] = useState<Set<number>>(new Set())
   const [rowErrors, setRowErrors] = useState<Map<number, string>>(new Map())
@@ -193,6 +207,19 @@ export default function JobsPage({ onInboxCountChange }: Props) {
   useEffect(() => {
     onInboxCountChange?.(inboxCount)
   }, [inboxCount, onInboxCountChange])
+
+  const detailOpen = detailId != null
+  const openId = detailId != null && /^\d+$/.test(detailId) ? Number(detailId) : null
+  useDetailScroll(detailOpen, active)
+
+  const onDetailTitle = useCallback(
+    (title: string | null) => onCrumbsChange([{ label: title ?? 'Not found' }]),
+    [onCrumbsChange],
+  )
+  useEffect(() => {
+    if (!detailOpen) onCrumbsChange([])
+    else if (openId == null) onCrumbsChange([{ label: 'Not found' }])
+  }, [detailOpen, openId, onCrumbsChange])
 
   /** Put a job into the loaded part of the feed (replacing an existing copy). A job older
    * than the loaded pages is left out: it arrives with the page it belongs to. */
@@ -384,14 +411,13 @@ export default function JobsPage({ onInboxCountChange }: Props) {
     }
   }
 
-  /** An application was created from the details dialog ("Apply"). */
+  /** An application was created from the job view ("Apply"). */
   const applicationCreated = (jobId: number, applicationId: number) => {
     const update = (j: EvaluatedJob): EvaluatedJob =>
       j.id === jobId ? { ...j, application_id: applicationId, decision: 'accepted' } : j
     const inInbox = inbox.find((j) => j.id === jobId)
     if (inInbox) leaveInbox(update(inInbox))
     else setFeed((prev) => prev.map(update))
-    setSelected((prev) => (prev ? update(prev) : prev))
   }
 
   const ordered = [...inbox, ...feed]
@@ -401,62 +427,76 @@ export default function JobsPage({ onInboxCountChange }: Props) {
 
   return (
     <>
-      <p>
-        {profileId === undefined
-          ? 'Loading…'
-          : profileId === null
-            ? 'No candidate profile yet.'
-            : null}
-      </p>
+      {detailOpen &&
+        (openId != null ? (
+          <JobView
+            key={openId}
+            jobId={openId}
+            initial={ordered.find((j) => j.id === openId) ?? null}
+            onBack={onBack}
+            onOpenCompany={setCompanyId}
+            onApplicationCreated={(applicationId) => applicationCreated(openId, applicationId)}
+            onTitle={onDetailTitle}
+          />
+        ) : (
+          <div className="detail-view detail-status">
+            <p className="error">Could not load the job: not found</p>
+            <button type="button" className="secondary small" onClick={onBack}>
+              Back to jobs
+            </button>
+          </div>
+        ))}
 
-      {error && (
-        <p className="error">
-          {error}{' '}
-          <button type="button" className="secondary small" onClick={poll}>
-            Retry
-          </button>
-        </p>
-      )}
-
-      {empty ? (
+      {/* The list stays mounted under an open job so loaded pages and polling survive. */}
+      <div hidden={detailOpen}>
         <p>
-          {profileId === null
-            ? 'Create a candidate profile first; scraped jobs are then scored against it.'
-            : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
+          {profileId === undefined
+            ? 'Loading…'
+            : profileId === null
+              ? 'No candidate profile yet.'
+              : null}
         </p>
-      ) : (
-        <ul className="job-list" ref={listRef}>
-          {ordered.map((job, index) => {
-            const inInbox = index < inbox.length
-            return (
-              <JobRow
-                key={job.id}
-                job={job}
-                inbox={inInbox}
-                busy={busy.has(job.id)}
-                error={rowErrors.get(job.id) ?? null}
-                onSelect={setSelected}
-                onDecide={decide}
-                onOpenCompany={setCompanyId}
-              />
-            )
-          })}
-        </ul>
-      )}
 
-      <div ref={sentinel} className="sentinel">
-        {loading && <span className="spinner" aria-hidden="true" />}
-        {!hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
+        {error && (
+          <p className="error">
+            {error}{' '}
+            <button type="button" className="secondary small" onClick={poll}>
+              Retry
+            </button>
+          </p>
+        )}
+
+        {empty ? (
+          <p>
+            {profileId === null
+              ? 'Create a candidate profile first; scraped jobs are then scored against it.'
+              : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
+          </p>
+        ) : (
+          <ul className="job-list" ref={listRef}>
+            {ordered.map((job, index) => {
+              const inInbox = index < inbox.length
+              return (
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  inbox={inInbox}
+                  busy={busy.has(job.id)}
+                  error={rowErrors.get(job.id) ?? null}
+                  onSelect={(j) => onOpen(j.id)}
+                  onDecide={decide}
+                  onOpenCompany={setCompanyId}
+                />
+              )
+            })}
+          </ul>
+        )}
+
+        <div ref={sentinel} className="sentinel">
+          {loading && <span className="spinner" aria-hidden="true" />}
+          {!hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
+        </div>
       </div>
-
-      {selected && (
-        <JobDialog
-          key={selected.id}
-          job={selected}
-          onClose={() => setSelected(null)}
-          onApplicationCreated={(applicationId) => applicationCreated(selected.id, applicationId)}
-        />
-      )}
 
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />

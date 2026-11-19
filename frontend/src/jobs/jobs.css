@@ -178,6 +178,35 @@
   margin-bottom: 16px;
 }
 
+/* Job and application details: a view inside the layout, reached from the list. */
+.detail-view {
+  animation: rise-in var(--t-med) var(--ease-out);
+}
+
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.detail-card {
+  padding: 24px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+
+  h2 {
+    overflow-wrap: anywhere;
+  }
+}
+
+.detail-status {
+  padding: 24px 0;
+}
+
 .job-facts {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -206,6 +235,11 @@
   line-height: 1.5;
 }
 
+/* On its own page the description flows with the page instead of scrolling in a box. */
+.job-view .job-desc pre.description {
+  max-height: none;
+}
+
 .job-html {
   margin-top: 16px;
 
@@ -227,7 +261,8 @@
   .jobs-controls label {
     width: 100%;
   }
-  .job-dialog-body {
+  .job-dialog-body,
+  .detail-card {
     padding: 16px;
   }
   .job-facts {

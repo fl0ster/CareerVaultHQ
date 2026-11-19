@@ -384,11 +384,45 @@
 }
 
 .crumb-page {
+  min-width: 0;
   color: var(--text-h);
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   animation: rise-in var(--t-med) var(--ease-out);
+}
+
+/* Links back up the trail while a detail view is open. */
+.crumb-link {
+  flex: none;
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color var(--t-fast) ease;
+
+  &:hover {
+    color: var(--text-h);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* A trail entry after the page name; only the last one (the open item's title) shrinks. */
+.crumb-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+
+  &:last-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 }
 
 /* ---------------- Content ---------------- */
