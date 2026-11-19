@@ -490,6 +490,11 @@
   max-width: 24rem;
 }
 
+/* Search on the left, status filter pushed to the right */
+.app-status-filter {
+  margin-left: auto;
+}
+
 /* Lightning bolt on states recorded automatically (Gmail rejection monitor). */
 .app-status-auto {
   margin-right: 3px;

@@ -83,7 +83,7 @@ function App() {
           {NAV_ITEMS.map((item) => (
             <section key={item.id} hidden={page !== item.id} aria-labelledby={`page-${item.id}`}>
               <div className="view">
-                <header className="page-header">
+                <header className={item.hideHeader ? 'sr-only' : 'page-header'}>
                   <h1 id={`page-${item.id}`}>{item.title ?? item.label}</h1>
                   {item.description && <p>{item.description}</p>}
                 </header>

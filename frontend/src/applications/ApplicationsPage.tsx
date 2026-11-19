@@ -129,7 +129,7 @@ export default function ApplicationsPage() {
 
   return (
     <>
-      <nav className="segmented" aria-label="Application sections">
+      <nav className="segmented centered" aria-label="Application sections">
         {SUBTABS.map((t) => (
           <button
             key={t.id}
@@ -147,23 +147,6 @@ export default function ApplicationsPage() {
       </nav>
 
       <div className="jobs-controls">
-        {subTab === 'pending' && (
-          <label>
-            Status{' '}
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">All</option>
-              {statuses
-                .filter((s) => s.key !== OFFER_STATUS)
-                .map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
-                    {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
-                  </option>
-                ))}
-            </select>
-          </label>
-        )}
-
         <input
           type="search"
           className="app-search"
@@ -172,6 +155,25 @@ export default function ApplicationsPage() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
+
+        {subTab === 'pending' && (
+          <select
+            className="app-status-filter"
+            aria-label="Filter by status"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="">All statuses</option>
+            {statuses
+              .filter((s) => s.key !== OFFER_STATUS)
+              .map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                  {!filter && counts.has(s.key) ? ` (${counts.get(s.key)})` : ''}
+                </option>
+              ))}
+          </select>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}

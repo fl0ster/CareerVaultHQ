@@ -15,8 +15,12 @@ export default function TopBar({ active, onOpenMenu }: Props) {
         <Menu size={20} />
       </button>
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <span className="crumb-group">{group.label}</span>
-        <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
+        {group && (
+          <>
+            <span className="crumb-group">{group.label}</span>
+            <ChevronRight size={15} className="crumb-sep" aria-hidden="true" />
+          </>
+        )}
         <span className="crumb-page" key={item.id} aria-current="page">
           {item.label}
         </span>
