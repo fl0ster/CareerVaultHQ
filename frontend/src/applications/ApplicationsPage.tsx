@@ -13,7 +13,6 @@ import {
   isAutoEvent,
   notifyApplicationsChanged,
   nextRoundLabel,
-  serverDate,
 } from './api.ts'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
@@ -367,16 +366,17 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
                         />{' '}
                       </span>
                     )}
-                    <span>{a.job.source}</span>
-                    <span>
-                      {a.status && a.events.length > 0
-                        ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
-                        : `created ${serverDate(a.created_at).toLocaleDateString()}`}
-                    </span>
                     <InterviewProgress application={a} compact />
                   </div>
                 </div>
-                <div className="app-badges">
+                {/* Clicks anywhere around the badge stay with it instead of opening the row. */}
+                <div
+                  className="app-badges"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                  }}
+                >
                   <StatusBadge
                     status={a.status}
                     auto={isAutoEvent(currentEvent(a))}

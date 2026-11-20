@@ -24,6 +24,9 @@ type PillProps = {
   title?: string
   /** Replaces the ⋮ picker with this content (e.g. read-only extras); `null` shows nothing. */
   extra?: ReactNode
+  /** Hover preview of what a click leads to; defaults to the `nextKey` option's label
+   * when it differs from the current one. */
+  preview?: ReactNode
 }
 
 /**
@@ -31,7 +34,7 @@ type PillProps = {
  * opens a picker with every option. Rendered with spans with button semantics because it may sit inside another
  * button (a list row).
  */
-export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra }: PillProps) {
+export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra, preview: previewLabel }: PillProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
@@ -57,6 +60,8 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
 
   const main = extra === undefined || extra != null ? 'app-status-main' : 'app-status-main alone'
   const next = nextKey != null ? options.find((o) => o.key === nextKey) : undefined
+  // Preview only an actual change (an INTERVIEW click stays in INTERVIEW).
+  const preview = busy || next == null ? null : (previewLabel ?? (next.key !== currentKey ? next.label : null))
 
   const select = async (key: string) => {
     setOpen(false)
@@ -97,6 +102,15 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
         })}
       >
         {children}
+        {preview != null && (
+          // Hovering slides in the next state (in its own colour) from the right.
+          <span className="app-status-next" aria-hidden="true">
+            <span className="app-status-next-inner">
+              <span className="app-status-arrow">→</span>
+              {preview}
+            </span>
+          </span>
+        )}
       </span>
       {extra !== undefined ? (
         extra != null && (
@@ -195,6 +209,13 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
       onSelect={onSelect}
       title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
+      preview={
+        interview ? (
+          <span className="badge app-status interview">
+            {nextRound ? nextRound.charAt(0).toUpperCase() + nextRound.slice(1) : (status?.label ?? 'Interview')}
+          </span>
+        ) : undefined
+      }
     >
       {label}
     </PickerPill>

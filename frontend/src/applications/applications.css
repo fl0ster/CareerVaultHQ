@@ -601,3 +601,82 @@
   from { opacity: 1; }
   to { opacity: 0; }
 }
+
+/* List rows: a bigger status pill with a click-safe zone around it, so it is easy to hit
+   without opening the row by accident. */
+.app-badges {
+  align-self: stretch;
+  padding: 4px 0 4px 12px;
+  cursor: default;
+}
+.app-badges .app-status-main {
+  padding: 7px 10px 7px 14px;
+}
+.app-badges .app-status-main.alone {
+  padding-right: 14px;
+}
+.app-badges .app-status-more {
+  padding: 7px 12px 7px 10px;
+}
+@media (max-width: 600px) {
+  .app-badges {
+    align-self: flex-start;
+    padding-left: 0;
+  }
+}
+
+/* Hover preview of the state a click moves to: a chip in the next state's colour slides in
+   from the right next to the current label, which stays visible. */
+.app-status-main.clickable {
+  display: inline-flex;
+  align-items: center;
+}
+.app-status-next {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  transition: grid-template-columns 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.app-status-next-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding-left: 0;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(10px);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    padding-left 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.app-status-arrow {
+  opacity: 0.6;
+}
+.app-status-next .badge {
+  padding-block: 0;
+  font-size: 0.9em;
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent);
+}
+.app-status-main.clickable:hover,
+.app-status-main.clickable:focus-visible {
+  text-decoration: none;
+}
+.app-status-main.clickable:hover .app-status-next,
+.app-status-main.clickable:focus-visible .app-status-next {
+  grid-template-columns: 1fr;
+}
+.app-status-main.clickable:hover .app-status-next-inner,
+.app-status-main.clickable:focus-visible .app-status-next-inner {
+  opacity: 1;
+  transform: none;
+  padding-left: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-status-next,
+  .app-status-next-inner {
+    transform: none !important;
+    transition: opacity 150ms ease;
+  }
+}
