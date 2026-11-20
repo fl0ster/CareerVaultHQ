@@ -9,9 +9,19 @@ import SourcesPage from './sources/SourcesPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
+import SettingsNav from './shell/SettingsNav.tsx'
 import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
-import { type Crumb, NAV_ITEMS, type PageId, type Route, pageHref, routeFromHash } from './shell/nav.ts'
+import {
+  type Crumb,
+  NAV_ITEMS,
+  type PageId,
+  type Route,
+  SETTINGS_PAGE_IDS,
+  isSettingsPage,
+  pageHref,
+  routeFromHash,
+} from './shell/nav.ts'
 import { useStoredState } from './shell/useStoredState.ts'
 import { useTheme } from './shell/useTheme.ts'
 
@@ -21,6 +31,9 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [rail, setRail] = useStoredState('cv-sidebar', ['expanded', 'collapsed'] as const, 'expanded')
   const [theme, setTheme] = useTheme()
+  // The Settings entry in the menu reopens whichever settings tab was used last.
+  const [settingsTab, setSettingsTab] = useStoredState('cv-settings-tab', SETTINGS_PAGE_IDS, SETTINGS_PAGE_IDS[0])
+  if (isSettingsPage(page) && page !== settingsTab) setSettingsTab(page)
   const [jobsInbox, setJobsInbox] = useState(0)
   const onJobsInboxChange = useCallback((count: number) => setJobsInbox(count), [])
   // Breadcrumb entries each page adds after its own name (the open detail's title).
@@ -105,6 +118,7 @@ function App() {
       <Sidebar
         active={page}
         onNavigate={navigate}
+        onOpenSettings={() => navigate(settingsTab)}
         badges={{ jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` } }}
         collapsed={rail === 'collapsed'}
         onToggleCollapsed={() => setRail(rail === 'collapsed' ? 'expanded' : 'collapsed')}
@@ -131,6 +145,7 @@ function App() {
                   <h1 id={`page-${item.id}`}>{item.title ?? item.label}</h1>
                   {item.description && <p>{item.description}</p>}
                 </header>
+                {isSettingsPage(item.id) && <SettingsNav active={page} onNavigate={navigate} />}
                 {pages[item.id]}
               </div>
             </section>

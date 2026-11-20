@@ -353,3 +353,60 @@ def test_evaluate_without_profile_raises(task_engine):
         evaluate_task.evaluate_pending_jobs()
     with pytest.raises(evaluate_task.NoCandidateProfile):
         evaluate_task.evaluate_parse_results([1])
+
+
+def _chat_or_decision(request: httpx.Request) -> httpx.Response:
+    if request.url.path.endswith("/chat/completions"):
+        return httpx.Response(
+            200,
+            json={
+                "id": "gen-chat-1",
+                "model": "test/model",
+                "choices": [{"message": {"role": "assistant", "content": "Generated profile"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "cost": 0.001},
+            },
+        )
+    return httpx.Response(200, json=_decision(0.5))
+
+
+def _add_work_history(engine, role="Dev"):
+    from datetime import date
+
+    with session_factory(engine)() as session:
+        session.add(
+            models.WorkHistoryEntry(
+                date_start=date(2020, 1, 1), employer="Acme", role=role, tech=["python"]
+            )
+        )
+        session.commit()
+
+
+def test_evaluate_generates_profile_lazily(task_engine, requests_seen):
+    _seed(task_engine, profiles=(), jobs=1)
+    _add_work_history(task_engine)
+    task_engine.set_handler(_chat_or_decision)
+
+    result = evaluate_task.evaluate_pending_jobs()
+
+    with session_factory(task_engine)() as session:
+        profile = session.scalars(select(models.CandidateProfile)).one()
+    assert profile.content == "Generated profile"
+    assert profile.work_history_id
+    assert result["candidate_profile_id"] == profile.id
+    assert result["evaluated"] == 1
+
+    # Unchanged work history: the profile is reused, no new chat call.
+    evaluate_task.evaluate_pending_jobs()
+    chats = [r for r in requests_seen if r.url.path.endswith("/chat/completions")]
+    assert len(chats) == 1
+
+
+def test_evaluate_regenerates_stale_profile(task_engine):
+    seeded = _seed(task_engine, jobs=1)  # manual profile, no work_history_id
+    _add_work_history(task_engine)
+    task_engine.set_handler(_chat_or_decision)
+
+    result = evaluate_task.evaluate_pending_jobs()
+
+    assert result["candidate_profile_id"] != seeded["profile_ids"][0]
+    assert result["evaluated"] == 1

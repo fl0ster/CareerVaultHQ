@@ -70,7 +70,7 @@ export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) 
   const extra =
     name != null ? (
       <>
-        <span className="company-tag-name">
+        <span className="company-tag-name" title={name}>
           {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
         </span>
         {statsEl && (

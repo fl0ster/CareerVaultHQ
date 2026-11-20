@@ -86,6 +86,8 @@
 .sidebar-nav {
   position: relative;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 
   ul {
     list-style: none;
@@ -167,7 +169,13 @@
   transform: scale(1.08);
 }
 
-/* Groups (My profile, Settings): the parent toggles its sub-pages */
+/* Settings: a single entry pinned to the bottom of the menu */
+.sidebar-nav ul.nav-bottom {
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+/* Groups (My profile): the parent toggles its sub-pages */
 .nav-parent {
   &:hover:not(:disabled) {
     background: var(--hover-tint);
@@ -426,6 +434,24 @@
 }
 
 /* ---------------- Content ---------------- */
+
+/* Tabs between the settings pages; scrolls sideways when it doesn't fit. */
+.settings-nav {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: none;
+    white-space: nowrap;
+  }
+}
 
 .content {
   width: 100%;

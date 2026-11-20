@@ -1,7 +1,17 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
 import Magpie from '../mascot/Magpie.tsx'
-import { NAV_SECTIONS, type NavGroup, type NavItem, type PageId, findPage, isGroup } from './nav.ts'
+import {
+  NAV_SECTIONS,
+  type NavGroup,
+  type NavItem,
+  type PageId,
+  SETTINGS,
+  SETTINGS_PAGE_IDS,
+  findPage,
+  isGroup,
+  isSettingsPage,
+} from './nav.ts'
 import type { Theme } from './useTheme.ts'
 
 type Badges = Partial<Record<PageId, { count: number; title: string }>>
@@ -9,6 +19,8 @@ type Badges = Partial<Record<PageId, { count: number; title: string }>>
 type Props = {
   active: PageId
   onNavigate: (id: PageId) => void
+  /** Opens the settings page on its last-used tab. */
+  onOpenSettings: () => void
   badges: Badges
   collapsed: boolean
   onToggleCollapsed: () => void
@@ -71,6 +83,7 @@ function PageLink({
 export default function Sidebar({
   active,
   onNavigate,
+  onOpenSettings,
   badges,
   collapsed,
   onToggleCollapsed,
@@ -81,9 +94,13 @@ export default function Sidebar({
 }: Props) {
   const navRef = useRef<HTMLElement>(null)
   const indicatorRef = useRef<HTMLSpanElement>(null)
-  const activeGroup = findPage(active).group?.id ?? null
+  // Only menu groups (My profile) open in place; Settings is a single entry with tabs in the page.
+  const pageGroup = findPage(active).group?.id ?? null
+  const activeGroup = pageGroup === 'settings' ? null : pageGroup
+  const onSettings = isSettingsPage(active)
+  const SettingsIcon = SETTINGS.icon
 
-  // My profile and Settings open on click; the one holding the current page opens by itself.
+  // My profile opens on click, and by itself when it holds the current page.
   const [open, setOpen] = useState<GroupId[]>(activeGroup ? [activeGroup] : [])
   const [prevGroup, setPrevGroup] = useState(activeGroup)
   if (activeGroup !== prevGroup) {
@@ -187,6 +204,25 @@ export default function Sidebar({
             </ul>
           </Fragment>
         ))}
+
+        <ul className="nav-list nav-bottom">
+          <li>
+            <a
+              href={`#/${SETTINGS_PAGE_IDS[0]}`}
+              className={`nav-item${onSettings ? ' active' : ''}`}
+              aria-current={onSettings ? 'page' : undefined}
+              data-indicator={onSettings || undefined}
+              title={collapsed ? SETTINGS.label : undefined}
+              onClick={(e) => {
+                e.preventDefault()
+                onOpenSettings()
+              }}
+            >
+              <SettingsIcon className="nav-icon" size={19} strokeWidth={1.8} aria-hidden="true" />
+              <span className="nav-label">{SETTINGS.label}</span>
+            </a>
+          </li>
+        </ul>
       </nav>
 
       <div className="sidebar-foot">

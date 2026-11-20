@@ -1,6 +1,7 @@
 """Scoring parsed jobs against the current candidate profile as a background (RQ) job.
 
-Both entry points take the newest ``CandidateProfile`` (highest ``id``), ask the OpenRouter
+Both entry points take the current ``CandidateProfile`` (first regenerated from the work
+history when it is missing or stale, see ``app.services.candidate_profile``), ask the OpenRouter
 decisions API (``OpenRouterService.decide``) a single ``noul`` question per job and store
 the probability of "yes" in ``job_evaluations``:
 
@@ -35,6 +36,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import CandidateProfile, JobEvaluation, JobEvaluationFailure, JobParseResult
+from app.services.candidate_profile import current_profile
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -75,10 +77,6 @@ QUESTIONS: dict[str, dict[str, Any]] = {
 
 class NoCandidateProfile(RuntimeError):
     """``candidate_profiles`` is empty, so there is nothing to evaluate against."""
-
-
-def latest_profile(session: Session) -> CandidateProfile | None:
-    return session.scalar(select(CandidateProfile).order_by(CandidateProfile.id.desc()).limit(1))
 
 
 def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
@@ -190,7 +188,10 @@ def _clear_failure(session: Session, profile: CandidateProfile, parsed: JobParse
 
 
 def _current_profile(session: Session) -> CandidateProfile:
-    profile = latest_profile(session)
+    """The current profile, (re)generated from the work history first when needed."""
+    profile, created = current_profile(session, OpenRouterService(session))
+    if created and profile is not None:
+        log.info("Generated candidate profile %d from the work history", profile.id)
     if profile is None:
         raise NoCandidateProfile("no candidate profile to evaluate jobs against")
     return profile

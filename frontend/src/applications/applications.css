@@ -527,3 +527,145 @@
     padding-inline: 16px;
   }
 }
+
+/* Count badge on the Interviews / Offers subtabs. */
+.tab-count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  line-height: 1.5;
+  text-align: center;
+  background: canvas;
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--accent-bg);
+}
+.tab-count.bump {
+  animation: tab-count-bump 0.6s ease-out;
+}
+@keyframes tab-count-bump {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.45) translateY(-3px); }
+  55% { transform: scale(0.9); }
+  75% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-count.bump { animation: none; }
+}
+
+/* Confetti burst when an application reaches the offer stage. */
+.app-page {
+  position: relative;
+}
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Over the page content and its sticky toolbar (40), under the top bar (50). */
+  z-index: 45;
+}
+.confetti-piece {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  width: var(--w);
+  height: var(--h);
+  background: var(--color);
+  border-radius: 2px;
+  opacity: 0;
+  /* Falls with gravity (starts moving, then keeps accelerating), spins steadily, fades at its own pace. */
+  animation:
+    confetti-fall var(--fall) cubic-bezier(0.3, 0.25, 0.7, 0.6) var(--delay) forwards,
+    confetti-spin var(--fall) linear var(--delay) forwards,
+    confetti-pop 180ms ease-out var(--delay) both,
+    confetti-fade var(--fade) ease-in calc(var(--delay) + var(--fade-delay)) both;
+}
+@keyframes confetti-fall {
+  from { translate: 0 0; }
+  to { translate: var(--drift) min(760px, 95vh); }
+}
+@keyframes confetti-spin {
+  from { rotate: 0deg; }
+  to { rotate: var(--spin); }
+}
+@keyframes confetti-pop {
+  from { scale: 0; }
+  to { scale: 1; }
+}
+@keyframes confetti-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* List rows: a bigger status pill with a click-safe zone around it, so it is easy to hit
+   without opening the row by accident. */
+.app-badges {
+  align-self: stretch;
+  padding: 4px 0 4px 12px;
+  cursor: default;
+}
+.app-badges .app-status-main {
+  padding: 7px 10px 7px 14px;
+}
+.app-badges .app-status-main.alone {
+  padding-right: 14px;
+}
+.app-badges .app-status-more {
+  padding: 7px 12px 7px 10px;
+}
+@media (max-width: 600px) {
+  .app-badges {
+    align-self: flex-start;
+    padding-left: 0;
+  }
+}
+
+/* Hover preview of the state a click leads to (`previewClass`): an arrow in that state's colour
+   peeks in over the pill's right edge, and on click slides across to fill the pill. The outer
+   span is an opaque backing (state colours are translucent in dark mode), the inner one the colour. */
+.app-status-main.clickable {
+  position: relative;
+  overflow: hidden;
+}
+.app-status-main.clickable:has(.app-status-next) {
+  text-decoration: none;
+}
+.app-status-next {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: -6px 0 10px -6px rgb(0 0 0 / 0.25);
+  transform: translateX(100%);
+  transition: transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+
+  > span {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+  }
+}
+.app-status-main:is(:hover, :focus-visible) .app-status-next {
+  transform: translateX(calc(100% - 20px));
+}
+.app-status-main .app-status-next.filled {
+  transform: none;
+  box-shadow: none;
+}
+.app-status-control.busy:has(.filled) {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-status-next {
+    transition: none;
+  }
+}

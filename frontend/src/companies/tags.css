@@ -57,6 +57,11 @@
 /* Company name in the middle part of the tag pill */
 .company-tag-name {
   padding: 0 8px 0 5px;
+  min-width: 0;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Tag label for screen readers only; the pill shows just the icon */

@@ -2,7 +2,6 @@ import {
   Coins,
   FileText,
   History,
-  IdCard,
   Inbox,
   type LucideIcon,
   Mail,
@@ -34,7 +33,7 @@ export type NavItem = {
   hideHeader?: boolean
 }
 
-/** A menu entry that opens to show its sub-pages. */
+/** A set of related pages: My profile opens in the menu, Settings switches with tabs inside the page. */
 export type NavGroup = {
   id: 'profile' | 'settings'
   label: string
@@ -48,27 +47,7 @@ export function isGroup(node: NavNode): node is NavGroup {
   return 'items' in node
 }
 
-const PROFILE: NavGroup = {
-  id: 'profile',
-  label: 'My profile',
-  icon: UserRound,
-  items: [
-    {
-      id: 'candidate-profile',
-      label: 'About me',
-      icon: IdCard,
-      hideHeader: true,
-    },
-    {
-      id: 'work-history',
-      label: 'Work history',
-      icon: History,
-      hideHeader: true,
-    },
-  ],
-}
-
-const SETTINGS: NavGroup = {
+export const SETTINGS: NavGroup = {
   id: 'settings',
   label: 'Settings',
   icon: Settings,
@@ -80,7 +59,13 @@ const SETTINGS: NavGroup = {
   ],
 }
 
-/** Menu sections, separated by a line: the everyday pages, then settings. */
+/** Its pages are reached from the Settings entry at the bottom of the menu, then by tabs. */
+export const SETTINGS_PAGES: NavItem[] = SETTINGS.items
+export const SETTINGS_PAGE_IDS: PageId[] = SETTINGS_PAGES.map((i) => i.id)
+
+export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
+
+/** Menu sections, separated by a line: my profile, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
   [
     {
@@ -95,12 +80,24 @@ export const NAV_SECTIONS: NavNode[][] = [
       icon: Inbox,
       hideHeader: true,
     },
-    PROFILE,
   ],
-  [SETTINGS],
+  [
+      {
+      id: 'work-history',
+      label: 'Career',
+      icon: History,
+      hideHeader: true,
+    },
+      {
+      id: 'candidate-profile',
+      label: 'About me',
+      icon: UserRound,
+      hideHeader: true,
+    },
+  ]
 ]
 
-const NODES = NAV_SECTIONS.flat()
+const NODES: NavNode[] = [...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 

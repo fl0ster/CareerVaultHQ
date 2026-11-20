@@ -7,12 +7,12 @@ import {
   APPLICATIONS_CHANGED,
   type Application,
   type ApplicationStatus,
+  INTERVIEW_STATUS,
   applicationsApi,
   currentEvent,
   isAutoEvent,
   notifyApplicationsChanged,
   nextRoundLabel,
-  serverDate,
 } from './api.ts'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
@@ -20,6 +20,7 @@ import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
+import Confetti from './Confetti.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import { type Crumb, pageHref } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
@@ -33,6 +34,7 @@ const OFFER_STATUS = 'OFFER'
 
 const SUBTABS = [
   { id: 'pending', label: 'Pending' },
+  { id: 'interviews', label: 'Interviews' },
   { id: 'offers', label: 'Offers' },
 ] as const
 
@@ -50,7 +52,11 @@ type Props = {
 }
 
 const subTabOf = (application: Application): SubTab =>
-  application.status?.key === OFFER_STATUS ? 'offers' : 'pending'
+  application.status?.key === OFFER_STATUS
+    ? 'offers'
+    : application.status?.key === INTERVIEW_STATUS
+    ? 'interviews'
+    : 'pending'
 
 export default function ApplicationsPage({ detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
@@ -114,7 +120,14 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       .list(
         subTab === 'offers'
           ? { limit: PAGE_SIZE, status: OFFER_STATUS, q: search || undefined }
-          : { limit: PAGE_SIZE, status: filter || undefined, excludeStatus: OFFER_STATUS, q: search || undefined },
+          : subTab === 'interviews'
+          ? { limit: PAGE_SIZE, status: INTERVIEW_STATUS, q: search || undefined }
+          : {
+              limit: PAGE_SIZE,
+              status: filter || undefined,
+              excludeStatus: `${OFFER_STATUS},${INTERVIEW_STATUS}`,
+              q: search || undefined,
+            },
         controller.signal,
       )
       .then((page) => {
@@ -126,6 +139,39 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       })
     return () => controller.abort()
   }, [subTab, filter, search, tick])
+
+  // How many applications are in the interview / offer states, unfiltered: a subtab only shows once it has any.
+  const [substatesCounts, setSubstatesCounts] = useState<{ interviews: number; offers: number } | null>(null)
+  // Bumped each time a subtab's count grows; used as the badge key to replay its bounce.
+  const [bumps, setBumps] = useState({ interviews: 0, offers: 0 })
+  useEffect(() => {
+    const controller = new AbortController()
+    const total = (status: string) =>
+      applicationsApi.list({ limit: 1, status }, controller.signal).then((page) => page.total)
+    Promise.all([total(INTERVIEW_STATUS), total(OFFER_STATUS)])
+      .then(([interviews, offers]) => {
+        setSubstatesCounts((prev) => {
+          // A count that grew (not the first load) bounces its badge so the newcomer is noticed.
+          if (prev && (interviews > prev.interviews || offers > prev.offers)) {
+            setBumps((b) => ({
+              interviews: b.interviews + (interviews > prev.interviews ? 1 : 0),
+              offers: b.offers + (offers > prev.offers ? 1 : 0),
+            }))
+          }
+          return { interviews, offers }
+        })
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [tick, active, subTab, applications?.length])
+
+  const visibleTabs = SUBTABS
+      .filter((t) => t.id === 'pending' || (substatesCounts?.[t.id] ?? 0) > 0)
+  // The current subtab emptied out (e.g. its last application moved on): fall back to Pending.
+  if (substatesCounts && subTab !== 'pending' && substatesCounts[subTab] === 0 && !selected) {
+    setApplications(null)
+    setSubTab('pending')
+  }
 
   // The open application, refetched on every reload so it stays current wherever it was changed.
   useEffect(() => {
@@ -170,7 +216,14 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     return () => window.clearTimeout(timer)
   }, [pending, tick, reload])
 
+  // Bumped when an application reaches the offer stage from this page; replays the confetti.
+  const [celebrations, setCelebrations] = useState(0)
+
   const replace = (updated: Application) => {
+    const before = selected?.id === updated.id ? selected : applications?.find((a) => a.id === updated.id)
+    if (updated.status?.key === OFFER_STATUS && before?.status?.key !== OFFER_STATUS) {
+      setCelebrations((n) => n + 1)
+    }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
     // The current status may have changed; reaching (or leaving) the offer stage moves
@@ -191,7 +244,8 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
   }
 
   return (
-    <>
+    <div className="app-page">
+      {celebrations > 0 && <Confetti key={celebrations} />}
       {detailOpen &&
         (selected ? (
           <ApplicationView
@@ -221,22 +275,31 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       {/* The list stays mounted under an open application so its filters and search survive. */}
       <div hidden={detailOpen}>
         <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
+        {visibleTabs.length > 1 && (
         <nav className="segmented centered" aria-label="Application sections">
-          {SUBTABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
               className={subTab === t.id ? 'tab active' : 'tab'}
               aria-current={subTab === t.id ? 'page' : undefined}
               onClick={() => {
+                // Re-clicking the current tab would clear the list without refetching it.
+                if (t.id === subTab) return
                 setApplications(null)
                 setSubTab(t.id)
               }}
             >
               {t.label}
+              {t.id !== 'pending' && substatesCounts && (
+                <span key={bumps[t.id]} className={bumps[t.id] ? 'tab-count bump' : 'tab-count'}>
+                  {substatesCounts[t.id]}
+                </span>
+              )}
             </button>
           ))}
         </nav>
+        )}
 
         <div className="jobs-controls">
           <input
@@ -257,7 +320,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
             >
               <option value="">All statuses</option>
               {statuses
-                .filter((s) => s.key !== OFFER_STATUS)
+                .filter((s) => s.key !== OFFER_STATUS && s.key !== INTERVIEW_STATUS)
                 .map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
@@ -277,6 +340,8 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
               ? 'No applications match your search.'
               : subTab === 'offers'
               ? 'No offers yet.'
+              : subTab === 'interviews'
+              ? 'No interviews yet.'
               : filter
               ? 'No applications with this status.'
               : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
@@ -301,16 +366,17 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
                         />{' '}
                       </span>
                     )}
-                    <span>{a.job.source}</span>
-                    <span>
-                      {a.status && a.events.length > 0
-                        ? `since ${serverDate(a.events[a.events.length - 1].occurred_at).toLocaleDateString()}`
-                        : `created ${serverDate(a.created_at).toLocaleDateString()}`}
-                    </span>
                     <InterviewProgress application={a} compact />
                   </div>
                 </div>
-                <div className="app-badges">
+                {/* Clicks anywhere around the badge stay with it instead of opening the row. */}
+                <div
+                  className="app-badges"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                  }}
+                >
                   <StatusBadge
                     status={a.status}
                     auto={isAutoEvent(currentEvent(a))}
@@ -333,6 +399,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
       )}
-    </>
+    </div>
   )
 }

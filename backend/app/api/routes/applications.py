@@ -445,7 +445,7 @@ def list_applications(
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> ApplicationPage:
     """Applications grouped by current state (see ``_sort_key``); ``status`` keeps those whose current state matches,
-    ``exclude_status`` drops them,
+    ``exclude_status`` (comma-separated) drops those in any of the listed states,
     ``q`` those whose job title or company name contains it (case-insensitive)."""
     applications = session.scalars(_query().order_by(Application.id.desc())).unique().all()
     applications = sorted(applications, key=_sort_key)
@@ -455,9 +455,9 @@ def list_applications(
             a for a in applications if a.current_event and a.current_event.status.key == key
         ]
     if exclude_status:
-        excluded = exclude_status.upper()
+        excluded = {k.strip().upper() for k in exclude_status.split(",") if k.strip()}
         applications = [
-            a for a in applications if not (a.current_event and a.current_event.status.key == excluded)
+            a for a in applications if not (a.current_event and a.current_event.status.key in excluded)
         ]
     needle = (q or "").strip().casefold()
     if needle:
