@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './work-history.css'
 import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, workHistoryApi } from './api.ts'
+import { type Bar, formatDuration, layout, todayIndex } from './timeline-model.ts'
+import { useScrollPointer } from './useScrollPointer.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 
@@ -10,16 +12,36 @@ function formatMonth(iso: string): string {
 
 function EntryCard({
   entry,
+  bar,
+  active,
+  flash,
+  open,
+  cardRef,
+  onToggle,
+  onFlashEnd,
   onEdit,
   onDelete,
 }: {
   entry: WorkHistoryEntry
+  bar: Bar | undefined
+  active: boolean
+  flash: boolean
+  open: boolean
+  cardRef: (el: HTMLLIElement | null) => void
+  onToggle: () => void
+  onFlashEnd: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
-  const [open, setOpen] = useState(false)
   return (
-    <li className="wh-item">
+    <li
+      ref={cardRef}
+      data-id={entry.id}
+      className={`wh-item${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}${flash ? ' flash' : ''}`}
+      onAnimationEnd={(e) => {
+        if (e.animationName === 'wh-flash') onFlashEnd()
+      }}
+    >
       <div className="wh-head">
         <div className="wh-main">
           <strong>{entry.role}</strong> at {entry.employer}
@@ -27,6 +49,7 @@ function EntryCard({
             <span>
               {formatMonth(entry.date_start)} – {entry.date_end ? formatMonth(entry.date_end) : 'present'}
             </span>
+            {bar && <span>{formatDuration(bar.end - bar.start)}</span>}
             {entry.location && <span>{entry.location}</span>}
           </div>
           {entry.tech.length > 0 && (
@@ -39,7 +62,7 @@ function EntryCard({
         </div>
         <div className="wh-buttons">
           {entry.context && (
-            <button type="button" className="secondary small" onClick={() => setOpen((o) => !o)}>
+            <button type="button" className="secondary small" onClick={onToggle}>
               {open ? 'Hide' : 'Details'}
             </button>
           )}
@@ -61,6 +84,39 @@ export default function WorkHistoryPage() {
   const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [importing, setImporting] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
+  const [flashId, setFlashId] = useState<number | null>(null)
+  const viewRef = useRef<HTMLDivElement>(null)
+  const cardRefs = useRef(new Map<number, HTMLElement>())
+
+  const today = useMemo(() => todayIndex(), [])
+  const model = useMemo(() => (entries && entries.length > 0 ? layout(entries, today) : null), [entries, today])
+  const order = useMemo(() => entries?.map((e) => e.id) ?? [], [entries])
+  const emptyById = useMemo(() => new Map<number, Bar>(), [])
+  const { activeId, pointer, spacer } = useScrollPointer(
+    mode.kind === 'list' && !!model,
+    viewRef,
+    cardRefs,
+    order,
+    model?.byId ?? emptyById,
+  )
+
+  const toggle = (id: number, force?: boolean) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (force ?? !next.has(id)) next.add(id)
+      else next.delete(id)
+      return next
+    })
+
+  const selectFromTimeline = (id: number) => {
+    const el = cardRefs.current.get(id)
+    if (!el) return
+    toggle(id, true)
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setFlashId(null)
+    requestAnimationFrame(() => setFlashId(id))
+  }
 
   const load = () =>
     workHistoryApi.list().then(
@@ -215,20 +271,37 @@ export default function WorkHistoryPage() {
       {mode.kind === 'list' && entries?.length === 0 && (
         <p>No positions yet. Add your first one above.</p>
       )}
-      {mode.kind === 'list' && entries && entries.length > 0 && (
-        <WorkHistoryTimeline entries={entries} onEdit={(entry) => setMode({ kind: 'edit', entry })} />
-      )}
-      {mode.kind === 'list' && entries && entries.length > 0 && (
-        <ul className="wh-list">
-          {entries.map((entry) => (
-            <EntryCard
-              key={entry.id}
-              entry={entry}
-              onEdit={() => setMode({ kind: 'edit', entry })}
-              onDelete={() => remove(entry)}
-            />
-          ))}
-        </ul>
+      {mode.kind === 'list' && entries && model && (
+        <div className="wh-view" ref={viewRef}>
+          <WorkHistoryTimeline
+            model={model}
+            today={today}
+            activeId={activeId}
+            pointer={pointer}
+            onSelect={selectFromTimeline}
+          />
+          <ul className="wh-list">
+            {entries.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                entry={entry}
+                bar={model.byId.get(entry.id)}
+                active={entry.id === activeId}
+                flash={entry.id === flashId}
+                open={expanded.has(entry.id)}
+                cardRef={(el) => {
+                  if (el) cardRefs.current.set(entry.id, el)
+                  else cardRefs.current.delete(entry.id)
+                }}
+                onToggle={() => toggle(entry.id)}
+                onFlashEnd={() => setFlashId(null)}
+                onEdit={() => setMode({ kind: 'edit', entry })}
+                onDelete={() => remove(entry)}
+              />
+            ))}
+          </ul>
+          <div style={{ height: spacer }} aria-hidden />
+        </div>
       )}
     </>
   )
