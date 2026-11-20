@@ -82,6 +82,7 @@ const SETTINGS: NavGroup = {
 
 /** Menu sections, separated by a line: the everyday pages, then settings. */
 export const NAV_SECTIONS: NavNode[][] = [
+  [PROFILE],
   [
     {
       id: 'applications',
@@ -95,7 +96,6 @@ export const NAV_SECTIONS: NavNode[][] = [
       icon: Inbox,
       hideHeader: true,
     },
-    PROFILE,
   ],
   [SETTINGS],
 ]
