@@ -142,12 +142,25 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
 
   // How many applications are in the interview / offer states, unfiltered: a subtab only shows once it has any.
   const [substatesCounts, setSubstatesCounts] = useState<{ interviews: number; offers: number } | null>(null)
+  // Bumped each time a subtab's count grows; used as the badge key to replay its bounce.
+  const [bumps, setBumps] = useState({ interviews: 0, offers: 0 })
   useEffect(() => {
     const controller = new AbortController()
     const total = (status: string) =>
       applicationsApi.list({ limit: 1, status }, controller.signal).then((page) => page.total)
     Promise.all([total(INTERVIEW_STATUS), total(OFFER_STATUS)])
-      .then(([interviews, offers]) => setSubstatesCounts({ interviews, offers }))
+      .then(([interviews, offers]) => {
+        setSubstatesCounts((prev) => {
+          // A count that grew (not the first load) bounces its badge so the newcomer is noticed.
+          if (prev && (interviews > prev.interviews || offers > prev.offers)) {
+            setBumps((b) => ({
+              interviews: b.interviews + (interviews > prev.interviews ? 1 : 0),
+              offers: b.offers + (offers > prev.offers ? 1 : 0),
+            }))
+          }
+          return { interviews, offers }
+        })
+      })
       .catch(() => {})
     return () => controller.abort()
   }, [tick, active, subTab, applications?.length])
@@ -263,11 +276,18 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
               className={subTab === t.id ? 'tab active' : 'tab'}
               aria-current={subTab === t.id ? 'page' : undefined}
               onClick={() => {
+                // Re-clicking the current tab would clear the list without refetching it.
+                if (t.id === subTab) return
                 setApplications(null)
                 setSubTab(t.id)
               }}
             >
               {t.label}
+              {t.id !== 'pending' && substatesCounts && (
+                <span key={bumps[t.id]} className={bumps[t.id] ? 'tab-count bump' : 'tab-count'}>
+                  {substatesCounts[t.id]}
+                </span>
+              )}
             </button>
           ))}
         </nav>
