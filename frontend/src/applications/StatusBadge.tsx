@@ -8,12 +8,7 @@ export type PillOption = {
   label: ReactNode
   /** Text used in hints ("Move to …"). */
   text: string
-  /** Colour classes of the option (as on the pill); enables the hover preview. */
-  className?: string
 }
-
-/** What the hover preview shows: the next state's colour. */
-export type PillPreview = { className: string }
 
 type PillProps = {
   /** Classes of the pill (badge colour). */
@@ -29,9 +24,9 @@ type PillProps = {
   title?: string
   /** Replaces the ⋮ picker with this content (e.g. read-only extras); `null` shows nothing. */
   extra?: ReactNode
-  /** Hover preview of what a click leads to; defaults to the `nextKey` option's label
-   * when it differs from the current one. */
-  preview?: PillPreview
+  /** Colour classes of the state a click leads to: on hover an arrow in that colour peeks in
+   * over the pill's right edge, on click it fills the pill until the change lands. */
+  previewClass?: string
 }
 
 /**
@@ -39,9 +34,11 @@ type PillProps = {
  * opens a picker with every option. Rendered with spans with button semantics because it may sit inside another
  * button (a list row).
  */
-export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra, preview: previewLabel }: PillProps) {
+export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra, previewClass }: PillProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // A click on the pill (not the picker) is in flight: the preview fills the pill.
+  const [filling, setFilling] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -65,22 +62,16 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
 
   const main = extra === undefined || extra != null ? 'app-status-main' : 'app-status-main alone'
   const next = nextKey != null ? options.find((o) => o.key === nextKey) : undefined
-  // Preview only an actual change (an INTERVIEW click stays in INTERVIEW).
-  // The pill being clicked: the preview fills it until the change lands.
-  const [filling, setFilling] = useState(false)
-  const preview: PillPreview | null =
-    next == null
-      ? null
-      : (previewLabel ??
-        (next.key !== currentKey && next.className ? { className: next.className } : null))
 
-  const select = async (key: string) => {
+  const select = async (key: string, fill = false) => {
     setOpen(false)
     setBusy(true)
+    setFilling(fill)
     try {
       await onSelect(key)
     } finally {
       setBusy(false)
+      setFilling(false)
     }
   }
 
@@ -109,17 +100,13 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
         className={`${main}${next ? ' clickable' : ''}`}
         title={title ?? (next ? `Move to ${next.text}` : undefined)}
         {...handler(() => {
-          if (next && !busy) {
-            setFilling(true)
-            void select(next.key).finally(() => setFilling(false))
-          }
+          if (next && !busy) void select(next.key, true)
         })}
       >
         {children}
-        {preview != null && (
-          // Hover: an arrow in the next state's colour peeks in from the right edge; click: it fills the pill.
+        {next && previewClass && (
           <span className={`app-status-next${filling ? ' filled' : ''}`} aria-hidden="true">
-            <span className={preview.className}>→</span>
+            <span className={previewClass}>→</span>
           </span>
         )}
       </span>
@@ -206,6 +193,7 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
   // A click on INTERVIEW records the next round; other states whose default successor is
   // themselves are not advanced by a click.
   const interview = status?.key === INTERVIEW_STATUS
+  const nextKey = final || (status?.next_key === status?.key && !interview) ? null : status?.next_key
 
   return (
     <PickerPill
@@ -214,20 +202,13 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
         key: s.key,
         text: s.label,
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
-        className: `app-status ${s.key.toLowerCase()}`,
       }))}
       currentKey={status?.key ?? null}
-      nextKey={final || (status?.next_key === status?.key && !interview) ? null : status?.next_key}
+      nextKey={nextKey}
       onSelect={onSelect}
       title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
-      preview={
-        interview
-          ? {
-              className: 'app-status interview',
-            }
-          : undefined
-      }
+      previewClass={nextKey ? `app-status ${nextKey.toLowerCase()}` : undefined}
     >
       {label}
     </PickerPill>
