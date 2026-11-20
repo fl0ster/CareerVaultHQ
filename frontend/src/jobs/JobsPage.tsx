@@ -558,7 +558,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         ) : !searching && empty ? (
           <p>
             {profileId === null
-              ? 'Create a candidate profile first; scraped jobs are then scored against it.'
+              ? 'Add your work history first; a candidate profile is built from it and scraped jobs are scored against it.'
               : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
           </p>
         ) : (

@@ -1,6 +1,16 @@
 import json
 
+import httpx
+from sqlalchemy import select
+
+from app.config import Settings, get_settings
+from app.db import get_session
+from app.main import app
+from app.models import CandidateProfile, OpenRouterCall
+from app.services.openrouter import OpenRouterService, get_openrouter
+
 BASE = "/api/candidate-profile"
+WORK_HISTORY = "/api/work-history"
 
 
 def test_latest_is_null_when_empty(client):
@@ -9,18 +19,7 @@ def test_latest_is_null_when_empty(client):
     assert res.json() is None
 
 
-# --- POST /create ----------------------------------------------------------------------
-
-import httpx
-from sqlalchemy import select
-
-from app.config import Settings, get_settings
-from app.db import get_session
-from app.main import app
-from app.models import OpenRouterCall
-from app.services.openrouter import OpenRouterService, get_openrouter
-
-WORK_HISTORY = "/api/work-history"
+# --- lazy generation via GET /latest ---------------------------------------------------
 
 
 def _mock_openrouter(client, content, requests_seen):
@@ -57,23 +56,23 @@ def _add_entry(client, employer="Acme", role="Dev"):
     return res.json()
 
 
-def test_generate_requires_work_history(client):
-    res = client.post(f"{BASE}/generate")
-    assert res.status_code == 400
-    assert res.json()["detail"] == "missing work history"
+def test_latest_without_work_history_returns_existing_profile(client, db_session):
+    profile = CandidateProfile(content="Python dev")
+    db_session.add(profile)
+    db_session.commit()
+    assert client.get(f"{BASE}/latest").json()["id"] == profile.id
 
 
-def test_generate_generates_profile_from_work_history(client, db_session):
+def test_latest_generates_profile_lazily(client, db_session):
     _add_entry(client)
     seen = []
     _mock_openrouter(client, "  A seasoned Python developer.  ", seen)
 
-    res = client.post(f"{BASE}/generate")
-    assert res.status_code == 201, res.text
+    res = client.get(f"{BASE}/latest")
+    assert res.status_code == 200, res.text
     body = res.json()
     assert body["content"] == "A seasoned Python developer."
     assert body["work_history_id"]
-    assert client.get(f"{BASE}/latest").json()["id"] == body["id"]
 
     # The exported work history was sent as context.
     assert len(seen) == 1
@@ -83,74 +82,83 @@ def test_generate_generates_profile_from_work_history(client, db_session):
     assert call.source == "candidate_profile.create"
 
 
-def test_generate_does_not_reject_when_already_generated(client):
+def test_latest_reuses_profile_while_work_history_unchanged(client):
     _add_entry(client)
     seen = []
     _mock_openrouter(client, "profile", seen)
 
-    assert client.post(f"{BASE}/generate").status_code == 201
-    res = client.post(f"{BASE}/generate")
-    assert res.status_code == 201
-    assert len(seen) == 2
+    first = client.get(f"{BASE}/latest").json()
+    second = client.get(f"{BASE}/latest").json()
+    assert first["id"] == second["id"]
+    assert len(seen) == 1
 
 
-def test_generate_again_after_work_history_changes(client):
+def test_latest_regenerates_after_work_history_changes(client):
     entry = _add_entry(client)
     seen = []
     _mock_openrouter(client, "profile", seen)
-    first = client.post(f"{BASE}/generate").json()
+    first = client.get(f"{BASE}/latest").json()
 
     res = client.patch(f"{WORK_HISTORY}/{entry['id']}", json={"role": "Lead"})
     assert res.status_code == 200
-    second = client.post(f"{BASE}/generate")
-    assert second.status_code == 201
-    assert second.json()["work_history_id"] != first["work_history_id"]
+    second = client.get(f"{BASE}/latest").json()
+    assert second["id"] != first["id"]
+    assert second["work_history_id"] != first["work_history_id"]
     assert len(seen) == 2
 
 
-# --- evaluation enqueued on create -----------------------------------------------------
+def test_latest_regenerates_after_entry_deleted(client):
+    _add_entry(client)
+    other = _add_entry(client, employer="Initech")
+    seen = []
+    _mock_openrouter(client, "profile", seen)
+    first = client.get(f"{BASE}/latest").json()
+
+    assert client.delete(f"{WORK_HISTORY}/{other['id']}").status_code == 204
+    assert client.get(f"{BASE}/latest").json()["id"] != first["id"]
+    assert len(seen) == 2
+
+
+def test_latest_returns_502_when_generation_fails(client):
+    _add_entry(client)
+    _mock_openrouter(client, "   ", [])
+
+    res = client.get(f"{BASE}/latest")
+    assert res.status_code == 502
+
+
+# --- evaluation enqueued on generation -------------------------------------------------
 
 
 def _evaluation_jobs(fake_queue):
     return [j for j in fake_queue.jobs if j.func_name.endswith("evaluate_pending_jobs")]
 
 
-def test_create_enqueues_evaluation_batch(client, fake_queue):
-    res = client.post(f"{BASE}/", json={"content": "Python dev"})
-    assert res.status_code == 201
+def test_lazy_generation_enqueues_evaluation_batch(client, fake_queue):
+    _add_entry(client)
+    _mock_openrouter(client, "A profile.", [])
+
+    res = client.get(f"{BASE}/latest")
+    assert res.status_code == 200
 
     jobs = _evaluation_jobs(fake_queue)
     assert len(jobs) == 1
     assert jobs[0].args == (Settings().evaluate_batch_size,)
     assert jobs[0].meta == {"candidate_profile_id": res.json()["id"]}
 
-
-def test_generate_enqueues_evaluation_batch(client, fake_queue):
-    _add_entry(client)
-    _mock_openrouter(client, "A profile.", [])
-
-    res = client.post(f"{BASE}/generate")
-    assert res.status_code == 201
-
-    jobs = _evaluation_jobs(fake_queue)
-    assert len(jobs) == 1
-    assert jobs[0].meta == {"candidate_profile_id": res.json()["id"]}
+    # Reading the unchanged profile again enqueues nothing.
+    client.get(f"{BASE}/latest")
+    assert len(_evaluation_jobs(fake_queue)) == 1
 
 
-def test_create_succeeds_when_queue_is_down(client, fake_queue, monkeypatch):
+def test_generation_succeeds_when_queue_is_down(client, fake_queue, monkeypatch):
     def boom(*args, **kwargs):
         raise ConnectionError("redis down")
 
     monkeypatch.setattr(fake_queue, "enqueue", boom)
+    _add_entry(client)
+    _mock_openrouter(client, "A profile.", [])
 
-    res = client.post(f"{BASE}/", json={"content": "Python dev"})
-    assert res.status_code == 201
+    res = client.get(f"{BASE}/latest")
+    assert res.status_code == 200
     assert client.get(f"{BASE}/latest").json()["id"] == res.json()["id"]
-
-
-def test_patch_does_not_enqueue_evaluation(client, fake_queue):
-    created = client.post(f"{BASE}/", json={"content": "v1"}).json()
-    before = len(_evaluation_jobs(fake_queue))
-
-    assert client.patch(f"{BASE}/{created['id']}", json={"content": "v2"}).status_code == 200
-    assert len(_evaluation_jobs(fake_queue)) == before
