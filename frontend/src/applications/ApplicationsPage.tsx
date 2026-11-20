@@ -7,6 +7,7 @@ import {
   APPLICATIONS_CHANGED,
   type Application,
   type ApplicationStatus,
+  INTERVIEW_STATUS,
   applicationsApi,
   currentEvent,
   isAutoEvent,
@@ -33,6 +34,7 @@ const OFFER_STATUS = 'OFFER'
 
 const SUBTABS = [
   { id: 'pending', label: 'Pending' },
+  { id: 'interviews', label: 'Interviews' },
   { id: 'offers', label: 'Offers' },
 ] as const
 
@@ -50,7 +52,11 @@ type Props = {
 }
 
 const subTabOf = (application: Application): SubTab =>
-  application.status?.key === OFFER_STATUS ? 'offers' : 'pending'
+  application.status?.key === OFFER_STATUS
+    ? 'offers'
+    : application.status?.key === INTERVIEW_STATUS
+    ? 'interviews'
+    : 'pending'
 
 export default function ApplicationsPage({ detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
@@ -114,7 +120,14 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       .list(
         subTab === 'offers'
           ? { limit: PAGE_SIZE, status: OFFER_STATUS, q: search || undefined }
-          : { limit: PAGE_SIZE, status: filter || undefined, excludeStatus: OFFER_STATUS, q: search || undefined },
+          : subTab === 'interviews'
+          ? { limit: PAGE_SIZE, status: INTERVIEW_STATUS, q: search || undefined }
+          : {
+              limit: PAGE_SIZE,
+              status: filter || undefined,
+              excludeStatus: `${OFFER_STATUS},${INTERVIEW_STATUS}`,
+              q: search || undefined,
+            },
         controller.signal,
       )
       .then((page) => {
@@ -126,6 +139,26 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       })
     return () => controller.abort()
   }, [subTab, filter, search, tick])
+
+  // How many applications are in the interview / offer states, unfiltered: a subtab only shows once it has any.
+  const [substatesCounts, setSubstatesCounts] = useState<{ interviews: number; offers: number } | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    const total = (status: string) =>
+      applicationsApi.list({ limit: 1, status }, controller.signal).then((page) => page.total)
+    Promise.all([total(INTERVIEW_STATUS), total(OFFER_STATUS)])
+      .then(([interviews, offers]) => setSubstatesCounts({ interviews, offers }))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [tick, active, subTab, applications?.length])
+
+  const visibleTabs = SUBTABS
+      .filter((t) => t.id === 'pending' || (substatesCounts?.[t.id] ?? 0) > 0)
+  // The current subtab emptied out (e.g. its last application moved on): fall back to Pending.
+  if (substatesCounts && subTab !== 'pending' && substatesCounts[subTab] === 0 && !selected) {
+    setApplications(null)
+    setSubTab('pending')
+  }
 
   // The open application, refetched on every reload so it stays current wherever it was changed.
   useEffect(() => {
@@ -221,8 +254,9 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       {/* The list stays mounted under an open application so its filters and search survive. */}
       <div hidden={detailOpen}>
         <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
+        {visibleTabs.length > 1 && (
         <nav className="segmented centered" aria-label="Application sections">
-          {SUBTABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -237,6 +271,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
             </button>
           ))}
         </nav>
+        )}
 
         <div className="jobs-controls">
           <input
@@ -257,7 +292,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
             >
               <option value="">All statuses</option>
               {statuses
-                .filter((s) => s.key !== OFFER_STATUS)
+                .filter((s) => s.key !== OFFER_STATUS && s.key !== INTERVIEW_STATUS)
                 .map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
@@ -277,6 +312,8 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
               ? 'No applications match your search.'
               : subTab === 'offers'
               ? 'No offers yet.'
+              : subTab === 'interviews'
+              ? 'No interviews yet.'
               : filter
               ? 'No applications with this status.'
               : 'No applications yet. Open a job on the Jobs tab and choose "Create application".'}
