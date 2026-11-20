@@ -556,3 +556,48 @@
 @media (prefers-reduced-motion: reduce) {
   .tab-count.bump { animation: none; }
 }
+
+/* Confetti burst when an application reaches the offer stage. */
+.app-page {
+  position: relative;
+}
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Over the page content and its sticky toolbar (40), under the top bar (50). */
+  z-index: 45;
+}
+.confetti-piece {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  width: var(--w);
+  height: var(--h);
+  background: var(--color);
+  border-radius: 2px;
+  opacity: 0;
+  /* Falls with gravity (starts moving, then keeps accelerating), spins steadily, fades at its own pace. */
+  animation:
+    confetti-fall var(--fall) cubic-bezier(0.3, 0.25, 0.7, 0.6) var(--delay) forwards,
+    confetti-spin var(--fall) linear var(--delay) forwards,
+    confetti-pop 180ms ease-out var(--delay) both,
+    confetti-fade var(--fade) ease-in calc(var(--delay) + var(--fade-delay)) both;
+}
+@keyframes confetti-fall {
+  from { translate: 0 0; }
+  to { translate: var(--drift) min(760px, 95vh); }
+}
+@keyframes confetti-spin {
+  from { rotate: 0deg; }
+  to { rotate: var(--spin); }
+}
+@keyframes confetti-pop {
+  from { scale: 0; }
+  to { scale: 1; }
+}
+@keyframes confetti-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

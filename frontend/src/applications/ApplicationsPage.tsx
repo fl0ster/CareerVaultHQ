@@ -21,6 +21,7 @@ import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
+import Confetti from './Confetti.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import { type Crumb, pageHref } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
@@ -216,7 +217,14 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     return () => window.clearTimeout(timer)
   }, [pending, tick, reload])
 
+  // Bumped when an application reaches the offer stage from this page; replays the confetti.
+  const [celebrations, setCelebrations] = useState(0)
+
   const replace = (updated: Application) => {
+    const before = selected?.id === updated.id ? selected : applications?.find((a) => a.id === updated.id)
+    if (updated.status?.key === OFFER_STATUS && before?.status?.key !== OFFER_STATUS) {
+      setCelebrations((n) => n + 1)
+    }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
     // The current status may have changed; reaching (or leaving) the offer stage moves
@@ -237,7 +245,8 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
   }
 
   return (
-    <>
+    <div className="app-page">
+      {celebrations > 0 && <Confetti key={celebrations} />}
       {detailOpen &&
         (selected ? (
           <ApplicationView
@@ -390,6 +399,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
       )}
-    </>
+    </div>
   )
 }
