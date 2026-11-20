@@ -8,7 +8,12 @@ export type PillOption = {
   label: ReactNode
   /** Text used in hints ("Move to …"). */
   text: string
+  /** Colour classes of the option (as on the pill); enables the hover preview. */
+  className?: string
 }
+
+/** What the hover preview shows: the next state's colour. */
+export type PillPreview = { className: string }
 
 type PillProps = {
   /** Classes of the pill (badge colour). */
@@ -26,7 +31,7 @@ type PillProps = {
   extra?: ReactNode
   /** Hover preview of what a click leads to; defaults to the `nextKey` option's label
    * when it differs from the current one. */
-  preview?: ReactNode
+  preview?: PillPreview
 }
 
 /**
@@ -61,7 +66,13 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
   const main = extra === undefined || extra != null ? 'app-status-main' : 'app-status-main alone'
   const next = nextKey != null ? options.find((o) => o.key === nextKey) : undefined
   // Preview only an actual change (an INTERVIEW click stays in INTERVIEW).
-  const preview = busy || next == null ? null : (previewLabel ?? (next.key !== currentKey ? next.label : null))
+  // The pill being clicked: the preview fills it until the change lands.
+  const [filling, setFilling] = useState(false)
+  const preview: PillPreview | null =
+    next == null
+      ? null
+      : (previewLabel ??
+        (next.key !== currentKey && next.className ? { className: next.className } : null))
 
   const select = async (key: string) => {
     setOpen(false)
@@ -98,17 +109,17 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
         className={`${main}${next ? ' clickable' : ''}`}
         title={title ?? (next ? `Move to ${next.text}` : undefined)}
         {...handler(() => {
-          if (next && !busy) void select(next.key)
+          if (next && !busy) {
+            setFilling(true)
+            void select(next.key).finally(() => setFilling(false))
+          }
         })}
       >
         {children}
         {preview != null && (
-          // Hovering slides in the next state (in its own colour) from the right.
-          <span className="app-status-next" aria-hidden="true">
-            <span className="app-status-next-inner">
-              <span className="app-status-arrow">→</span>
-              {preview}
-            </span>
+          // Hover: an arrow in the next state's colour peeks in from the right edge; click: it fills the pill.
+          <span className={`app-status-next${filling ? ' filled' : ''}`} aria-hidden="true">
+            <span className={preview.className}>→</span>
           </span>
         )}
       </span>
@@ -203,6 +214,7 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
         key: s.key,
         text: s.label,
         label: <span className={`badge app-status ${s.key.toLowerCase()}`}>{s.label}</span>,
+        className: `app-status ${s.key.toLowerCase()}`,
       }))}
       currentKey={status?.key ?? null}
       nextKey={final || (status?.next_key === status?.key && !interview) ? null : status?.next_key}
@@ -210,11 +222,11 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
       title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
       preview={
-        interview ? (
-          <span className="badge app-status interview">
-            {nextRound ? nextRound.charAt(0).toUpperCase() + nextRound.slice(1) : (status?.label ?? 'Interview')}
-          </span>
-        ) : undefined
+        interview
+          ? {
+              className: 'app-status interview',
+            }
+          : undefined
       }
     >
       {label}
