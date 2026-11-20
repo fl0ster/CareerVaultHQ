@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './work-history.css'
 import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, workHistoryApi } from './api.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
+import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import { candidateProfileApi } from '../candidate-profile/api.ts'
 
 function formatMonth(iso: string): string {
@@ -256,6 +257,9 @@ export default function WorkHistoryPage() {
 
       {mode.kind === 'list' && entries?.length === 0 && (
         <p>No positions yet. Add your first one above.</p>
+      )}
+      {mode.kind === 'list' && entries && entries.length > 0 && (
+        <WorkHistoryTimeline entries={entries} onEdit={(entry) => setMode({ kind: 'edit', entry })} />
       )}
       {mode.kind === 'list' && entries && entries.length > 0 && (
         <ul className="wh-list">
