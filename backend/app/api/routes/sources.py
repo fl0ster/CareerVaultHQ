@@ -21,7 +21,13 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_session
 from app.models import ScrapeSource
-from app.services.sources import Relevance, get_source, source_relevance, sync_sources
+from app.services.sources import (
+    Relevance,
+    get_source,
+    is_scrape_target,
+    source_relevance,
+    sync_sources,
+)
 
 router = APIRouter()
 
@@ -94,10 +100,11 @@ def _to_out(row: ScrapeSource, relevance: Relevance | None) -> SourceOut:
 
 @router.get("", response_model=list[SourceOut])
 def list_sources(session: Annotated[Session, Depends(get_session)]) -> list[SourceOut]:
-    """Every source (by key), synced with the modules on disk."""
+    """Every scrape source (by key), synced with the modules on disk. The ``manual``
+    pseudo-source of hand-entered jobs is not a scrape target and is left out."""
     rows = sync_sources(session)
     relevance = source_relevance(session)
-    return [_to_out(row, relevance.get(row.id)) for row in rows]
+    return [_to_out(row, relevance.get(row.id)) for row in rows if is_scrape_target(row)]
 
 
 @router.patch("/{key}", response_model=SourceOut)
@@ -110,7 +117,7 @@ def update_source(
     scheduler re-plans it from ``last_run_at`` with the new settings.
     """
     row = get_source(session, key)
-    if row is None:
+    if row is None or not is_scrape_target(row):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown source")
     replan = False
     for field, value in payload.model_dump(exclude_unset=True).items():

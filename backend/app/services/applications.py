@@ -7,7 +7,13 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Application, ApplicationEvent, ApplicationStatus, JobDecision
+from app.models import (
+    Application,
+    ApplicationEvent,
+    ApplicationStatus,
+    JobDecision,
+    JobParseResult,
+)
 
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
@@ -87,6 +93,35 @@ def reject_if_final(application: Application) -> None:
         )
 
 
+def reject_out_of_order(
+    application: Application,
+    key: str,
+    when: datetime | None,
+    *,
+    event: ApplicationEvent | None = None,
+) -> None:
+    """``EventRejected`` (``invalid``) when recording ``key`` at ``when`` (or moving
+    ``event`` there) would date a state before ``APPLIED``, or ``APPLIED`` after a later
+    state. ``SHORTLISTED`` and planned rounds are not checked; neither is an unset time."""
+    key = key.upper()
+    if when is None or key == INITIAL_ONLY_STATUS:
+        return
+    when = _minute(when)
+    dated = [e for e in application.history if e is not event and e.occurred_at is not None]
+    if key in (INTERVIEW_STATUS, APPLIED_STATUS):
+        shortlisted = next((e for e in dated if e.status.key == INITIAL_ONLY_STATUS), None)
+        if shortlisted is not None and when < _minute(shortlisted.occurred_at):
+            raise EventRejected(f"{key} cannot be dated before {INITIAL_ONLY_STATUS}", "invalid")
+    others = [e for e in dated if e.status.key != INITIAL_ONLY_STATUS]
+    if key == APPLIED_STATUS:
+        if any(_minute(e.occurred_at) < when for e in others):
+            raise EventRejected(f"{APPLIED_STATUS} cannot be dated after a later state", "invalid")
+        return
+    applied = next((e for e in others if e.status.key == APPLIED_STATUS), None)
+    if applied is not None and when < _minute(applied.occurred_at):
+        raise EventRejected(f"a state cannot be dated before {APPLIED_STATUS}", "invalid")
+
+
 def is_open(application: Application) -> bool:
     """The application has been sent (``APPLIED`` recorded) and has no final state yet."""
     current = application.current_event
@@ -118,14 +153,18 @@ def record_event(
         if current is None or current.status.key != INITIAL_ONLY_STATUS:
             raise EventRejected(f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}")
     plan = application.plan
+    if occurred_at is not None:
+        reject_out_of_order(application, key, occurred_at)
     if key == INTERVIEW_STATUS and plan:
         # Hold the next planned round instead of adding a new one.
         event = plan[0]
+        event.occurred_at = occurred_at or held_at(application, event)
         event.planned = False
-        event.occurred_at = occurred_at or event.occurred_at or datetime.now(UTC)
         event.note = note or event.note
         event.source = source
         event.source_ref = source_ref
+        session.flush()
+        session.expire(application, ["events"])
         return event
     event = ApplicationEvent(
         status=status_by_key(session, key),
@@ -140,6 +179,29 @@ def record_event(
     session.flush()
     session.expire(application, ["events"])
     return event
+
+
+def _naive(moment: datetime) -> datetime:
+    return moment.replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def _minute(moment: datetime) -> datetime:
+    """Naive, to the minute: the precision the UI's date inputs have."""
+    return _naive(moment).replace(second=0, microsecond=0)
+
+
+def held_at(application: Application, event: ApplicationEvent) -> datetime:
+    """When a planned round being held took place: its scheduled time when that is after
+    every state already recorded (so it never lands before ``APPLIED``), otherwise now."""
+    scheduled = event.occurred_at
+    if scheduled is not None:
+        latest = max(
+            (_naive(e.occurred_at) for e in application.history if e.occurred_at),
+            default=None,
+        )
+        if latest is None or _naive(scheduled) > latest:
+            return scheduled
+    return datetime.now(UTC)
 
 
 def held_rounds(application: Application) -> list[ApplicationEvent]:
@@ -160,4 +222,25 @@ def set_interview_rounds(
     for _ in range(wanted - len(plan)):
         application.events.append(
             ApplicationEvent(status=interview, planned=True, occurred_at=None)
+        )
+
+
+def plan_parsed_rounds(session: Session, application: Application, parsed: JobParseResult) -> None:
+    """Append the interview rounds extracted from the job description
+    (``parsed.interview_steps``) to ``application`` as planned ``INTERVIEW`` events, in
+    round order, with their titles and durations. No-op when none were extracted. Not
+    committed."""
+    steps = sorted(parsed.interview_steps or [], key=lambda s: s.get("number") or 0)
+    if not steps:
+        return
+    interview = status_by_key(session, INTERVIEW_STATUS)
+    for step in steps:
+        application.events.append(
+            ApplicationEvent(
+                status=interview,
+                planned=True,
+                occurred_at=None,
+                title=str(step.get("title") or "")[:128],
+                duration_minutes=step.get("duration_minutes"),
+            )
         )

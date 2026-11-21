@@ -166,6 +166,8 @@ type Props = {
   nextRound?: string
   /** The state was recorded automatically (Gmail rejection monitor): shows a lightning bolt. */
   auto?: boolean
+  /** Name of the current interview round ("Technical"): shown instead of the INTERVIEW label. */
+  roundTitle?: string
 }
 
 function AutoMark() {
@@ -180,12 +182,20 @@ function AutoMark() {
  * Application state pill; known states get a colour, custom ones the neutral badge.
  * With `onSelect` it is a `PickerPill`: click moves to the state's `next_key`, ⋮ picks any state.
  */
-export default function StatusBadge({ status, statuses = [], onSelect, nextRound, auto = false }: Props) {
+export default function StatusBadge({ status, statuses = [], onSelect, nextRound, auto = false, roundTitle }: Props) {
   const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
   const label = (
     <>
       {auto && <AutoMark />}
-      {status ? status.label : 'No status'}
+      {status?.key === INTERVIEW_STATUS && roundTitle ? (
+        <span className="app-status-round" title={roundTitle}>
+          {roundTitle}
+        </span>
+      ) : status ? (
+        status.label
+      ) : (
+        'No status'
+      )}
     </>
   )
   if (!onSelect) return <span className={cls}>{label}</span>

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app import models
 from app.db import init_db, session_factory
+from app.services.openrouter import OpenRouterError, OpenRouterNotConfigured
 from app.tasks.scrape.sources import skillshot
 from tests.conftest import ensure_source
 
@@ -28,7 +29,23 @@ def evaluate_queue(monkeypatch):
 
 
 @pytest.fixture
-def task_engine(engine, monkeypatch, evaluate_queue):
+def extracted_steps(monkeypatch):
+    """Replaces the LLM interview-step extraction: set ``state["steps"]`` (a list of
+    ``InterviewStep``) or ``state["error"]`` (an exception to raise)."""
+    state = {"steps": [], "error": None, "texts": []}
+
+    def fake(service, text):
+        state["texts"].append(text)
+        if state["error"] is not None:
+            raise state["error"]
+        return parse_task.InterviewStepsResult(state["steps"], 0.9, 0.9)
+
+    monkeypatch.setattr(parse_task, "extract_interview_steps", fake)
+    return state
+
+
+@pytest.fixture
+def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps):
     monkeypatch.setattr(parse_task, "init_db", lambda: init_db(engine))
     monkeypatch.setattr(parse_task, "session_factory", lambda: session_factory(engine))
     return engine
@@ -261,3 +278,52 @@ def test_skillshot_parse_title_falls_back_to_title_tag():
 def test_parse_job_unknown_pending_id(task_engine):
     with pytest.raises(ValueError, match="unknown pending parse run"):
         parse_task.parse_job(999)
+
+
+def _parsed(engine, pending_id):
+    with session_factory(engine)() as session:
+        job_id = session.get(models.PendingJobParseRun, pending_id).job_id
+        return session.scalar(
+            select(models.JobParseResult).where(models.JobParseResult.job_id == job_id)
+        )
+
+
+def test_parse_job_stores_interview_steps(task_engine, extracted_steps):
+    extracted_steps["steps"] = [
+        parse_task.InterviewStep(1, "HR call", 30),
+        parse_task.InterviewStep(2, "Technical interview"),
+    ]
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    assert result["interview_steps"] == 2
+    assert extracted_steps["texts"] == ["Unity Dev\ndla\nACME\nWe need\nUnity"]
+    assert _parsed(task_engine, pending_id).interview_steps == [
+        {"number": 1, "title": "HR call", "duration_minutes": 30},
+        {"number": 2, "title": "Technical interview", "duration_minutes": None},
+    ]
+    assert parse_task.parse_job(pending_id)["interview_steps"] == 2
+
+
+def test_parse_job_without_interview_steps_stores_empty_list(task_engine):
+    pending_id = _make_pending(task_engine)
+    assert parse_task.parse_job(pending_id)["interview_steps"] == 0
+    assert _parsed(task_engine, pending_id).interview_steps == []
+
+
+@pytest.mark.parametrize(
+    "error",
+    [OpenRouterNotConfigured("no key"), OpenRouterError("boom", status_code=500)],
+)
+def test_interview_step_failure_does_not_fail_the_parse(task_engine, extracted_steps, error):
+    extracted_steps["error"] = error
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    assert result["interview_steps"] is None
+    assert result["title"] == "Unity Dev"
+    assert _parsed(task_engine, pending_id).interview_steps is None
+    with session_factory(task_engine)() as session:
+        assert session.get(models.PendingJobParseRun, pending_id).status == "COMPLETED"

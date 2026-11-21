@@ -26,7 +26,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from rq import get_current_job
+from rq import Queue, get_current_job
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,13 @@ from app.models import (
 )
 from app.queue import get_queue
 from app.services.companies import normalize_company_name
-from app.services.sources import apply_run_result, get_source, runnable_sources, sync_sources
+from app.services.sources import (
+    apply_run_result,
+    get_source,
+    is_scrape_target,
+    runnable_sources,
+    sync_sources,
+)
 from app.tasks.scrape._helpers import FETCH_TIMEOUT, HEADERS
 from app.tasks.scrape.sources import load_source
 
@@ -69,8 +75,10 @@ def _resolve_sources(session: Session, source: str | None) -> list[ScrapeSource]
     if source is None:
         return runnable_sources(session)
     row = get_source(session, source)
+    if row is not None and not is_scrape_target(row):
+        row = None
     if row is None or row.module_error is not None:
-        available = ", ".join(r.key for r in rows if r.module_error is None)
+        available = ", ".join(r.key for r in rows if r.module_error is None and is_scrape_target(r))
         reason = f" ({row.module_error})" if row is not None else ""
         raise ValueError(f"source {source!r} is not available{reason}; available: {available}")
     return [row]
@@ -186,7 +194,9 @@ def save_jobs(
     return pending, duplicates
 
 
-def enqueue_parse_jobs(session: Session, pending: list[PendingJobParseRun]) -> list[str]:
+def enqueue_parse_jobs(
+    session: Session, pending: list[PendingJobParseRun], queue: Queue | None = None
+) -> list[str]:
     """Enqueue ``parse_job`` for every pending row (which must be committed already) and
     store the RQ job ids on the rows. Returns the RQ job ids."""
     if not pending:
@@ -197,7 +207,7 @@ def enqueue_parse_jobs(session: Session, pending: list[PendingJobParseRun]) -> l
     from app.tasks.parse import parse_job
 
     settings = get_settings()
-    queue = get_queue()
+    queue = queue or get_queue()
     ids: list[str] = []
     for row in pending:
         rq_job = queue.enqueue(

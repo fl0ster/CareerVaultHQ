@@ -105,7 +105,28 @@ async function parse<T>(res: Response): Promise<T> {
   throw new Error(message)
 }
 
+export type ManualJobInput = {
+  title: string
+  company: string
+  link: string
+  description: string
+}
+
+/** Parse status of a manually added job. */
+export type ManualJobStatus = {
+  job_id: number
+  status: 'NOT_STARTED' | 'COMPLETED' | 'FAILED'
+  error: string | null
+}
+
 export const jobsApi = {
+  addManual: (input: ManualJobInput) =>
+    fetch(`${API}/manual`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }).then((r) => parse<ManualJobStatus>(r)),
+  manualStatus: (jobId: number) => fetch(`${API}/manual/${jobId}`).then((r) => parse<ManualJobStatus>(r)),
   list: ({ offset, limit, sort }: ListJobsParams) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit), sort })
     return fetch(`${API}?${params}`).then((r) => parse<JobPage>(r))

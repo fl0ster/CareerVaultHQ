@@ -204,8 +204,13 @@ def test_event_dates_are_stored_in_utc(client, db_session):
 def test_company_application_stats(client, db_session):
     seed_cv_inputs(client, db_session)
     profile = CandidateProfile(content="p")
-    flows = [["APPLIED"], ["APPLIED", "INTERVIEW"], ["APPLIED", "INTERVIEW", "REJECTED"],
-             ["INTERVIEW", "OFFER"], []]
+    flows = [
+        ["APPLIED"],
+        ["APPLIED", "INTERVIEW"],
+        ["APPLIED", "INTERVIEW", "REJECTED"],
+        ["INTERVIEW", "OFFER"],
+        [],
+    ]
     company_ids = []
     for i, flow in enumerate(flows):
         evaluation = seed_evaluation(db_session, i, profile)
@@ -309,7 +314,8 @@ def test_interview_rounds_are_planned_and_resized(client, db_session):
 
     # Shrinking drops rounds from the end; 0 drops every planned one.
     assert _rounds(client.patch(url, json={"interview_rounds": 3}).json()) == (
-        1, ["Culture match", ""]
+        1,
+        ["Culture match", ""],
     )
     assert _rounds(client.patch(url, json={"interview_rounds": 0}).json()) == (1, [])
     client.post(f"{url}/events", json={"status": "INTERVIEW"})
@@ -370,3 +376,96 @@ def test_manual_events_are_marked_manual(client, db_session):
     body = client.post(f"{BASE}/{application['id']}/events", json={"status": "APPLIED"}).json()
 
     assert [e["source"] for e in body["events"]] == ["manual", "manual"]
+
+
+def test_listing_is_newest_first_regardless_of_state(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluations = [seed_evaluation(db_session, i) for i in range(3)]
+    ids = [client.post(BASE, json={"job_evaluation_id": e.id}).json()["id"] for e in evaluations]
+    client.post(f"{BASE}/{ids[0]}/events", json={"status": "APPLIED"})
+    client.post(f"{BASE}/{ids[0]}/events", json={"status": "OFFER"})
+    client.post(f"{BASE}/{ids[1]}/events", json={"status": "REJECTED"})
+
+    body = client.get(BASE).json()
+    assert [a["id"] for a in body["items"]] == ids[::-1]
+
+
+def test_parsed_interview_steps_become_planned_rounds(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    evaluation.job_parse_result.interview_steps = [
+        {"number": 2, "title": "Technical interview", "duration_minutes": None},
+        {"number": 1, "title": "HR call", "duration_minutes": 30},
+    ]
+    db_session.commit()
+
+    body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
+
+    planned = body["planned_events"]
+    assert [(e["title"], e["duration_minutes"]) for e in planned] == [
+        ("HR call", 30),
+        ("Technical interview", None),
+    ]
+    assert all(e["status"]["key"] == "INTERVIEW" for e in planned)
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
+
+def test_held_parsed_round_comes_after_applied(client, db_session):
+    """A round planned from the job description and then held lands after APPLIED."""
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    evaluation.job_parse_result.interview_steps = [{"number": 1, "title": "HR call"}]
+    db_session.commit()
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"}).status_code == 201
+
+    res = client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+    assert res.status_code == 201
+    expected = ["SHORTLISTED", "APPLIED", "INTERVIEW"]
+    assert [e["status"]["key"] for e in res.json()["events"]] == expected
+    assert res.json()["status"]["key"] == "INTERVIEW"
+    body = client.get(f"{BASE}/{app_id}").json()
+    assert [e["status"]["key"] for e in body["events"]] == expected
+
+
+def test_states_cannot_be_dated_before_applied(client, db_session):
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()[
+        "id"
+    ]
+    url = f"{BASE}/{app_id}/events"
+    now = datetime.now(UTC)
+    applied = client.post(url, json={"status": "APPLIED", "occurred_at": now.isoformat()})
+    applied_id = next(e["id"] for e in applied.json()["events"] if e["status"]["key"] == "APPLIED")
+
+    before = (now - timedelta(days=1)).isoformat()
+    res = client.post(url, json={"status": "INTERVIEW", "occurred_at": before})
+    assert res.status_code == 422
+
+    after = (now + timedelta(hours=1)).isoformat()
+    res = client.post(url, json={"status": "INTERVIEW", "occurred_at": after})
+    assert res.status_code == 201
+    interview_id = next(e["id"] for e in res.json()["events"] if e["status"]["key"] == "INTERVIEW")
+
+    # Moving the interview before APPLIED, or APPLIED after the interview, is refused.
+    assert client.patch(f"{url}/{interview_id}", json={"occurred_at": before}).status_code == 422
+    later = (now + timedelta(days=1)).isoformat()
+    assert client.patch(f"{url}/{applied_id}", json={"occurred_at": later}).status_code == 422
+    keys = [e["status"]["key"] for e in client.get(f"{BASE}/{app_id}").json()["events"]]
+    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW"]
+
+
+def test_rounds_and_applied_cannot_be_dated_before_shortlisted(client, db_session):
+    seed_cv_inputs(client, db_session)
+    body = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()
+    url = f"{BASE}/{body['id']}/events"
+    before = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    assert client.post(url, json={"status": "APPLIED", "occurred_at": before}).status_code == 422
+    assert client.post(url, json={"status": "INTERVIEW", "occurred_at": before}).status_code == 422
+
+
+def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
+    assert body["planned_events"] == []

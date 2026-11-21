@@ -528,42 +528,14 @@
   }
 }
 
-/* Count badge on the Interviews / Offers subtabs. */
-.tab-count {
-  display: inline-block;
-  min-width: 1.4em;
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 999px;
-  font-size: 0.75em;
-  line-height: 1.5;
-  text-align: center;
-  background: canvas;
-  border-style: solid;
-  border-width: 1px;
-  border-color: var(--accent-bg);
-}
-.tab-count.bump {
-  animation: tab-count-bump 0.6s ease-out;
-}
-@keyframes tab-count-bump {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.45) translateY(-3px); }
-  55% { transform: scale(0.9); }
-  75% { transform: scale(1.1); }
-  100% { transform: scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tab-count.bump { animation: none; }
-}
-
 /* Confetti burst when an application reaches the offer stage. */
 .app-page {
   position: relative;
 }
 .confetti {
-  position: absolute;
-  inset: 0;
+  /* Fixed to the viewport so a short list doesn't cut the burst off; Confetti sets top / left / width. */
+  position: fixed;
+  bottom: 0;
   overflow: hidden;
   pointer-events: none;
   /* Over the page content and its sticky toolbar (40), under the top bar (50). */
@@ -668,4 +640,14 @@
   .app-status-next {
     transition: none;
   }
+}
+
+/* Named interview round on the status pill: truncated with an ellipsis when long */
+.app-status-round {
+  display: inline-block;
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }

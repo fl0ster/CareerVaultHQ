@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 
 const PIECES = 70
 const DURATION_MS = 2100
@@ -37,9 +37,22 @@ const makePieces = (): Piece[] =>
     }
   })
 
-/** A short confetti burst over its (positioned) parent. Remount with a new key to replay. */
+/**
+ * A short confetti burst over its parent, remount with a new key to replay. The layer is fixed to the
+ * viewport (from the parent's top down to the bottom of the screen, across the parent's width), so a
+ * short page — a list with only a couple of items — doesn't clip the falling pieces.
+ */
 export default function Confetti() {
   const [pieces] = useState(makePieces)
+  const ref = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState<CSSProperties>({ visibility: 'hidden' })
+
+  useLayoutEffect(() => {
+    const parent = ref.current?.parentElement
+    if (!parent) return
+    const r = parent.getBoundingClientRect()
+    setBox({ top: Math.max(r.top, 0), left: r.left, width: r.width })
+  }, [])
   const [done, setDone] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   useEffect(() => {
@@ -50,7 +63,7 @@ export default function Confetti() {
 
   if (done) return null
   return (
-    <div className="confetti" aria-hidden="true">
+    <div ref={ref} className="confetti" style={box} aria-hidden="true">
       {pieces.map((p) => (
         <span key={p.id} className="confetti-piece" style={p.style} />
       ))}

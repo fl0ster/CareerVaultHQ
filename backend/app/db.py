@@ -55,6 +55,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
         "source_ref": "VARCHAR(128)",
     },
+    "job_parse_results": {
+        "interview_steps": "JSON",
+    },
 }
 """Columns added to tables after they were first created: ``create_all`` only creates
 missing tables, so these are added to existing databases with ``ALTER TABLE``."""

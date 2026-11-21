@@ -1,5 +1,7 @@
 import {
+  CalendarClock,
   Coins,
+  Trophy,
   FileText,
   History,
   Inbox,
@@ -12,6 +14,8 @@ import {
 } from 'lucide-react'
 
 export type PageId =
+  | 'interviews'
+  | 'offers'
   | 'applications'
   | 'jobs'
   | 'candidate-profile'
@@ -69,17 +73,19 @@ export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 export const NAV_SECTIONS: NavNode[][] = [
   [
     {
-      id: 'applications',
-      label: 'Applications',
-      icon: Send,
-      hideHeader: true,
-    },
-    {
       id: 'jobs',
       label: 'Jobs',
       icon: Inbox,
       hideHeader: true,
     },
+      {
+      id: 'applications',
+      label: 'Applications',
+      icon: Send,
+      hideHeader: true,
+    },
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
+    { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
   ],
   [
       {

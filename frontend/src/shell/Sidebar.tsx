@@ -22,6 +22,8 @@ type Props = {
   /** Opens the settings page on its last-used tab. */
   onOpenSettings: () => void
   badges: Badges
+  /** Pages left out of the menu (e.g. Interviews while there are none). */
+  hiddenPages?: PageId[]
   collapsed: boolean
   onToggleCollapsed: () => void
   mobileOpen: boolean
@@ -85,6 +87,7 @@ export default function Sidebar({
   onNavigate,
   onOpenSettings,
   badges,
+  hiddenPages = [],
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -150,6 +153,7 @@ export default function Sidebar({
             <ul className="nav-list">
               {section.map((node) => {
                 if (!isGroup(node)) {
+                  if (hiddenPages.includes(node.id) && node.id !== active) return null
                   return (
                     <li key={node.id}>
                       <PageLink

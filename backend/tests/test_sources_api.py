@@ -69,6 +69,16 @@ def test_patch_unknown_source_is_404(client):
     assert client.patch(f"{BASE}/nope", json={"enabled": True}).status_code == 404
 
 
+def test_list_hides_manual_pseudo_source(client):
+    keys = [s["key"] for s in client.get(BASE).json()]
+    assert "manual" not in keys
+
+
+def test_patch_manual_pseudo_source_is_404(client):
+    client.get(BASE)  # sync creates the manual row
+    assert client.patch(f"{BASE}/manual", json={"enabled": True}).status_code == 404
+
+
 def test_patch_rejects_bad_payload(client):
     client.get(BASE)
     assert client.patch(f"{BASE}/skillshot", json={"enabled": "maybe"}).status_code == 422
