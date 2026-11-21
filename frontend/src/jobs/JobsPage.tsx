@@ -110,13 +110,13 @@ function JobRow({
 
   return (
     <li className={classes.join(' ')} data-key={String(job.id)}>
+      {job.application_id != null && (
+        <span className="job-applied-strip" title="Application created" aria-label="Application created">
+          <Send size={11} aria-hidden="true" />
+        </span>
+      )}
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
-          {job.application_id != null && (
-            <span className="job-applied-strip" title="Application created" aria-label="Application created">
-              <Send size={14} aria-hidden="true" />
-            </span>
-          )}
           <div className="job-main">
             <span className="job-title">
               {job.title ?? job.link}

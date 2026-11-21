@@ -103,14 +103,16 @@
   overflow-wrap: anywhere;
 }
 
+/* Applied: a full-height strip flush with the row's left edge, inside its padding. */
 .job-applied-strip {
-  flex: none;
-  align-self: stretch;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  border-radius: 6px;
+  width: 14px;
   background: var(--success-bg);
   color: var(--success-fg);
 }
