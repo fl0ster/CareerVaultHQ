@@ -103,6 +103,25 @@
   overflow-wrap: anywhere;
 }
 
+/* Applied: a full-height strip flush with the row's left edge, inside its padding. */
+.job-applied-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+
+.job-item.applied {
+  /* Strip width (14px) + 8px gap before the content. */
+  padding-left: 22px;
+}
+
 .job-company {
   color: var(--text-h);
 }
