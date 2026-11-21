@@ -24,6 +24,11 @@ from sqlalchemy.orm import Session
 from app.models import CandidateProfile, Job, JobEvaluation, JobParseResult, ScrapeSource
 from app.tasks.scrape.sources import discover_sources
 
+MANUAL_SOURCE_KEY = "manual"
+"""Key of the pseudo-source that hand-entered jobs (``sources/manual.py``) belong to. It
+has a row (``jobs.source_id`` needs one) but is never a scrape target, so it is hidden from
+the sources API and never run by a scrape."""
+
 GOOD_MATCH_PROBABILITY = 0.5
 """A ``job_evaluations.match_probability`` at or above this counts as a good match."""
 
@@ -31,6 +36,11 @@ GOOD_MATCH_PROBABILITY = 0.5
 def _ordered(query):
     """Sources are always listed (and run by "scrape all") by ``key``."""
     return query.order_by(ScrapeSource.key)
+
+
+def is_scrape_target(row: ScrapeSource) -> bool:
+    """False for the ``manual`` pseudo-source, which holds hand-entered jobs only."""
+    return row.key != MANUAL_SOURCE_KEY
 
 
 def list_sources(session: Session) -> list[ScrapeSource]:
@@ -43,7 +53,9 @@ def runnable_sources(session: Session) -> list[ScrapeSource]:
         session.scalars(
             _ordered(
                 select(ScrapeSource).where(
-                    ScrapeSource.enabled.is_(True), ScrapeSource.module_error.is_(None)
+                    ScrapeSource.enabled.is_(True),
+                    ScrapeSource.module_error.is_(None),
+                    ScrapeSource.key != MANUAL_SOURCE_KEY,
                 )
             )
         ).all()
@@ -68,7 +80,7 @@ def sync_sources(session: Session) -> list[ScrapeSource]:
         if row is None:
             row = ScrapeSource(key=key)
             # Hand-entered jobs (``sources/manual.py``) have nothing to scrape.
-            if key == "manual":
+            if key == MANUAL_SOURCE_KEY:
                 row.enabled = False
             session.add(row)
         row.name = info.name
@@ -132,9 +144,7 @@ def source_relevance(session: Session) -> dict[int, Relevance]:
             Job.source_id,
             func.count(JobEvaluation.id),
             func.avg(JobEvaluation.match_probability),
-            func.sum(
-                case((JobEvaluation.match_probability >= GOOD_MATCH_PROBABILITY, 1), else_=0)
-            ),
+            func.sum(case((JobEvaluation.match_probability >= GOOD_MATCH_PROBABILITY, 1), else_=0)),
         )
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(
