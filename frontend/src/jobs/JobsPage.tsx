@@ -107,6 +107,7 @@ function JobRow({
   if (inbox) classes.push('match')
   else if (!isRelevant(job.evaluation)) classes.push('dimmed')
   if (!inbox && job.decision === 'rejected') classes.push('rejected')
+  if (job.application_id != null) classes.push('applied')
 
   return (
     <li className={classes.join(' ')} data-key={String(job.id)}>

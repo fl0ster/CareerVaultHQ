@@ -117,6 +117,11 @@
   color: var(--success-fg);
 }
 
+.job-item.applied {
+  /* Strip width (14px) + 8px gap before the content. */
+  padding-left: 22px;
+}
+
 .job-company {
   color: var(--text-h);
 }
