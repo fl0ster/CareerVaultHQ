@@ -101,6 +101,26 @@ function DurationSelect({
   )
 }
 
+/** Earliest `datetime-local` value a state of `key` may be dated at (`undefined`: no limit):
+ * not before APPLIED once it is recorded, and an interview round or APPLIED itself not before
+ * SHORTLISTED. `self` is the event being edited, left out of the reference points. */
+function earliestFor(application: Application, key: string, self?: number): string | undefined {
+  if (key === INITIAL_ONLY_STATUS) return undefined
+  const at = (status: string) =>
+    application.events.find((e) => e.id !== self && e.status.key === status && e.occurred_at)?.occurred_at
+  const applied = key === APPLIED_STATUS ? undefined : at(APPLIED_STATUS)
+  if (applied) return toLocalInput(applied)
+  if (key !== INTERVIEW_STATUS && key !== APPLIED_STATUS) return undefined
+  const shortlisted = at(INITIAL_ONLY_STATUS)
+  return shortlisted ? toLocalInput(shortlisted) : undefined
+}
+
+/** Error message when `when` (a `datetime-local` value) is before `min`. */
+function tooEarly(when: string, min: string | undefined): string | null {
+  // Same fixed-width format, so the strings compare like the dates.
+  return when && min && when < min ? `Pick a date on or after ${new Date(min).toLocaleString()}.` : null
+}
+
 function EventRow({
   application,
   event,
@@ -121,6 +141,8 @@ function EventRow({
   const { busy, error, run } = useAction()
   const locked = event.status.key === INITIAL_ONLY_STATUS
   const isRound = status === INTERVIEW_STATUS
+  const min = earliestFor(application, status, event.id)
+  const dateError = when !== toLocalInput(event.occurred_at) ? tooEarly(when, min) : null
 
   const startEdit = () => {
     setStatus(event.status.key)
@@ -182,7 +204,7 @@ function EventRow({
             ))}
           </select>
           )}
-          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+          <input type="datetime-local" value={when} min={min} onChange={(e) => setWhen(e.target.value)} />
         </div>
         {isRound && (
           <div className="app-form-row app-round-fields">
@@ -200,14 +222,14 @@ function EventRow({
         )}
         <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state" rows={3} />
         <div className="app-buttons">
-          <button type="button" className="small" onClick={save} disabled={busy}>
+          <button type="button" className="small" onClick={save} disabled={busy || !!dateError}>
             {busy ? 'Saving…' : 'Save'}
           </button>
           <button type="button" className="secondary small" onClick={() => setEditing(false)} disabled={busy}>
             Cancel
           </button>
         </div>
-        {error && <p className="error">{error}</p>}
+        {(dateError || error) && <p className="error">{dateError || error}</p>}
       </li>
     )
   }
@@ -255,6 +277,8 @@ function PlannedEventRow({
   const [when, setWhen] = useState(event.occurred_at ? toLocalInput(event.occurred_at) : '')
   const { busy, error, run } = useAction()
   const final = isFinalStatus(application.status)
+  const min = earliestFor(application, INTERVIEW_STATUS)
+  const dateError = tooEarly(when, min)
 
   const save = async (changes: EventUpdate) => {
     const updated = await run(() => applicationsApi.updateEvent(application.id, event.id, changes))
@@ -269,7 +293,7 @@ function PlannedEventRow({
   }
   const saveWhen = () => {
     const stored = event.occurred_at ? toLocalInput(event.occurred_at) : ''
-    if (when !== stored) void save({ occurred_at: when ? fromLocalInput(when) : null })
+    if (when !== stored && !tooEarly(when, min)) void save({ occurred_at: when ? fromLocalInput(when) : null })
   }
 
   const remove = async () => {
@@ -316,6 +340,7 @@ function PlannedEventRow({
         <input
           type="datetime-local"
           value={when}
+          min={min}
           onChange={(e) => setWhen(e.target.value)}
           onBlur={saveWhen}
           aria-label={`Round ${index + 1}: scheduled for`}
@@ -331,7 +356,7 @@ function PlannedEventRow({
         rows={1}
         disabled={busy}
       />
-      {error && <p className="error">{error}</p>}
+      {(dateError || error) && <p className="error">{dateError || error}</p>}
     </li>
   )
 }
@@ -427,6 +452,8 @@ function AddEventForm({
   const options = pickableStatuses(statuses, application.status?.key ?? null)
   const selected = status || options[0]?.key || ''
   const nextRound = selected === INTERVIEW_STATUS ? nextRoundLabel(application) : undefined
+  const min = earliestFor(application, selected)
+  const dateError = tooEarly(when, min)
 
   const add = async () => {
     const updated = await run(() =>
@@ -452,11 +479,12 @@ function AddEventForm({
         <input
           type="datetime-local"
           value={when}
+          min={min}
           onChange={(e) => setWhen(e.target.value)}
           aria-label="When (defaults to now)"
           title="When (defaults to now)"
         />
-        <button type="button" className="small" onClick={add} disabled={busy || !selected}>
+        <button type="button" className="small" onClick={add} disabled={busy || !selected || !!dateError}>
           {busy
             ? 'Adding…'
             : nextRound
@@ -465,7 +493,7 @@ function AddEventForm({
         </button>
       </div>
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state (optional)" rows={2} />
-      {error && <p className="error">{error}</p>}
+      {(dateError || error) && <p className="error">{dateError || error}</p>}
     </div>
   )
 }

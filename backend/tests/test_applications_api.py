@@ -455,6 +455,15 @@ def test_states_cannot_be_dated_before_applied(client, db_session):
     assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW"]
 
 
+def test_rounds_and_applied_cannot_be_dated_before_shortlisted(client, db_session):
+    seed_cv_inputs(client, db_session)
+    body = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()
+    url = f"{BASE}/{body['id']}/events"
+    before = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    assert client.post(url, json={"status": "APPLIED", "occurred_at": before}).status_code == 422
+    assert client.post(url, json={"status": "INTERVIEW", "occurred_at": before}).status_code == 422
+
+
 def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
     seed_cv_inputs(client, db_session)
     evaluation = seed_evaluation(db_session)

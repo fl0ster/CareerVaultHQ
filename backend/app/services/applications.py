@@ -103,20 +103,22 @@ def reject_out_of_order(
     """``EventRejected`` (``invalid``) when recording ``key`` at ``when`` (or moving
     ``event`` there) would date a state before ``APPLIED``, or ``APPLIED`` after a later
     state. ``SHORTLISTED`` and planned rounds are not checked; neither is an unset time."""
-    if when is None or key.upper() == INITIAL_ONLY_STATUS:
+    key = key.upper()
+    if when is None or key == INITIAL_ONLY_STATUS:
         return
-    when = _naive(when)
-    others = [
-        e
-        for e in application.history
-        if e is not event and e.occurred_at is not None and e.status.key != INITIAL_ONLY_STATUS
-    ]
-    if key.upper() == APPLIED_STATUS:
-        if any(_naive(e.occurred_at) < when for e in others):
+    when = _minute(when)
+    dated = [e for e in application.history if e is not event and e.occurred_at is not None]
+    if key in (INTERVIEW_STATUS, APPLIED_STATUS):
+        shortlisted = next((e for e in dated if e.status.key == INITIAL_ONLY_STATUS), None)
+        if shortlisted is not None and when < _minute(shortlisted.occurred_at):
+            raise EventRejected(f"{key} cannot be dated before {INITIAL_ONLY_STATUS}", "invalid")
+    others = [e for e in dated if e.status.key != INITIAL_ONLY_STATUS]
+    if key == APPLIED_STATUS:
+        if any(_minute(e.occurred_at) < when for e in others):
             raise EventRejected(f"{APPLIED_STATUS} cannot be dated after a later state", "invalid")
         return
     applied = next((e for e in others if e.status.key == APPLIED_STATUS), None)
-    if applied is not None and when < _naive(applied.occurred_at):
+    if applied is not None and when < _minute(applied.occurred_at):
         raise EventRejected(f"a state cannot be dated before {APPLIED_STATUS}", "invalid")
 
 
@@ -181,6 +183,11 @@ def record_event(
 
 def _naive(moment: datetime) -> datetime:
     return moment.replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def _minute(moment: datetime) -> datetime:
+    """Naive, to the minute: the precision the UI's date inputs have."""
+    return _naive(moment).replace(second=0, microsecond=0)
 
 
 def held_at(application: Application, event: ApplicationEvent) -> datetime:
