@@ -1,3 +1,4 @@
+import { Send } from 'lucide-react'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
@@ -111,10 +112,14 @@ function JobRow({
     <li className={classes.join(' ')} data-key={String(job.id)}>
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
+          {job.application_id != null && (
+            <span className="job-applied-strip" title="Application created" aria-label="Application created">
+              <Send size={14} aria-hidden="true" />
+            </span>
+          )}
           <div className="job-main">
             <span className="job-title">
               {job.title ?? job.link}
-              {job.application_id != null && <span className="badge app-status applied">Application</span>}
             </span>
             <div className="job-meta">
               {job.company && (

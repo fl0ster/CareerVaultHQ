@@ -103,6 +103,18 @@
   overflow-wrap: anywhere;
 }
 
+.job-applied-strip {
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  border-radius: 6px;
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+
 .job-company {
   color: var(--text-h);
 }
