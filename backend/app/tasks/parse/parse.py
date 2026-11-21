@@ -14,6 +14,7 @@ scored against the current candidate profile.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
@@ -30,6 +31,7 @@ from app.db import init_db, session_factory
 from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
 from app.services.companies import CompanyMatch, resolve_company
+from app.services.openrouter import OpenRouterService
 from app.tasks.evaluate import evaluate_parse_results
 from app.tasks.scrape.sources import load_source
 
@@ -59,92 +61,156 @@ class InterviewStep:
     duration_minutes: int | None = None
 
 
-_PROCESS_HEADING = re.compile(
-    r"(recruitment|hiring|interview|selection|application)\s+(process|steps|stages|rounds)"
-    r"|how\s+we\s+hire|what\s+to\s+expect|our\s+process"
-    r"|proces\s+rekrutac\w*|etapy\s+rekrutac\w*|przebieg\s+rekrutac\w*|rekrutacja",
-    re.IGNORECASE,
+@dataclass(frozen=True)
+class InterviewStepsResult:
+    """Outcome of ``extract_interview_steps``; ``steps`` is empty unless both Jev checks
+    passed."""
+
+    steps: list[InterviewStep]
+    present_probability: float
+    """Jev: probability that the text describes the interview process at all."""
+    faithful_probability: float | None = None
+    """Jev: probability that the extracted steps are stated in the text (``None`` when the
+    extraction was not attempted or returned nothing)."""
+
+
+INTERVIEW_STEPS_SOURCE = "tasks.parse.interview_steps"
+INTERVIEW_STEPS_THRESHOLD = 0.5
+"""Minimum Jev probability for both the presence and the faithfulness check."""
+MAX_STEP_TITLE = 128
+
+PRESENCE_QUESTION = "describes_interview_process"
+PRESENCE_QUESTIONS: dict[str, dict[str, Any]] = {
+    PRESENCE_QUESTION: {
+        "type": "noul",
+        "instructions": (
+            "Does this job description describe the stages of the recruitment / interview "
+            "process the candidate will go through (in any language)?"
+        ),
+        "criteria": {
+            "true": (
+                "The text names at least one concrete stage of the hiring process, e.g. an "
+                "HR call, technical interview, home assignment, live coding, meeting with "
+                "the team or a final interview, as a list, a sentence or a chain of steps."
+            ),
+            "false": (
+                "The text only describes the role, requirements, benefits or company, or "
+                "merely says that the candidate will be contacted / that only selected "
+                "candidates will be reached, without naming any stages."
+            ),
+        },
+    }
+}
+
+FAITHFUL_QUESTION = "steps_are_faithful"
+FAITHFUL_QUESTIONS: dict[str, dict[str, Any]] = {
+    FAITHFUL_QUESTION: {
+        "type": "noul",
+        "instructions": (
+            "Do the extracted interview steps accurately reflect the recruitment process "
+            "described in the job description?"
+        ),
+        "criteria": {
+            "true": (
+                "Every extracted step is stated in the text, they are in the order the text "
+                "gives, no stated stage is missing and durations match the text."
+            ),
+            "false": (
+                "A step is invented, a requirement/benefit was taken for a step, stages are "
+                "missing or out of order, or a duration is not supported by the text."
+            ),
+        },
+    }
+}
+
+EXTRACTION_SYSTEM = (
+    "You extract structured data from job descriptions. Answer with a single JSON object "
+    "and nothing else."
 )
-_STEP_LINE = re.compile(
-    r"^\s*(?:(?:step|stage|round|etap|krok)\s*)?(\d{1,2})\s*[.):\-–—]?\s+(.+?)\s*$",
-    re.IGNORECASE,
-)
-_BULLET_LINE = re.compile(r"^\s*[-*•●▪◦]\s+(.+?)\s*$")
-_ARROW_SPLIT = re.compile(r"\s*(?:->|→|=>|»)\s*")
-_DURATION = re.compile(
-    r"\(?\s*(?:~|ok\.|approx\.?|about)?\s*(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?"
-    r"(min(?:ute)?s?|minut[ay]?|h|hours?|godz\w*)\s*\)?",
-    re.IGNORECASE,
-)
-_MAX_STEPS = 10
-_MAX_TITLE = 128
+EXTRACTION_PROMPT = """The job description below describes its recruitment process.
+List the stages a candidate goes through, in order, as a JSON object
+{{"steps": [{{"title": ..., "duration_minutes": ...}}, ...]}} where
+- "title" is a short name of the stage in the language of the text (e.g. "HR call",
+  "Technical interview", "Home assignment", "Rozmowa z HR"),
+- "duration_minutes" is the stated length of the stage in minutes, or null when not stated.
+Only include stages the text actually states; do not include the offer or the decision
+itself unless the text presents it as a meeting. Do not guess.
+
+{text}"""
 
 
-def _clean_step(raw: str) -> tuple[str, int | None]:
-    duration = None
-    match = _DURATION.search(raw)
-    if match:
-        value = int(match.group(1))
-        duration = value * 60 if match.group(2).lower().startswith(("h", "godz")) else value
-        raw = raw[: match.start()] + raw[match.end() :]
-    title = raw.strip(" \t-–—:;,.()*")
-    return title[:_MAX_TITLE], duration
+def _strip_fences(text: str) -> str:
+    return re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
 
 
-def _steps(raws: list[str]) -> list[InterviewStep]:
-    steps = []
-    for raw in raws[:_MAX_STEPS]:
-        title, duration = _clean_step(raw)
+def _steps_from_reply(reply: str) -> list[InterviewStep]:
+    try:
+        data = json.loads(_strip_fences(reply))
+    except ValueError:
+        return []
+    raw_steps = data.get("steps") if isinstance(data, dict) else data
+    if not isinstance(raw_steps, list):
+        return []
+    steps: list[InterviewStep] = []
+    for item in raw_steps:
+        if not isinstance(item, dict) or not isinstance(item.get("title"), str):
+            continue
+        title = " ".join(item["title"].split())[:MAX_STEP_TITLE]
+        duration = item.get("duration_minutes")
+        if isinstance(duration, bool) or not isinstance(duration, int | float) or duration <= 0:
+            duration = None
         if title:
-            steps.append(InterviewStep(len(steps) + 1, title, duration))
+            steps.append(InterviewStep(len(steps) + 1, title, int(duration) if duration else None))
     return steps
 
 
-def parse_interview_steps(text: str | None) -> list[InterviewStep]:
-    """Extract the interview rounds described in ``text`` (a job description).
+def extract_interview_steps(service: OpenRouterService, text: str | None) -> InterviewStepsResult:
+    """Interview rounds described in ``text`` (a job description), in three LLM steps:
 
-    Looks for a recruitment-process heading and reads the numbered lines, bullet lines or an
-    arrow-separated chain (``HR call -> Tech interview -> Offer``) that follow it; numbered
-    ``Step 1: ...`` lines are accepted anywhere. Returns ``[]`` when no process is described.
+    1. Jev ``noul``: does the text describe the recruitment process at all? Below
+       ``INTERVIEW_STEPS_THRESHOLD`` nothing else is called and no steps are returned.
+    2. Chat completion: extract the ordered stages as JSON.
+    3. Jev ``noul``: are the extracted steps faithful to the text? Below the threshold the
+       extraction is discarded.
+
+    OpenRouter errors propagate (``OpenRouterError``).
     """
-    if not text:
-        return []
-    lines = text.splitlines()
+    if not text or not text.strip():
+        return InterviewStepsResult([], 0.0)
 
-    # Arrow chains are unambiguous on their own line.
-    for line in lines:
-        parts = [p for p in _ARROW_SPLIT.split(line) if p.strip()]
-        if len(parts) >= 2 and len(line) < 400:
-            if _PROCESS_HEADING.search(text) or len(parts) >= 3:
-                head = _PROCESS_HEADING.search(parts[0])
-                if head:
-                    parts[0] = parts[0][head.end() :]
-                return _steps([p for p in parts if p.strip(" :")])
+    present = service.decide(
+        state={"job_description": text},
+        questions=PRESENCE_QUESTIONS,
+        source=INTERVIEW_STEPS_SOURCE,
+    ).noul(PRESENCE_QUESTION)
+    if present < INTERVIEW_STEPS_THRESHOLD:
+        return InterviewStepsResult([], present)
 
-    starts = [i for i, line in enumerate(lines) if _PROCESS_HEADING.search(line)]
-    for start in starts:
-        numbered: list[str] = []
-        bullets: list[str] = []
-        for line in lines[start + 1 :]:
-            if not line.strip():
-                if numbered or bullets:
-                    break
-                continue
-            if m := _STEP_LINE.match(line):
-                numbered.append(m.group(2))
-            elif (m := _BULLET_LINE.match(line)) and not numbered:
-                bullets.append(m.group(1))
-            else:
-                break
-        if len(numbered) >= 2 or len(bullets) >= 2:
-            return _steps(numbered or bullets)
+    reply = service.chat(
+        EXTRACTION_PROMPT.format(text=text),
+        system=EXTRACTION_SYSTEM,
+        temperature=0,
+        source=INTERVIEW_STEPS_SOURCE,
+    ).text
+    steps = _steps_from_reply(reply)
+    if not steps:
+        return InterviewStepsResult([], present)
 
-    explicit = re.findall(
-        r"^\s*(?:step|stage|round|etap)\s*\d{1,2}\s*[.):\-–—]\s*(.+?)\s*$",
-        text,
-        re.IGNORECASE | re.MULTILINE,
-    )
-    return _steps(explicit) if len(explicit) >= 2 else []
+    faithful = service.decide(
+        state={
+            "job_description": text,
+            "extracted_steps": [
+                {"number": s.number, "title": s.title, "duration_minutes": s.duration_minutes}
+                for s in steps
+            ],
+        },
+        questions=FAITHFUL_QUESTIONS,
+        source=INTERVIEW_STEPS_SOURCE,
+    ).noul(FAITHFUL_QUESTION)
+    if faithful < INTERVIEW_STEPS_THRESHOLD:
+        log.info("Discarded interview steps (faithfulness %.2f): %r", faithful, steps)
+        return InterviewStepsResult([], present, faithful)
+    return InterviewStepsResult(steps, present, faithful)
 
 
 class JobParseError(RuntimeError):

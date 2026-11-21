@@ -1,49 +1,149 @@
-"""``parse_interview_steps`` and ``POST /api/scrape/interview-steps``."""
+"""``extract_interview_steps`` (Jev presence -> chat extraction -> Jev faithfulness) and
+``POST /api/scrape/interview-steps``."""
 
-from app.tasks.parse.parse import InterviewStep, parse_interview_steps
+import json
 
+import httpx
+import pytest
 
-def test_no_process_returns_empty():
-    assert parse_interview_steps("We build things.\nRequirements:\n- Python\n- SQL") == []
-    assert parse_interview_steps("") == []
-    assert parse_interview_steps(None) == []
+from app.config import Settings
+from app.main import app
+from app.services.openrouter import OpenRouterService, get_openrouter
+from app.tasks.parse.parse import (
+    FAITHFUL_QUESTION,
+    PRESENCE_QUESTION,
+    InterviewStep,
+    extract_interview_steps,
+)
 
-
-def test_numbered_list_under_heading():
-    text = (
-        "About us\n\nRecruitment process:\n"
-        "1. HR call (30 min)\n2. Technical interview\n3) Meeting with the team\n\nBenefits"
-    )
-    steps = parse_interview_steps(text)
-    assert [s.title for s in steps] == ["HR call", "Technical interview", "Meeting with the team"]
-    assert steps[0] == InterviewStep(1, "HR call", 30)
-    assert [s.number for s in steps] == [1, 2, 3]
-
-
-def test_bullets_under_polish_heading():
-    text = "Proces rekrutacji:\n• Rozmowa z HR\n• Zadanie techniczne\n• Spotkanie z CTO (1h)\n"
-    steps = parse_interview_steps(text)
-    assert [s.title for s in steps] == ["Rozmowa z HR", "Zadanie techniczne", "Spotkanie z CTO"]
-    assert steps[2].duration_minutes == 60
-
-
-def test_arrow_chain():
-    steps = parse_interview_steps("Our process: HR screen → Tech interview → Offer")
-    assert [s.title for s in steps] == ["HR screen", "Tech interview", "Offer"]
-
-
-def test_bullets_without_heading_are_ignored():
-    assert parse_interview_steps("Requirements:\n- Python\n- Docker\n- 3 years") == []
-
-
-def test_endpoint(client):
-    res = client.post(
-        "/api/scrape/interview-steps",
-        json={"text": "Interview process\nStep 1: Culture match\nStep 2: Technical (60 min)"},
-    )
-    assert res.status_code == 200
-    assert res.json() == [
-        {"number": 1, "title": "Culture match", "duration_minutes": None},
-        {"number": 2, "title": "Technical", "duration_minutes": 60},
+TEXT = "Recruitment process: HR call (30 min), technical interview, meeting with the team."
+STEPS = {
+    "steps": [
+        {"title": "HR call", "duration_minutes": 30},
+        {"title": "Technical interview", "duration_minutes": None},
+        {"title": "Meeting with the team"},
     ]
-    assert client.post("/api/scrape/interview-steps", json={"text": "nothing"}).json() == []
+}
+
+
+@pytest.fixture
+def openrouter(db_session):
+    """OpenRouter mock: ``state["present"]`` / ``state["faithful"]`` are the Jev answers,
+    ``state["extract"]`` the chat reply (a dict is sent as JSON)."""
+    state = {"present": 0.95, "faithful": 0.9, "extract": STEPS, "calls": []}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if request.url.path.endswith("/decisions"):
+            (name,) = body["questions"]
+            state["calls"].append(name)
+            p = state["present"] if name == PRESENCE_QUESTION else state["faithful"]
+            return httpx.Response(
+                200,
+                json={
+                    "id": "d",
+                    "model": "jev",
+                    "answers": {name: {"type": "noul", "noul": p}},
+                    "usage": {"cost": 0.001},
+                },
+            )
+        state["calls"].append("chat")
+        reply = state["extract"]
+        content = reply if isinstance(reply, str) else json.dumps(reply)
+        return httpx.Response(
+            200,
+            json={
+                "id": "c",
+                "model": "m",
+                "choices": [{"message": {"role": "assistant", "content": content}}],
+                "usage": {"cost": 0.001},
+            },
+        )
+
+    settings = Settings(openrouter_api_key="sk-test", cors_origins=[])
+    state["service"] = OpenRouterService(
+        db_session, settings, transport=httpx.MockTransport(handle)
+    )
+    return state
+
+
+def test_steps_are_extracted_and_verified(openrouter):
+    result = extract_interview_steps(openrouter["service"], TEXT)
+    assert result.steps == [
+        InterviewStep(1, "HR call", 30),
+        InterviewStep(2, "Technical interview", None),
+        InterviewStep(3, "Meeting with the team", None),
+    ]
+    assert result.present_probability == 0.95
+    assert result.faithful_probability == 0.9
+    assert openrouter["calls"] == [PRESENCE_QUESTION, "chat", FAITHFUL_QUESTION]
+
+
+def test_no_process_stops_after_presence_check(openrouter):
+    openrouter["present"] = 0.1
+    result = extract_interview_steps(openrouter["service"], "We build things. Python, SQL.")
+    assert result.steps == []
+    assert result.faithful_probability is None
+    assert openrouter["calls"] == [PRESENCE_QUESTION]
+
+
+def test_empty_text_makes_no_calls(openrouter):
+    assert extract_interview_steps(openrouter["service"], "  ").steps == []
+    assert extract_interview_steps(openrouter["service"], None).steps == []
+    assert openrouter["calls"] == []
+
+
+def test_unfaithful_extraction_is_discarded(openrouter):
+    openrouter["faithful"] = 0.2
+    result = extract_interview_steps(openrouter["service"], TEXT)
+    assert result.steps == []
+    assert result.faithful_probability == 0.2
+
+
+@pytest.mark.parametrize("reply", ["not json", {"steps": "x"}, {"steps": []}])
+def test_unusable_extraction_skips_verification(openrouter, reply):
+    openrouter["extract"] = reply
+    result = extract_interview_steps(openrouter["service"], TEXT)
+    assert result.steps == []
+    assert openrouter["calls"] == [PRESENCE_QUESTION, "chat"]
+
+
+def test_fenced_reply_and_bad_items_are_cleaned(openrouter):
+    openrouter["extract"] = (
+        '```json\n{"steps": [{"title": "  HR   call "}, {"x": 1}, '
+        '{"title": "Tech", "duration_minutes": true}, '
+        '{"title": "Final", "duration_minutes": 90.0}]}'
+        "\n```"
+    )
+    result = extract_interview_steps(openrouter["service"], TEXT)
+    assert result.steps == [
+        InterviewStep(1, "HR call"),
+        InterviewStep(2, "Tech"),
+        InterviewStep(3, "Final", 90),
+    ]
+
+
+def test_endpoint(client, openrouter):
+    app.dependency_overrides[get_openrouter] = lambda: openrouter["service"]
+    res = client.post("/api/scrape/interview-steps", json={"text": TEXT})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["steps"][0] == {"number": 1, "title": "HR call", "duration_minutes": 30}
+    assert len(body["steps"]) == 3
+    assert body["present_probability"] == 0.95
+
+    openrouter["present"] = 0.0
+    body = client.post("/api/scrape/interview-steps", json={"text": "nothing"}).json()
+    assert body == {"steps": [], "present_probability": 0.0, "faithful_probability": None}
+
+
+def test_endpoint_openrouter_failure(client, db_session):
+    settings = Settings(openrouter_api_key="sk-test", cors_origins=[])
+    service = OpenRouterService(
+        db_session, settings, transport=httpx.MockTransport(lambda r: httpx.Response(500, json={}))
+    )
+    app.dependency_overrides[get_openrouter] = lambda: service
+    assert client.post("/api/scrape/interview-steps", json={"text": TEXT}).status_code == 502
+
+    service.settings = Settings(openrouter_api_key="", cors_origins=[])
+    assert client.post("/api/scrape/interview-steps", json={"text": TEXT}).status_code == 503

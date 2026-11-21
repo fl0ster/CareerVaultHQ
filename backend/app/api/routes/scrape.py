@@ -8,8 +8,8 @@
    ``duplicates`` how many were inserted into / already present in the database and
    ``scrape_run_id`` the id of the persisted run.
 
-``POST /api/scrape/interview-steps`` (``{"text": "..."}``) runs the interview-step parser of
-the parse task on arbitrary text, for testing it against job descriptions.
+``POST /api/scrape/interview-steps`` (``{"text": "..."}``) runs the LLM interview-step
+extraction of the parse task on arbitrary text, for testing it against job descriptions.
 """
 
 from __future__ import annotations
@@ -25,7 +25,13 @@ from rq.job import Job
 
 from app.config import Settings, get_settings
 from app.queue import get_queue
-from app.tasks.parse.parse import parse_interview_steps
+from app.services.openrouter import (
+    OpenRouterError,
+    OpenRouterNotConfigured,
+    OpenRouterService,
+    get_openrouter,
+)
+from app.tasks.parse.parse import extract_interview_steps
 from app.tasks.scrape import scrape
 from app.tasks.scrape.sources import get_available_sources
 
@@ -80,6 +86,15 @@ class InterviewStepOut(BaseModel):
     number: int
     title: str
     duration_minutes: int | None = None
+
+
+class InterviewStepsOut(BaseModel):
+    steps: list[InterviewStepOut]
+    """Empty when the text describes no process or the extraction failed verification."""
+    present_probability: float
+    """Jev: probability that the text describes the interview process."""
+    faithful_probability: float | None = None
+    """Jev: probability that the extracted steps match the text (``None`` if not checked)."""
 
 
 def _fetch_job(job_id: str, queue: Queue) -> Job:
@@ -162,7 +177,22 @@ def job_status(job_id: str, queue: Annotated[Queue, Depends(get_queue)]) -> Scra
     return _job_info(_fetch_job(job_id, queue))
 
 
-@router.post("/interview-steps", response_model=list[InterviewStepOut])
-def interview_steps(body: InterviewStepsRequest) -> list[InterviewStepOut]:
-    """Interview rounds described in ``text`` (empty when none are described)."""
-    return [InterviewStepOut(**vars(step)) for step in parse_interview_steps(body.text)]
+@router.post("/interview-steps", response_model=InterviewStepsOut)
+def interview_steps(
+    body: InterviewStepsRequest,
+    service: Annotated[OpenRouterService, Depends(get_openrouter)],
+) -> InterviewStepsOut:
+    """Interview rounds described in ``text``, extracted by the LLM pipeline of the parse
+    task (Jev presence check -> chat extraction -> Jev faithfulness check). ``503`` when
+    OpenRouter is not configured, ``502`` when it fails."""
+    try:
+        result = extract_interview_steps(service, body.text)
+    except OpenRouterNotConfigured as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except OpenRouterError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return InterviewStepsOut(
+        steps=[InterviewStepOut(**vars(step)) for step in result.steps],
+        present_probability=result.present_probability,
+        faithful_probability=result.faithful_probability,
+    )
