@@ -34,7 +34,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 from rq import Queue
 from sqlalchemy import ColumnElement, Select, and_, func, not_, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -258,11 +258,29 @@ def _evaluated(
 
 
 def _evaluated_query(profile_id: int) -> Select:
+    """Every scored job with its *newest* evaluation, whichever profile it was made against.
+
+    A new candidate profile (work history changed) only has scores for the jobs evaluated
+    since, so restricting to it would hide every other job until it is re-scored. Taking
+    the newest evaluation keeps them listed with their previous score; evaluations against
+    ``profile_id`` are always the newest ones where they exist.
+    """
+    del profile_id  # kept for call-site symmetry; the newest evaluation wins
+    newer = aliased(JobEvaluation)
     return (
         select(Job, JobParseResult, JobEvaluation)
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(JobEvaluation, JobEvaluation.job_parse_result_id == JobParseResult.id)
-        .where(JobEvaluation.candidate_profile_id == profile_id)
+        .where(
+            not_(
+                select(newer.id)
+                .where(
+                    newer.job_parse_result_id == JobEvaluation.job_parse_result_id,
+                    newer.id > JobEvaluation.id,
+                )
+                .exists()
+            )
+        )
         .options(
             joinedload(Job.source),
             joinedload(JobParseResult.company),
@@ -544,15 +562,13 @@ def get_job(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
     job, parsed = row
 
-    evaluation = None
-    profile_id = _latest_profile_id(session)
-    if profile_id is not None:
-        evaluation = session.scalars(
-            select(JobEvaluation).where(
-                JobEvaluation.job_parse_result_id == parsed.id,
-                JobEvaluation.candidate_profile_id == profile_id,
-            )
-        ).first()
+    # Newest score from any profile (see ``_evaluated_query``).
+    evaluation = session.scalars(
+        select(JobEvaluation)
+        .where(JobEvaluation.job_parse_result_id == parsed.id)
+        .order_by(JobEvaluation.id.desc())
+        .limit(1)
+    ).first()
     application_id = _application_ids(session, [parsed.id]).get(parsed.id)
     return EvaluatedJobDetail(
         **_evaluated(

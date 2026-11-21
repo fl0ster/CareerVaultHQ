@@ -38,7 +38,7 @@ def _call() -> OpenRouterCall:
 def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfile]:
     """``n`` jobs, all parsed, scored against an old and a new profile. Job ``i`` scores
     ``i / n`` against the new profile and ``0.5`` against the old one. The last job is
-    parsed but not evaluated against the new profile."""
+    parsed but not evaluated at all."""
     seed(db_session, n)
     old = CandidateProfile(content="old")
     new = CandidateProfile(content="new")
@@ -53,15 +53,15 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
         )
         db_session.add(parsed)
         db_session.flush()
-        db_session.add(
-            JobEvaluation(
-                job_parse_result_id=parsed.id,
-                candidate_profile_id=old.id,
-                match_probability=0.5,
-                openrouter_call=_call(),
-            )
-        )
         if i < n - 1:
+            db_session.add(
+                JobEvaluation(
+                    job_parse_result_id=parsed.id,
+                    candidate_profile_id=old.id,
+                    match_probability=0.5,
+                    openrouter_call=_call(),
+                )
+            )
             db_session.add(
                 JobEvaluation(
                     job_parse_result_id=parsed.id,
@@ -264,3 +264,27 @@ def test_relevance_maps_probability_around_threshold():
     assert relevance(0.3, 0.6) == pytest.approx(-0.5)
     assert relevance(1.0, 1.0) == 0 and relevance(0.5, 1.0) == -0.5
     assert relevance(0.0, 0.0) == 0 and relevance(0.5, 0.0) == 0.5
+
+
+def test_jobs_fall_back_to_the_newest_evaluation_of_an_older_profile(client, db_session):
+    """A new profile only scores jobs evaluated since; the others keep their old score."""
+    old, new = seed_evaluated(db_session, 3)
+    last = db_session.query(JobParseResult).order_by(JobParseResult.id.desc()).first()
+    db_session.add(
+        JobEvaluation(
+            job_parse_result_id=last.id,
+            candidate_profile_id=old.id,
+            match_probability=0.9,
+            openrouter_call=_call(),
+        )
+    )
+    db_session.commit()
+
+    items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
+    assert len(items) == 3
+    by_job = {item["id"]: item["evaluation"] for item in items}
+    assert by_job[last.job_id]["candidate_profile_id"] == old.id
+    assert all(e["candidate_profile_id"] == new.id for j, e in by_job.items() if j != last.job_id)
+
+    detail = client.get(f"/api/jobs/{last.job_id}").json()
+    assert detail["evaluation"]["candidate_profile_id"] == old.id
