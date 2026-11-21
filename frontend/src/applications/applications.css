@@ -533,8 +533,9 @@
   position: relative;
 }
 .confetti {
-  position: absolute;
-  inset: 0;
+  /* Fixed to the viewport so a short list doesn't cut the burst off; Confetti sets top / left / width. */
+  position: fixed;
+  bottom: 0;
   overflow: hidden;
   pointer-events: none;
   /* Over the page content and its sticky toolbar (40), under the top bar (50). */
