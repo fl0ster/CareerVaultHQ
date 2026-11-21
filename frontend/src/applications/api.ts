@@ -162,7 +162,13 @@ export const applicationsApi = {
       status,
       excludeStatus,
       q,
-    }: { offset?: number; limit?: number; status?: string; excludeStatus?: string; q?: string } = {},
+    }: {
+      offset?: number
+      limit?: number
+      status?: string
+      excludeStatus?: string
+      q?: string
+    } = {},
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams({ offset: String(offset), limit: String(limit) })

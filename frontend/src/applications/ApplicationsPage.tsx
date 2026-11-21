@@ -78,8 +78,9 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     setSelected(openId == null ? null : (applications?.find((a) => a.id === openId) ?? null))
     setDetailError(null)
   }
-  // The list behind the open application is the subtab it belongs to, so Back lands next to it.
-  if (selected && subTabOf(selected) !== subTab) {
+  // Pending lists every application, so it never needs to switch; the other subtabs follow
+  // the open application's state so Back lands next to it.
+  if (selected && subTab !== 'pending' && subTabOf(selected) !== subTab) {
     setApplications(null)
     setSubTab(subTabOf(selected))
   }
@@ -125,7 +126,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
           : {
               limit: PAGE_SIZE,
               status: filter || undefined,
-              excludeStatus: `${OFFER_STATUS},${INTERVIEW_STATUS}`,
               q: search || undefined,
             },
         controller.signal,
@@ -320,7 +320,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
             >
               <option value="">All statuses</option>
               {statuses
-                .filter((s) => s.key !== OFFER_STATUS && s.key !== INTERVIEW_STATUS)
                 .map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}

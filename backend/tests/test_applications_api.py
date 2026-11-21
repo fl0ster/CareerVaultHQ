@@ -370,3 +370,15 @@ def test_manual_events_are_marked_manual(client, db_session):
     body = client.post(f"{BASE}/{application['id']}/events", json={"status": "APPLIED"}).json()
 
     assert [e["source"] for e in body["events"]] == ["manual", "manual"]
+
+
+def test_listing_is_newest_first_regardless_of_state(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluations = [seed_evaluation(db_session, i) for i in range(3)]
+    ids = [client.post(BASE, json={"job_evaluation_id": e.id}).json()["id"] for e in evaluations]
+    client.post(f"{BASE}/{ids[0]}/events", json={"status": "APPLIED"})
+    client.post(f"{BASE}/{ids[0]}/events", json={"status": "OFFER"})
+    client.post(f"{BASE}/{ids[1]}/events", json={"status": "REJECTED"})
+
+    body = client.get(BASE).json()
+    assert [a["id"] for a in body["items"]] == ids[::-1]
