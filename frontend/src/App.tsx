@@ -43,18 +43,20 @@ function App() {
   const onInterviewCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, interviews: c })), [])
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const stageCounts = useStageCounts()
-  // Interviews / Offers only appear in the menu while they have applications.
+  // Applications / Interviews / Offers only appear in the menu while they have applications.
   const hiddenPages: PageId[] = [
+    ...(stageCounts?.applications ? [] : (['applications'] as const)),
     ...(stageCounts?.interviews ? [] : (['interviews'] as const)),
     ...(stageCounts?.offers ? [] : (['offers'] as const)),
   ]
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
 
-  // The Interviews / Offers list emptied out (its last application moved on): fall back to Applications.
+  // The Applications / Interviews / Offers list emptied out: fall back to Applications, or Jobs when there are none.
   const stageEmpty = stageCounts != null && route.detail === null && hiddenPages.includes(page)
+  const fallbackPage: PageId = stageCounts?.applications ? 'applications' : 'jobs'
   useEffect(() => {
-    if (stageEmpty) window.location.hash = pageHref('applications')
-  }, [stageEmpty])
+    if (stageEmpty) window.location.hash = pageHref(fallbackPage)
+  }, [stageEmpty, fallbackPage])
 
   // Pages put back their own scroll position when leaving a detail view.
   useEffect(() => {
