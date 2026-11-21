@@ -193,6 +193,12 @@ class JobParseResult(Base):
     ``app.services.companies.resolve_company`` (``None`` when the page named no company)."""
     description: Mapped[str | None] = mapped_column(Text)
     """Plain-text job description as returned by the source's ``parse_description``."""
+    interview_steps: Mapped[list[dict] | None] = mapped_column(JSON)
+    """Interview rounds the description states, extracted by the LLM pipeline of
+    ``app.tasks.parse.extract_interview_steps``:
+    ``[{"number": 1, "title": "HR call", "duration_minutes": 30}, ...]``. ``[]`` when the
+    description states none, ``None`` when the extraction did not run or failed. A new
+    ``Application`` for the job starts with these as planned rounds."""
     parsed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )

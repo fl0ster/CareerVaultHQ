@@ -7,7 +7,13 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Application, ApplicationEvent, ApplicationStatus, JobDecision
+from app.models import (
+    Application,
+    ApplicationEvent,
+    ApplicationStatus,
+    JobDecision,
+    JobParseResult,
+)
 
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
@@ -160,4 +166,25 @@ def set_interview_rounds(
     for _ in range(wanted - len(plan)):
         application.events.append(
             ApplicationEvent(status=interview, planned=True, occurred_at=None)
+        )
+
+
+def plan_parsed_rounds(session: Session, application: Application, parsed: JobParseResult) -> None:
+    """Append the interview rounds extracted from the job description
+    (``parsed.interview_steps``) to ``application`` as planned ``INTERVIEW`` events, in
+    round order, with their titles and durations. No-op when none were extracted. Not
+    committed."""
+    steps = sorted(parsed.interview_steps or [], key=lambda s: s.get("number") or 0)
+    if not steps:
+        return
+    interview = status_by_key(session, INTERVIEW_STATUS)
+    for step in steps:
+        application.events.append(
+            ApplicationEvent(
+                status=interview,
+                planned=True,
+                occurred_at=None,
+                title=str(step.get("title") or "")[:128],
+                duration_minutes=step.get("duration_minutes"),
+            )
         )

@@ -7,9 +7,6 @@
    On success ``result`` holds the scraped jobs, ``count`` the number of them, ``new`` /
    ``duplicates`` how many were inserted into / already present in the database and
    ``scrape_run_id`` the id of the persisted run.
-
-``POST /api/scrape/interview-steps`` (``{"text": "..."}``) runs the interview-step parser of
-the parse task on arbitrary text, for testing it against job descriptions.
 """
 
 from __future__ import annotations
@@ -25,7 +22,6 @@ from rq.job import Job
 
 from app.config import Settings, get_settings
 from app.queue import get_queue
-from app.tasks.parse.parse import parse_interview_steps
 from app.tasks.scrape import scrape
 from app.tasks.scrape.sources import get_available_sources
 
@@ -68,18 +64,6 @@ class ScrapeJobInfo(BaseModel):
     result: dict[str, Any] | None = None
     """Full scrape result (set once the job has finished)."""
     error: str | None = None
-
-
-class InterviewStepsRequest(BaseModel):
-    text: str
-
-
-class InterviewStepOut(BaseModel):
-    """A planned interview round; maps to a planned ``INTERVIEW`` ``ApplicationEvent``."""
-
-    number: int
-    title: str
-    duration_minutes: int | None = None
 
 
 def _fetch_job(job_id: str, queue: Queue) -> Job:
@@ -160,9 +144,3 @@ def start_scrape(
 def job_status(job_id: str, queue: Annotated[Queue, Depends(get_queue)]) -> ScrapeJobInfo:
     """Current state of a scrape job; includes ``result`` and ``count`` once finished."""
     return _job_info(_fetch_job(job_id, queue))
-
-
-@router.post("/interview-steps", response_model=list[InterviewStepOut])
-def interview_steps(body: InterviewStepsRequest) -> list[InterviewStepOut]:
-    """Interview rounds described in ``text`` (empty when none are described)."""
-    return [InterviewStepOut(**vars(step)) for step in parse_interview_steps(body.text)]
