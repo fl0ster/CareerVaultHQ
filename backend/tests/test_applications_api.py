@@ -204,8 +204,13 @@ def test_event_dates_are_stored_in_utc(client, db_session):
 def test_company_application_stats(client, db_session):
     seed_cv_inputs(client, db_session)
     profile = CandidateProfile(content="p")
-    flows = [["APPLIED"], ["APPLIED", "INTERVIEW"], ["APPLIED", "INTERVIEW", "REJECTED"],
-             ["INTERVIEW", "OFFER"], []]
+    flows = [
+        ["APPLIED"],
+        ["APPLIED", "INTERVIEW"],
+        ["APPLIED", "INTERVIEW", "REJECTED"],
+        ["INTERVIEW", "OFFER"],
+        [],
+    ]
     company_ids = []
     for i, flow in enumerate(flows):
         evaluation = seed_evaluation(db_session, i, profile)
@@ -309,7 +314,8 @@ def test_interview_rounds_are_planned_and_resized(client, db_session):
 
     # Shrinking drops rounds from the end; 0 drops every planned one.
     assert _rounds(client.patch(url, json={"interview_rounds": 3}).json()) == (
-        1, ["Culture match", ""]
+        1,
+        ["Culture match", ""],
     )
     assert _rounds(client.patch(url, json={"interview_rounds": 0}).json()) == (1, [])
     client.post(f"{url}/events", json={"status": "INTERVIEW"})
@@ -420,6 +426,33 @@ def test_held_parsed_round_comes_after_applied(client, db_session):
     assert res.json()["status"]["key"] == "INTERVIEW"
     body = client.get(f"{BASE}/{app_id}").json()
     assert [e["status"]["key"] for e in body["events"]] == expected
+
+
+def test_states_cannot_be_dated_before_applied(client, db_session):
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()[
+        "id"
+    ]
+    url = f"{BASE}/{app_id}/events"
+    now = datetime.now(UTC)
+    applied = client.post(url, json={"status": "APPLIED", "occurred_at": now.isoformat()})
+    applied_id = next(e["id"] for e in applied.json()["events"] if e["status"]["key"] == "APPLIED")
+
+    before = (now - timedelta(days=1)).isoformat()
+    res = client.post(url, json={"status": "INTERVIEW", "occurred_at": before})
+    assert res.status_code == 422
+
+    after = (now + timedelta(hours=1)).isoformat()
+    res = client.post(url, json={"status": "INTERVIEW", "occurred_at": after})
+    assert res.status_code == 201
+    interview_id = next(e["id"] for e in res.json()["events"] if e["status"]["key"] == "INTERVIEW")
+
+    # Moving the interview before APPLIED, or APPLIED after the interview, is refused.
+    assert client.patch(f"{url}/{interview_id}", json={"occurred_at": before}).status_code == 422
+    later = (now + timedelta(days=1)).isoformat()
+    assert client.patch(f"{url}/{applied_id}", json={"occurred_at": later}).status_code == 422
+    keys = [e["status"]["key"] for e in client.get(f"{BASE}/{app_id}").json()["events"]]
+    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW"]
 
 
 def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):

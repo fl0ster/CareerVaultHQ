@@ -93,6 +93,33 @@ def reject_if_final(application: Application) -> None:
         )
 
 
+def reject_out_of_order(
+    application: Application,
+    key: str,
+    when: datetime | None,
+    *,
+    event: ApplicationEvent | None = None,
+) -> None:
+    """``EventRejected`` (``invalid``) when recording ``key`` at ``when`` (or moving
+    ``event`` there) would date a state before ``APPLIED``, or ``APPLIED`` after a later
+    state. ``SHORTLISTED`` and planned rounds are not checked; neither is an unset time."""
+    if when is None or key.upper() == INITIAL_ONLY_STATUS:
+        return
+    when = _naive(when)
+    others = [
+        e
+        for e in application.history
+        if e is not event and e.occurred_at is not None and e.status.key != INITIAL_ONLY_STATUS
+    ]
+    if key.upper() == APPLIED_STATUS:
+        if any(_naive(e.occurred_at) < when for e in others):
+            raise EventRejected(f"{APPLIED_STATUS} cannot be dated after a later state", "invalid")
+        return
+    applied = next((e for e in others if e.status.key == APPLIED_STATUS), None)
+    if applied is not None and when < _naive(applied.occurred_at):
+        raise EventRejected(f"a state cannot be dated before {APPLIED_STATUS}", "invalid")
+
+
 def is_open(application: Application) -> bool:
     """The application has been sent (``APPLIED`` recorded) and has no final state yet."""
     current = application.current_event
@@ -124,6 +151,8 @@ def record_event(
         if current is None or current.status.key != INITIAL_ONLY_STATUS:
             raise EventRejected(f"{APPLIED_STATUS} can only follow {INITIAL_ONLY_STATUS}")
     plan = application.plan
+    if occurred_at is not None:
+        reject_out_of_order(application, key, occurred_at)
     if key == INTERVIEW_STATUS and plan:
         # Hold the next planned round instead of adding a new one.
         event = plan[0]

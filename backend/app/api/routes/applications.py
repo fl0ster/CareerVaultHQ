@@ -66,6 +66,7 @@ from app.services.applications import (
     held_rounds,
     plan_parsed_rounds,
     record_event,
+    reject_out_of_order,
     reject_if_final,
     reject_initial_only,
     set_interview_rounds,
@@ -590,6 +591,13 @@ def update_event(
         ):
             raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
         event.status = _status_or_422(session, payload.status)
+    if not event.planned:
+        new_key = payload.status or event.status.key
+        new_time = payload.occurred_at if payload.occurred_at is not None else event.occurred_at
+        try:
+            reject_out_of_order(application, new_key, new_time, event=event)
+        except EventRejected as exc:
+            raise _http_error(exc) from exc
     if payload.note is not None:
         event.note = payload.note
     if "occurred_at" in sent and (payload.occurred_at is not None or event.planned):
