@@ -530,9 +530,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const searching = search !== ''
   const inboxIds = new Set(inbox.map((j) => j.id))
   const ordered = searching ? (results ?? []) : [...inbox, ...feed]
-  useFlip(listRef, ordered.map((j) => j.id).join(','))
+  const orderedIds = new Set(ordered.map((j) => j.id))
+  // Shown in place at the top of the list until the scored row arrives from the API.
+  const shownProcessing = searching ? [] : processing.filter((p) => !orderedIds.has(p.jobId))
+  useFlip(listRef, [...shownProcessing.map((p) => p.jobId), ...ordered.map((j) => j.id)].join(','))
 
-  const empty = profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore
+  const empty =
+    profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore && shownProcessing.length === 0
 
   return (
     <>
@@ -592,11 +596,20 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           </p>
         )}
 
-        {!searching && processing.length > 0 && (
-          <ul className="job-list">
-            {processing.map((p) => (
+        {searching && results !== null && results.length === 0 ? (
+          <p className="muted">No jobs match your search.</p>
+        ) : !searching && empty ? (
+          <p>
+            {profileId === null
+              ? 'Add your work history first; a candidate profile is built from it and scraped jobs are scored against it.'
+              : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
+          </p>
+        ) : (
+          <ul className="job-list" ref={listRef}>
+            {shownProcessing.map((p) => (
               <li
-                key={p.jobId}
+                key={`processing-${p.jobId}`}
+                data-key={String(p.jobId)}
                 className={p.error ? 'job-item processing failed' : 'job-item processing'}
                 aria-busy={!p.error}
               >
@@ -621,26 +634,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
                         Dismiss
                       </button>
                     ) : (
-                      <span className="spinner" aria-hidden="true" />
+                      <span className="relevance pending" title="Being parsed and scored" />
                     )}
                   </div>
                 </div>
                 {p.error && <p className="error">{p.error}</p>}
               </li>
             ))}
-          </ul>
-        )}
-
-        {searching && results !== null && results.length === 0 ? (
-          <p className="muted">No jobs match your search.</p>
-        ) : !searching && empty ? (
-          <p>
-            {profileId === null
-              ? 'Add your work history first; a candidate profile is built from it and scraped jobs are scored against it.'
-              : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
-          </p>
-        ) : (
-          <ul className="job-list" ref={listRef}>
             {ordered.map((job, index) => {
               const inInbox = searching ? inboxIds.has(job.id) : index < inbox.length
               return (

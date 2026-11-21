@@ -343,35 +343,33 @@
   }
 }
 
-/* Manually added jobs still being parsed / scored */
+/* Manually added jobs still being parsed / scored: a normal row, greyed out and pulsing */
 .job-item.processing {
-  opacity: 0.5;
-  filter: grayscale(1);
   pointer-events: none;
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--bg) 0 12px,
-    var(--surface-2) 12px 24px
-  );
-  background-size: 200% 100%;
-  animation: job-processing 2.4s linear infinite;
 
-  .job-side .spinner {
-    display: inline-block;
+  .job-row-wrap {
+    opacity: 0.45;
+    filter: grayscale(1);
+    animation: job-processing 1.6s ease-in-out infinite alternate;
+  }
+
+  .relevance.pending {
+    background: var(--surface-2);
   }
 }
 
 .job-item.processing.failed {
-  opacity: 1;
-  filter: none;
   pointer-events: auto;
-  animation: none;
-  background: var(--bg);
+
+  .job-row-wrap {
+    opacity: 0.7;
+    animation: none;
+  }
 }
 
 @keyframes job-processing {
   to {
-    background-position: -68px 0;
+    opacity: 0.25;
   }
 }
 
@@ -511,7 +509,7 @@
 @media (prefers-reduced-motion: reduce) {
   .add-job,
   .add-job-panel,
-  .job-item.processing {
+  .job-item.processing .job-row-wrap {
     transition: none;
     animation: none;
   }
