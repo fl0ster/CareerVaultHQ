@@ -382,3 +382,30 @@ def test_listing_is_newest_first_regardless_of_state(client, db_session):
 
     body = client.get(BASE).json()
     assert [a["id"] for a in body["items"]] == ids[::-1]
+
+
+def test_parsed_interview_steps_become_planned_rounds(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    evaluation.job_parse_result.interview_steps = [
+        {"number": 2, "title": "Technical interview", "duration_minutes": None},
+        {"number": 1, "title": "HR call", "duration_minutes": 30},
+    ]
+    db_session.commit()
+
+    body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
+
+    planned = body["planned_events"]
+    assert [(e["title"], e["duration_minutes"]) for e in planned] == [
+        ("HR call", 30),
+        ("Technical interview", None),
+    ]
+    assert all(e["status"]["key"] == "INTERVIEW" for e in planned)
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
+
+def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
+    assert body["planned_events"] == []

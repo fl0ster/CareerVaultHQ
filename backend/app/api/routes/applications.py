@@ -2,7 +2,9 @@
 
 * ``POST /api/applications`` with ``{"job_evaluation_id": ...}`` creates the application
   (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
-  ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job.
+  ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job. The
+  interview rounds parsed from the job description (``job_parse_results.interview_steps``)
+  become its planned rounds.
 * ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
   current state, ``?q=acme`` by job title or company name); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
@@ -61,6 +63,7 @@ from app.services.applications import (
     EventRejected,
     ensure_statuses,
     held_rounds,
+    plan_parsed_rounds,
     record_event,
     reject_if_final,
     reject_initial_only,
@@ -404,6 +407,7 @@ def create_application(
     )
     if initial is not None:
         application.events.append(ApplicationEvent(status=initial, note=payload.status_note))
+    plan_parsed_rounds(session, application, evaluation.job_parse_result)
     session.add(application)
     set_job_decision(session, evaluation.job_parse_result_id, JobDecision.ACCEPTED)
     session.commit()
