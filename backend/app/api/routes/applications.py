@@ -62,6 +62,7 @@ from app.services.applications import (
     INTERVIEW_STATUS,
     EventRejected,
     ensure_statuses,
+    held_at,
     held_rounds,
     plan_parsed_rounds,
     record_event,
@@ -599,8 +600,8 @@ def update_event(
         event.duration_minutes = payload.duration_minutes or None
     if payload.planned is False and event.planned:
         _reject_if_final(application)
+        event.occurred_at = held_at(application, event)
         event.planned = False
-        event.occurred_at = event.occurred_at or datetime.now(UTC)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 

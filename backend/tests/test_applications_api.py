@@ -404,6 +404,24 @@ def test_parsed_interview_steps_become_planned_rounds(client, db_session):
     assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
 
 
+def test_held_parsed_round_comes_after_applied(client, db_session):
+    """A round planned from the job description and then held lands after APPLIED."""
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+    evaluation.job_parse_result.interview_steps = [{"number": 1, "title": "HR call"}]
+    db_session.commit()
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+    assert client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"}).status_code == 201
+
+    res = client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+    assert res.status_code == 201
+    expected = ["SHORTLISTED", "APPLIED", "INTERVIEW"]
+    assert [e["status"]["key"] for e in res.json()["events"]] == expected
+    assert res.json()["status"]["key"] == "INTERVIEW"
+    body = client.get(f"{BASE}/{app_id}").json()
+    assert [e["status"]["key"] for e in body["events"]] == expected
+
+
 def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
     seed_cv_inputs(client, db_session)
     evaluation = seed_evaluation(db_session)

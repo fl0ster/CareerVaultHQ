@@ -127,11 +127,13 @@ def record_event(
     if key == INTERVIEW_STATUS and plan:
         # Hold the next planned round instead of adding a new one.
         event = plan[0]
+        event.occurred_at = occurred_at or held_at(application, event)
         event.planned = False
-        event.occurred_at = occurred_at or event.occurred_at or datetime.now(UTC)
         event.note = note or event.note
         event.source = source
         event.source_ref = source_ref
+        session.flush()
+        session.expire(application, ["events"])
         return event
     event = ApplicationEvent(
         status=status_by_key(session, key),
@@ -146,6 +148,24 @@ def record_event(
     session.flush()
     session.expire(application, ["events"])
     return event
+
+
+def _naive(moment: datetime) -> datetime:
+    return moment.replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def held_at(application: Application, event: ApplicationEvent) -> datetime:
+    """When a planned round being held took place: its scheduled time when that is after
+    every state already recorded (so it never lands before ``APPLIED``), otherwise now."""
+    scheduled = event.occurred_at
+    if scheduled is not None:
+        latest = max(
+            (_naive(e.occurred_at) for e in application.history if e.occurred_at),
+            default=None,
+        )
+        if latest is None or _naive(scheduled) > latest:
+            return scheduled
+    return datetime.now(UTC)
 
 
 def held_rounds(application: Application) -> list[ApplicationEvent]:
