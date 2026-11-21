@@ -1,5 +1,4 @@
-"""``extract_interview_steps`` (Jev presence -> chat extraction -> Jev faithfulness) and
-``POST /api/scrape/interview-steps``."""
+"""``extract_interview_steps`` (Jev presence -> chat extraction -> Jev faithfulness)."""
 
 import json
 
@@ -7,8 +6,7 @@ import httpx
 import pytest
 
 from app.config import Settings
-from app.main import app
-from app.services.openrouter import OpenRouterService, get_openrouter
+from app.services.openrouter import OpenRouterService
 from app.tasks.parse.parse import (
     FAITHFUL_QUESTION,
     PRESENCE_QUESTION,
@@ -121,29 +119,3 @@ def test_fenced_reply_and_bad_items_are_cleaned(openrouter):
         InterviewStep(2, "Tech"),
         InterviewStep(3, "Final", 90),
     ]
-
-
-def test_endpoint(client, openrouter):
-    app.dependency_overrides[get_openrouter] = lambda: openrouter["service"]
-    res = client.post("/api/scrape/interview-steps", json={"text": TEXT})
-    assert res.status_code == 200
-    body = res.json()
-    assert body["steps"][0] == {"number": 1, "title": "HR call", "duration_minutes": 30}
-    assert len(body["steps"]) == 3
-    assert body["present_probability"] == 0.95
-
-    openrouter["present"] = 0.0
-    body = client.post("/api/scrape/interview-steps", json={"text": "nothing"}).json()
-    assert body == {"steps": [], "present_probability": 0.0, "faithful_probability": None}
-
-
-def test_endpoint_openrouter_failure(client, db_session):
-    settings = Settings(openrouter_api_key="sk-test", cors_origins=[])
-    service = OpenRouterService(
-        db_session, settings, transport=httpx.MockTransport(lambda r: httpx.Response(500, json={}))
-    )
-    app.dependency_overrides[get_openrouter] = lambda: service
-    assert client.post("/api/scrape/interview-steps", json={"text": TEXT}).status_code == 502
-
-    service.settings = Settings(openrouter_api_key="", cors_origins=[])
-    assert client.post("/api/scrape/interview-steps", json={"text": TEXT}).status_code == 503
