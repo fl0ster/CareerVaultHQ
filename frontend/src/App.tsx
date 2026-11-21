@@ -1,7 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
-import ApplicationsPage from './applications/ApplicationsPage.tsx'
+import ApplicationsPage, { type Stage } from './applications/ApplicationsPage.tsx'
+import { useStageCounts } from './applications/useStageCounts.ts'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
@@ -39,7 +40,21 @@ function App() {
   // Breadcrumb entries each page adds after its own name (the open detail's title).
   const [crumbs, setCrumbs] = useState<Partial<Record<PageId, Crumb[]>>>({})
   const onApplicationCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, applications: c })), [])
+  const onInterviewCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, interviews: c })), [])
+  const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
+  const stageCounts = useStageCounts()
+  // Interviews / Offers only appear in the menu while they have applications.
+  const hiddenPages: PageId[] = [
+    ...(stageCounts?.interviews ? [] : (['interviews'] as const)),
+    ...(stageCounts?.offers ? [] : (['offers'] as const)),
+  ]
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
+
+  // The Interviews / Offers list emptied out (its last application moved on): fall back to Applications.
+  const stageEmpty = stageCounts != null && route.detail === null && hiddenPages.includes(page)
+  useEffect(() => {
+    if (stageEmpty) window.location.hash = pageHref('applications')
+  }, [stageEmpty])
 
   // Pages put back their own scroll position when leaving a detail view.
   useEffect(() => {
@@ -74,9 +89,12 @@ function App() {
     if (!toList) window.scrollTo({ top: 0 })
   }
 
-  const openApplication = useCallback((id: number) => {
-    window.location.hash = pageHref('applications', id)
-  }, [])
+  const openIn = useCallback(
+    (list: PageId) => (id: number) => {
+      window.location.hash = pageHref(list, id)
+    },
+    [],
+  )
   const openJob = useCallback((id: number) => {
     window.location.hash = pageHref('jobs', id)
   }, [])
@@ -85,16 +103,21 @@ function App() {
   }
   const detailOf = (id: PageId) => (route.page === id ? route.detail : null)
 
+  const applicationList = (id: PageId, stage: Stage, onCrumbs: (c: Crumb[]) => void) => (
+    <ApplicationsPage
+      stage={stage}
+      detailId={detailOf(id)}
+      active={page === id}
+      onOpen={openIn(id)}
+      onBack={backTo(id)}
+      onCrumbsChange={onCrumbs}
+    />
+  )
+
   const pages: Record<PageId, ReactNode> = {
-    applications: (
-      <ApplicationsPage
-        detailId={detailOf('applications')}
-        active={page === 'applications'}
-        onOpen={openApplication}
-        onBack={backTo('applications')}
-        onCrumbsChange={onApplicationCrumbs}
-      />
-    ),
+    interviews: applicationList('interviews', 'interviews', onInterviewCrumbs),
+    offers: applicationList('offers', 'offers', onOfferCrumbs),
+    applications: applicationList('applications', 'all', onApplicationCrumbs),
     jobs: (
       <JobsPage
         detailId={detailOf('jobs')}
@@ -119,7 +142,12 @@ function App() {
         active={page}
         onNavigate={navigate}
         onOpenSettings={() => navigate(settingsTab)}
-        badges={{ jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` } }}
+        badges={{
+          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
+          interviews: { count: stageCounts?.interviews ?? 0, title: 'Applications in the interview stage' },
+          offers: { count: stageCounts?.offers ?? 0, title: 'Applications with an offer' },
+        }}
+        hiddenPages={hiddenPages}
         collapsed={rail === 'collapsed'}
         onToggleCollapsed={() => setRail(rail === 'collapsed' ? 'expanded' : 'collapsed')}
         mobileOpen={menuOpen}

@@ -21,8 +21,9 @@ import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import Confetti from './Confetti.tsx'
+import { OFFER_STATUS } from './useStageCounts.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
-import { type Crumb, pageHref } from '../shell/nav.ts'
+import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStuck } from '../shell/useStuck.ts'
 
@@ -30,38 +31,25 @@ const PAGE_SIZE = 200
 const CV_POLL_MS = 3000
 const SEARCH_MIN_CHARS = 3
 const SEARCH_DEBOUNCE_MS = 300
-const OFFER_STATUS = 'OFFER'
 
-const SUBTABS = [
-  { id: 'pending', label: 'Pending' },
-  { id: 'interviews', label: 'Interviews' },
-  { id: 'offers', label: 'Offers' },
-] as const
-
-type SubTab = (typeof SUBTABS)[number]['id']
+/** Which applications the page lists: all of them, or only those in the interview / offer stage. */
+export type Stage = 'all' | 'interviews' | 'offers'
 
 type Props = {
+  stage: Stage
   /** Id of the application shown in place of the list (from the URL), or null for the list. */
   detailId: string | null
-  /** The Applications page is the one on screen. */
+  /** This page is the one on screen. */
   active: boolean
   onOpen: (id: number) => void
   onBack: () => void
-  /** Breadcrumb entries after "Applications" while a detail is open. */
+  /** Breadcrumb entries after the page name while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
 }
 
-const subTabOf = (application: Application): SubTab =>
-  application.status?.key === OFFER_STATUS
-    ? 'offers'
-    : application.status?.key === INTERVIEW_STATUS
-    ? 'interviews'
-    : 'pending'
-
-export default function ApplicationsPage({ detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
+export default function ApplicationsPage({ stage, detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
-  const [subTab, setSubTab] = useState<SubTab>('pending')
   const [filter, setFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
   // The term actually sent to the API: debounced, and empty until it has enough characters.
@@ -77,12 +65,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     setShownId(openId)
     setSelected(openId == null ? null : (applications?.find((a) => a.id === openId) ?? null))
     setDetailError(null)
-  }
-  // Pending lists every application, so it never needs to switch; the other subtabs follow
-  // the open application's state so Back lands next to it.
-  if (selected && subTab !== 'pending' && subTabOf(selected) !== subTab) {
-    setApplications(null)
-    setSubTab(subTabOf(selected))
   }
   // Company popup; also opens over the application view.
   const [companyId, setCompanyId] = useState<number | null>(null)
@@ -119,9 +101,9 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     const controller = new AbortController()
     applicationsApi
       .list(
-        subTab === 'offers'
+        stage === 'offers'
           ? { limit: PAGE_SIZE, status: OFFER_STATUS, q: search || undefined }
-          : subTab === 'interviews'
+          : stage === 'interviews'
           ? { limit: PAGE_SIZE, status: INTERVIEW_STATUS, q: search || undefined }
           : {
               limit: PAGE_SIZE,
@@ -138,40 +120,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
         if (!controller.signal.aborted) setError(`Could not load applications: ${describeError(e)}`)
       })
     return () => controller.abort()
-  }, [subTab, filter, search, tick])
-
-  // How many applications are in the interview / offer states, unfiltered: a subtab only shows once it has any.
-  const [substatesCounts, setSubstatesCounts] = useState<{ interviews: number; offers: number } | null>(null)
-  // Bumped each time a subtab's count grows; used as the badge key to replay its bounce.
-  const [bumps, setBumps] = useState({ interviews: 0, offers: 0 })
-  useEffect(() => {
-    const controller = new AbortController()
-    const total = (status: string) =>
-      applicationsApi.list({ limit: 1, status }, controller.signal).then((page) => page.total)
-    Promise.all([total(INTERVIEW_STATUS), total(OFFER_STATUS)])
-      .then(([interviews, offers]) => {
-        setSubstatesCounts((prev) => {
-          // A count that grew (not the first load) bounces its badge so the newcomer is noticed.
-          if (prev && (interviews > prev.interviews || offers > prev.offers)) {
-            setBumps((b) => ({
-              interviews: b.interviews + (interviews > prev.interviews ? 1 : 0),
-              offers: b.offers + (offers > prev.offers ? 1 : 0),
-            }))
-          }
-          return { interviews, offers }
-        })
-      })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [tick, active, subTab, applications?.length])
-
-  const visibleTabs = SUBTABS
-      .filter((t) => t.id === 'pending' || (substatesCounts?.[t.id] ?? 0) > 0)
-  // The current subtab emptied out (e.g. its last application moved on): fall back to Pending.
-  if (substatesCounts && subTab !== 'pending' && substatesCounts[subTab] === 0 && !selected) {
-    setApplications(null)
-    setSubTab('pending')
-  }
+  }, [stage, filter, search, tick])
 
   // The open application, refetched on every reload so it stays current wherever it was changed.
   useEffect(() => {
@@ -190,15 +139,13 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
   }, [openId, tick])
 
   const title = selected ? (selected.job.title ?? 'Untitled job') : null
-  const isOffer = selected != null && subTabOf(selected) === 'offers'
   const placeholder = detailOpen && !selected ? (detailError || openId == null ? 'Not found' : 'Loading…') : null
   useEffect(() => {
     const crumbs: Crumb[] = []
-    if (isOffer) crumbs.push({ label: 'Offers', href: pageHref('applications') })
     if (title !== null) crumbs.push({ label: title })
     else if (placeholder) crumbs.push({ label: placeholder })
     onCrumbsChange(crumbs)
-  }, [isOffer, title, placeholder, onCrumbsChange])
+  }, [title, placeholder, onCrumbsChange])
 
   // Applications created or changed elsewhere (e.g. from the job dialog).
   useEffect(() => {
@@ -226,9 +173,9 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
     }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
-    // The current status may have changed; reaching (or leaving) the offer stage moves
-    // the application to the other subtab.
-    reload()
+    // The current status may have changed, which moves the application between the
+    // Interviews / Offers pages and their menu counts.
+    notifyApplicationsChanged()
   }
 
   const removed = (id: number) => {
@@ -275,32 +222,6 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
       {/* The list stays mounted under an open application so its filters and search survive. */}
       <div hidden={detailOpen}>
         <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
-        {visibleTabs.length > 1 && (
-        <nav className="segmented centered" aria-label="Application sections">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={subTab === t.id ? 'tab active' : 'tab'}
-              aria-current={subTab === t.id ? 'page' : undefined}
-              onClick={() => {
-                // Re-clicking the current tab would clear the list without refetching it.
-                if (t.id === subTab) return
-                setApplications(null)
-                setSubTab(t.id)
-              }}
-            >
-              {t.label}
-              {t.id !== 'pending' && substatesCounts && (
-                <span key={bumps[t.id]} className={bumps[t.id] ? 'tab-count bump' : 'tab-count'}>
-                  {substatesCounts[t.id]}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-        )}
-
         <div className="jobs-controls">
           <input
             type="search"
@@ -311,7 +232,7 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
             onChange={(e) => setSearchInput(e.target.value)}
           />
 
-          {subTab === 'pending' && (
+          {stage === 'all' && (
             <select
               className="app-status-filter"
               aria-label="Filter by status"
@@ -337,9 +258,9 @@ export default function ApplicationsPage({ detailId, active, onOpen, onBack, onC
           <p className="muted">
             {search
               ? 'No applications match your search.'
-              : subTab === 'offers'
+              : stage === 'offers'
               ? 'No offers yet.'
-              : subTab === 'interviews'
+              : stage === 'interviews'
               ? 'No interviews yet.'
               : filter
               ? 'No applications with this status.'
