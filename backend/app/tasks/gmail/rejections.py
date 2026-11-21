@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db import init_db, session_factory
@@ -42,7 +42,6 @@ from app.models import (
     GmailMonitorSettings,
     GmailProcessedMail,
     JobParseResult,
-    OpenRouterCall,
 )
 from app.scheduler.common import aware
 from app.services.applications import (
@@ -62,13 +61,12 @@ from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
     OpenRouterService,
-    redact_input,
 )
 
 log = logging.getLogger(__name__)
 
 SOURCE = "tasks.gmail_rejections"
-"""``openrouter_calls.source`` label for calls made by this task."""
+"""``openrouter_usage.source`` label for calls made by this task."""
 
 COMPANY_THRESHOLD = 0.85
 """Minimum company-name similarity (0-1) for an application to be a candidate."""
@@ -252,9 +250,7 @@ def _mail_state(message: GmailMessage) -> dict[str, Any]:
 
 
 def rejection_probability(service: OpenRouterService, message: GmailMessage) -> float:
-    decision = service.decide(
-        state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True
-    )
+    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, source=SOURCE)
     return decision.noul(QUESTION_NAME)
 
 
@@ -267,7 +263,6 @@ def extract_company_and_role(
         system=EXTRACTION_SYSTEM,
         temperature=0,
         source=SOURCE,
-        private=True,
     ).text
     try:
         data = json.loads(_strip_fences(reply))

@@ -129,10 +129,6 @@ def test_health_follows_run_outcomes():
 # --- source_relevance --------------------------------------------------------------------
 
 
-def _call() -> models.OpenRouterCall:
-    return models.OpenRouterCall(source="t", kind="decision", model="m", input={})
-
-
 def test_source_relevance_uses_only_the_latest_profile(db_session):
     a = ensure_source(db_session, "a")
     b = ensure_source(db_session, "b")
@@ -153,7 +149,7 @@ def test_source_relevance_uses_only_the_latest_profile(db_session):
                     job_parse_result=parsed,
                     candidate_profile=profile,
                     match_probability=p,
-                    openrouter_call=_call(),
+                    model="m",
                 )
             )
 

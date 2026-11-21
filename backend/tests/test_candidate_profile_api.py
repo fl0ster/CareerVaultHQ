@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.main import app
-from app.models import CandidateProfile, OpenRouterCall
+from app.models import CandidateProfile, OpenRouterUsage
 from app.services.openrouter import OpenRouterService, get_openrouter
 
 BASE = "/api/candidate-profile"
@@ -78,8 +78,8 @@ def test_latest_generates_profile_lazily(client, db_session):
     assert len(seen) == 1
     prompt = seen[0]["messages"][-1]["content"]
     assert "Acme" in prompt and "Jan 2020" in prompt and "python" in prompt
-    call = db_session.scalars(select(OpenRouterCall)).one()
-    assert call.source == "candidate_profile.create"
+    usage = db_session.scalars(select(OpenRouterUsage)).one()
+    assert usage.source == "candidate_profile.create"
 
 
 def test_latest_reuses_profile_while_work_history_unchanged(client):

@@ -46,7 +46,7 @@ from app.services.openrouter import (
 log = logging.getLogger(__name__)
 
 SOURCE = "tasks.evaluate"
-"""``openrouter_calls.source`` label for calls made by this task."""
+"""``openrouter_usage.source`` label for calls made by this task."""
 
 MAX_PARSE_AGE = timedelta(days=7)
 """Parse results older than this are not evaluated: the listing is probably gone and the
@@ -145,7 +145,7 @@ def evaluate_one(
         job_parse_result_id=parsed.id,
         candidate_profile_id=profile.id,
         match_probability=decision.noul(QUESTION_NAME),
-        openrouter_call_id=decision.call_id,
+        model=decision.model,
     )
 
 

@@ -466,17 +466,13 @@ def test_client_does_not_follow_redirects_off_google():
         client.ping()
 
 
-def test_mail_content_is_not_stored(db_session, openrouter):
-    from app.models import OpenRouterCall
+def test_mail_calls_are_only_counted(db_session, openrouter):
+    """Only aggregate usage is recorded, so no mail content can end up in the database."""
+    from app.models import OpenRouterUsage
 
     _application(db_session, _company(db_session, "Acme"), "Dev", i=1)
-    secret_body = "We will not move forward. Reference code XYZ-123."
+    _run(db_session, FakeClient([_message(body="Reference code XYZ-123.")]), openrouter)
 
-    _run(db_session, FakeClient([_message(body=secret_body)]), openrouter)
-
-    calls = db_session.scalars(select(OpenRouterCall)).all()
-    assert len(calls) == 2
-    for call in calls:
-        assert call.input["redacted"] is True
-        assert "XYZ-123" not in json.dumps(call.input)
-        assert "Your application" not in json.dumps(call.input)
+    usage = db_session.scalars(select(OpenRouterUsage)).all()
+    assert sum(u.calls for u in usage) == 2
+    assert {u.source for u in usage} == {"tasks.gmail_rejections"}

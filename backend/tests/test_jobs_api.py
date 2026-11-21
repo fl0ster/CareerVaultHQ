@@ -7,7 +7,6 @@ from app.models import (
     Job,
     JobEvaluation,
     JobParseResult,
-    OpenRouterCall,
     ScrapeRun,
 )
 from app.services.companies import normalize_company_name
@@ -29,10 +28,6 @@ def seed(db_session, n: int) -> ScrapeRun:
         )
     db_session.commit()
     return run
-
-
-def _call() -> OpenRouterCall:
-    return OpenRouterCall(source="tests", kind=OpenRouterCall.KIND_DECISION, model="m", input={})
 
 
 def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfile]:
@@ -58,7 +53,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
                 job_parse_result_id=parsed.id,
                 candidate_profile_id=old.id,
                 match_probability=0.5,
-                openrouter_call=_call(),
+                model="m",
             )
         )
         if i < n - 1:
@@ -67,7 +62,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
                     job_parse_result_id=parsed.id,
                     candidate_profile_id=new.id,
                     match_probability=i / n,
-                    openrouter_call=_call(),
+                    model="m",
                 )
             )
     db_session.commit()

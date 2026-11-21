@@ -42,7 +42,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
@@ -51,13 +51,13 @@ from app.models import (
     CandidateDetails,
     GeneratedCV,
     JobParseResult,
-    OpenRouterCall,
     WorkHistoryEntry,
 )
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
     OpenRouterService,
+    Usage,
 )
 from app.tasks.cv import prompts
 from app.tasks.cv.history import Role, build_coherent_history
@@ -67,7 +67,7 @@ from app.tasks.latex import compile_latex
 log = logging.getLogger(__name__)
 
 SOURCE = "tasks.cv"
-"""Prefix of the ``openrouter_calls.source`` labels used by this task."""
+"""Prefix of the ``openrouter_usage.source`` labels used by this task."""
 
 TEX_NAME = "cv.tex"
 
@@ -156,24 +156,19 @@ class Llm:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.model = self.settings.cv_chat_model or None
-        self.call_ids: list[int] = []
-        """``openrouter_calls.id`` of every successful call, so the cost can be summed."""
+        self._cost = 0.0
+        self._calls = 0
+        """Cost and count of the successful calls, summed from the returned ``usage``."""
         self._lock = threading.Lock()
 
-    def _record(self, call_id: int) -> None:
+    def _record(self, usage: Usage) -> None:
         with self._lock:
-            self.call_ids.append(call_id)
+            self._cost += usage.cost or 0.0
+            self._calls += 1
 
-    def cost(self, session: Session) -> tuple[float, int]:
+    def cost(self) -> tuple[float, int]:
         """``(total USD cost, number of calls)`` of the calls made so far."""
-        if not self.call_ids:
-            return 0.0, 0
-        total = session.scalar(
-            select(func.coalesce(func.sum(OpenRouterCall.cost), 0.0)).where(
-                OpenRouterCall.id.in_(self.call_ids)
-            )
-        )
-        return float(total or 0.0), len(self.call_ids)
+        return self._cost, self._calls
 
     def run_all(self, calls: Sequence[Callable[[OpenRouterService], T]]) -> list[T]:
         """Run every ``call(service)`` in a thread pool and return the results in order."""
@@ -211,7 +206,7 @@ class Llm:
             except OpenRouterError as exc:
                 log.warning("%s call failed (attempt %d): %s", source, attempt, exc)
                 continue
-            self._record(result.call_id)
+            self._record(result.usage)
             text = (result.text or "").strip()
             if text:
                 return text
@@ -236,7 +231,7 @@ class Llm:
             except OpenRouterError as exc:
                 log.warning("%s call failed (attempt %d): %s", source, attempt, exc)
                 continue
-            self._record(result.call_id)
+            self._record(result.usage)
             return result.answers
         return None
 
@@ -604,7 +599,7 @@ def run_pipeline(
     out_dir.mkdir(parents=True, exist_ok=True)
     tex_path = out_dir / TEX_NAME
     tex_path.write_text(tex, encoding="utf-8")
-    cost, call_count = llm.cost(session)
+    cost, call_count = llm.cost()
 
     def with_original(entries: list[dict], source: list[Role]) -> list[dict]:
         """Pipeline copy of the tailored entries: adds the ``work_history`` id and the

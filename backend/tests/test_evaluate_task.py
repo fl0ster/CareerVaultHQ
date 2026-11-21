@@ -94,11 +94,11 @@ def test_evaluate_pending_jobs_scores_every_unevaluated_job(task_engine, request
             (seeded["parsed_ids"][0], seeded["profile_ids"][0], 0.91),
             (seeded["parsed_ids"][1], seeded["profile_ids"][0], 0.12),
         ]
-        assert all(r.openrouter_call_id is not None for r in rows)
-        calls = session.scalars(select(models.OpenRouterCall)).all()
-        assert all(c.model == "typesafe/jev-1.14" for c in calls)
-        assert {c.source for c in calls} == {"tasks.evaluate"}
-        assert {c.kind for c in calls} == {"decision"}
+        assert all(r.model == "typesafe/jev-1.14" for r in rows)
+        usage = session.scalars(select(models.OpenRouterUsage)).all()
+        assert all(u.model == "typesafe/jev-1.14" for u in usage)
+        assert {u.source for u in usage} == {"tasks.evaluate"}
+        assert {u.kind for u in usage} == {"decision"}
 
 
 def test_evaluate_pending_jobs_skips_evaluated_and_uses_latest_profile(task_engine, requests_seen):
@@ -166,10 +166,10 @@ def test_evaluate_pending_jobs_continues_after_a_failed_call(task_engine, reques
             )
             is None
         )
-        failed_calls = session.scalars(
-            select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")
+        failed = session.scalars(
+            select(models.OpenRouterUsage).where(models.OpenRouterUsage.status == "failed")
         ).all()
-        assert len(failed_calls) == 1
+        assert sum(u.calls for u in failed) == 1
 
 
 def test_evaluate_pending_jobs_is_idempotent_for_a_pair(task_engine, requests_seen):
@@ -220,8 +220,8 @@ def test_evaluate_pending_jobs_discards_duplicate_from_concurrent_run(task_engin
     with session_factory(task_engine)() as session:
         rows = session.scalars(select(models.JobEvaluation)).all()
         assert [(r.job_parse_result_id, r.match_probability) for r in rows] == [(parsed_id, 0.42)]
-        # The OpenRouter call itself is still logged.
-        assert session.scalar(select(models.OpenRouterCall)).status == "ok"
+        # The OpenRouter call itself is still counted.
+        assert session.scalar(select(models.OpenRouterUsage)).status == "ok"
 
 
 def test_evaluate_parse_results_scores_only_given_ids(task_engine, requests_seen):

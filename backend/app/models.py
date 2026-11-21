@@ -308,11 +308,20 @@ class CandidateProfile(Base):
     )
 
 
-class OpenRouterCall(Base):
-    """One request made to OpenRouter through ``app.services.openrouter``. Every call is
-    recorded, including failed ones, so spend and prompts can be audited."""
+class OpenRouterUsage(Base):
+    """Spend on OpenRouter, rolled up per hour and (source, model, kind, status).
 
-    __tablename__ = "openrouter_calls"
+    ``app.services.openrouter`` adds each call into its bucket (``cost += x``,
+    ``calls += 1``) instead of logging it, so the table stays small - bounded by hours
+    times the few distinct keys - and ``/openrouter/cost`` aggregates a handful of rows.
+    Prompts and responses are not stored."""
+
+    __tablename__ = "openrouter_usage"
+    __table_args__ = (
+        UniqueConstraint(
+            "bucket", "source", "model", "kind", "status", name="uq_openrouter_usage_key"
+        ),
+    )
 
     KIND_CHAT = "chat"
     KIND_DECISION = "decision"
@@ -320,26 +329,20 @@ class OpenRouterCall(Base):
     STATUS_FAILED = "failed"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    source: Mapped[str] = mapped_column(String(128), index=True)
-    """Who made the call, e.g. ``api.openrouter.chat`` or ``tasks.parse``."""
-    kind: Mapped[str] = mapped_column(String(16), index=True)
+    bucket: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    """Start of the hour (UTC) the calls were made in."""
+    source: Mapped[str] = mapped_column(String(128))
+    """Who made the calls, e.g. ``api.openrouter.chat`` or ``tasks.parse``."""
+    kind: Mapped[str] = mapped_column(String(16))
     """``chat`` (free text) or ``decision`` (structured JSON)."""
-    model: Mapped[str] = mapped_column(String(128), index=True)
-    status: Mapped[str] = mapped_column(String(16), default=STATUS_OK, index=True)
-    input: Mapped[dict] = mapped_column(JSON)
-    """Request body sent to OpenRouter (messages, response_format, ...)."""
-    output: Mapped[dict | None] = mapped_column(JSON)
-    """Raw response body returned by OpenRouter (``None`` when the request failed)."""
-    cost: Mapped[float | None] = mapped_column(Float)
-    """Cost in USD as reported in ``usage.cost`` by the API."""
-    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
-    completion_tokens: Mapped[int | None] = mapped_column(Integer)
-    total_tokens: Mapped[int | None] = mapped_column(Integer)
-    generation_id: Mapped[str | None] = mapped_column(String(128))
-    """OpenRouter's ``id`` for the completion."""
-    latency_ms: Mapped[int | None] = mapped_column(Integer)
-    error: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    model: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(16))
+    calls: Mapped[int] = mapped_column(Integer, default=0)
+    cost: Mapped[float] = mapped_column(Float, default=0.0)
+    """Summed USD cost as reported in ``usage.cost`` by the API."""
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class JobEvaluation(Base):
@@ -363,15 +366,12 @@ class JobEvaluation(Base):
     )
     match_probability: Mapped[float] = mapped_column(Float, nullable=False)
     """Probability (0-1) that the job is a good match, from the ``noul`` answer."""
-    openrouter_call_id: Mapped[int | None] = mapped_column(
-        ForeignKey("openrouter_calls.id", ondelete="SET NULL"), index=True
-    )
-    """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer, model)."""
+    model: Mapped[str | None] = mapped_column(String(128))
+    """Model that produced the score."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()
     candidate_profile: Mapped[CandidateProfile] = relationship()
-    openrouter_call: Mapped[OpenRouterCall | None] = relationship()
 
 
 class JobDecision(Base):

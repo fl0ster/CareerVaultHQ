@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.config import Settings
 from app.main import app
-from app.models import OpenRouterCall
+from app.models import OpenRouterUsage
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -16,6 +16,11 @@ from app.services.openrouter import (
 )
 
 BASE = "/api/openrouter"
+
+
+def _usage(db_session) -> list[OpenRouterUsage]:
+    db_session.expire_all()
+    return list(db_session.scalars(select(OpenRouterUsage).order_by(OpenRouterUsage.id)))
 
 
 def _completion(content, *, model="test/model", cost=0.0042, gen_id="gen-1"):
@@ -75,7 +80,7 @@ def service_factory(db_session, settings, requests_seen):
 # --- service ---------------------------------------------------------------------------
 
 
-def test_chat_returns_text_and_records_call(service_factory, db_session, requests_seen):
+def test_chat_returns_text_and_records_usage(service_factory, db_session, requests_seen):
     service = service_factory(lambda req: httpx.Response(200, json=_completion("hello there")))
 
     result = service.chat("hi", system="be brief", source="tests.chat", model="foo/bar")
@@ -94,17 +99,27 @@ def test_chat_returns_text_and_records_call(service_factory, db_session, request
         {"role": "user", "content": "hi"},
     ]
 
-    call = db_session.get(OpenRouterCall, result.call_id)
-    assert call.source == "tests.chat"
-    assert call.kind == "chat"
-    assert call.status == "ok"
-    assert call.model == "test/model"  # model as reported by the API
-    assert call.cost == pytest.approx(0.0042)
-    assert call.prompt_tokens == 10 and call.completion_tokens == 5 and call.total_tokens == 15
-    assert call.generation_id == "gen-1"
-    assert call.input["messages"][1]["content"] == "hi"
-    assert call.output["choices"][0]["message"]["content"] == "hello there"
-    assert call.latency_ms is not None
+    [row] = _usage(db_session)
+    assert row.source == "tests.chat"
+    assert row.kind == "chat"
+    assert row.status == "ok"
+    assert row.model == "test/model"  # model as reported by the API
+    assert row.calls == 1
+    assert row.cost == pytest.approx(0.0042)
+    assert row.prompt_tokens == 10 and row.completion_tokens == 5 and row.total_tokens == 15
+    assert row.bucket.minute == 0 and row.bucket.second == 0
+
+
+def test_calls_with_the_same_key_share_one_hourly_row(service_factory, db_session):
+    service = service_factory(lambda req: httpx.Response(200, json=_completion("x")))
+    for _ in range(3):
+        service.chat("hi", source="tests.chat")
+    service.chat("hi", source="tests.other")
+
+    rows = _usage(db_session)
+    assert [(r.source, r.calls) for r in rows] == [("tests.chat", 3), ("tests.other", 1)]
+    assert rows[0].cost == pytest.approx(3 * 0.0042)
+    assert rows[0].total_tokens == 45
 
 
 def test_chat_uses_default_model_from_settings(service_factory, requests_seen, settings):
@@ -155,15 +170,12 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
     }
     assert "messages" not in body and "usage" not in body
 
-    call = db_session.get(OpenRouterCall, result.call_id)
-    assert call.kind == "decision"
-    assert call.status == "ok"
-    assert call.model == "typesafe/jev-1.13-20260917"
-    assert call.cost == pytest.approx(0.001)
-    assert call.prompt_tokens == 120 and call.completion_tokens == 0 and call.total_tokens == 120
-    assert call.generation_id == "gen-dec-1"
-    assert call.input["questions"] == questions
-    assert call.output["answers"]["is_match"]["noul"] == 0.82
+    [row] = _usage(db_session)
+    assert row.kind == "decision"
+    assert row.status == "ok"
+    assert row.model == "typesafe/jev-1.13-20260917"
+    assert row.cost == pytest.approx(0.001)
+    assert row.prompt_tokens == 120 and row.completion_tokens == 0 and row.total_tokens == 120
 
 
 def test_decide_model_override_and_extra(service_factory, requests_seen):
@@ -193,12 +205,10 @@ def test_decide_answer_type_mismatch_and_missing(service_factory):
         result.noul("other")
 
 
-def test_decide_without_answers_marks_call_failed(service_factory, db_session):
+def test_decide_without_answers_raises(service_factory):
     service = service_factory(lambda req: httpx.Response(200, json={"id": "x", "usage": {}}))
     with pytest.raises(OpenRouterError, match="no answers"):
         service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
-    call = db_session.scalars(select(OpenRouterCall)).one()
-    assert call.status == "failed"
 
 
 def test_decide_requires_questions(service_factory):
@@ -214,10 +224,10 @@ def test_http_error_is_recorded(service_factory, db_session):
     with pytest.raises(OpenRouterError, match="402") as exc_info:
         service.chat("hi", source="t")
     assert exc_info.value.status_code == 402
-    call = db_session.scalars(select(OpenRouterCall)).one()
-    assert call.status == "failed"
-    assert "Insufficient credits" in call.error
-    assert call.cost is None
+    [row] = _usage(db_session)
+    assert row.status == "failed"
+    assert row.calls == 1
+    assert row.cost == 0
 
 
 def test_transport_error_is_recorded(service_factory, db_session):
@@ -227,15 +237,15 @@ def test_transport_error_is_recorded(service_factory, db_session):
     service = service_factory(boom)
     with pytest.raises(OpenRouterError, match="no network"):
         service.chat("hi", source="t")
-    call = db_session.scalars(select(OpenRouterCall)).one()
-    assert call.status == "failed"
+    [row] = _usage(db_session)
+    assert row.status == "failed"
 
 
 def test_missing_api_key(db_session):
     service = OpenRouterService(db_session, Settings(openrouter_api_key="", cors_origins=[]))
     with pytest.raises(OpenRouterNotConfigured):
         service.chat("hi", source="t")
-    assert db_session.scalars(select(OpenRouterCall)).first() is None
+    assert _usage(db_session) == []
 
 
 # --- API -------------------------------------------------------------------------------
@@ -268,10 +278,8 @@ def test_post_chat(api, requests_seen):
     assert data["text"] == "api says hi"
     assert data["usage"]["cost"] == pytest.approx(0.0042)
     assert json.loads(requests_seen[0].content)["model"] == "a/b"
-
-    detail = api.get(f"{BASE}/calls/{data['call_id']}").json()
-    assert detail["source"] == "api.openrouter.chat"
-    assert detail["input"]["messages"][0]["content"] == "hello"
+    assert "call_id" not in data
+    assert api.get(f"{BASE}/cost").json()["by_source"][0]["key"] == "api.openrouter.chat"
 
 
 def test_post_chat_requires_prompt_or_messages(api):
@@ -284,7 +292,7 @@ def test_post_chat_with_messages(api, requests_seen):
         json={"messages": [{"role": "user", "content": "x"}], "source": "frontend"},
     )
     assert res.status_code == 200
-    assert api.get(f"{BASE}/calls/{res.json()['call_id']}").json()["source"] == "frontend"
+    assert api.get(f"{BASE}/cost").json()["facets"]["sources"] == ["frontend"]
 
 
 def test_post_decide(api, requests_seen):
@@ -300,7 +308,8 @@ def test_post_decide(api, requests_seen):
     assert data["answers"]["is_match"]["noul"] == pytest.approx(0.7)
     assert data["usage"]["cost"] == pytest.approx(0.001)
     assert requests_seen[0].url.path == "/api/alpha/decisions"
-    assert api.get(f"{BASE}/calls/{data['call_id']}").json()["source"] == "api.openrouter.decide"
+    sources = api.get(f"{BASE}/cost").json()["facets"]["sources"]
+    assert sources == ["api.openrouter.decide"]
 
 
 def test_post_decide_requires_questions(api):
@@ -325,21 +334,8 @@ def test_missing_key_maps_to_503(client, engine):
     assert client.post(f"{BASE}/chat", json={"prompt": "x"}).status_code == 503
 
 
-def test_list_calls_with_filters_and_totals(api):
-    api.post(f"{BASE}/chat", json={"prompt": "1"})
-    api.post(f"{BASE}/chat", json={"prompt": "2", "source": "other"})
-    api.state["handler"] = lambda req: httpx.Response(500, text="boom")
-    api.post(f"{BASE}/chat", json={"prompt": "3"})
-
-    page = api.get(f"{BASE}/calls").json()
-    assert page["total"] == 3
-    assert page["total_cost"] == pytest.approx(0.0084)
-    assert [c["status"] for c in page["items"]] == ["failed", "ok", "ok"]
-
-    assert api.get(f"{BASE}/calls", params={"source": "other"}).json()["total"] == 1
-    assert api.get(f"{BASE}/calls", params={"status": "failed"}).json()["total"] == 1
-    assert api.get(f"{BASE}/calls", params={"kind": "decision"}).json()["total"] == 0
-    assert api.get(f"{BASE}/calls/999").status_code == 404
+def test_call_log_endpoints_are_gone(api):
+    assert api.get(f"{BASE}/calls").status_code in (404, 405)
 
 
 def test_cost_report_series_and_breakdowns(api, db_session):
@@ -350,9 +346,10 @@ def test_cost_report_series_and_breakdowns(api, db_session):
     api.state["handler"] = lambda req: httpx.Response(500, text="boom")
     api.post(f"{BASE}/chat", json={"prompt": "3"})
 
-    # Move the second call two days back so the series spans three daily buckets.
-    calls = db_session.scalars(select(OpenRouterCall).order_by(OpenRouterCall.id)).all()
-    calls[1].created_at = calls[0].created_at.replace(tzinfo=UTC) - timedelta(days=2)
+    # Move the second call's bucket two days back so the series spans three daily buckets.
+    rows = _usage(db_session)
+    assert [r.source for r in rows] == ["api.openrouter.chat", "other", "api.openrouter.chat"]
+    rows[1].bucket = rows[0].bucket.replace(tzinfo=UTC) - timedelta(days=2)
     db_session.commit()
 
     report = api.get(f"{BASE}/cost").json()

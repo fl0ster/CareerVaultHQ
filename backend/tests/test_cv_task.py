@@ -221,8 +221,8 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
         assert pipeline["openrouter_calls"] == 12
         assert pipeline["cost"] == pytest.approx(3 * 0.0001 + 9 * 0.0002)
 
-        # Every call was logged under this task's source labels.
-        sources = {c.source for c in session.scalars(select(models.OpenRouterCall))}
+        # Every call was counted under this task's source labels.
+        sources = {u.source for u in session.scalars(select(models.OpenRouterUsage))}
         assert sources == {
             "tasks.cv.relevance", "tasks.cv.context", "tasks.cv.tech", "tasks.cv.early",
             "tasks.cv.categories", "tasks.cv.summary", "tasks.cv.role", "tasks.cv.core_tech",
@@ -254,9 +254,11 @@ def test_generate_cv_falls_back_and_warns_when_calls_fail(task_engine, requests_
         assert cv.summary == ""
         assert cv.pipeline["main"][1]["context"] == "Built pipelines. Led the app."  # original kept
         failed = session.scalars(
-            select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")
+            select(models.OpenRouterUsage).where(models.OpenRouterUsage.status == "failed")
         ).all()
-        assert len(failed) == 2 * (2 + 1)  # two attempts for each of 2 contexts + 1 summary
+        assert sum(u.calls for u in failed) == 2 * (
+            2 + 1
+        )  # two attempts for each of 2 contexts + 1 summary
 
 
 def test_generate_cv_marks_failure_and_reraises(task_engine):

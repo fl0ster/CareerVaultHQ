@@ -22,7 +22,7 @@ from app.services.openrouter import OpenRouterError, OpenRouterService
 log = logging.getLogger(__name__)
 
 SOURCE = "candidate_profile.create"
-"""``openrouter_calls.source`` label for profile generation."""
+"""``openrouter_usage.source`` label for profile generation."""
 
 PROFILE_SYSTEM_PROMPT = (
     "You are an expert technical recruiter. You write candidate profiles based on the "

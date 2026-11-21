@@ -138,20 +138,19 @@ class EvaluationOut(BaseModel):
     """``match_probability`` mapped onto [-1, 1] around ``settings.relevant_job_threshold``
     (see ``relevance``): 0 at the threshold, positive above it. For display only."""
     model: str | None
-    """Model that produced the score (from the ``openrouter_calls`` row), if still known."""
+    """Model that produced the score, if known."""
     created_at: datetime
 
 
 def _evaluation_out(evaluation: JobEvaluation | None, threshold: float) -> EvaluationOut | None:
     if evaluation is None:
         return None
-    call = evaluation.openrouter_call
     return EvaluationOut(
         id=evaluation.id,
         candidate_profile_id=evaluation.candidate_profile_id,
         match_probability=evaluation.match_probability,
         relevance=relevance(evaluation.match_probability, threshold),
-        model=call.model if call is not None else None,
+        model=evaluation.model,
         created_at=evaluation.created_at,
     )
 
@@ -262,7 +261,6 @@ def _evaluated_query(profile_id: int) -> Select:
         .options(
             joinedload(Job.source),
             joinedload(JobParseResult.company),
-            joinedload(JobEvaluation.openrouter_call),
         )
     )
 
@@ -289,12 +287,8 @@ def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
 
 def _undecided_relevant(threshold: float) -> ColumnElement[bool]:
     """Relevant, not decided on and without an application: the inbox condition."""
-    decided = select(JobDecision.id).where(
-        JobDecision.job_parse_result_id == JobParseResult.id
-    )
-    applied = select(Application.id).where(
-        Application.job_parse_result_id == JobParseResult.id
-    )
+    decided = select(JobDecision.id).where(JobDecision.job_parse_result_id == JobParseResult.id)
+    applied = select(Application.id).where(Application.job_parse_result_id == JobParseResult.id)
     return and_(
         JobEvaluation.match_probability >= threshold,
         not_(decided.exists()),
@@ -328,9 +322,7 @@ def jobs_inbox(
     profile_id = _latest_profile_id(session)
     if profile_id is None:
         return InboxOut(items=[], count=0, candidate_profile_id=None)
-    query = _evaluated_query(profile_id).where(
-        _undecided_relevant(settings.relevant_job_threshold)
-    )
+    query = _evaluated_query(profile_id).where(_undecided_relevant(settings.relevant_job_threshold))
     count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = session.execute(
         query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(
