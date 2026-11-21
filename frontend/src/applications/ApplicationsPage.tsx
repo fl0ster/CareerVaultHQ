@@ -301,6 +301,7 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
                     status={a.status}
                     auto={isAutoEvent(currentEvent(a))}
                     nextRound={nextRoundLabel(a)}
+                    roundTitle={currentEvent(a)?.title}
                     statuses={statuses}
                     onSelect={(key) =>
                       applicationsApi
