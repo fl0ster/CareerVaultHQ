@@ -15,7 +15,9 @@ scored against the current candidate profile.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import ModuleType
 from typing import Any
@@ -29,7 +31,6 @@ from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
 from app.services.companies import CompanyMatch, resolve_company
 from app.tasks.evaluate import evaluate_parse_results
-from app.tasks.scrape.scrape import normalize_title
 from app.tasks.scrape.sources import load_source
 
 log = logging.getLogger(__name__)
@@ -44,6 +45,106 @@ are columns of ``JobParseResult``; ``company`` is resolved to ``company_id``."""
 
 TEXT_FIELDS = tuple(field for field in FIELDS if field != "company")
 """The fields of ``FIELDS`` stored verbatim on ``JobParseResult``."""
+
+
+@dataclass(frozen=True)
+class InterviewStep:
+    """One interview round found in a job description. Maps to a planned
+    ``ApplicationEvent`` (status ``INTERVIEW``, ``planned=True``): ``title`` ->
+    ``ApplicationEvent.title``, ``duration_minutes`` -> ``ApplicationEvent.duration_minutes``;
+    ``number`` gives the round order."""
+
+    number: int
+    title: str
+    duration_minutes: int | None = None
+
+
+_PROCESS_HEADING = re.compile(
+    r"(recruitment|hiring|interview|selection|application)\s+(process|steps|stages|rounds)"
+    r"|how\s+we\s+hire|what\s+to\s+expect|our\s+process"
+    r"|proces\s+rekrutac\w*|etapy\s+rekrutac\w*|przebieg\s+rekrutac\w*|rekrutacja",
+    re.IGNORECASE,
+)
+_STEP_LINE = re.compile(
+    r"^\s*(?:(?:step|stage|round|etap|krok)\s*)?(\d{1,2})\s*[.):\-–—]?\s+(.+?)\s*$",
+    re.IGNORECASE,
+)
+_BULLET_LINE = re.compile(r"^\s*[-*•●▪◦]\s+(.+?)\s*$")
+_ARROW_SPLIT = re.compile(r"\s*(?:->|→|=>|»)\s*")
+_DURATION = re.compile(
+    r"\(?\s*(?:~|ok\.|approx\.?|about)?\s*(\d{1,3})\s*(?:-\s*\d{1,3}\s*)?"
+    r"(min(?:ute)?s?|minut[ay]?|h|hours?|godz\w*)\s*\)?",
+    re.IGNORECASE,
+)
+_MAX_STEPS = 10
+_MAX_TITLE = 128
+
+
+def _clean_step(raw: str) -> tuple[str, int | None]:
+    duration = None
+    match = _DURATION.search(raw)
+    if match:
+        value = int(match.group(1))
+        duration = value * 60 if match.group(2).lower().startswith(("h", "godz")) else value
+        raw = raw[: match.start()] + raw[match.end() :]
+    title = raw.strip(" \t-–—:;,.()*")
+    return title[:_MAX_TITLE], duration
+
+
+def _steps(raws: list[str]) -> list[InterviewStep]:
+    steps = []
+    for raw in raws[:_MAX_STEPS]:
+        title, duration = _clean_step(raw)
+        if title:
+            steps.append(InterviewStep(len(steps) + 1, title, duration))
+    return steps
+
+
+def parse_interview_steps(text: str | None) -> list[InterviewStep]:
+    """Extract the interview rounds described in ``text`` (a job description).
+
+    Looks for a recruitment-process heading and reads the numbered lines, bullet lines or an
+    arrow-separated chain (``HR call -> Tech interview -> Offer``) that follow it; numbered
+    ``Step 1: ...`` lines are accepted anywhere. Returns ``[]`` when no process is described.
+    """
+    if not text:
+        return []
+    lines = text.splitlines()
+
+    # Arrow chains are unambiguous on their own line.
+    for line in lines:
+        parts = [p for p in _ARROW_SPLIT.split(line) if p.strip()]
+        if len(parts) >= 2 and len(line) < 400:
+            if _PROCESS_HEADING.search(text) or len(parts) >= 3:
+                head = _PROCESS_HEADING.search(parts[0])
+                if head:
+                    parts[0] = parts[0][head.end() :]
+                return _steps([p for p in parts if p.strip(" :")])
+
+    starts = [i for i, line in enumerate(lines) if _PROCESS_HEADING.search(line)]
+    for start in starts:
+        numbered: list[str] = []
+        bullets: list[str] = []
+        for line in lines[start + 1 :]:
+            if not line.strip():
+                if numbered or bullets:
+                    break
+                continue
+            if m := _STEP_LINE.match(line):
+                numbered.append(m.group(2))
+            elif (m := _BULLET_LINE.match(line)) and not numbered:
+                bullets.append(m.group(1))
+            else:
+                break
+        if len(numbered) >= 2 or len(bullets) >= 2:
+            return _steps(numbered or bullets)
+
+    explicit = re.findall(
+        r"^\s*(?:step|stage|round|etap)\s*\d{1,2}\s*[.):\-–—]\s*(.+?)\s*$",
+        text,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    return _steps(explicit) if len(explicit) >= 2 else []
 
 
 class JobParseError(RuntimeError):

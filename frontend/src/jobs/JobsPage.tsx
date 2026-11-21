@@ -4,6 +4,7 @@ import '../applications/applications.css'
 import { type EvaluatedJob, type JobDecision, isRelevant, jobsApi } from './api.ts'
 import JobView from './JobView.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
+import AddJobComposer from './AddJobComposer.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import '../companies/tags.css'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
@@ -18,6 +19,11 @@ const PAGE_SIZE = 50
 const POLL_INTERVAL = 30_000
 const SEARCH_MIN_CHARS = 3
 const SEARCH_DEBOUNCE_MS = 300
+/** How often a manually added job's parse / evaluation is checked, in ms. */
+const PROCESSING_POLL_MS = 2_500
+
+/** A manually added job that is not parsed and scored yet. */
+type ProcessingJob = { jobId: number; title: string; company: string; error: string | null }
 
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
@@ -488,12 +494,49 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }
 
+  // Manually added jobs still going through parse -> evaluate, newest first.
+  const [processing, setProcessing] = useState<ProcessingJob[]>([])
+  const processingRef = useRef<ProcessingJob[]>([])
+  useEffect(() => {
+    processingRef.current = processing
+  }, [processing])
+  const hasProcessing = processing.some((p) => !p.error)
+  useEffect(() => {
+    if (!hasProcessing) return
+    const timer = window.setInterval(async () => {
+      for (const item of processingRef.current) {
+        if (item.error) continue
+        try {
+          const status = await jobsApi.manualStatus(item.jobId)
+          if (status.status === 'FAILED') {
+            setProcessing((prev) =>
+              prev.map((p) => (p.jobId === item.jobId ? { ...p, error: status.error ?? 'Parsing failed' } : p)),
+            )
+          } else if (status.status === 'COMPLETED') {
+            const job = await jobsApi.get(item.jobId)
+            if (job.evaluation) {
+              setProcessing((prev) => prev.filter((p) => p.jobId !== item.jobId))
+              poll()
+            }
+          }
+        } catch {
+          /* try again on the next tick */
+        }
+      }
+    }, PROCESSING_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [hasProcessing, poll])
+
   const searching = search !== ''
   const inboxIds = new Set(inbox.map((j) => j.id))
   const ordered = searching ? (results ?? []) : [...inbox, ...feed]
-  useFlip(listRef, ordered.map((j) => j.id).join(','))
+  const orderedIds = new Set(ordered.map((j) => j.id))
+  // Shown in place at the top of the list until the scored row arrives from the API.
+  const shownProcessing = searching ? [] : processing.filter((p) => !orderedIds.has(p.jobId))
+  useFlip(listRef, [...shownProcessing.map((p) => p.jobId), ...ordered.map((j) => j.id)].join(','))
 
-  const empty = profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore
+  const empty =
+    profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore && shownProcessing.length === 0
 
   return (
     <>
@@ -563,6 +606,41 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           </p>
         ) : (
           <ul className="job-list" ref={listRef}>
+            {shownProcessing.map((p) => (
+              <li
+                key={`processing-${p.jobId}`}
+                data-key={String(p.jobId)}
+                className={p.error ? 'job-item processing failed' : 'job-item processing'}
+                aria-busy={!p.error}
+              >
+                <div className="job-row-wrap">
+                  <div className="job-row">
+                    <div className="job-main">
+                      <span className="job-title">{p.title}</span>
+                      <div className="job-meta">
+                        {p.company && <span className="job-company">{p.company}</span>}
+                        <span>manual</span>
+                        <span>{p.error ? 'could not be processed' : 'processing…'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="job-side">
+                    {p.error ? (
+                      <button
+                        type="button"
+                        className="small secondary"
+                        onClick={() => setProcessing((prev) => prev.filter((x) => x.jobId !== p.jobId))}
+                      >
+                        Dismiss
+                      </button>
+                    ) : (
+                      <span className="relevance pending" title="Being parsed and scored" />
+                    )}
+                  </div>
+                </div>
+                {p.error && <p className="error">{p.error}</p>}
+              </li>
+            ))}
             {ordered.map((job, index) => {
               const inInbox = searching ? inboxIds.has(job.id) : index < inbox.length
               return (
@@ -586,6 +664,17 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           {!searching && !hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
         </div>
       </div>
+
+      {active && !detailOpen && (
+        <AddJobComposer
+          onAdded={(status, input) =>
+            setProcessing((prev) => [
+              { jobId: status.job_id, title: input.title.trim(), company: input.company.trim(), error: null },
+              ...prev,
+            ])
+          }
+        />
+      )}
 
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />

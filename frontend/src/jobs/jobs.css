@@ -342,3 +342,175 @@
     justify-content: space-between;
   }
 }
+
+/* Manually added jobs still being parsed / scored: a normal row, greyed out and pulsing */
+.job-item.processing {
+  pointer-events: none;
+
+  .job-row-wrap {
+    opacity: 0.45;
+    filter: grayscale(1);
+    animation: job-processing 1.6s ease-in-out infinite alternate;
+  }
+
+  .relevance.pending {
+    background: var(--surface-2);
+  }
+}
+
+.job-item.processing.failed {
+  pointer-events: auto;
+
+  .job-row-wrap {
+    opacity: 0.7;
+    animation: none;
+  }
+}
+
+@keyframes job-processing {
+  to {
+    opacity: 0.25;
+  }
+}
+
+/* Floating "add job" button that morphs into a Gmail-style compose window */
+.add-job {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background: var(--accent);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition:
+    width 0.32s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    height 0.32s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-radius 0.32s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
+    background-color 0.2s ease;
+}
+
+.add-job.open {
+  width: min(480px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 96px));
+  border-radius: var(--r-lg) var(--r-lg) var(--r-md) var(--r-md);
+  background: var(--surface);
+}
+
+.add-job-fab {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    background: var(--accent-hover);
+  }
+}
+
+.add-job.open .add-job-fab {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.add-job-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--warn-solid);
+  border: 2px solid var(--accent);
+}
+
+.add-job-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 96px));
+  margin: 0;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+
+  input,
+  textarea {
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 16px;
+    color: var(--text-h);
+    font: inherit;
+    outline: none;
+  }
+
+  textarea {
+    flex: 1;
+    resize: none;
+    border-bottom: 0;
+  }
+
+  .error {
+    margin: 0 16px 8px;
+  }
+}
+
+.add-job.open .add-job-panel {
+  opacity: 1;
+  transition: opacity 0.2s ease 0.14s;
+}
+
+.add-job-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+  background: var(--surface-2);
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.add-job-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--hover-tint);
+  }
+}
+
+.add-job-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .add-job,
+  .add-job-panel,
+  .job-item.processing .job-row-wrap {
+    transition: none;
+    animation: none;
+  }
+}

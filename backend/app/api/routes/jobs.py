@@ -26,13 +26,15 @@ application through ``POST /api/applications`` records ``accepted`` by itself).
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+from rq import Queue
 from sqlalchemy import ColumnElement, Select, and_, func, not_, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -44,8 +46,10 @@ from app.models import (
     JobDecision,
     JobEvaluation,
     JobParseResult,
+    PendingJobParseRun,
     ScrapeSource,
 )
+from app.queue import get_queue
 from app.services.applications import set_job_decision
 from app.services.relevance import relevance
 
@@ -254,11 +258,29 @@ def _evaluated(
 
 
 def _evaluated_query(profile_id: int) -> Select:
+    """Every scored job with its *newest* evaluation, whichever profile it was made against.
+
+    A new candidate profile (work history changed) only has scores for the jobs evaluated
+    since, so restricting to it would hide every other job until it is re-scored. Taking
+    the newest evaluation keeps them listed with their previous score; evaluations against
+    ``profile_id`` are always the newest ones where they exist.
+    """
+    del profile_id  # kept for call-site symmetry; the newest evaluation wins
+    newer = aliased(JobEvaluation)
     return (
         select(Job, JobParseResult, JobEvaluation)
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(JobEvaluation, JobEvaluation.job_parse_result_id == JobParseResult.id)
-        .where(JobEvaluation.candidate_profile_id == profile_id)
+        .where(
+            not_(
+                select(newer.id)
+                .where(
+                    newer.job_parse_result_id == JobEvaluation.job_parse_result_id,
+                    newer.id > JobEvaluation.id,
+                )
+                .exists()
+            )
+        )
         .options(
             joinedload(Job.source),
             joinedload(JobParseResult.company),
@@ -289,12 +311,8 @@ def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
 
 def _undecided_relevant(threshold: float) -> ColumnElement[bool]:
     """Relevant, not decided on and without an application: the inbox condition."""
-    decided = select(JobDecision.id).where(
-        JobDecision.job_parse_result_id == JobParseResult.id
-    )
-    applied = select(Application.id).where(
-        Application.job_parse_result_id == JobParseResult.id
-    )
+    decided = select(JobDecision.id).where(JobDecision.job_parse_result_id == JobParseResult.id)
+    applied = select(Application.id).where(Application.job_parse_result_id == JobParseResult.id)
     return and_(
         JobEvaluation.match_probability >= threshold,
         not_(decided.exists()),
@@ -328,9 +346,7 @@ def jobs_inbox(
     profile_id = _latest_profile_id(session)
     if profile_id is None:
         return InboxOut(items=[], count=0, candidate_profile_id=None)
-    query = _evaluated_query(profile_id).where(
-        _undecided_relevant(settings.relevant_job_threshold)
-    )
+    query = _evaluated_query(profile_id).where(_undecided_relevant(settings.relevant_job_threshold))
     count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = session.execute(
         query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(
@@ -389,6 +405,71 @@ def jobs_feed(
         has_more=has_more,
         candidate_profile_id=profile_id,
     )
+
+
+# --- manually added jobs --------------------------------------------------------------
+
+
+class ManualJobIn(BaseModel):
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    company: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] = ""
+    link: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] = ""
+    description: Annotated[str, StringConstraints(strip_whitespace=True, max_length=100_000)] = ""
+
+
+class ManualJobStatus(BaseModel):
+    job_id: int
+    status: str
+    """``NOT_STARTED`` -> ``COMPLETED`` (or ``FAILED``) of the job's parse run."""
+    error: str | None
+
+
+@router.post("/manual", response_model=ManualJobStatus, status_code=status.HTTP_201_CREATED)
+def add_manual_job(
+    payload: ManualJobIn,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> ManualJobStatus:
+    """Store a hand-entered job and enqueue its parse (which then enqueues the evaluation),
+    exactly like a freshly scraped job. Poll ``GET /api/jobs/manual/{job_id}``."""
+    # Imported here: the scrape package imports app.services.sources, which imports the
+    # sources package, so module-level imports would be circular.
+    from app.services.sources import sync_sources
+    from app.tasks.scrape.scrape import enqueue_parse_jobs
+    from app.tasks.scrape.sources import manual
+
+    link = payload.link or f"manual:{uuid.uuid4().hex}"
+    if session.scalar(select(Job.id).where(Job.link == link)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "a job with this link already exists")
+    source = next((s for s in sync_sources(session) if s.key == "manual"), None)
+    if source is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "manual source missing")
+    job = Job(
+        link=link,
+        source=source,
+        html=manual.to_html(payload.title, payload.company, payload.description),
+    )
+    pending = PendingJobParseRun(job=job)
+    session.add_all([job, pending])
+    session.commit()
+    enqueue_parse_jobs(session, [pending], queue)
+    return ManualJobStatus(job_id=job.id, status=pending.status, error=pending.error)
+
+
+@router.get("/manual/{job_id}", response_model=ManualJobStatus)
+def manual_job_status(
+    job_id: int, session: Annotated[Session, Depends(get_session)]
+) -> ManualJobStatus:
+    """Parse status of a job (latest parse run)."""
+    pending = session.scalar(
+        select(PendingJobParseRun)
+        .where(PendingJobParseRun.job_id == job_id)
+        .order_by(PendingJobParseRun.id.desc())
+        .limit(1)
+    )
+    if pending is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")
+    return ManualJobStatus(job_id=job_id, status=pending.status, error=pending.error)
 
 
 class DecisionIn(BaseModel):
@@ -481,15 +562,13 @@ def get_job(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
     job, parsed = row
 
-    evaluation = None
-    profile_id = _latest_profile_id(session)
-    if profile_id is not None:
-        evaluation = session.scalars(
-            select(JobEvaluation).where(
-                JobEvaluation.job_parse_result_id == parsed.id,
-                JobEvaluation.candidate_profile_id == profile_id,
-            )
-        ).first()
+    # Newest score from any profile (see ``_evaluated_query``).
+    evaluation = session.scalars(
+        select(JobEvaluation)
+        .where(JobEvaluation.job_parse_result_id == parsed.id)
+        .order_by(JobEvaluation.id.desc())
+        .limit(1)
+    ).first()
     application_id = _application_ids(session, [parsed.id]).get(parsed.id)
     return EvaluatedJobDetail(
         **_evaluated(

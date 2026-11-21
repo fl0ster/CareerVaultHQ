@@ -67,6 +67,9 @@ def sync_sources(session: Session) -> list[ScrapeSource]:
         row = rows.get(key)
         if row is None:
             row = ScrapeSource(key=key)
+            # Hand-entered jobs (``sources/manual.py``) have nothing to scrape.
+            if key == "manual":
+                row.enabled = False
             session.add(row)
         row.name = info.name
         row.url = info.url
