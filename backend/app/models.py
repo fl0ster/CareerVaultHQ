@@ -25,6 +25,11 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _default_occurred_at(context) -> datetime | None:
+    """``utcnow`` for a recorded state; a planned round stays unscheduled (``NULL``)."""
+    return None if context.get_current_parameters().get("planned") else utcnow()
+
+
 class ScrapeSource(Base):
     """One row per scraper plugin module in ``app.tasks.scrape.sources``; ``key`` is the
     module name. Rows are created and refreshed by ``app.services.sources.sync_sources``
@@ -570,7 +575,8 @@ class Application(Base):
     @property
     def history(self) -> list[ApplicationEvent]:
         """States the application actually went through, oldest first (planned rounds left out)."""
-        return [e for e in self.events if not e.planned]
+        held = [e for e in self.events if not e.planned]
+        return sorted(held, key=_history_key)
 
     @property
     def plan(self) -> list[ApplicationEvent]:
@@ -580,7 +586,21 @@ class Application(Base):
     @property
     def current_event(self) -> ApplicationEvent | None:
         """The latest state change (planned rounds do not count)."""
-        return next((e for e in reversed(self.events) if not e.planned), None)
+        history = self.history
+        return history[-1] if history else None
+
+
+def _history_key(event: ApplicationEvent) -> tuple:
+    """Oldest first, then by id, even for events whose order changed in memory (a held
+    planned round keeps its old position in ``Application.events`` until reloaded)."""
+    occurred = event.occurred_at
+    if occurred is not None and occurred.tzinfo is not None:
+        occurred = occurred.replace(tzinfo=None)
+    return (
+        occurred is None,
+        occurred or datetime.min,
+        event.id or 0,
+    )
 
 
 class ApplicationEvent(Base):
@@ -603,7 +623,9 @@ class ApplicationEvent(Base):
     title: Mapped[str] = mapped_column(String(128), default="")
     """Kind of interview round ("Culture match", "Technical", ...)."""
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
-    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
+    occurred_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=_default_occurred_at
+    )
     """When the state was reached (defaults to when it was recorded; editable). For a planned
     round the optional scheduled time; always set on held events."""
     source: Mapped[str] = mapped_column(String(16), default="manual", server_default="manual")
