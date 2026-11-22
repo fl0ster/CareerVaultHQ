@@ -239,7 +239,7 @@ def test_rescored_job_keeps_its_place_in_the_feed(client, db_session):
 def test_inbox_and_feed_without_profile(client, db_session):
     seed(db_session, 2)
     assert client.get("/api/jobs/inbox").json() == {
-        "items": [], "count": 0, "candidate_profile_id": None,
+        "items": [], "count": 0, "candidate_profile_id": None, "current_profile_ids": [],
     }  # fmt: skip
     assert client.get("/api/jobs/feed").json() == {
         "items": [], "has_more": False, "candidate_profile_id": None,
@@ -346,13 +346,14 @@ def _seed_outdated(db_session) -> tuple[JobParseResult, JobParseResult, Candidat
 
 
 def test_evaluations_of_an_earlier_work_history_are_outdated(client, db_session):
-    _, last, _ = _seed_outdated(db_session)
+    _, last, new = _seed_outdated(db_session)
 
     items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
     outdated = {item["id"]: item["evaluation"]["outdated"] for item in items}
     assert outdated.pop(last.job_id) is True
     assert not any(outdated.values())
     assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is True
+    assert client.get("/api/jobs/inbox").json()["current_profile_ids"] == [new.id]
 
 
 def test_editing_the_work_history_outdates_scores_before_a_new_profile_exists(client, db_session):
@@ -364,6 +365,8 @@ def test_editing_the_work_history_outdates_scores_before_a_new_profile_exists(cl
     items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
     assert items and all(item["evaluation"]["outdated"] for item in items)
     assert client.get(f"/api/jobs/{first.job_id}").json()["evaluation"]["outdated"] is True
+    # Lets the Jobs tab flag rows it loaded before the edit without refetching them.
+    assert client.get("/api/jobs/inbox").json()["current_profile_ids"] == []
 
 
 def _rescore_jobs(fake_queue):

@@ -206,7 +206,7 @@
   .relevance {
     transition: box-shadow 0.15s ease;
   }
-  &:hover:not(:disabled) .relevance,
+  &:hover:not([aria-disabled='true']) .relevance,
   &:focus-visible .relevance {
     box-shadow: 0 0 0 2px var(--border);
   }
@@ -214,7 +214,7 @@
     outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
-  &:disabled {
+  &[aria-disabled='true'] {
     cursor: progress;
   }
   &.failed .relevance {

@@ -12,6 +12,7 @@ from app.models import (
     JobParseResult,
     WorkHistoryEntry,
 )
+from app.services.candidate_profile import _work_history_payload, work_history_id
 from tests.conftest import ensure_source
 
 BASE = "/api/applications"
@@ -450,3 +451,28 @@ def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
     evaluation = seed_evaluation(db_session)
     body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
     assert body["planned_events"] == []
+
+
+def test_application_shows_the_newest_score_and_whether_it_is_outdated(client, db_session):
+    seed_cv_inputs(client, db_session)
+    old = CandidateProfile(content="old", work_history_id="earlier history")
+    evaluation = seed_evaluation(db_session, profile=old)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+
+    score = client.get(f"{BASE}/{app_id}").json()["evaluation"]
+    assert score["id"] == evaluation.id and score["outdated"] is True
+
+    # Re-scored against a profile built from the current work history.
+    current = CandidateProfile(content="new", work_history_id=work_history_id(_work_history_payload(db_session)))
+    rescored = JobEvaluation(
+        job_parse_result_id=evaluation.job_parse_result_id, candidate_profile=current, match_probability=0.2
+    )
+    db_session.add(rescored)
+    db_session.commit()
+
+    (listed,) = client.get(BASE).json()["items"]
+    detail = client.get(f"{BASE}/{app_id}").json()
+    for body in (listed, detail):
+        assert body["evaluation"]["id"] == rescored.id
+        assert body["evaluation"]["outdated"] is False
+        assert body["evaluation"]["relevance"] < 0

@@ -88,6 +88,17 @@ const byIdDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.id - a.id
 /** Section a re-scored job stays in until the next full reload, whatever its new score. */
 type Section = 'inbox' | 'feed'
 
+/** `jobs` with each score's `outdated` flag recomputed against the profiles built from the
+ * current work history (`current`); the same array when nothing changed. */
+function withOutdated(jobs: EvaluatedJob[], current: Set<number>): EvaluatedJob[] {
+  const isStale = (j: EvaluatedJob) => !current.has(j.evaluation.candidate_profile_id)
+  if (jobs.every((j) => isStale(j) === j.evaluation.outdated)) return jobs
+  return jobs.map((j) => {
+    const outdated = isStale(j)
+    return outdated === j.evaluation.outdated ? j : { ...j, evaluation: { ...j.evaluation, outdated } }
+  })
+}
+
 /** The inbox as the server returned it, except that re-scored jobs pinned to a section stay
  * where they were: pinned-to-inbox jobs keep their previous index (with fresh data when the
  * server still lists them), pinned-to-feed jobs are left out. */
@@ -345,9 +356,15 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       // Jobs that left the inbox elsewhere (e.g. an application made on another device)
       // move into the feed with their fresh state; jobs that entered it leave the feed.
       // Jobs re-scored here stay in their section (see placeInbox).
-      const nextInbox = placeInbox(box.items, inboxRef.current, pinnedRef.current)
+      // Rows loaded earlier carry the `outdated` flag of when they were fetched; recompute it
+      // so a work history edit shows on every row without reloading them.
+      const current = new Set(box.current_profile_ids)
+      const nextInbox = withOutdated(placeInbox(box.items, inboxRef.current, pinnedRef.current), current)
       const stillThere = new Set(nextInbox.map((j) => j.id))
-      setFeed((prev) => (prev.some((j) => stillThere.has(j.id)) ? prev.filter((j) => !stillThere.has(j.id)) : prev))
+      setFeed((prev) =>
+        withOutdated(prev.some((j) => stillThere.has(j.id)) ? prev.filter((j) => !stillThere.has(j.id)) : prev, current),
+      )
+      setResults((prev) => (prev ? withOutdated(prev, current) : prev))
       const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
       inboxRef.current = nextInbox
       setInbox(nextInbox)
@@ -379,6 +396,14 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       pollingRef.current = false
     }
   }, [loadMore, mergeFeed, putInFeed, reset])
+
+  // Pages stay mounted: coming back to this tab (e.g. after editing the work history)
+  // checks right away instead of waiting for the next interval.
+  const wasActive = useRef(active)
+  useEffect(() => {
+    if (active && !wasActive.current) poll()
+    wasActive.current = active
+  }, [active, poll])
 
   // First load, then check for newly evaluated jobs periodically and whenever the window
   // regains focus or applications change elsewhere in the app.
