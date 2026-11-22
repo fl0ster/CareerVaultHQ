@@ -106,9 +106,7 @@ def test_get_company_lists_latest_jobs_first(client, db_session):
     assert limited["job_count"] == 3
 
     assert client.get(f"/api/companies/{ids['acme']}").json()["jobs"] == []
-    assert (
-        client.get(f"/api/companies/{ids['acme']}", params={"jobs_limit": 999}).status_code == 422
-    )
+    assert client.get(f"/api/companies/{ids['acme']}", params={"jobs_limit": 999}).status_code == 422
 
 
 def test_get_unknown_company_is_404(client):

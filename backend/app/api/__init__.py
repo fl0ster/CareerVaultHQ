@@ -26,12 +26,8 @@ api_router.include_router(sources.router, prefix="/sources", tags=["sources"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(companies.router, prefix="/companies", tags=["companies"])
 api_router.include_router(work_history.router, prefix="/work-history", tags=["work-history"])
-api_router.include_router(
-    candidate_profile.router, prefix="/candidate-profile", tags=["candidate-profile"]
-)
-api_router.include_router(
-    candidate_details.router, prefix="/candidate-details", tags=["candidate-details"]
-)
+api_router.include_router(candidate_profile.router, prefix="/candidate-profile", tags=["candidate-profile"])
+api_router.include_router(candidate_details.router, prefix="/candidate-details", tags=["candidate-details"])
 api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])
 api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])

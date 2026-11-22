@@ -167,9 +167,7 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
 
 
 def test_decide_model_override_and_extra(service_factory, requests_seen):
-    service = service_factory(
-        lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "noul", "noul": 0.1}}))
-    )
+    service = service_factory(lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "noul", "noul": 0.1}})))
     service.decide(
         state="text",
         questions=NOUL_QUESTIONS,
@@ -183,9 +181,7 @@ def test_decide_model_override_and_extra(service_factory, requests_seen):
 
 
 def test_decide_answer_type_mismatch_and_missing(service_factory):
-    service = service_factory(
-        lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "refusal"}}))
-    )
+    service = service_factory(lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "refusal"}})))
     result = service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
     with pytest.raises(OpenRouterError, match="expected a 'noul' answer"):
         result.noul("is_match")
@@ -208,9 +204,7 @@ def test_decide_requires_questions(service_factory):
 
 
 def test_http_error_is_recorded(service_factory, db_session):
-    service = service_factory(
-        lambda req: httpx.Response(402, json={"error": {"message": "Insufficient credits"}})
-    )
+    service = service_factory(lambda req: httpx.Response(402, json={"error": {"message": "Insufficient credits"}}))
     with pytest.raises(OpenRouterError, match="402") as exc_info:
         service.chat("hi", source="t")
     assert exc_info.value.status_code == 402
@@ -288,9 +282,7 @@ def test_post_chat_with_messages(api, requests_seen):
 
 
 def test_post_decide(api, requests_seen):
-    api.state["handler"] = lambda req: httpx.Response(
-        200, json=_decision({"is_match": {"type": "noul", "noul": 0.7}})
-    )
+    api.state["handler"] = lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "noul", "noul": 0.7}}))
     res = api.post(
         f"{BASE}/decide",
         json={"state": {"job_description": "x"}, "questions": NOUL_QUESTIONS},
@@ -361,9 +353,7 @@ def test_cost_report_series_and_breakdowns(api, db_session):
     assert report["granularity"] == "day"
     assert [b["calls"] for b in report["series"]] == [1, 0, 2]
     assert [b["cost"] for b in report["series"]] == pytest.approx([0.0042, 0.0, 0.0042])
-    assert [b["cumulative_cost"] for b in report["series"]] == pytest.approx(
-        [0.0042, 0.0042, 0.0084]
-    )
+    assert [b["cumulative_cost"] for b in report["series"]] == pytest.approx([0.0042, 0.0042, 0.0084])
     assert report["by_source"][0] == {
         "key": "api.openrouter.chat",
         "cost": pytest.approx(0.0042),

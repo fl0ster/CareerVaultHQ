@@ -179,11 +179,7 @@ def parse_heading_sections(container, heading: str = "h2") -> str:
 
     def render(el) -> str:
         if getattr(el, "name", None) in ("ul", "ol"):
-            return "\n".join(
-                f"- {li.get_text(' ', strip=True)}"
-                for li in el.find_all("li")
-                if li.get_text(strip=True)
-            )
+            return "\n".join(f"- {li.get_text(' ', strip=True)}" for li in el.find_all("li") if li.get_text(strip=True))
         if getattr(el, "name", None) is None:
             return str(el).strip()
         if el.find(["ul", "ol"]):

@@ -51,9 +51,7 @@ def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps):
     return engine
 
 
-def _make_pending(
-    engine, *, source="skillshot", html=HTML, link="https://www.skillshot.pl/jobs/1"
-) -> int:
+def _make_pending(engine, *, source="skillshot", html=HTML, link="https://www.skillshot.pl/jobs/1") -> int:
     with session_factory(engine)() as session:
         job = models.Job(link=link, source=ensure_source(session, source), html=html)
         pending = models.PendingJobParseRun(job=job)
@@ -79,9 +77,7 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
         assert pending.parsed_at is not None
         assert pending.error is None
 
-        parsed = session.scalar(
-            select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id)
-        )
+        parsed = session.scalar(select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id))
         assert parsed.title == "Unity Dev"
         assert parsed.description == "Unity Dev\ndla\nACME\nWe need\nUnity"
         assert parsed.parsed_at is not None
@@ -126,13 +122,9 @@ def test_parse_job_links_typo_to_existing_company(task_engine):
 
     with session_factory(task_engine)() as session:
         assert session.scalar(select(func.count(models.Company.id))) == 2
-        aliases = session.scalars(
-            select(models.CompanyAlias.alias).order_by(models.CompanyAlias.id)
-        ).all()
+        aliases = session.scalars(select(models.CompanyAlias.alias).order_by(models.CompanyAlias.id)).all()
         assert aliases == ["ACME", "Techland", "Techlnad"]
-        parse_results = session.scalars(
-            select(models.JobParseResult).order_by(models.JobParseResult.id)
-        ).all()
+        parse_results = session.scalars(select(models.JobParseResult).order_by(models.JobParseResult.id)).all()
         assert [r.company_id for r in parse_results] == [
             first["company_id"],
             second["company_id"],
@@ -283,9 +275,7 @@ def test_parse_job_unknown_pending_id(task_engine):
 def _parsed(engine, pending_id):
     with session_factory(engine)() as session:
         job_id = session.get(models.PendingJobParseRun, pending_id).job_id
-        return session.scalar(
-            select(models.JobParseResult).where(models.JobParseResult.job_id == job_id)
-        )
+        return session.scalar(select(models.JobParseResult).where(models.JobParseResult.job_id == job_id))
 
 
 def test_parse_job_stores_interview_steps(task_engine, extracted_steps):

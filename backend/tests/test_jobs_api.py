@@ -48,9 +48,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
     for i, job in enumerate(jobs):
         name = f"Company {i}"
         company = Company(name=name, normalized_name=normalize_company_name(name))
-        parsed = JobParseResult(
-            job=job, title=f"Title {i}", company=company, description=f"Desc {i}"
-        )
+        parsed = JobParseResult(job=job, title=f"Title {i}", company=company, description=f"Desc {i}")
         db_session.add(parsed)
         db_session.flush()
         if i < n - 1:
@@ -203,9 +201,7 @@ def test_feed_keyset_pagination_and_polling(client, db_session):
     newest = first["items"][0]["evaluation"]["id"]
     assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
     older = client.get("/api/jobs/feed", params={"after": oldest}).json()["items"]
-    assert [i["evaluation"]["id"] for i in older] == [
-        i["evaluation"]["id"] for i in first["items"][:3]
-    ]
+    assert [i["evaluation"]["id"] for i in older] == [i["evaluation"]["id"] for i in first["items"][:3]]
 
 
 def test_inbox_and_feed_without_profile(client, db_session):

@@ -108,9 +108,7 @@ def test_typo_is_fuzzy_matched_to_existing_company(db_session):
     assert typo.match_kind == "fuzzy"
     assert typo.similarity >= companies.FUZZY_THRESHOLD
     assert typo.created is False
-    alias = db_session.scalar(
-        select(models.CompanyAlias).where(models.CompanyAlias.alias == "Techlnad")
-    )
+    alias = db_session.scalar(select(models.CompanyAlias).where(models.CompanyAlias.alias == "Techlnad"))
     assert alias.company_id == first.company.id
     assert alias.match_kind == "fuzzy"
     assert alias.similarity == typo.similarity

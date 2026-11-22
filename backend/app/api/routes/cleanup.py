@@ -30,9 +30,7 @@ class CleanupResult(BaseModel):
 @router.delete("", response_model=CleanupResult)
 def cleanup(
     session: Annotated[Session, Depends(get_session)],
-    older_than: Annotated[
-        datetime, Query(description="Delete records created before this datetime (ISO 8601)")
-    ],
+    older_than: Annotated[datetime, Query(description="Delete records created before this datetime (ISO 8601)")],
     target: Target = "all",
     dry_run: bool = False,
 ) -> CleanupResult:

@@ -220,9 +220,7 @@ def _application_ids(session: Session, parse_result_ids: list[int]) -> dict[int,
     if not parse_result_ids:
         return {}
     rows = session.execute(
-        select(Application.job_parse_result_id, Application.id).where(
-            Application.job_parse_result_id.in_(parse_result_ids)
-        )
+        select(Application.job_parse_result_id, Application.id).where(Application.job_parse_result_id.in_(parse_result_ids))
     ).all()
     return dict(rows)
 
@@ -349,9 +347,7 @@ def jobs_inbox(
     query = _evaluated_query(profile_id).where(_undecided_relevant(settings.relevant_job_threshold))
     count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = session.execute(
-        query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(
-            INBOX_LIMIT
-        )
+        query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(INBOX_LIMIT)
     ).all()
     return InboxOut(
         items=_items(session, rows, settings.relevant_job_threshold),
@@ -457,15 +453,10 @@ def add_manual_job(
 
 
 @router.get("/manual/{job_id}", response_model=ManualJobStatus)
-def manual_job_status(
-    job_id: int, session: Annotated[Session, Depends(get_session)]
-) -> ManualJobStatus:
+def manual_job_status(job_id: int, session: Annotated[Session, Depends(get_session)]) -> ManualJobStatus:
     """Parse status of a job (latest parse run)."""
     pending = session.scalar(
-        select(PendingJobParseRun)
-        .where(PendingJobParseRun.job_id == job_id)
-        .order_by(PendingJobParseRun.id.desc())
-        .limit(1)
+        select(PendingJobParseRun).where(PendingJobParseRun.job_id == job_id).order_by(PendingJobParseRun.id.desc()).limit(1)
     )
     if pending is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")

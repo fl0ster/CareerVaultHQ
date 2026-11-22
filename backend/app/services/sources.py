@@ -136,9 +136,7 @@ class Relevance:
 def source_relevance(session: Session) -> dict[int, Relevance]:
     """``{scrape_sources.id: Relevance}`` for every source that has at least one job."""
     latest = select(func.max(CandidateProfile.id)).scalar_subquery()
-    counts = dict(
-        session.execute(select(Job.source_id, func.count()).group_by(Job.source_id)).all()
-    )
+    counts = dict(session.execute(select(Job.source_id, func.count()).group_by(Job.source_id)).all())
     evaluated = session.execute(
         select(
             Job.source_id,
@@ -149,8 +147,7 @@ def source_relevance(session: Session) -> dict[int, Relevance]:
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(
             JobEvaluation,
-            (JobEvaluation.job_parse_result_id == JobParseResult.id)
-            & (JobEvaluation.candidate_profile_id == latest),
+            (JobEvaluation.job_parse_result_id == JobParseResult.id) & (JobEvaluation.candidate_profile_id == latest),
         )
         .group_by(Job.source_id)
     ).all()

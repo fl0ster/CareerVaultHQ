@@ -82,9 +82,7 @@ def _find_fuzzy(session: Session, normalized: str, threshold: float) -> tuple[in
     if len(normalized) < FUZZY_MIN_LENGTH:
         return None
     candidates = session.execute(
-        select(Company.id, Company.normalized_name).union_all(
-            select(CompanyAlias.company_id, CompanyAlias.normalized_alias)
-        )
+        select(Company.id, Company.normalized_name).union_all(select(CompanyAlias.company_id, CompanyAlias.normalized_alias))
     ).all()
     best: tuple[int, float] | None = None
     for company_id, candidate in candidates:
@@ -94,9 +92,7 @@ def _find_fuzzy(session: Session, normalized: str, threshold: float) -> tuple[in
     return best
 
 
-def find_company(
-    session: Session, raw_name: str, *, threshold: float = FUZZY_THRESHOLD
-) -> Company | None:
+def find_company(session: Session, raw_name: str, *, threshold: float = FUZZY_THRESHOLD) -> Company | None:
     """Read-only counterpart of ``resolve_company``: the canonical ``Company`` that
     ``raw_name`` refers to (known alias, exact name, then closest fuzzy match), or ``None``.
     Nothing is added to the session."""

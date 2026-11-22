@@ -45,41 +45,26 @@ def cleanup_old_jobs(
 ) -> CleanupSummary:
     if older_than.tzinfo is None:
         older_than = older_than.replace(tzinfo=UTC)
-    threshold = (
-        get_settings().relevant_job_threshold
-        if relevant_job_threshold is None
-        else relevant_job_threshold
-    )
+    threshold = get_settings().relevant_job_threshold if relevant_job_threshold is None else relevant_job_threshold
 
     protected_result_ids = select(GeneratedCV.job_parse_result_id).union(
         select(Application.job_parse_result_id),
-        select(JobEvaluation.job_parse_result_id).where(
-            JobEvaluation.match_probability >= threshold
-        ),
+        select(JobEvaluation.job_parse_result_id).where(JobEvaluation.match_probability >= threshold),
     )
-    protected_job_ids = select(JobParseResult.job_id).where(
-        JobParseResult.id.in_(protected_result_ids)
-    )
-    old_job_ids = (
-        select(Job.id)
-        .join(ScrapeRun, Job.scrape_run_id == ScrapeRun.id)
-        .where(ScrapeRun.started_at < older_than)
-    )
+    protected_job_ids = select(JobParseResult.job_id).where(JobParseResult.id.in_(protected_result_ids))
+    old_job_ids = select(Job.id).join(ScrapeRun, Job.scrape_run_id == ScrapeRun.id).where(ScrapeRun.started_at < older_than)
 
     def _run(model, where) -> int:
         if dry_run:
             return session.scalar(select(func.count()).select_from(model).where(where)) or 0
-        return session.execute(
-            delete(model).where(where).execution_options(synchronize_session=False)
-        ).rowcount
+        return session.execute(delete(model).where(where).execution_options(synchronize_session=False)).rowcount
 
     results_deleted = 0
     jobs_deleted = 0
     if target in ("all", "job_parse_results"):
         results_deleted = _run(
             JobParseResult,
-            (JobParseResult.parsed_at < older_than)
-            & JobParseResult.id.not_in(protected_result_ids),
+            (JobParseResult.parsed_at < older_than) & JobParseResult.id.not_in(protected_result_ids),
         )
     if target in ("all", "jobs"):
         jobs_deleted = _run(Job, Job.id.in_(old_job_ids) & Job.id.not_in(protected_job_ids))

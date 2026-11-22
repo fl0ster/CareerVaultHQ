@@ -27,9 +27,7 @@ from app.tasks.scrape.sources import get_available_sources
 
 router = APIRouter()
 
-JobStatus = Literal[
-    "queued", "started", "deferred", "finished", "failed", "stopped", "scheduled", "canceled"
-]
+JobStatus = Literal["queued", "started", "deferred", "finished", "failed", "stopped", "scheduled", "canceled"]
 
 SCRAPE_TIMEOUT = 600
 

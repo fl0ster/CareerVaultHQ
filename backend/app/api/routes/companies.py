@@ -119,11 +119,7 @@ class CompanyUpdate(BaseModel):
 
 
 def _job_count_subquery():
-    return (
-        select(JobParseResult.company_id, func.count().label("job_count"))
-        .group_by(JobParseResult.company_id)
-        .subquery()
-    )
+    return select(JobParseResult.company_id, func.count().label("job_count")).group_by(JobParseResult.company_id).subquery()
 
 
 def _to_out(company: Company, job_count: int | None) -> CompanyOut:
@@ -135,12 +131,7 @@ def _to_out(company: Company, job_count: int | None) -> CompanyOut:
 
 def _job_count(session: Session, company_id: int) -> int:
     return (
-        session.scalar(
-            select(func.count())
-            .select_from(JobParseResult)
-            .where(JobParseResult.company_id == company_id)
-        )
-        or 0
+        session.scalar(select(func.count()).select_from(JobParseResult).where(JobParseResult.company_id == company_id)) or 0
     )
 
 
@@ -158,17 +149,13 @@ def list_companies(
     count_query = select(func.count()).select_from(Company)
     if q:
         needle = f"%{normalize_company_name(q)}%"
-        matching_alias = select(CompanyAlias.company_id).where(
-            CompanyAlias.normalized_alias.like(needle)
-        )
+        matching_alias = select(CompanyAlias.company_id).where(CompanyAlias.normalized_alias.like(needle))
         condition = Company.normalized_name.like(needle) | Company.id.in_(matching_alias)
         query = query.where(condition)
         count_query = count_query.where(condition)
 
     total = session.scalar(count_query) or 0
-    rows = session.execute(
-        query.order_by(Company.name, Company.id).offset(offset).limit(limit)
-    ).all()
+    rows = session.execute(query.order_by(Company.name, Company.id).offset(offset).limit(limit)).all()
     return CompanyPage(
         items=[_to_out(company, job_count) for company, job_count in rows],
         total=total,

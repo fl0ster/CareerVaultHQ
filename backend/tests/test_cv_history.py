@@ -89,9 +89,7 @@ def test_trimmed_current_role_is_no_longer_present():
 
 
 def test_early_career_split_never_lists_more_than_max_entries():
-    roles = [
-        role(f"R{i}", date(2010 + 2 * i, 1, 1), date(2011 + 2 * i, 12, 1), 0.3) for i in range(7)
-    ]
+    roles = [role(f"R{i}", date(2010 + 2 * i, 1, 1), date(2011 + 2 * i, 12, 1), 0.3) for i in range(7)]
     roles[0].relevance = 0.95  # oldest role, very relevant: still condensed
     history = build_coherent_history(roles, max_entries=3)
     assert [r.employer for r in history.main] == ["R6", "R5", "R4"]

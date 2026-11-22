@@ -61,9 +61,7 @@ def _seed(engine, *, profiles=("Senior Unity developer",), jobs=2) -> dict:
         session.add(acme)
         for i in range(jobs):
             job = models.Job(link=f"https://example.com/jobs/{i}", source=ensure_source(session))
-            parsed = models.JobParseResult(
-                job=job, title=f"Job {i}", company=acme, description=f"Needs Unity {i}"
-            )
+            parsed = models.JobParseResult(job=job, title=f"Job {i}", company=acme, description=f"Needs Unity {i}")
             session.add_all([job, parsed])
             session.flush()
             parsed_ids.append(parsed.id)
@@ -160,15 +158,11 @@ def test_evaluate_pending_jobs_continues_after_a_failed_call(task_engine, reques
     with session_factory(task_engine)() as session:
         assert (
             session.scalar(
-                select(models.JobEvaluation).where(
-                    models.JobEvaluation.job_parse_result_id == seeded["parsed_ids"][1]
-                )
+                select(models.JobEvaluation).where(models.JobEvaluation.job_parse_result_id == seeded["parsed_ids"][1])
             )
             is None
         )
-        failed_calls = session.scalars(
-            select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")
-        ).all()
+        failed_calls = session.scalars(select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")).all()
         assert len(failed_calls) == 1
 
 
@@ -261,9 +255,7 @@ def test_jobs_parsed_over_a_week_ago_are_not_evaluated(task_engine, requests_see
 def test_failed_call_is_recorded_and_retried_only_after_backoff(task_engine, requests_seen):
     seeded = _seed(task_engine, jobs=1)
     parsed_id, profile_id = seeded["parsed_ids"][0], seeded["profile_ids"][0]
-    task_engine.set_handler(
-        lambda req: httpx.Response(502, json={"error": {"message": "provider down"}})
-    )
+    task_engine.set_handler(lambda req: httpx.Response(502, json={"error": {"message": "provider down"}}))
 
     assert evaluate_task.evaluate_pending_jobs()["failed"] == 1
     with session_factory(task_engine)() as session:
@@ -317,9 +309,7 @@ def test_successful_retry_clears_the_failure_row(task_engine, requests_seen):
 def test_pair_is_given_up_after_max_attempts(task_engine, requests_seen, monkeypatch):
     seeded = _seed(task_engine, jobs=1)
     parsed_id, profile_id = seeded["parsed_ids"][0], seeded["profile_ids"][0]
-    monkeypatch.setattr(
-        evaluate_task, "get_settings", lambda: Settings(cors_origins=[], evaluate_max_attempts=2)
-    )
+    monkeypatch.setattr(evaluate_task, "get_settings", lambda: Settings(cors_origins=[], evaluate_max_attempts=2))
     with session_factory(task_engine)() as session:
         session.add(
             models.JobEvaluationFailure(
@@ -373,11 +363,7 @@ def _add_work_history(engine, role="Dev"):
     from datetime import date
 
     with session_factory(engine)() as session:
-        session.add(
-            models.WorkHistoryEntry(
-                date_start=date(2020, 1, 1), employer="Acme", role=role, tech=["python"]
-            )
-        )
+        session.add(models.WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role=role, tech=["python"]))
         session.commit()
 
 
