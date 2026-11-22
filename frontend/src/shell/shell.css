@@ -53,7 +53,7 @@
   margin-bottom: 14px;
 }
 
-/* Profile card: raised above the menu, opens About me. */
+/* Profile card: raised above the menu; its cog opens About me. */
 .profile-card {
   position: relative;
   flex: 1;
@@ -71,33 +71,11 @@
   border: 1px solid var(--border);
   box-shadow: var(--shadow-md);
   color: var(--text);
-  text-decoration: none;
-  cursor: pointer;
   transition:
-    box-shadow var(--t-fast) ease,
     border-color var(--t-fast) ease,
-    transform var(--t-fast) var(--ease-out),
     padding var(--t-med) var(--ease-out),
     min-height var(--t-med) var(--ease-out);
 
-  &:hover {
-    color: var(--text);
-    border-color: var(--accent-border);
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-2px);
-  }
-  &:hover .profile-chevron {
-    background: var(--accent);
-    color: var(--on-accent);
-    transform: translateX(2px);
-  }
-  &:active {
-    transform: translateY(0);
-  }
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--shadow-md), var(--focus-ring);
-  }
   &.active {
     border-color: var(--accent-border);
   }
@@ -137,6 +115,8 @@
   min-width: 0;
   display: grid;
   gap: 3px;
+  /* Clear of the cog in the corner. */
+  padding-right: 26px;
   transition: opacity var(--t-fast) ease;
 }
 
@@ -174,31 +154,15 @@
   min-height: 2.24em;
 }
 
-/* Setup progress: one segment per step, the first always filled. */
-.profile-progress {
-  display: flex;
-  gap: 4px;
-  margin-top: 5px;
-
-  span {
-    flex: 1;
-    height: 5px;
-    border-radius: 999px;
-    background: var(--neutral-bg);
-    transition: background var(--t-med) ease;
-  }
-  span.filled {
-    background: var(--accent);
-  }
-}
-
-/* Round arrow button: makes it plain the card opens something. */
-.profile-chevron {
-  flex: none;
+/* Cog in the top-right corner: the only way into About me from the card. */
+.profile-settings {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: var(--accent-bg);
   color: var(--accent);
@@ -206,7 +170,44 @@
     background var(--t-fast) ease,
     color var(--t-fast) ease,
     transform var(--t-fast) var(--ease-out),
-    opacity var(--t-fast) ease;
+    top var(--t-med) var(--ease-out),
+    right var(--t-med) var(--ease-out),
+    width var(--t-med) var(--ease-out),
+    height var(--t-med) var(--ease-out);
+
+  svg {
+    transition: transform var(--t-med) var(--ease-out);
+  }
+  &:hover,
+  &.active {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  &:hover svg {
+    transform: rotate(45deg);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* Until the personal details are filled out. */
+.profile-alert {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--danger-fg);
+  color: var(--surface);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .sidebar-close {
@@ -428,7 +429,6 @@
 /* Collapsed to an icon rail */
 .shell.rail .sidebar {
   .profile-text,
-  .profile-chevron,
   .nav-label,
   .nav-chevron {
     opacity: 0;
@@ -438,7 +438,28 @@
     min-height: 52px;
     padding: 5px;
     gap: 0;
+  }
+  .profile-text {
     overflow: hidden;
+    padding-right: 0;
+  }
+  /* A small badge over the card's corner. */
+  .profile-settings {
+    top: -5px;
+    right: -5px;
+    width: 22px;
+    height: 22px;
+    box-shadow: 0 0 0 2px var(--sidebar);
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+  .profile-alert {
+    width: 12px;
+    height: 12px;
+    font-size: 8.5px;
   }
   .profile-avatar {
     width: 40px;
@@ -749,7 +770,6 @@
   /* The rail only applies to wide screens. */
   .shell.rail .sidebar {
     .profile-text,
-    .profile-chevron,
     .nav-label,
     .nav-chevron {
       opacity: 1;
@@ -759,6 +779,27 @@
       min-height: 96px;
       padding: 14px 12px;
       gap: 13px;
+    }
+    .profile-text {
+      overflow: visible;
+      padding-right: 26px;
+    }
+    .profile-settings {
+      top: 10px;
+      right: 10px;
+      width: 30px;
+      height: 30px;
+      box-shadow: none;
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+    .profile-alert {
+      width: 15px;
+      height: 15px;
+      font-size: 10.5px;
     }
     .profile-avatar {
       width: 52px;

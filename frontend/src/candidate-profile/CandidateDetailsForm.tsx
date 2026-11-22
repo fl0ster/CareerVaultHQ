@@ -7,7 +7,7 @@ import {
   type EducationEntry,
   type LanguageEntry,
 } from './api.ts'
-import { candidateDetailsStore, candidateDraftStore } from './store.ts'
+import { candidateDetailsStore } from './store.ts'
 
 const DEFAULT_CONSENT =
   'I consent to the processing of my personal data for recruitment purposes in accordance with GDPR (Regulation (EU) 2016/679).'
@@ -99,13 +99,6 @@ export default function CandidateDetailsForm() {
   }, [tick])
 
   const load = () => setTick((t) => t + 1)
-
-  // The menu's setup progress follows the required fields as they are typed.
-  const loaded = details !== undefined
-  useEffect(() => {
-    if (loaded) candidateDraftStore.set({ first_name: draft.first_name, last_name: draft.last_name })
-  }, [loaded, draft.first_name, draft.last_name])
-  useEffect(() => () => candidateDraftStore.set(null), [])
 
   const dirty = details !== undefined && JSON.stringify(draft) !== JSON.stringify(toDraft(details ?? null))
 

@@ -30,20 +30,5 @@ export const REQUIRED_FIELDS = ['first_name', 'last_name'] as const satisfies re
 
 export type RequiredValues = Pick<CandidateDetails, (typeof REQUIRED_FIELDS)[number]>
 
-/**
- * The required fields as currently typed into the About me form (before saving), so the
- * menu's setup progress follows along. `null` while the form is not open.
- */
-export const candidateDraftStore = createStore<RequiredValues | null>(null)
-
 export const isProfileComplete = (d: RequiredValues | null | undefined) =>
   !!d && REQUIRED_FIELDS.every((f) => d[f].trim() !== '')
-
-/**
- * Setup progress in segments: one per required field plus a starting segment that is always
- * filled, so the bar never looks empty.
- */
-export function setupProgress(d: RequiredValues | null | undefined): { filled: number; total: number } {
-  const done = d ? REQUIRED_FIELDS.filter((f) => d[f].trim() !== '').length : 0
-  return { filled: done + 1, total: REQUIRED_FIELDS.length + 1 }
-}

@@ -1,12 +1,6 @@
 import { useEffect } from 'react'
-import { ChevronRight, UserRound } from 'lucide-react'
-import {
-  candidateDetailsStore,
-  candidateDraftStore,
-  isProfileComplete,
-  loadCandidateDetails,
-  setupProgress,
-} from '../candidate-profile/store.ts'
+import { Settings, UserRound } from 'lucide-react'
+import { candidateDetailsStore, isProfileComplete, loadCandidateDetails } from '../candidate-profile/store.ts'
 import { type PageId, PROFILE_PAGE, pageHref } from './nav.ts'
 import { useStore } from './store.ts'
 
@@ -19,12 +13,12 @@ type Props = {
 const initials = (first: string, last: string) => `${first.trim().charAt(0)}${last.trim().charAt(0)}`.toUpperCase()
 
 /**
- * The card at the top of the side menu: the user's picture and name, opening About me.
- * Until the required details are saved it shows how far the setup has got instead.
+ * The card at the top of the side menu: the user's picture and name. The card itself does
+ * nothing; the cog in its corner opens About me, and carries an exclamation mark until the
+ * required details are saved.
  */
 export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
   const details = useStore(candidateDetailsStore)
-  const draft = useStore(candidateDraftStore)
 
   useEffect(() => {
     // A failed load just leaves the card in its setup state; the About me page reports errors.
@@ -33,19 +27,14 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
 
   const complete = isProfileComplete(details)
   const name = complete ? `${details!.first_name.trim()} ${details!.last_name.trim()}` : 'Set up your profile'
-  const progress = setupProgress(draft ?? details)
   const loading = details === undefined
+  const needsSetup = !complete && !loading
+  const settingsLabel = needsSetup ? `${PROFILE_PAGE.label}: personal details missing` : PROFILE_PAGE.label
 
   return (
-    <a
-      href={pageHref(PROFILE_PAGE.id)}
+    <div
       className={`profile-card${active ? ' active' : ''}${loading ? ' loading' : ''}`}
-      aria-current={active ? 'page' : undefined}
-      title={collapsed ? name : `Open ${PROFILE_PAGE.label}`}
-      onClick={(e) => {
-        e.preventDefault()
-        onNavigate(PROFILE_PAGE.id)
-      }}
+      title={collapsed ? name : undefined}
     >
       <span className="profile-avatar" aria-hidden="true">
         {details?.photo ? (
@@ -68,25 +57,25 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
             <span>{loading ? ' ' : name}</span>
           </span>
         )}
-        {!complete && !loading && (
-          <span
-            className="profile-progress"
-            role="progressbar"
-            aria-label="Profile setup"
-            aria-valuemin={0}
-            aria-valuemax={progress.total}
-            aria-valuenow={progress.filled}
-            aria-valuetext={`${progress.filled} of ${progress.total} steps done`}
-          >
-            {Array.from({ length: progress.total }, (_, i) => (
-              <span key={i} className={i < progress.filled ? 'filled' : undefined} />
-            ))}
+      </span>
+      <a
+        href={pageHref(PROFILE_PAGE.id)}
+        className={`profile-settings${active ? ' active' : ''}`}
+        aria-current={active ? 'page' : undefined}
+        aria-label={settingsLabel}
+        title={settingsLabel}
+        onClick={(e) => {
+          e.preventDefault()
+          onNavigate(PROFILE_PAGE.id)
+        }}
+      >
+        <Settings size={16} strokeWidth={2.1} aria-hidden="true" />
+        {needsSetup && (
+          <span className="profile-alert" aria-hidden="true">
+            !
           </span>
         )}
-      </span>
-      <span className="profile-chevron" aria-hidden="true">
-        <ChevronRight size={16} strokeWidth={2.2} />
-      </span>
-    </a>
+      </a>
+    </div>
   )
 }
