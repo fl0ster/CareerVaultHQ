@@ -16,9 +16,10 @@ The Jobs tab uses two views of the same evaluations:
 * ``GET /api/jobs/inbox`` - the *undecided relevant* jobs (score at or above
   ``settings.relevant_job_threshold``, no ``job_decisions`` row and no application), best
   match first. Its ``count`` drives the badge on the tab.
-* ``GET /api/jobs/feed`` - everything else, newest evaluation first, keyset-paginated by
-  evaluation id (``before`` for older pages, ``after`` to poll for newer rows) so pages stay
-  stable while jobs move out of the inbox.
+* ``GET /api/jobs/feed`` - everything else, most recently *first* scored first,
+  keyset-paginated by ``feed_position`` (the id of the job's first evaluation; ``before``
+  for older pages, ``after`` to poll for newly scored jobs) so pages stay stable while jobs
+  move out of the inbox and a re-scored job keeps its place.
 
 ``PUT /api/jobs/{job_id}/decision`` records ``accepted`` / ``rejected`` (creating an
 application through ``POST /api/applications`` records ``accepted`` by itself).
@@ -197,6 +198,10 @@ class EvaluatedJobOut(BaseModel):
     """``applications.id`` when an application was already created for the job."""
     decision: str | None = None
     """``accepted`` / ``rejected`` (``JobDecision``), ``None`` while undecided."""
+    feed_position: int | None = None
+    """Id of the job's *first* evaluation: the feed's sort and keyset key. Unlike the newest
+    evaluation's id it does not change when the job is re-scored, so the job keeps its
+    place. ``None`` only for a job that was never scored."""
 
 
 class EvaluatedJobDetail(EvaluatedJobOut):
@@ -276,6 +281,20 @@ def _evaluated(
     return data
 
 
+def _first_evaluation_id() -> ColumnElement[int]:
+    """Correlated ``min(job_evaluations.id)`` of the ``JobParseResult`` in the outer query."""
+    first = aliased(JobEvaluation)
+    return (
+        select(func.min(first.id))
+        .where(first.job_parse_result_id == JobParseResult.id)
+        .scalar_subquery()
+        .label("feed_position")
+    )
+
+
+FEED_POSITION = _first_evaluation_id()
+
+
 def _evaluated_query(profile_id: int) -> Select:
     """Every scored job with its *newest* evaluation, whichever profile it was made against.
 
@@ -283,11 +302,13 @@ def _evaluated_query(profile_id: int) -> Select:
     since, so restricting to it would hide every other job until it is re-scored. Taking
     the newest evaluation keeps them listed with their previous score; evaluations against
     ``profile_id`` are always the newest ones where they exist.
+
+    Rows are ``(Job, JobParseResult, JobEvaluation, feed_position)``.
     """
     del profile_id  # kept for call-site symmetry; the newest evaluation wins
     newer = aliased(JobEvaluation)
     return (
-        select(Job, JobParseResult, JobEvaluation)
+        select(Job, JobParseResult, JobEvaluation, FEED_POSITION)
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .join(JobEvaluation, JobEvaluation.job_parse_result_id == JobParseResult.id)
         .where(
@@ -309,7 +330,7 @@ def _evaluated_query(profile_id: int) -> Select:
 
 
 def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
-    parse_ids = [parsed.id for _, parsed, _ in rows]
+    parse_ids = [parsed.id for _, parsed, _, _ in rows]
     applications = _application_ids(session, parse_ids)
     decisions = _decisions(session, parse_ids)
     current_ids = current_profile_ids(session)
@@ -324,9 +345,10 @@ def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
                 description=False,
                 application_id=applications.get(parsed.id),
                 decision=decisions.get(parsed.id),
-            )
+            ),
+            feed_position=position,
         )
-        for job, parsed, evaluation in rows
+        for job, parsed, evaluation, position in rows
     ]
 
 
@@ -349,7 +371,7 @@ class InboxOut(BaseModel):
 
 class FeedPage(BaseModel):
     items: list[EvaluatedJobOut]
-    """Newest evaluation first."""
+    """Highest ``feed_position`` (most recently first scored) first."""
     has_more: bool
     """More (older) rows exist before the last item; only meaningful without ``after``."""
     candidate_profile_id: int | None
@@ -388,13 +410,14 @@ def jobs_feed(
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FeedPage:
-    """Every evaluated job not in the inbox, newest evaluation first.
+    """Every evaluated job not in the inbox, most recently first scored first.
 
     ``q`` turns the feed into a search: every evaluated job (inbox included) whose title
     or company name contains it (case-insensitive).
 
-    ``before=<evaluation id>`` returns the next older page; ``after=<evaluation id>``
-    returns rows newer than it (up to ``limit``, still newest first) for polling.
+    ``before=<feed_position>`` returns the next older page; ``after=<feed_position>``
+    returns rows newer than it (up to ``limit``, still newest first) for polling. Re-scoring
+    a job does not change its ``feed_position``, so it neither moves nor shows up as new.
     """
     profile_id = _latest_profile_id(session)
     if profile_id is None:
@@ -413,10 +436,10 @@ def jobs_feed(
     else:
         query = query.where(not_(_undecided_relevant(settings.relevant_job_threshold)))
     if before is not None:
-        query = query.where(JobEvaluation.id < before)
+        query = query.where(FEED_POSITION < before)
     if after is not None:
-        query = query.where(JobEvaluation.id > after)
-    rows = session.execute(query.order_by(JobEvaluation.id.desc()).limit(limit + 1)).all()
+        query = query.where(FEED_POSITION > after)
+    rows = session.execute(query.order_by(FEED_POSITION.desc()).limit(limit + 1)).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
     return FeedPage(
@@ -614,14 +637,14 @@ def get_job(
     404 when the job does not exist or has not been parsed.
     """
     row = session.execute(
-        select(Job, JobParseResult)
+        select(Job, JobParseResult, FEED_POSITION)
         .join(JobParseResult, JobParseResult.job_id == Job.id)
         .where(Job.id == job_id)
         .options(joinedload(JobParseResult.company))
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
-    job, parsed = row
+    job, parsed, position = row
 
     # Newest score from any profile (see ``_evaluated_query``).
     evaluation = session.scalars(
@@ -641,5 +664,6 @@ def get_job(
             description=True,
             application_id=application_id,
             decision=_decisions(session, [parsed.id]).get(parsed.id),
-        )
+        ),
+        feed_position=position,
     )
