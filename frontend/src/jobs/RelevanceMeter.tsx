@@ -1,4 +1,4 @@
-import { type SyntheticEvent, useEffect, useRef, useState } from 'react'
+import { type SyntheticEvent, useEffect, useId, useRef, useState } from 'react'
 import { type EvaluatedJobDetail, jobsApi } from './api.ts'
 import { describeError } from '../cv/api.ts'
 
@@ -6,6 +6,8 @@ import { describeError } from '../cv/api.ts'
 const RESCORE_POLL_MS = 2_500
 /** Give up waiting for a re-score after this long, in ms. */
 const RESCORE_TIMEOUT_MS = 3 * 60_000
+/** Width of the hover popup in px (keep in sync with `.relevance-tip` in jobs.css). */
+const TIP_WIDTH = 240
 
 type Rescore = {
   /** The job the score belongs to (`jobs.id`). */
@@ -41,6 +43,8 @@ async function rescoreJob(jobId: number, signal: AbortSignal): Promise<Evaluated
 export default function RelevanceMeter({ relevance, outdated = false, rescore }: Props) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [align, setAlign] = useState<'start' | 'end'>('start')
+  const tipId = useId()
   const controllerRef = useRef<AbortController | null>(null)
   useEffect(() => () => controllerRef.current?.abort(), [])
 
@@ -85,10 +89,6 @@ export default function RelevanceMeter({ relevance, outdated = false, rescore }:
     }
   }
 
-  const hint = running
-    ? 'Re-scoring against the latest candidate profile…'
-    : `${score}. Scored against an earlier work history: click to re-score.` +
-      (error ? `\nLast attempt failed: ${error}` : '')
   // A span rather than a <button>: the meter can sit inside a clickable row (itself a
   // button, e.g. on the Applications tab), so the click must not reach the row.
   const activate = (e: SyntheticEvent) => {
@@ -96,21 +96,50 @@ export default function RelevanceMeter({ relevance, outdated = false, rescore }:
     e.preventDefault()
     start()
   }
+  // The popup opens towards whichever side of the screen has room for it.
+  const place = (e: SyntheticEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setAlign(rect.left + TIP_WIDTH > window.innerWidth - 16 ? 'end' : 'start')
+  }
+  const triggerClasses = ['relevance-rescore', `tip-${align}`]
+  if (error) triggerClasses.push('failed')
   return (
     <span
       role="button"
       tabIndex={running ? -1 : 0}
-      className={error ? 'relevance-rescore failed' : 'relevance-rescore'}
+      className={triggerClasses.join(' ')}
       onClick={activate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') activate(e)
       }}
+      onMouseEnter={place}
+      onFocus={place}
       aria-disabled={running}
       aria-busy={running}
-      title={hint}
-      aria-label={running ? 'Re-scoring the job' : 'Re-score the job against the latest candidate profile'}
+      aria-describedby={tipId}
+      aria-label={running ? 'Re-evaluating the job' : 'Re-evaluate the job against your updated career'}
     >
       {meter}
+      <span className="relevance-tip" role="tooltip" id={tipId}>
+        {running ? (
+          <>
+            <strong>Re-evaluating…</strong>
+            <span>Scoring this job against your updated career.</span>
+          </>
+        ) : error ? (
+          <>
+            <strong>Re-evaluation failed</strong>
+            <span>{error}</span>
+            <span className="relevance-tip-action">Click to try again</span>
+          </>
+        ) : (
+          <>
+            <strong>Career updated</strong>
+            <span>This score is based on your previous work history.</span>
+            <span className="relevance-tip-action">Click to re-evaluate now</span>
+          </>
+        )}
+      </span>
     </span>
   )
 }
