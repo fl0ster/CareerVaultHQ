@@ -74,12 +74,22 @@ type Props = {
   onBack: () => void
   onOpenCompany: (companyId: number) => void
   onApplicationCreated: (applicationId: number) => void
+  /** The job was re-scored against the latest profile from this view. */
+  onRescored: (job: EvaluatedJobDetail) => void
   /** Reports the job's title once known (for the breadcrumb), or null when it could not be loaded. */
   onTitle: (title: string | null) => void
 }
 
 /** Full details of one evaluated job, shown in place of the list. */
-export default function JobView({ jobId, initial, onBack, onOpenCompany, onApplicationCreated, onTitle }: Props) {
+export default function JobView({
+  jobId,
+  initial,
+  onBack,
+  onOpenCompany,
+  onApplicationCreated,
+  onRescored,
+  onTitle,
+}: Props) {
   const [detail, setDetail] = useState<EvaluatedJobDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [html, setHtml] = useState<string | null>(null)
@@ -168,7 +178,19 @@ export default function JobView({ jobId, initial, onBack, onOpenCompany, onAppli
                 </span>
               )}
               <span>{job.source}</span>
-              {evaluation && <RelevanceMeter relevance={evaluation.relevance} />}
+              {evaluation && (
+                <RelevanceMeter
+                  relevance={evaluation.relevance}
+                  outdated={evaluation.outdated}
+                  rescore={{
+                    jobId: job.id,
+                    onRescored: (fresh) => {
+                      setDetail(fresh)
+                      onRescored(fresh)
+                    },
+                  }}
+                />
+              )}
               <a className="job-posting-link" href={job.link} target="_blank" rel="noreferrer">
                 Job posting <ExternalLink size={12} aria-hidden="true" />
               </a>

@@ -8,6 +8,9 @@ export type JobEvaluation = {
    * threshold, positive above it. For display only. */
   relevance: number
   model: string | null
+  /** Scored against a profile built from an earlier work history; `jobsApi.rescore` scores
+   * it against the latest one. */
+  outdated: boolean
   created_at: string
 }
 
@@ -36,9 +39,12 @@ export type JobInbox = {
   items: EvaluatedJob[]
   count: number
   candidate_profile_id: number | null
+  /** Profiles built from the current work history: a score made against any other one is
+   * outdated. Used to refresh rows loaded before the work history changed. */
+  current_profile_ids: number[]
 }
 
-/** Every other evaluated job, newest evaluation first (keyset-paginated by evaluation id). */
+/** Every other evaluated job, newest job first (keyset-paginated by job id). */
 export type JobFeedPage = {
   items: EvaluatedJob[]
   has_more: boolean
@@ -46,10 +52,11 @@ export type JobFeedPage = {
 }
 
 export type FeedParams = {
-  /** Evaluation id: return older rows. */
+  /** Job id: return older rows. */
   before?: number
-  /** Evaluation id: return newer rows (polling). */
-  after?: number
+  /** Evaluation id (polling): jobs whose newest score is newer than it, oldest score first —
+   * newly scored and re-scored jobs alike, whatever their job id. */
+  scored_after?: number
   limit?: number
   /** Search term: every evaluated job (inbox included) whose title or company contains it. */
   q?: string
@@ -134,10 +141,10 @@ export const jobsApi = {
     return fetch(`${API}?${params}`).then((r) => parse<JobPage>(r))
   },
   inbox: (signal?: AbortSignal) => fetch(`${API}/inbox`, { signal }).then((r) => parse<JobInbox>(r)),
-  feed: ({ before, after, limit, q }: FeedParams, signal?: AbortSignal) => {
+  feed: ({ before, scored_after, limit, q }: FeedParams, signal?: AbortSignal) => {
     const params = new URLSearchParams()
     if (before !== undefined) params.set('before', String(before))
-    if (after !== undefined) params.set('after', String(after))
+    if (scored_after !== undefined) params.set('scored_after', String(scored_after))
     if (limit !== undefined) params.set('limit', String(limit))
     if (q) params.set('q', q)
     return fetch(`${API}/feed?${params}`, { signal }).then((r) => parse<JobFeedPage>(r))
@@ -148,6 +155,10 @@ export const jobsApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decision }),
     }).then((r) => parse<EvaluatedJobDetail>(r)),
-  get: (id: number) => fetch(`${API}/${id}`).then((r) => parse<EvaluatedJobDetail>(r)),
+  get: (id: number, signal?: AbortSignal) => fetch(`${API}/${id}`, { signal }).then((r) => parse<EvaluatedJobDetail>(r)),
+  /** Enqueue scoring the job against the latest profile; poll `get` until it is not outdated.
+   * A 409 (already scored against the latest profile) resolves too: there is nothing to wait for. */
+  rescore: (id: number) =>
+    fetch(`${API}/${id}/rescore`, { method: 'POST' }).then((r) => (r.status === 409 ? undefined : parse<void>(r))),
   raw: (id: number) => fetch(`${API}/raw/${id}`).then((r) => parse<{ html: string | null }>(r)),
 }
