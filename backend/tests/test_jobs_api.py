@@ -145,7 +145,7 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
 
 def test_get_job_lists_detected_technologies(client, db_session):
     seed_evaluated(db_session, 3)
-    parsed = db_session.query(JobParseResult).filter_by(job_id=2).one()
+    parsed = db_session.execute(select(JobParseResult).filter_by(job_id=2)).scalar_one()
     assert client.get("/api/jobs/2").json()["technologies"] == []  # extraction did not run
 
     parsed.technologies = [{"name": "React", "key": "react"}, {"name": "Node.js", "key": "nodejs"}]
