@@ -197,6 +197,78 @@
   margin-bottom: 16px;
 }
 
+/* Job view header: title + key facts on the left, the application pill top right. */
+.job-view-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+
+  h2 {
+    margin: 0;
+  }
+  .job-meta {
+    align-items: center;
+    margin-top: 6px;
+  }
+  .relevance {
+    margin-top: 0;
+  }
+}
+
+.job-main a.job-posting-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.job-apply-pill {
+  flex-shrink: 0;
+
+  .create-application button {
+    border-radius: 999px;
+    padding-inline: 16px;
+  }
+}
+
+.job-application-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--accent);
+  }
+  .badge {
+    font-size: 13px;
+    padding: 3px 12px;
+  }
+}
+
+/* Technologies the description names */
+.job-tech {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.job-tech-pill {
+  font-weight: 500;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  border: 1px solid var(--accent-border);
+}
+
 /* Job and application details: a view inside the layout, reached from the list. */
 .detail-view {
   animation: rise-in var(--t-med) var(--ease-out);

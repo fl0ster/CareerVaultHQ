@@ -143,6 +143,17 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
     assert client.get("/api/jobs/999").status_code == 404
 
 
+def test_get_job_lists_detected_technologies(client, db_session):
+    seed_evaluated(db_session, 3)
+    parsed = db_session.execute(select(JobParseResult).filter_by(job_id=2)).scalar_one()
+    assert client.get("/api/jobs/2").json()["technologies"] == []  # extraction did not run
+
+    parsed.technologies = [{"name": "React", "key": "react"}, {"name": "Node.js", "key": "nodejs"}]
+    db_session.commit()
+    assert client.get("/api/jobs/2").json()["technologies"] == ["React", "Node.js"]
+    assert "technologies" not in client.get("/api/jobs/feed").json()["items"][0]
+
+
 def test_get_job_unparsed_is_404(client, db_session):
     seed(db_session, 1)
     assert client.get("/api/jobs/1").status_code == 404
