@@ -20,7 +20,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from rq import Queue
@@ -169,8 +169,6 @@ async def compile_tex(
     root = _latex_upload_root(settings)
     source = (
         await _store_upload(file, root, settings.latex_max_upload_bytes)
-        if file is not None
-        else _resolve_source(path, root)  # type: ignore[arg-type]
     )
     relative = str(source.relative_to(root))
     out_dir = _latex_jobs_root(settings) / source.parent.name
