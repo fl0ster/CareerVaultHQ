@@ -16,6 +16,8 @@ import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 50
+/** Rows per request while polling for newly scored jobs (the API maximum). */
+const POLL_PAGE_SIZE = 200
 /** How often the tab checks for newly evaluated jobs, in ms. */
 const POLL_INTERVAL = 30_000
 const SEARCH_MIN_CHARS = 3
@@ -245,10 +247,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const profileRef = useRef<number | null | undefined>(undefined)
-  /** Oldest / newest job id the feed endpoint returned (keyset cursors). Rows moved
-   * into the feed locally do not move them, so polling and paging never skip a row. */
+  /** Oldest job id the feed endpoint returned: the paging cursor (the feed is ordered by
+   * job id, so rows never move). Rows moved into the feed locally do not move it. */
   const oldestRef = useRef<number | null>(null)
-  const newestRef = useRef<number | null>(null)
+  /** Newest evaluation id polled so far: the polling cursor. Separate from the paging one
+   * because a job can be scored (or re-scored) long after newer jobs were added. `null`
+   * until the first page is loaded. */
+  const scoredRef = useRef<number | null>(null)
   const inboxRef = useRef<EvaluatedJob[]>([])
   /** Bumped on every local decision; a poll that started before one is discarded. */
   const mutationRef = useRef(0)
@@ -291,10 +296,16 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     })
   }, [])
 
+  /** Merge rows into the feed, replacing existing copies in place (the order is by job id).
+   * Rows older than the loaded pages are left out: they arrive with the page they belong
+   * to, already up to date. */
   const mergeFeed = useCallback((items: EvaluatedJob[]) => {
-    if (items.length === 0) return
-    // A job pinned to the inbox stays there even when the server now lists it in the feed.
-    const fresh = items.filter((j) => pinnedRef.current.get(j.id) !== 'inbox')
+    const oldest = oldestRef.current
+    const fresh = items.filter(
+      (j) =>
+        // A job pinned to the inbox stays there even when the server now lists it in the feed.
+        pinnedRef.current.get(j.id) !== 'inbox' && !(hasMoreRef.current && oldest !== null && j.id < oldest),
+    )
     if (fresh.length === 0) return
     setFeed((prev) => {
       const incoming = new Map(fresh.map((j) => [j.id, j]))
@@ -309,12 +320,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setError(null)
     try {
       const page = await jobsApi.feed({ before: oldestRef.current ?? undefined, limit: PAGE_SIZE })
-      if (page.items.length > 0) {
-        oldestRef.current = page.items[page.items.length - 1].id
-        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].id)
-      } else if (newestRef.current === null) {
-        newestRef.current = 0
+      // Only the first page sets the polling cursor. A later (older) page may hold a newer
+      // score than some update to an already loaded row that has not been polled yet, and
+      // advancing past it would lose that update; polling those rows again is harmless.
+      if (scoredRef.current === null) {
+        scoredRef.current = page.items.reduce((max, j) => Math.max(max, j.evaluation.id), 0)
       }
+      if (page.items.length > 0) oldestRef.current = page.items[page.items.length - 1].id
       hasMoreRef.current = page.has_more
       setHasMore(page.has_more)
       mergeFeed(page.items)
@@ -328,7 +340,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
 
   const reset = useCallback(() => {
     oldestRef.current = null
-    newestRef.current = null
+    scoredRef.current = null
     hasMoreRef.current = true
     pinnedRef.current.clear()
     setHasMore(true)
@@ -380,13 +392,17 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           })
       }
 
-      if (newestRef.current === null) {
+      if (scoredRef.current === null) {
         await loadMore()
       } else {
-        const fresh = await jobsApi.feed({ after: newestRef.current, limit: 200 })
-        if (fresh.items.length > 0) {
-          newestRef.current = Math.max(newestRef.current, fresh.items[0].id)
+        // Every job scored or re-scored since the last poll, oldest score first, page by
+        // page; each lands in its place by job id.
+        for (;;) {
+          const fresh = await jobsApi.feed({ scored_after: scoredRef.current, limit: POLL_PAGE_SIZE })
+          if (fresh.items.length === 0) break
           mergeFeed(fresh.items)
+          scoredRef.current = fresh.items[fresh.items.length - 1].evaluation.id
+          if (!fresh.has_more) break
         }
       }
       setError(null)

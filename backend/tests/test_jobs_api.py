@@ -213,38 +213,76 @@ def test_feed_keyset_pagination_and_polling(client, db_session):
     assert len(second["items"]) == 2 and second["has_more"] is False
     assert all(i["id"] < oldest for i in second["items"])
 
-    newest = first["items"][0]["id"]
-    assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
-    older = client.get("/api/jobs/feed", params={"after": oldest}).json()["items"]
-    assert [i["id"] for i in older] == [i["id"] for i in first["items"][:3]]
+    # Polling by evaluation id: nothing newer than the newest score seen, and paging from
+    # the start (oldest score first) visits every feed row exactly once.
+    shown = first["items"] + second["items"]
+    assert client.get("/api/jobs/feed", params={"scored_after": _max_evaluation_id(shown)}).json()["items"] == []
+    seen, cursor = [], 0
+    while True:
+        page = client.get("/api/jobs/feed", params={"scored_after": cursor, "limit": 4}).json()
+        seen += [i["id"] for i in page["items"]]
+        if not page["has_more"]:
+            break
+        cursor = page["items"][-1]["evaluation"]["id"]
+    assert sorted(seen) == sorted(i["id"] for i in shown)
 
 
-def test_rescored_job_keeps_its_place_in_the_feed(client, db_session):
+def _max_evaluation_id(items) -> int:
+    return max(i["evaluation"]["id"] for i in items)
+
+
+def _score(db_session, job_id: int, profile: CandidateProfile, probability: float = 0.1) -> JobEvaluation:
+    parsed = db_session.query(JobParseResult).filter_by(job_id=job_id).one()
+    evaluation = JobEvaluation(
+        job_parse_result_id=parsed.id,
+        candidate_profile_id=profile.id,
+        match_probability=probability,
+        openrouter_call=_call(),
+    )
+    db_session.add(evaluation)
+    db_session.commit()
+    return evaluation
+
+
+def test_rescored_job_keeps_its_place_and_is_polled_as_an_update(client, db_session):
     seed_evaluated(db_session, 6)
     latest = CandidateProfile(content="latest")
     db_session.add(latest)
     db_session.commit()
     before = client.get("/api/jobs/feed").json()["items"]
-    order = [i["id"] for i in before]
-    newest = before[0]["id"]
+    cursor = _max_evaluation_id(before)
     # Re-score the oldest job in the feed (a newer evaluation than every other one).
     oldest_job = before[-1]
-    parsed = db_session.query(JobParseResult).filter_by(job_id=oldest_job["id"]).one()
-    db_session.add(
-        JobEvaluation(
-            job_parse_result_id=parsed.id,
-            candidate_profile_id=latest.id,
-            match_probability=0.1,
-            openrouter_call=_call(),
-        )
-    )
-    db_session.commit()
+    rescored = _score(db_session, oldest_job["id"], latest)
 
     after = client.get("/api/jobs/feed").json()["items"]
-    assert [i["id"] for i in after] == order
-    assert after[-1]["evaluation"]["id"] > oldest_job["evaluation"]["id"]
-    # Polling for new jobs does not return it either.
-    assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
+    assert [i["id"] for i in after] == [i["id"] for i in before]
+    assert after[-1]["evaluation"]["id"] == rescored.id
+    # Polling returns it with the new score, despite its low job id.
+    (update,) = client.get("/api/jobs/feed", params={"scored_after": cursor}).json()["items"]
+    assert (update["id"], update["evaluation"]["id"]) == (oldest_job["id"], rescored.id)
+
+
+def test_polling_returns_a_job_scored_after_newer_jobs(client, db_session):
+    """A job added early but scored late (a backlog, a retried failure) has a lower id than
+    the jobs already shown; polling must still return it."""
+    seed(db_session, 4)
+    profile = CandidateProfile(content="p")
+    db_session.add(profile)
+    jobs = db_session.query(Job).order_by(Job.id).all()
+    db_session.add_all(JobParseResult(job=job, title=f"Title {job.id}") for job in jobs)
+    db_session.commit()
+    for job in jobs[1:]:
+        _score(db_session, job.id, profile)
+    shown = client.get("/api/jobs/feed").json()["items"]
+    assert [i["id"] for i in shown] == [j.id for j in reversed(jobs[1:])]
+
+    late = _score(db_session, jobs[0].id, profile)  # the lowest job id, scored last
+
+    polled = client.get("/api/jobs/feed", params={"scored_after": _max_evaluation_id(shown)}).json()["items"]
+    assert [(i["id"], i["evaluation"]["id"]) for i in polled] == [(jobs[0].id, late.id)]
+    # In the feed it still sits by job id: last.
+    assert client.get("/api/jobs/feed").json()["items"][-1]["id"] == jobs[0].id
 
 
 def test_inbox_and_feed_without_profile(client, db_session):

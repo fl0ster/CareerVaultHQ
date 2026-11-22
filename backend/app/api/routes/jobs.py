@@ -17,8 +17,10 @@ The Jobs tab uses two views of the same evaluations:
   ``settings.relevant_job_threshold``, no ``job_decisions`` row and no application), best
   match first. Its ``count`` drives the badge on the tab.
 * ``GET /api/jobs/feed`` - everything else, newest job first, keyset-paginated by job id
-  (``before`` for older pages, ``after`` to poll for newer jobs) so pages stay stable while
-  jobs move out of the inbox and a re-scored job keeps its place.
+  (``before``) so pages stay stable while jobs move out of the inbox and a re-scored job
+  keeps its place. Polling uses a separate cursor, the evaluation id (``scored_after``):
+  a job can be scored - or re-scored - long after it was added, so a job-id cursor would
+  miss it.
 
 ``PUT /api/jobs/{job_id}/decision`` records ``accepted`` / ``rejected`` (creating an
 application through ``POST /api/applications`` records ``accepted`` by itself).
@@ -353,9 +355,10 @@ class InboxOut(BaseModel):
 
 class FeedPage(BaseModel):
     items: list[EvaluatedJobOut]
-    """Newest job first."""
+    """Newest job first; with ``scored_after``, oldest evaluation first."""
     has_more: bool
-    """More (older) rows exist before the last item; only meaningful without ``after``."""
+    """More rows exist after the last item: older jobs, or with ``scored_after`` newer
+    evaluations (ask again with the last item's evaluation id)."""
     candidate_profile_id: int | None
 
 
@@ -389,7 +392,7 @@ def jobs_feed(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     before: Annotated[int | None, Query(ge=1)] = None,
-    after: Annotated[int | None, Query(ge=0)] = None,
+    scored_after: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FeedPage:
@@ -398,9 +401,13 @@ def jobs_feed(
     ``q`` turns the feed into a search: every evaluated job (inbox included) whose title
     or company name contains it (case-insensitive).
 
-    ``before=<job id>`` returns the next older page; ``after=<job id>`` returns newer jobs
-    (up to ``limit``, still newest first) for polling. Ordering by job rather than
-    evaluation keeps a re-scored job in place.
+    ``before=<job id>`` returns the next older page. Ordering by job rather than evaluation
+    keeps a re-scored job in place.
+
+    ``scored_after=<evaluation id>`` is for polling: the jobs whose newest evaluation is
+    newer than it - newly scored jobs as well as re-scored ones, whatever their job id -
+    oldest evaluation first, so a client can page through them by passing the last item's
+    evaluation id while ``has_more``.
     """
     profile_id = _latest_profile_id(session)
     if profile_id is None:
@@ -420,9 +427,11 @@ def jobs_feed(
         query = query.where(not_(_undecided_relevant(settings.relevant_job_threshold)))
     if before is not None:
         query = query.where(Job.id < before)
-    if after is not None:
-        query = query.where(Job.id > after)
-    rows = session.execute(query.order_by(Job.id.desc()).limit(limit + 1)).all()
+    if scored_after is not None:
+        query = query.where(JobEvaluation.id > scored_after).order_by(JobEvaluation.id)
+    else:
+        query = query.order_by(Job.id.desc())
+    rows = session.execute(query.limit(limit + 1)).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
     return FeedPage(
