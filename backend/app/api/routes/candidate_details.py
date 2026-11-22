@@ -20,6 +20,10 @@ from app.models import CandidateDetails
 
 router = APIRouter()
 
+MAX_PHOTO_LENGTH = 1_000_000
+"""The browser scales the picture down before saving; this only rejects runaway payloads."""
+PHOTO_PATTERN = r"^(data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*)?$"
+
 
 class EducationEntry(BaseModel):
     degree: str = Field(default="", max_length=256)
@@ -44,6 +48,8 @@ class CandidateDetailsIn(BaseModel):
     github: str = Field(default="", max_length=512)
     linkedin: str = Field(default="", max_length=512)
     location: str = Field(default="", max_length=256)
+    photo: str = Field(default="", max_length=MAX_PHOTO_LENGTH, pattern=PHOTO_PATTERN)
+    """Profile picture as a base64 image ``data:`` URL; blank = none."""
     education: list[EducationEntry] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
     languages: list[LanguageEntry] = Field(default_factory=list)

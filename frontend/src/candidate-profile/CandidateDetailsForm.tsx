@@ -1,4 +1,5 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react'
+import { ImageUp, Trash2, UserRound } from 'lucide-react'
 import {
   type CandidateDetails,
   type CandidateDetailsInput,
@@ -6,6 +7,7 @@ import {
   type EducationEntry,
   type LanguageEntry,
 } from './api.ts'
+import { candidateDetailsStore, candidateDraftStore } from './store.ts'
 
 const DEFAULT_CONSENT =
   'I consent to the processing of my personal data for recruitment purposes in accordance with GDPR (Regulation (EU) 2016/679).'
@@ -25,6 +27,7 @@ function toDraft(details: CandidateDetails | null): Draft {
     github: details?.github ?? '',
     linkedin: details?.linkedin ?? '',
     location: details?.location ?? '',
+    photo: details?.photo ?? '',
     education: details?.education.map((e) => ({ ...EMPTY_EDUCATION, ...e })) ?? [],
     certifications: details?.certifications.join('\n') ?? '',
     languages: details?.languages.map((l) => ({ ...EMPTY_LANGUAGE, ...l })) ?? [],
@@ -39,6 +42,24 @@ function toInput(d: Draft): CandidateDetailsInput {
   }
 }
 
+/** Longest side of the stored picture; the menu shows it at 40px, the form at 96px. */
+const PHOTO_SIZE = 256
+
+/** Reads an image file and returns it centre-cropped to a square and scaled down, as a JPEG data URL. */
+async function toPhoto(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  const side = Math.min(bitmap.width, bitmap.height)
+  const size = Math.min(PHOTO_SIZE, side)
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Your browser cannot process images')
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size)
+  bitmap.close()
+  return canvas.toDataURL('image/jpeg', 0.88)
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString()
 }
@@ -49,12 +70,15 @@ export default function CandidateDetailsForm() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const photoInput = useRef<HTMLInputElement>(null)
   // Bumped by Retry; the details are (re)loaded on every change.
   const [tick, setTick] = useState(0)
 
   const apply = (d: CandidateDetails | null) => {
     setDetails(d)
     setDraft(toDraft(d))
+    candidateDetailsStore.set(d)
   }
 
   useEffect(() => {
@@ -62,8 +86,7 @@ export default function CandidateDetailsForm() {
     candidateDetailsApi.get().then(
       (d) => {
         if (cancelled) return
-        setDetails(d)
-        setDraft(toDraft(d))
+        apply(d)
         setLoadError(null)
       },
       (e) => {
@@ -76,6 +99,13 @@ export default function CandidateDetailsForm() {
   }, [tick])
 
   const load = () => setTick((t) => t + 1)
+
+  // The menu's setup progress follows the required fields as they are typed.
+  const loaded = details !== undefined
+  useEffect(() => {
+    if (loaded) candidateDraftStore.set({ first_name: draft.first_name, last_name: draft.last_name })
+  }, [loaded, draft.first_name, draft.last_name])
+  useEffect(() => () => candidateDraftStore.set(null), [])
 
   const dirty = details !== undefined && JSON.stringify(draft) !== JSON.stringify(toDraft(details ?? null))
 
@@ -92,6 +122,18 @@ export default function CandidateDetailsForm() {
       'languages',
       draft.languages.map((l, i) => (i === index ? { ...l, ...patch } : l)),
     )
+
+  const pickPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPhotoError(null)
+    try {
+      set('photo', await toPhoto(file))
+    } catch {
+      setPhotoError('Could not read that image. Try a PNG, JPEG or WebP file.')
+    }
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -128,6 +170,37 @@ export default function CandidateDetailsForm() {
         Printed on every generated CV.{' '}
         {details ? `Last updated ${formatDate(details.updated_at)}.` : 'Not saved yet.'}
       </p>
+
+      <div className="cd-photo">
+        <span className="cd-photo-preview" aria-hidden="true">
+          {draft.photo ? <img src={draft.photo} alt="" /> : <UserRound size={40} strokeWidth={1.5} />}
+        </span>
+        <div className="cd-photo-body">
+          <span className="cd-photo-label">Profile picture</span>
+          <span className="cd-photo-hint">Shown in the menu. Cropped to a square.</span>
+          <div className="cd-photo-actions">
+            <button type="button" className="secondary small" onClick={() => photoInput.current?.click()}>
+              <ImageUp size={15} strokeWidth={1.9} aria-hidden="true" />
+              {draft.photo ? 'Change picture' : 'Upload picture'}
+            </button>
+            {draft.photo && (
+              <button type="button" className="secondary small danger" onClick={() => set('photo', '')}>
+                <Trash2 size={15} strokeWidth={1.9} aria-hidden="true" />
+                Remove
+              </button>
+            )}
+          </div>
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={pickPhoto}
+            aria-label="Profile picture"
+          />
+          {photoError && <p className="error">{photoError}</p>}
+        </div>
+      </div>
 
       <div className="cd-grid">
         <label>

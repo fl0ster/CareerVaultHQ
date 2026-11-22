@@ -1,9 +1,9 @@
 import {
+  BriefcaseBusiness,
   CalendarClock,
   Coins,
   Trophy,
   FileText,
-  History,
   Inbox,
   type LucideIcon,
   Mail,
@@ -69,41 +69,21 @@ export const SETTINGS_PAGE_IDS: PageId[] = SETTINGS_PAGES.map((i) => i.id)
 
 export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
-/** Menu sections, separated by a line: my profile, then the everyday pages. Settings sits apart at the bottom. */
+/** About me is opened from the profile card at the top of the menu, not from a menu entry. */
+export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me', icon: UserRound, hideHeader: true }
+
+/** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-     [
-      {
-      id: 'candidate-profile',
-      label: 'About me',
-      icon: UserRound,
-      hideHeader: true,
-    },
-         {
-      id: 'work-history',
-      label: 'Career',
-      icon: History,
-      hideHeader: true,
-    }
-  ],
+  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness, hideHeader: true }],
   [
     { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
-      { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
-      {
-      id: 'applications',
-      label: 'Applications',
-      icon: Send,
-      hideHeader: true,
-    },
-      {
-      id: 'jobs',
-      label: 'Jobs',
-      icon: Inbox,
-      hideHeader: true,
-    },
-  ]
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
+    { id: 'applications', label: 'Applications', icon: Send, hideHeader: true },
+    { id: 'jobs', label: 'Jobs', icon: Inbox, hideHeader: true },
+  ],
 ]
 
-const NODES: NavNode[] = [...NAV_SECTIONS.flat(), SETTINGS]
+const NODES: NavNode[] = [PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 

@@ -46,37 +46,167 @@
   scrollbar-width: thin;
 }
 
-.sidebar-brand {
+.sidebar-head {
   display: flex;
   align-items: center;
-  gap: 11px;
-  height: 48px;
-  padding: 0 4px 0 3px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
-.brand-mark {
+/* Profile card: raised above the menu, opens About me. */
+.profile-card {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 96px;
+  padding: 14px 12px 14px 12px;
+  box-sizing: border-box;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--accent-bg) 0%, transparent 60%),
+    var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    box-shadow var(--t-fast) ease,
+    border-color var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out),
+    padding var(--t-med) var(--ease-out),
+    min-height var(--t-med) var(--ease-out);
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--accent-border);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+  }
+  &:hover .profile-chevron {
+    background: var(--accent);
+    color: var(--on-accent);
+    transform: translateX(2px);
+  }
+  &:active {
+    transform: translateY(0);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-md), var(--focus-ring);
+  }
+  &.active {
+    border-color: var(--accent-border);
+  }
+  &.active .profile-avatar {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  }
+}
+
+.profile-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: var(--stage);
-  box-shadow: var(--shadow-sm);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: var(--heading);
+  font-size: 19px;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border);
+  transition:
+    box-shadow var(--t-fast) ease,
+    width var(--t-med) var(--ease-out),
+    height var(--t-med) var(--ease-out);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
-.brand-name {
+.profile-text {
   flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 3px;
+  transition: opacity var(--t-fast) ease;
+}
+
+.profile-hello {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.profile-name {
+  display: grid;
   font-family: var(--heading);
   font-variation-settings: 'SOFT' 100, 'WONK' 1;
   font-size: 19px;
   font-weight: 560;
+  line-height: 1.12;
   letter-spacing: -0.01em;
   color: var(--text-h);
-  white-space: nowrap;
-  transition: opacity var(--t-fast) ease;
+
+  span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Surname in italic for a bit of character. */
+  span + span {
+    font-style: italic;
+    font-weight: 480;
+  }
+}
+
+.profile-card.loading .profile-name {
+  min-height: 2.24em;
+}
+
+/* Setup progress: one segment per step, the first always filled. */
+.profile-progress {
+  display: flex;
+  gap: 4px;
+  margin-top: 5px;
+
+  span {
+    flex: 1;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--neutral-bg);
+    transition: background var(--t-med) ease;
+  }
+  span.filled {
+    background: var(--accent);
+  }
+}
+
+/* Round arrow button: makes it plain the card opens something. */
+.profile-chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  transition:
+    background var(--t-fast) ease,
+    color var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out),
+    opacity var(--t-fast) ease;
 }
 
 .sidebar-close {
@@ -297,11 +427,23 @@
 
 /* Collapsed to an icon rail */
 .shell.rail .sidebar {
-  .brand-name,
+  .profile-text,
+  .profile-chevron,
   .nav-label,
   .nav-chevron {
     opacity: 0;
     pointer-events: none;
+  }
+  .profile-card {
+    min-height: 52px;
+    padding: 5px;
+    gap: 0;
+    overflow: hidden;
+  }
+  .profile-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
   }
   .nav-item {
     padding: 0 14px;
@@ -507,11 +649,22 @@
 
   /* The rail only applies to wide screens. */
   .shell.rail .sidebar {
-    .brand-name,
+    .profile-text,
+    .profile-chevron,
     .nav-label,
     .nav-chevron {
       opacity: 1;
       pointer-events: auto;
+    }
+    .profile-card {
+      min-height: 96px;
+      padding: 14px 12px;
+      gap: 13px;
+    }
+    .profile-avatar {
+      width: 52px;
+      height: 52px;
+      font-size: 19px;
     }
     .nav-sub-item {
       padding: 0 12px;
