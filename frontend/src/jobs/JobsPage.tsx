@@ -149,7 +149,11 @@ function JobRow({
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
           <div className="job-main">
-            <RelevanceMeter relevance={job.evaluation.relevance} />
+            <RelevanceMeter
+              relevance={job.evaluation.relevance}
+              outdated={job.evaluation.outdated}
+              rescore={{ jobId: job.id, onRescored }}
+            />
             <span className="job-title" style={{ marginLeft: '10px' }}>
               {job.title ?? job.link}
             </span>
@@ -173,13 +177,8 @@ function JobRow({
             </div>
           </div>
         </button>
-        <div className="job-side">
-          <RelevanceMeter
-            relevance={job.evaluation.relevance}
-            outdated={job.evaluation.outdated}
-            rescore={{ jobId: job.id, onRescored }}
-          />
-          {inbox && (
+        {inbox && (
+          <div className="job-side">
             <div className="job-decide">
               <button
                 type="button"
