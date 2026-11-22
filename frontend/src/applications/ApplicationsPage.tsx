@@ -232,6 +232,7 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
             onDelete={removed}
             onOpenCompany={setCompanyId}
             onBack={onBack}
+            onRescored={rescored}
           />
         ) : (
           <div className="detail-view detail-status">

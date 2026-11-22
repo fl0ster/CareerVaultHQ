@@ -161,7 +161,22 @@ export default function JobView({
       <div className="detail-card">
         <header className="job-view-head">
           <div className="job-main">
-            <h2 id={`job-${job.id}`}>{title}</h2>
+            <div className="detail-title">
+              {evaluation && (
+                <RelevanceMeter
+                  relevance={evaluation.relevance}
+                  outdated={evaluation.outdated}
+                  rescore={{
+                    jobId: job.id,
+                    onRescored: (fresh) => {
+                      setDetail(fresh)
+                      onRescored(fresh)
+                    },
+                  }}
+                />
+              )}
+              <h2 id={`job-${job.id}`}>{title}</h2>
+            </div>
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
@@ -178,19 +193,6 @@ export default function JobView({
                 </span>
               )}
               <span>{job.source}</span>
-              {evaluation && (
-                <RelevanceMeter
-                  relevance={evaluation.relevance}
-                  outdated={evaluation.outdated}
-                  rescore={{
-                    jobId: job.id,
-                    onRescored: (fresh) => {
-                      setDetail(fresh)
-                      onRescored(fresh)
-                    },
-                  }}
-                />
-              )}
               <a className="job-posting-link" href={job.link} target="_blank" rel="noreferrer">
                 Job posting <ExternalLink size={12} aria-hidden="true" />
               </a>
