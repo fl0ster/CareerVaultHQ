@@ -185,6 +185,9 @@ class EvaluatedJobOut(BaseModel):
 
 class EvaluatedJobDetail(EvaluatedJobOut):
     description: str | None
+    technologies: list[str] = []
+    """Names of the technologies the description names (``JobParseResult.technologies``),
+    in extraction order; ``[]`` when none were detected or extraction did not run."""
     evaluation: EvaluationOut | None
     """``None`` when the job is parsed but not yet scored against the latest profile."""
 
@@ -252,6 +255,7 @@ def _evaluated(
     }
     if description:
         data["description"] = parsed.description
+        data["technologies"] = [t["name"] for t in parsed.technologies or [] if t.get("name")]
     return data
 
 

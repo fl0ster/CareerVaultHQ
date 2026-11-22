@@ -57,6 +57,8 @@ export type FeedParams = {
 
 export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
   description: string | null
+  /** Technologies the description names, as written in it; `[]` when none were detected. */
+  technologies: string[]
   evaluation: JobEvaluation | null
 }
 
