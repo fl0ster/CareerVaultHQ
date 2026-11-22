@@ -363,6 +363,20 @@
   }
 }
 
+/* Detail headers: the relevance meter left of the title, as in the list rows. */
+.detail-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  h2 {
+    margin: 0;
+  }
+  .relevance {
+    margin-top: 0;
+  }
+}
+
 /* Technologies the description names */
 .job-tech {
   display: flex;
