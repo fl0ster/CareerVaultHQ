@@ -18,6 +18,8 @@ dependencies = [
     # Job scraping (HTTP fetch + HTML parsing)
     "httpx>=0.27",
     "beautifulsoup4>=4.12",
+    # CV import: PDF text extraction (pure Python, so it installs on armv7)
+    "pypdf>=5",
 ]
 
 [project.optional-dependencies]

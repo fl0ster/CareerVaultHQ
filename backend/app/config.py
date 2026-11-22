@@ -73,6 +73,19 @@ class Settings(BaseSettings):
     # least this many months.
     cv_min_months: int = 3
 
+    # --- CV import (app.tasks.cv_import) ---
+    # Uploaded CV PDFs wait here for the worker, which deletes them once parsed.
+    cv_import_upload_root: Path = BACKEND_DIR / "static" / "cv_import"
+    # Reject uploads larger than this (bytes).
+    cv_import_max_upload_bytes: int = 10 * 1024 * 1024
+    # Only the first pages / characters of the extracted text are sent to the LLM.
+    cv_import_max_pages: int = 10
+    cv_import_max_chars: int = 60_000
+    # Fewer non-whitespace characters than this means the PDF has no text layer (a scan).
+    cv_import_min_text_chars: int = 200
+    # Chat model that extracts the data; empty = ``openrouter_chat_model``.
+    cv_import_model: str = ""
+
     # --- OpenRouter (LLM calls) ---
     # API key from https://openrouter.ai/keys. Calls fail with 503 when it is empty.
     openrouter_api_key: str = ""
@@ -125,7 +138,9 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator("frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", mode="before")
+    @field_validator(
+        "frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", "cv_import_upload_root", mode="before"
+    )
     @classmethod
     def _resolve_path(cls, value: object) -> object:
         if isinstance(value, str):

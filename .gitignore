@@ -28,6 +28,7 @@ build/
 backend/static/uploads
 backend/static/jobs
 backend/static/cv
+backend/static/cv_import
 
 # Database
 *.db
