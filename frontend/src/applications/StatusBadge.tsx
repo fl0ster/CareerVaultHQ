@@ -24,9 +24,6 @@ type PillProps = {
   title?: string
   /** Replaces the ⋮ picker with this content (e.g. read-only extras); `null` shows nothing. */
   extra?: ReactNode
-  /** Colour classes of the state a click leads to: on hover an arrow in that colour peeks in
-   * over the pill's right edge, on click it fills the pill until the change lands. */
-  previewClass?: string
 }
 
 /**
@@ -34,11 +31,9 @@ type PillProps = {
  * opens a picker with every option. Rendered with spans with button semantics because it may sit inside another
  * button (a list row).
  */
-export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra, previewClass }: PillProps) {
+export function PickerPill({ className, children, options, currentKey, nextKey, onSelect, title, extra }: PillProps) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  // A click on the pill (not the picker) is in flight: the preview fills the pill.
-  const [filling, setFilling] = useState(false)
   const root = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -63,15 +58,13 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
   const main = extra === undefined || extra != null ? 'app-status-main' : 'app-status-main alone'
   const next = nextKey != null ? options.find((o) => o.key === nextKey) : undefined
 
-  const select = async (key: string, fill = false) => {
+  const select = async (key: string) => {
     setOpen(false)
     setBusy(true)
-    setFilling(fill)
     try {
       await onSelect(key)
     } finally {
       setBusy(false)
-      setFilling(false)
     }
   }
 
@@ -100,15 +93,10 @@ export function PickerPill({ className, children, options, currentKey, nextKey, 
         className={`${main}${next ? ' clickable' : ''}`}
         title={title ?? (next ? `Move to ${next.text}` : undefined)}
         {...handler(() => {
-          if (next && !busy) void select(next.key, true)
+          if (next && !busy) void select(next.key)
         })}
       >
         {children}
-        {next && previewClass && (
-          <span className={`app-status-next${filling ? ' filled' : ''}`} aria-hidden="true">
-            <span className={previewClass}>→</span>
-          </span>
-        )}
       </span>
       {extra !== undefined ? (
         extra != null && (
@@ -218,7 +206,6 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
       onSelect={onSelect}
       title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
-      previewClass={nextKey ? `app-status ${nextKey.toLowerCase()}` : undefined}
     >
       {label}
     </PickerPill>

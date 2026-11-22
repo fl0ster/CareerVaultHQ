@@ -1,5 +1,5 @@
 import { Send } from 'lucide-react'
-import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
 import {
@@ -33,63 +33,6 @@ const SEARCH_MIN_CHARS = 3
 const SEARCH_DEBOUNCE_MS = 300
 /** How often a manually added job's parse / evaluation is checked, in ms. */
 const PROCESSING_POLL_MS = 2_500
-
-
-/** Vertical offset currently applied by a running transform animation, in px. */
-function currentTranslateY(el: HTMLElement): number {
-  const transform = getComputedStyle(el).transform
-  if (!transform || transform === 'none') return 0
-  // matrix(a, b, c, d, tx, ty) — ty is the last component.
-  const match = /matrix\(([^)]+)\)/.exec(transform)
-  if (!match) return 0
-  const parts = match[1].split(',')
-  const ty = Number(parts[parts.length - 1])
-  return Number.isFinite(ty) ? ty : 0
-}
-
-/**
- * FLIP animation: whenever the list re-orders, rows glide from their previous
- * position to the new one instead of jumping. `order` is a key that changes
- * when the ordering does.
- *
- * `previous` holds each row's *layout* position (transform excluded) from the
- * last commit. If a row is still mid-glide when the order changes again, its
- * in-flight offset is read first, the old animation is cancelled, and the new
- * glide starts from where the row visually is.
- */
-function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
-  const previous = useRef(new Map<string, number>())
-
-  useLayoutEffect(() => {
-    const list = listRef.current
-    if (!list) return
-    // Hidden behind a job view: nothing to animate, and hidden rows have no position.
-    if (list.offsetParent === null) {
-      previous.current.clear()
-      return
-    }
-    const rows = Array.from(list.children) as HTMLElement[]
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const next = new Map<string, number>()
-    for (const row of rows) {
-      const key = row.dataset.key
-      if (!key) continue
-      const inFlight = currentTranslateY(row)
-      for (const animation of row.getAnimations()) animation.cancel()
-      const top = row.getBoundingClientRect().top
-      next.set(key, top)
-      const before = previous.current.get(key)
-      if (before === undefined || reduce) continue
-      const delta = before + inFlight - top
-      if (Math.abs(delta) < 1) continue
-      row.animate(
-        [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }],
-        { duration: 350, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
-      )
-    }
-    previous.current = next
-  }, [listRef, order])
-}
 
 /** Feed order: newest job first (stable across re-scores). */
 const byIdDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.id - a.id
@@ -246,7 +189,6 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
   const [resultsHasMore, setResultsHasMore] = useState(false)
   const [resultsLoading, setResultsLoading] = useState(false)
   const sentinel = useRef<HTMLDivElement>(null)
-  const listRef = useRef<HTMLUListElement>(null)
 
   // Mirrors of state for async callbacks so they never read stale values.
   const loadingRef = useRef(false)
@@ -634,7 +576,6 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
   const orderedIds = new Set(ordered.map((j) => j.id))
   // Shown in place at the top of the list until the scored row arrives from the API.
   const shownProcessing = searching ? [] : processing.filter((p) => !orderedIds.has(p.jobId))
-  useFlip(listRef, [...shownProcessing.map((p) => p.jobId), ...ordered.map((j) => j.id)].join(','))
 
   const empty =
     profileId !== undefined && inbox.length === 0 && feed.length === 0 && !hasMore && shownProcessing.length === 0
@@ -707,7 +648,7 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
               : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
           </p>
         ) : (
-          <ul className="job-list" ref={listRef}>
+          <ul className="job-list">
             {shownProcessing.map((p) => (
               <li
                 key={`processing-${p.jobId}`}

@@ -377,9 +377,6 @@
     border-color: var(--accent-border);
     background: var(--surface);
   }
-  &:active:not(:disabled) {
-    transform: none;
-  }
   &[aria-expanded='true'] {
     border-color: var(--accent-border);
     box-shadow: var(--focus-ring);
