@@ -13,6 +13,7 @@ import {
 } from './api.ts'
 import { isTerminal } from '../tools/api.ts'
 import { notifyApplicationsChanged } from '../applications/api.ts'
+import { createStore, useStore } from '../shell/store.ts'
 import './gmail.css'
 
 function when(iso: string | null): string {
@@ -296,9 +297,14 @@ function Activity({ mails }: { mails: ProcessedMail[] }) {
   )
 }
 
+/** The last started check, kept outside the page so leaving it and coming back still shows
+ * a running check (and follows it to the end). */
+const monitorJobStore = createStore<MonitorJob | null>(null)
+
 /** Follows a check job (polling once a second) until it reaches a terminal state. */
 function useMonitorJob(onFinished: () => void) {
-  const [job, setJob] = useState<MonitorJob | null>(null)
+  const job = useStore(monitorJobStore)
+  const setJob = monitorJobStore.set
   const jobId = job?.job_id
   const done = job ? isTerminal(job.status) : false
 
@@ -310,7 +316,7 @@ function useMonitorJob(onFinished: () => void) {
       try {
         const info = await gmailMonitorApi.job(jobId)
         if (cancelled) return
-        setJob(info)
+        monitorJobStore.set(info)
         if (isTerminal(info.status)) onFinished()
         else timer = window.setTimeout(poll, 1000)
       } catch {

@@ -11,6 +11,7 @@ from app.api.routes import (
     health,
     jobs,
     latex,
+    nav,
     openrouter,
     queue_status,
     scrape,
@@ -34,3 +35,4 @@ api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
 api_router.include_router(cleanup.router, prefix="/cleanup", tags=["cleanup"])
 api_router.include_router(applications.router, prefix="/applications", tags=["applications"])
 api_router.include_router(gmail_monitor.router, prefix="/gmail-monitor", tags=["gmail-monitor"])
+api_router.include_router(nav.router, prefix="/nav", tags=["nav"])

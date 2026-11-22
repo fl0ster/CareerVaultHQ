@@ -70,12 +70,8 @@ function CvRow({ cv, onDelete, onOpen, deleting }: RowProps) {
   )
 }
 
-type Props = {
-  /** The Generated CVs page is the one on screen; the list is reloaded each time it becomes so. */
-  active: boolean
-}
 
-export default function GeneratedCvPage({ active }: Props) {
+export default function GeneratedCvPage() {
   const [cvs, setCvs] = useState<GeneratedCv[]>([])
   const [total, setTotal] = useState<number | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -88,19 +84,12 @@ export default function GeneratedCvPage({ active }: Props) {
   const [search, setSearch] = useState('')
   // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(toolbarRef, active)
-  // Bumped on activating the page and by the poll timer; the first page is re-fetched on every change.
+  const stuck = useStuck(toolbarRef, true)
+  // Bumped by the poll timer and after changes; the first page is re-fetched on every change.
   // ``loadedFor`` is the tick whose page was last received, so ``loading`` needs no state.
   const [tick, setTick] = useState(0)
   const [loadedFor, setLoadedFor] = useState(-1)
   const loading = loadedFor !== tick || loadingMore
-
-  // Reload whenever the page becomes the one on screen (the first load happens on mount).
-  const wasActive = useRef(active)
-  useEffect(() => {
-    if (active && !wasActive.current) setTick((t) => t + 1)
-    wasActive.current = active
-  }, [active])
 
   useEffect(() => {
     const term = searchInput.trim()

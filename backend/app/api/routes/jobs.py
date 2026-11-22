@@ -365,6 +365,18 @@ class FeedPage(BaseModel):
 INBOX_LIMIT = 500
 
 
+def _count(session: Session, query: Select) -> int:
+    return session.scalar(select(func.count()).select_from(query.subquery())) or 0
+
+
+def inbox_count(session: Session, threshold: float) -> int:
+    """How many jobs the inbox holds (its ``count``), without loading them."""
+    profile_id = _latest_profile_id(session)
+    if profile_id is None:
+        return 0
+    return _count(session, _evaluated_query(profile_id).where(_undecided_relevant(threshold)))
+
+
 @router.get("/inbox", response_model=InboxOut)
 def jobs_inbox(
     session: Annotated[Session, Depends(get_session)],
@@ -375,7 +387,7 @@ def jobs_inbox(
     if profile_id is None:
         return InboxOut(items=[], count=0, candidate_profile_id=None)
     query = _evaluated_query(profile_id).where(_undecided_relevant(settings.relevant_job_threshold))
-    count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    count = _count(session, query)
     rows = session.execute(
         query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(INBOX_LIMIT)
     ).all()

@@ -2,7 +2,6 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
 import ApplicationsPage, { type Stage } from './applications/ApplicationsPage.tsx'
-import { useStageCounts } from './applications/useStageCounts.ts'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
@@ -15,14 +14,15 @@ import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
 import {
   type Crumb,
-  NAV_ITEMS,
   type PageId,
   type Route,
   SETTINGS_PAGE_IDS,
+  findPage,
   isSettingsPage,
   pageHref,
   routeFromHash,
 } from './shell/nav.ts'
+import { useNavCounts } from './shell/useNavCounts.ts'
 import { useStoredState } from './shell/useStoredState.ts'
 import { useTheme } from './shell/useTheme.ts'
 
@@ -35,25 +35,25 @@ function App() {
   // The Settings entry in the menu reopens whichever settings tab was used last.
   const [settingsTab, setSettingsTab] = useStoredState('cv-settings-tab', SETTINGS_PAGE_IDS, SETTINGS_PAGE_IDS[0])
   if (isSettingsPage(page) && page !== settingsTab) setSettingsTab(page)
-  const [jobsInbox, setJobsInbox] = useState(0)
-  const onJobsInboxChange = useCallback((count: number) => setJobsInbox(count), [])
   // Breadcrumb entries each page adds after its own name (the open detail's title).
   const [crumbs, setCrumbs] = useState<Partial<Record<PageId, Crumb[]>>>({})
   const onApplicationCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, applications: c })), [])
   const onInterviewCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, interviews: c })), [])
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
-  const stageCounts = useStageCounts()
+  const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
+  // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
+  const counts = useNavCounts(page)
+  const jobsInbox = counts?.jobs_inbox ?? 0
   // Applications / Interviews / Offers only appear in the menu while they have applications.
   const hiddenPages: PageId[] = [
-    ...(stageCounts?.applications ? [] : (['applications'] as const)),
-    ...(stageCounts?.interviews ? [] : (['interviews'] as const)),
-    ...(stageCounts?.offers ? [] : (['offers'] as const)),
+    ...(counts?.applications ? [] : (['applications'] as const)),
+    ...(counts?.interviews ? [] : (['interviews'] as const)),
+    ...(counts?.offers ? [] : (['offers'] as const)),
   ]
-  const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
 
   // The Applications / Interviews / Offers list emptied out: fall back to Applications, or Jobs when there are none.
-  const stageEmpty = stageCounts != null && route.detail === null && hiddenPages.includes(page)
-  const fallbackPage: PageId = stageCounts?.applications ? 'applications' : 'jobs'
+  const stageEmpty = counts != null && route.detail === null && hiddenPages.includes(page)
+  const fallbackPage: PageId = counts?.applications ? 'applications' : 'jobs'
   useEffect(() => {
     if (stageEmpty) window.location.hash = pageHref(fallbackPage)
   }, [stageEmpty, fallbackPage])
@@ -105,38 +105,53 @@ function App() {
   }
   const detailOf = (id: PageId) => (route.page === id ? route.detail : null)
 
+  // A change in the counts (possibly made by a background task) also refreshes the open list.
+  const countsVersion = counts ? `${counts.applications}/${counts.interviews}/${counts.offers}` : ''
   const applicationList = (id: PageId, stage: Stage, onCrumbs: (c: Crumb[]) => void) => (
     <ApplicationsPage
       stage={stage}
       detailId={detailOf(id)}
-      active={page === id}
+      version={countsVersion}
       onOpen={openIn(id)}
       onBack={backTo(id)}
       onCrumbsChange={onCrumbs}
     />
   )
 
-  const pages: Record<PageId, ReactNode> = {
-    interviews: applicationList('interviews', 'interviews', onInterviewCrumbs),
-    offers: applicationList('offers', 'offers', onOfferCrumbs),
-    applications: applicationList('applications', 'all', onApplicationCrumbs),
-    jobs: (
-      <JobsPage
-        detailId={detailOf('jobs')}
-        active={page === 'jobs'}
-        onOpen={openJob}
-        onBack={backTo('jobs')}
-        onCrumbsChange={onJobCrumbs}
-        onInboxCountChange={onJobsInboxChange}
-      />
-    ),
-    'candidate-profile': <CandidateProfilePage />,
-    'work-history': <WorkHistoryPage />,
-    sources: <SourcesPage />,
-    'generated-cv': <GeneratedCvPage active={page === 'generated-cv'} />,
-    gmail: <GmailMonitorPage />,
-    cost: <CostPage active={page === 'cost'} />,
+  /** Only the page on screen is created; entering a page mounts it, so it always loads fresh. */
+  const renderPage = (id: PageId): ReactNode => {
+    switch (id) {
+      case 'interviews':
+        return applicationList('interviews', 'interviews', onInterviewCrumbs)
+      case 'offers':
+        return applicationList('offers', 'offers', onOfferCrumbs)
+      case 'applications':
+        return applicationList('applications', 'all', onApplicationCrumbs)
+      case 'jobs':
+        return (
+          <JobsPage
+            detailId={detailOf('jobs')}
+            inboxCount={counts?.jobs_inbox ?? null}
+            onOpen={openJob}
+            onBack={backTo('jobs')}
+            onCrumbsChange={onJobCrumbs}
+          />
+        )
+      case 'candidate-profile':
+        return <CandidateProfilePage />
+      case 'work-history':
+        return <WorkHistoryPage />
+      case 'sources':
+        return <SourcesPage />
+      case 'generated-cv':
+        return <GeneratedCvPage />
+      case 'gmail':
+        return <GmailMonitorPage />
+      case 'cost':
+        return <CostPage />
+    }
   }
+  const item = findPage(page).item
 
   return (
     <div className={`shell${rail === 'collapsed' ? ' rail' : ''}`}>
@@ -146,8 +161,8 @@ function App() {
         onOpenSettings={() => navigate(settingsTab)}
         badges={{
           jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
-          interviews: { count: stageCounts?.interviews ?? 0, title: 'Applications in the interview stage' },
-          offers: { count: stageCounts?.offers ?? 0, title: 'Applications with an offer' },
+          interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
+          offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
         }}
         hiddenPages={hiddenPages}
         collapsed={rail === 'collapsed'}
@@ -167,19 +182,19 @@ function App() {
         />
 
         <main className="content">
-          {/* Every page stays mounted so in-flight jobs and loaded lists survive navigation. */}
-          {NAV_ITEMS.map((item) => (
-            <section key={item.id} hidden={page !== item.id} aria-labelledby={`page-${item.id}`}>
-              <div className="view">
-                <header className={item.hideHeader ? 'sr-only' : 'page-header'}>
-                  <h1 id={`page-${item.id}`}>{item.title ?? item.label}</h1>
-                  {item.description && <p>{item.description}</p>}
-                </header>
-                {isSettingsPage(item.id) && <SettingsNav active={page} onNavigate={navigate} />}
-                {pages[item.id]}
-              </div>
-            </section>
-          ))}
+          {/* Only the current page is mounted. The key remounts it on every page change, so
+              each entry loads fresh; list <-> detail stays within one mount. State that has to
+              outlive a page (running jobs) lives in module-level stores (shell/store.ts). */}
+          <section key={page} aria-labelledby={`page-${page}`}>
+            <div className="view">
+              <header className={item.hideHeader ? 'sr-only' : 'page-header'}>
+                <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
+                {item.description && <p>{item.description}</p>}
+              </header>
+              {isSettingsPage(page) && <SettingsNav active={page} onNavigate={navigate} />}
+              {renderPage(page)}
+            </div>
+          </section>
         </main>
       </div>
     </div>
