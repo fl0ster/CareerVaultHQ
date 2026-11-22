@@ -57,6 +57,7 @@ from app.models import (
 from app.queue import get_queue
 from app.services.applications import set_job_decision
 from app.services.candidate_profile import current_profile_ids
+from app.services.evaluations import newest_evaluations
 from app.services.relevance import relevance
 from app.tasks.evaluate import rescore_parse_results
 
@@ -345,6 +346,9 @@ class InboxOut(BaseModel):
     items: list[EvaluatedJobOut]
     count: int
     candidate_profile_id: int | None
+    current_profile_ids: list[int] = []
+    """Profiles built from the current work history: a score made against any other one is
+    outdated. Lets a client refresh the ``outdated`` flag of rows it loaded earlier."""
 
 
 class FeedPage(BaseModel):
@@ -376,6 +380,7 @@ def jobs_inbox(
         items=_items(session, rows, settings.relevant_job_threshold),
         count=count,
         candidate_profile_id=profile_id,
+        current_profile_ids=sorted(current_profile_ids(session)),
     )
 
 
@@ -625,12 +630,7 @@ def get_job(
     job, parsed = row
 
     # Newest score from any profile (see ``_evaluated_query``).
-    evaluation = session.scalars(
-        select(JobEvaluation)
-        .where(JobEvaluation.job_parse_result_id == parsed.id)
-        .order_by(JobEvaluation.id.desc())
-        .limit(1)
-    ).first()
+    evaluation = newest_evaluations(session, [parsed.id]).get(parsed.id)
     application_id = _application_ids(session, [parsed.id]).get(parsed.id)
     return EvaluatedJobDetail(
         **_evaluated(

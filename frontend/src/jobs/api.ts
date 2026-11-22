@@ -39,6 +39,9 @@ export type JobInbox = {
   items: EvaluatedJob[]
   count: number
   candidate_profile_id: number | null
+  /** Profiles built from the current work history: a score made against any other one is
+   * outdated. Used to refresh rows loaded before the work history changed. */
+  current_profile_ids: number[]
 }
 
 /** Every other evaluated job, newest job first (keyset-paginated by job id). */

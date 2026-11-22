@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type SyntheticEvent, useEffect, useRef, useState } from 'react'
 import { type EvaluatedJobDetail, jobsApi } from './api.ts'
 import { describeError } from '../cv/api.ts'
 
@@ -89,17 +89,28 @@ export default function RelevanceMeter({ relevance, outdated = false, rescore }:
     ? 'Re-scoring against the latest candidate profile…'
     : `${score}. Scored against an earlier work history: click to re-score.` +
       (error ? `\nLast attempt failed: ${error}` : '')
+  // A span rather than a <button>: the meter can sit inside a clickable row (itself a
+  // button, e.g. on the Applications tab), so the click must not reach the row.
+  const activate = (e: SyntheticEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    start()
+  }
   return (
-    <button
-      type="button"
+    <span
+      role="button"
+      tabIndex={running ? -1 : 0}
       className={error ? 'relevance-rescore failed' : 'relevance-rescore'}
-      onClick={start}
-      disabled={running}
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') activate(e)
+      }}
+      aria-disabled={running}
       aria-busy={running}
       title={hint}
       aria-label={running ? 'Re-scoring the job' : 'Re-score the job against the latest candidate profile'}
     >
       {meter}
-    </button>
+    </span>
   )
 }

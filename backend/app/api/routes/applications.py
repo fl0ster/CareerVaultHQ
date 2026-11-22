@@ -73,6 +73,8 @@ from app.services.applications import (
     set_job_decision,
     status_by_key,
 )
+from app.services.candidate_profile import current_profile_ids
+from app.services.evaluations import newest_evaluations
 from app.services.relevance import relevance
 
 router = APIRouter()
@@ -141,6 +143,9 @@ class ApplicationEvaluationOut(BaseModel):
     candidate_profile_id: int
     relevance: float
     """``match_probability`` on the [-1, 1] display scale (see ``relevance``)."""
+    outdated: bool = False
+    """Scored against an earlier work history; ``POST /api/jobs/{job_id}/rescore`` scores
+    the job again."""
 
 
 class ApplicationOut(BaseModel):
@@ -156,6 +161,8 @@ class ApplicationOut(BaseModel):
     """Interview rounds planned but not held yet, in round order."""
     job: ApplicationJobOut
     evaluation: ApplicationEvaluationOut | None
+    """The job's *newest* score (a re-score replaces the one the application was created
+    from); ``None`` when the job has none left."""
     cv: GeneratedCvOut | None
 
 
@@ -217,7 +224,6 @@ def _query():
     return select(Application).options(
         joinedload(Application.job_parse_result).joinedload(JobParseResult.job).joinedload(Job.source),
         joinedload(Application.job_parse_result).joinedload(JobParseResult.company),
-        joinedload(Application.job_evaluation),
         joinedload(Application.generated_cv),
         selectinload(Application.events).joinedload(ApplicationEvent.status),
     )
@@ -280,10 +286,38 @@ def _reject_if_final(application: Application) -> None:
         raise _http_error(exc) from exc
 
 
-def _to_out(application: Application, request: Request, session: Session, queue: Queue) -> ApplicationOut:
+def _scores(session: Session, applications: list[Application]) -> dict[int, ApplicationEvaluationOut]:
+    """``{application id: score}``: the newest evaluation of each application's job."""
+    newest = newest_evaluations(session, [a.job_parse_result_id for a in applications])
+    if not newest:
+        return {}
+    current_ids = current_profile_ids(session)
+    threshold = get_settings().relevant_job_threshold
+    scores = {}
+    for application in applications:
+        evaluation = newest.get(application.job_parse_result_id)
+        if evaluation is not None:
+            scores[application.id] = ApplicationEvaluationOut(
+                id=evaluation.id,
+                candidate_profile_id=evaluation.candidate_profile_id,
+                relevance=relevance(evaluation.match_probability, threshold),
+                outdated=evaluation.candidate_profile_id not in current_ids,
+            )
+    return scores
+
+
+def _to_out(
+    application: Application,
+    request: Request,
+    session: Session,
+    queue: Queue,
+    scores: dict[int, ApplicationEvaluationOut] | None = None,
+) -> ApplicationOut:
+    """``scores`` (see ``_scores``) lets a list compute every score in one go."""
+    if scores is None:
+        scores = _scores(session, [application])
     parsed = application.job_parse_result
     job = parsed.job
-    evaluation = application.job_evaluation
     current = application.current_event
     cv = None
     if application.generated_cv_id is not None:
@@ -309,13 +343,7 @@ def _to_out(application: Application, request: Request, session: Session, queue:
             link=job.link,
             source=job.source.key,
         ),
-        evaluation=ApplicationEvaluationOut(
-            id=evaluation.id,
-            candidate_profile_id=evaluation.candidate_profile_id,
-            relevance=relevance(evaluation.match_probability, get_settings().relevant_job_threshold),
-        )
-        if evaluation is not None
-        else None,
+        evaluation=scores.get(application.id),
         cv=cv,
     )
 
@@ -433,8 +461,9 @@ def list_applications(
     if needle:
         applications = [a for a in applications if _matches(a, needle)]
     page = applications[offset : offset + limit]
+    scores = _scores(session, page)
     return ApplicationPage(
-        items=[_to_out(a, request, session, queue) for a in page],
+        items=[_to_out(a, request, session, queue, scores) for a in page],
         total=len(applications),
         offset=offset,
         limit=limit,
