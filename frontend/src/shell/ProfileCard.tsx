@@ -41,7 +41,7 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
       href={pageHref(PROFILE_PAGE.id)}
       className={`profile-card${active ? ' active' : ''}${loading ? ' loading' : ''}`}
       aria-current={active ? 'page' : undefined}
-      title={collapsed ? name : undefined}
+      title={collapsed ? name : `Open ${PROFILE_PAGE.label}`}
       onClick={(e) => {
         e.preventDefault()
         onNavigate(PROFILE_PAGE.id)
@@ -57,10 +57,18 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
         )}
       </span>
       <span className="profile-text">
-        <span className="profile-name">{loading ? ' ' : name}</span>
-        {complete || loading ? (
-          <span className="profile-sub">{PROFILE_PAGE.label}</span>
+        <span className="profile-hello">{complete || loading ? 'Hello,' : 'Hello there'}</span>
+        {complete ? (
+          <span className="profile-name">
+            <span>{details!.first_name.trim()}</span>
+            <span>{details!.last_name.trim()}</span>
+          </span>
         ) : (
+          <span className="profile-name">
+            <span>{loading ? ' ' : name}</span>
+          </span>
+        )}
+        {!complete && !loading && (
           <span
             className="profile-progress"
             role="progressbar"
@@ -76,7 +84,9 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
           </span>
         )}
       </span>
-      <ChevronRight className="profile-chevron" size={16} strokeWidth={2} aria-hidden="true" />
+      <span className="profile-chevron" aria-hidden="true">
+        <ChevronRight size={16} strokeWidth={2.2} />
+      </span>
     </a>
   )
 }
