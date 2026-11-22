@@ -11,7 +11,9 @@ at by this check before):
    the rejection check's matching: the company must match by name or alias and, when several
    open applications are at that company, the role must single one out;
 4. when the matched job has no interview steps yet, stores the steps on its
-   ``JobParseResult.interview_steps`` and adds ``INTERVIEW_LABEL`` to the mail. The mail's
+   ``JobParseResult.interview_steps``, plans them on the application as interview rounds
+   when it has no planned rounds yet, and adds ``gmail_monitor_settings.interview_label``
+   to the mail. The mail's
    read state is never changed.
 
 Every mail is recorded in ``gmail_interview_mails`` with its outcome so it is never sent to
@@ -30,7 +32,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.integrations.gmail import AppsScriptClient, AppsScriptError, GmailMessage
-from app.models import GmailInterviewMail
+from app.models import GmailInterviewMail, GmailMonitorSettings
+from app.services.applications import plan_parsed_rounds
 from app.services.openrouter import OpenRouterError, OpenRouterNotConfigured, OpenRouterService
 from app.tasks.gmail.rejections import (
     extract_company_and_role,
@@ -43,8 +46,6 @@ log = logging.getLogger(__name__)
 
 SOURCE = "tasks.gmail_interview_steps"
 """``openrouter_calls.source`` label for calls made by this check."""
-INTERVIEW_LABEL = "interview-steps-registered"
-"""Gmail label added to the mails whose interview steps were stored."""
 INTERVIEW_ABOUT = "The e-mail below is about the recruitment process of a job application the candidate sent."
 
 
@@ -89,10 +90,10 @@ def _mail_text(message: GmailMessage) -> str:
     return f"From: {message.sender}\nSubject: {message.subject}\n\n{message.body}"
 
 
-def _label(client: AppsScriptClient, record: GmailInterviewMail) -> None:
+def _label(client: AppsScriptClient, record: GmailInterviewMail, label: str) -> None:
     """Label the mail (read state untouched); ``record.outcome`` reflects whether it worked."""
     try:
-        client.label(record.message_id, INTERVIEW_LABEL)
+        client.label(record.message_id, label)
     except AppsScriptError as exc:
         log.warning("Labelling mail %s failed: %s", record.message_id, exc)
         record.outcome = GmailInterviewMail.OUTCOME_LABEL_FAILED
@@ -129,6 +130,8 @@ def _register(session: Session, service: OpenRouterService, message: GmailMessag
     if parsed.interview_steps:
         return _new_record(message, GmailInterviewMail.OUTCOME_HAS_STEPS, **fields)
     parsed.interview_steps = steps
+    if not match.application.plan:  # never add to rounds already planned (by hand or not)
+        plan_parsed_rounds(session, match.application, parsed)
     return _new_record(message, GmailInterviewMail.OUTCOME_APPLIED, **fields)
 
 
@@ -136,6 +139,7 @@ def process_message(
     session: Session,
     client: AppsScriptClient,
     service: OpenRouterService,
+    settings: GmailMonitorSettings,
     message: GmailMessage,
     summary: InterviewSummary,
 ) -> None:
@@ -143,7 +147,7 @@ def process_message(
     previous = _processed(session, message.id)
     if previous is not None:
         if previous.outcome == GmailInterviewMail.OUTCOME_LABEL_FAILED:
-            _label(client, previous)  # the steps are in; retry the label
+            _label(client, previous, settings.interview_label)  # the steps are in; retry the label
             session.commit()
         summary.skipped += 1
         return
@@ -161,7 +165,7 @@ def process_message(
     session.add(record)
     session.commit()
     if record.outcome == GmailInterviewMail.OUTCOME_APPLIED:
-        _label(client, record)
+        _label(client, record, settings.interview_label)
         session.commit()
         summary.applied.append(
             {
@@ -179,13 +183,14 @@ def check_message(
     session: Session,
     client: AppsScriptClient,
     service: OpenRouterService,
+    settings: GmailMonitorSettings,
     message: GmailMessage,
     summary: InterviewSummary,
 ) -> None:
     """``process_message`` that records an unexpected failure instead of raising it (one
     broken mail must not stop the run)."""
     try:
-        process_message(session, client, service, message, summary)
+        process_message(session, client, service, settings, message, summary)
     except (OpenRouterNotConfigured, AppsScriptError):
         raise
     except Exception as exc:  # noqa: BLE001

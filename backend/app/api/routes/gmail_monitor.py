@@ -59,6 +59,8 @@ class MonitorSettingsOut(BaseModel):
     secret_hint: str
     """Last characters of the shared secret, to tell whether the deployed script is current."""
     label: str
+    interview_label: str
+    """Gmail label added to the mails whose interview steps were stored."""
     interval_seconds: int
     lookback_days: int
     threshold: float
@@ -77,11 +79,12 @@ class MonitorSettingsUpdate(BaseModel):
     script_url: str | None = Field(default=None, max_length=1024)
     label: str | None = Field(default=None, pattern=LABEL_PATTERN)
     """Letters, digits, spaces and ``_ . / -`` only (what the Apps Script accepts)."""
+    interview_label: str | None = Field(default=None, pattern=LABEL_PATTERN)
     interval_seconds: int | None = Field(default=None, ge=MIN_INTERVAL_SECONDS, le=7 * 24 * 3600)
     lookback_days: int | None = Field(default=None, ge=1, le=MAX_LOOKBACK_DAYS)
     threshold: float | None = Field(default=None, ge=0.5, le=1.0)
 
-    @field_validator("email", "script_url", "label")
+    @field_validator("email", "script_url", "label", "interview_label")
     @classmethod
     def _strip(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
@@ -143,6 +146,7 @@ def _settings_out(row: GmailMonitorSettings) -> MonitorSettingsOut:
         script_url=row.script_url or "",
         secret_hint=f"…{row.secret[-4:]}" if row.secret else "",
         label=row.label,
+        interview_label=row.interview_label,
         interval_seconds=row.interval_seconds,
         lookback_days=row.lookback_days,
         threshold=row.threshold,

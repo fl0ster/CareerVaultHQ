@@ -459,7 +459,7 @@ def run_check(
             continue
         record = _processed(session, message.id)
         if record is not None and record.outcome == GmailProcessedMail.OUTCOME_NOT_REJECTION:
-            _interview().check_message(session, client, service, message, summary.interview)
+            _interview().check_message(session, client, service, settings, message, summary.interview)
     return summary
 
 

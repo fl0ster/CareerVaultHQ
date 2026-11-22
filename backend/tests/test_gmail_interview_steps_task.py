@@ -3,8 +3,8 @@ import pytest
 from sqlalchemy import select
 
 from app.integrations.gmail import AppsScriptError
-from app.models import GmailInterviewMail, JobParseResult
-from app.tasks.gmail.interview_steps import INTERVIEW_LABEL
+from app.models import ApplicationEvent, GmailInterviewMail, JobParseResult
+from app.services.gmail_monitor import get_monitor_settings
 from tests.test_gmail_rejections_task import (  # noqa: F401 - fixture
     FakeClient,
     _application,
@@ -55,7 +55,7 @@ def test_steps_are_stored_and_mail_labelled_but_not_marked_read(db_session, inte
     summary = _run(db_session, client, interview)
 
     assert _steps(db_session, application) == STEPS
-    assert client.labelled == [("msg-1", INTERVIEW_LABEL)]
+    assert client.labelled == [("msg-1", "interview-steps-registered")]
     assert client.marked == []  # read state untouched
     record = _record(db_session)
     assert record.outcome == "applied" and record.application_id == application.id
@@ -160,7 +160,7 @@ def test_label_failure_keeps_steps_and_is_retried(db_session, interview):
     _run(db_session, client, interview)
 
     assert _record(db_session).outcome == "applied"
-    assert client.labelled == [("msg-1", INTERVIEW_LABEL)]
+    assert client.labelled == [("msg-1", "interview-steps-registered")]
     assert len(interview["calls"]) == calls  # nothing sent to OpenRouter again
     assert client.marked == []
 
@@ -180,3 +180,43 @@ def test_openrouter_failure_is_retried_next_run(db_session, interview):
 
     assert summary.interview.failed == 1
     assert _record(db_session) is None
+
+
+def _plan(db_session, application):
+    db_session.expire_all()
+    app = db_session.get(type(application), application.id)
+    return [(e.status.key, e.title, e.duration_minutes) for e in app.plan]
+
+
+def test_steps_are_planned_on_application_without_planned_rounds(db_session, interview):
+    application = _application(db_session, _company(db_session, "Acme"), "Dev", i=1)
+
+    _run(db_session, LabelClient([_message()]), interview)
+
+    assert _plan(db_session, application) == [("INTERVIEW", "HR call", 30)]
+
+
+def test_existing_planned_rounds_are_kept(db_session, interview):
+    from app.services.applications import INTERVIEW_STATUS, status_by_key
+
+    application = _application(db_session, _company(db_session, "Acme"), "Dev", i=1)
+    application.events.append(
+        ApplicationEvent(status=status_by_key(db_session, INTERVIEW_STATUS), planned=True, title="Tech interview")
+    )
+    db_session.commit()
+
+    _run(db_session, LabelClient([_message()]), interview)
+
+    assert _steps(db_session, application) == STEPS  # the job still gets them
+    assert _plan(db_session, application) == [("INTERVIEW", "Tech interview", None)]
+
+
+def test_configured_interview_label_is_used(db_session, interview):
+    _application(db_session, _company(db_session, "Acme"), "Dev", i=1)
+    get_monitor_settings(db_session).interview_label = "cv/interviews"
+    db_session.commit()
+    client = LabelClient([_message()])
+
+    _run(db_session, client, interview)
+
+    assert client.labelled == [("msg-1", "cv/interviews")]

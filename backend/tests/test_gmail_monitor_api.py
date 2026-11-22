@@ -35,10 +35,12 @@ def test_settings_defaults_and_update(client):
     body = client.get(f"{BASE}/settings").json()
     assert body["enabled"] is False and body["configured"] is False
     assert body["label"] == "rejection-registered"
+    assert body["interview_label"] == "interview-steps-registered"
     assert body["threshold"] == 0.9 and body["interval_seconds"] == 1800
     assert body["secret_hint"].startswith("…") and "secret" not in body
 
-    body = _configure(client, label="cv/rejected", threshold=0.95, enabled=True)
+    body = _configure(client, label="cv/rejected", interview_label="cv/interviews", threshold=0.95, enabled=True)
+    assert body["interview_label"] == "cv/interviews"
     assert body["configured"] is True and body["enabled"] is True
     assert body["label"] == "cv/rejected" and body["threshold"] == 0.95
 

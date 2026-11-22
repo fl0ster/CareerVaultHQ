@@ -19,6 +19,8 @@ export type MonitorSettings = {
   /** Last characters of the shared secret embedded in the script. */
   secret_hint: string
   label: string
+  /** Gmail label added to mails whose interview steps were stored (read state kept). */
+  interview_label: string
   interval_seconds: number
   lookback_days: number
   /** Minimum rejection probability (0-1) to act on a mail. */
@@ -32,7 +34,7 @@ export type MonitorSettings = {
 }
 
 export type MonitorSettingsUpdate = Partial<
-  Pick<MonitorSettings, 'enabled' | 'email' | 'script_url' | 'label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
+  Pick<MonitorSettings, 'enabled' | 'email' | 'script_url' | 'label' | 'interview_label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
 >
 
 export type ConnectionTest = {

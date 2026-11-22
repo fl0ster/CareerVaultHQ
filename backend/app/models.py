@@ -607,6 +607,7 @@ class GmailMonitorSettings(Base):
     __tablename__ = "gmail_monitor_settings"
 
     DEFAULT_LABEL = "rejection-registered"
+    DEFAULT_INTERVIEW_LABEL = "interview-steps-registered"
     DEFAULT_INTERVAL_SECONDS = 30 * 60
     DEFAULT_LOOKBACK_DAYS = 7
     DEFAULT_THRESHOLD = 0.9
@@ -621,6 +622,8 @@ class GmailMonitorSettings(Base):
     """Shared token embedded in the script and sent with every request."""
     label: Mapped[str] = mapped_column(String(128), default=DEFAULT_LABEL)
     """Gmail label added to the mails whose rejection was registered."""
+    interview_label: Mapped[str] = mapped_column(String(128), default=DEFAULT_INTERVIEW_LABEL)
+    """Gmail label added to the mails whose interview steps were stored (read state kept)."""
     interval_seconds: Mapped[int] = mapped_column(Integer, default=DEFAULT_INTERVAL_SECONDS)
     lookback_days: Mapped[int] = mapped_column(Integer, default=DEFAULT_LOOKBACK_DAYS)
     """Only unread mails received within this many days are checked."""
@@ -683,7 +686,8 @@ class GmailInterviewMail(Base):
     __tablename__ = "gmail_interview_mails"
 
     OUTCOME_APPLIED = "applied"
-    """Interview steps stored on the job of ``application_id``; the mail was labelled."""
+    """Interview steps stored on the job of ``application_id`` (and planned on the application
+    when it had no planned rounds); the mail was labelled."""
     OUTCOME_NO_STEPS = "no_steps"
     """The mail does not describe the interview process (or the steps failed the checks)."""
     OUTCOME_EXTRACTION_FAILED = "extraction_failed"

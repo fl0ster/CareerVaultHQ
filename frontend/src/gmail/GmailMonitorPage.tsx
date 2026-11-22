@@ -400,6 +400,17 @@ export default function GmailMonitorPage() {
             hint="Created in Gmail when missing."
           />
           <Field
+            label="Gmail label for registered interview steps"
+            value={settings.interview_label}
+            toPatch={(t) =>
+              LABEL_PATTERN.test(t.trim())
+                ? { interview_label: t.trim() }
+                : 'Letters, digits, spaces and _ . / - only'
+            }
+            onSave={save}
+            hint="Added without marking the mail read."
+          />
+          <Field
             label="Check every (minutes)"
             type="number"
             min={MIN_INTERVAL_SECONDS / 60}
