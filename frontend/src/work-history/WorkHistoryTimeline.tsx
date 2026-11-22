@@ -277,11 +277,15 @@ export default function WorkHistoryTimeline({
                   else barRefs.current.delete(entry.id)
                 }}
                 type="button"
-                className={`wh-tl-pos tone-${bar.tone}${bar.ongoing ? ' ongoing' : ''}${isActive ? ' selected' : ''}${dim ? ' dim' : ''}`}
+                className={`wh-tl-pos tone-${bar.tone}${bar.pending ? ' pending' : bar.ongoing ? ' ongoing' : ''}${isActive ? ' selected' : ''}${dim ? ' dim' : ''}`}
                 style={{ left: x(bar.start), width: w, top: lanesTop + bar.lane * (LANE_H + LANE_GAP), height: LANE_H }}
                 aria-current={isActive || undefined}
-                aria-label={`${entry.role} at ${entry.employer}, ${monthLabel(bar.start)} to ${bar.ongoing ? 'present' : monthLabel(bar.end - 1)}, ${formatDuration(bar.end - bar.start)}`}
-                title={`${entry.role} at ${entry.employer}`}
+                aria-label={
+                  bar.pending
+                    ? `${entry.role} at ${entry.employer}, pending, starts ${monthLabel(bar.start)}`
+                    : `${entry.role} at ${entry.employer}, ${monthLabel(bar.start)} to ${bar.ongoing ? 'present' : monthLabel(bar.end - 1)}, ${formatDuration(bar.end - bar.start)}`
+                }
+                title={`${entry.role} at ${entry.employer}${bar.pending ? ' (pending)' : ''}`}
                 onClick={() => onSelect(entry.id)}
                 onKeyDown={(e) => onBarKey(e, bar)}
                 onMouseEnter={() => setHoverId(entry.id)}
@@ -290,7 +294,7 @@ export default function WorkHistoryTimeline({
                 <span className="wh-tl-pos-label">
                   <strong>{entry.role}</strong>
                   <small>
-                    {entry.employer} · {formatDuration(bar.end - bar.start)}
+                    {entry.employer} · {bar.pending ? `starts ${monthLabel(bar.start)}` : formatDuration(bar.end - bar.start)}
                   </small>
                 </span>
               </button>

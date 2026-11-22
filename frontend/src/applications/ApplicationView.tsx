@@ -14,6 +14,8 @@ type Props = {
   application: Application
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
+  /** The offer was accepted (the application is now `ACCEPTED`). */
+  onAccepted: (application: Application) => void
   onDelete: (id: number) => void
   onOpenCompany: (companyId: number) => void
   onBack: () => void
@@ -26,6 +28,7 @@ export default function ApplicationView({
   application,
   statuses,
   onChange,
+  onAccepted,
   onDelete,
   onOpenCompany,
   onBack,
@@ -88,6 +91,7 @@ export default function ApplicationView({
           application={application}
           statuses={statuses}
           onChange={onChange}
+          onAccepted={onAccepted}
           onDelete={onDelete}
           onShowPipeline={setPipelineCv}
         />
