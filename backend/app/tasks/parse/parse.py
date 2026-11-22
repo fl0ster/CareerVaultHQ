@@ -9,7 +9,9 @@ never stored there but resolved through ``app.services.companies.resolve_company
 canonical ``companies`` row whose id is written to ``job_parse_results.company_id``. The
 pending row is then marked ``COMPLETED`` with the time the parse happened. The interview
 rounds stated in the description are extracted by an LLM pipeline (``extract_interview_steps``)
-into ``job_parse_results.interview_steps``; an OpenRouter failure only leaves them unset. Finally
+into ``job_parse_results.interview_steps`` and the technologies it names by
+``extract_technologies`` into ``job_parse_results.technologies``; an OpenRouter failure only
+leaves them unset. Finally
 ``app.tasks.evaluate.evaluate_parse_results`` is enqueued for the parsed job so it gets
 scored against the current candidate profile.
 """
@@ -34,6 +36,7 @@ from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
 from app.services.companies import CompanyMatch, resolve_company
 from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService
+from app.services.technologies import alias_spellings, dedupe_technologies, technology_key
 from app.tasks.evaluate import evaluate_parse_results
 from app.tasks.scrape.sources import load_source
 
@@ -210,6 +213,110 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
     return InterviewStepsResult(steps, present, faithful)
 
 
+TECHNOLOGIES_SOURCE = "tasks.parse.technologies"
+MAX_TECHNOLOGIES = 40
+MAX_TECHNOLOGY_NAME = 64
+
+TECHNOLOGIES_PROMPT = """List the technologies the job description below asks for or
+mentions as part of the role's work: programming languages, frameworks, libraries,
+databases, cloud platforms, tools, protocols and engines.
+Answer with a JSON object {{"technologies": [{{"name": ..., "evidence": ...}}, ...]}} where
+- "name" is the usual name of the technology (e.g. "React", "PostgreSQL", "Kubernetes"),
+- "evidence" is a short fragment copied EXACTLY, character for character, from the text,
+  that contains the technology's name as written there.
+Rules:
+- Only technologies literally named in the text. Never infer one from another (no
+  "JavaScript" because of "React", no "Docker" because of "Kubernetes").
+- Not soft skills, methodologies (Agile, Scrum), spoken languages, job titles, domains
+  or generic words ("databases", "cloud", "frontend").
+- Each technology once, even if spelled several ways.
+- If unsure, leave it out. An empty list is a valid answer.
+
+{text}"""
+
+
+def _squash(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _names_in(fragment: str, key: str, name: str) -> bool:
+    """Whether ``fragment`` (squashed) contains ``name`` or a known spelling of ``key`` as
+    a whole word (``C`` is not found in ``C#``, ``Go`` not in ``Google``)."""
+    for spelling in alias_spellings(key) | {_squash(name)}:
+        pattern = rf"(?<![\w+#.]){re.escape(spelling)}(?![\w+#])"
+        if re.search(pattern, fragment):
+            return True
+    return False
+
+
+def _technologies_from_reply(reply: str, text: str) -> list[dict[str, str]]:
+    """Grounded, de-duplicated technologies from the LLM reply. An item is kept only when
+    its ``evidence`` occurs verbatim in ``text`` and names the technology; everything
+    else is dropped as possibly hallucinated."""
+    try:
+        data = json.loads(_strip_fences(reply))
+    except ValueError:
+        return []
+    items = data.get("technologies") if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return []
+    haystack = _squash(text)
+    grounded: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name, evidence = item.get("name"), item.get("evidence")
+        if not isinstance(name, str) or not isinstance(evidence, str):
+            continue
+        name = " ".join(name.split())[:MAX_TECHNOLOGY_NAME]
+        fragment = _squash(evidence)
+        key = technology_key(name)
+        if not key or not fragment or fragment not in haystack:
+            log.debug("Dropped technology %r: evidence %r not in text", name, evidence)
+            continue
+        if not _names_in(fragment, key, name):
+            log.debug("Dropped technology %r: not named in %r", name, evidence)
+            continue
+        grounded.append(name)
+    return dedupe_technologies(grounded)[:MAX_TECHNOLOGIES]
+
+
+def extract_technologies(service: OpenRouterService, text: str | None) -> list[dict[str, str]]:
+    """Technologies named in ``text`` (a job description) as
+    ``[{"name": "React", "key": "react"}, ...]`` (``key`` from
+    ``app.services.technologies.technology_key``), in one chat completion. Precision over
+    recall: the model must quote where each technology appears and every quote is checked
+    against the text, so nothing absent from the description is returned.
+
+    OpenRouter errors propagate (``OpenRouterError``)."""
+    if not text or not text.strip():
+        return []
+    reply = service.chat(
+        TECHNOLOGIES_PROMPT.format(text=text),
+        system=EXTRACTION_SYSTEM,
+        temperature=0,
+        source=TECHNOLOGIES_SOURCE,
+    ).text
+    return _technologies_from_reply(reply, text)
+
+
+def store_technologies(session: Session, result: JobParseResult) -> list[dict[str, str]] | None:
+    """Run ``extract_technologies`` on ``result.description`` and store them in
+    ``result.technologies`` (not committed). Failures are logged and leave ``None``."""
+    try:
+        technologies = extract_technologies(OpenRouterService(session), result.description)
+    except OpenRouterNotConfigured:
+        log.info("OpenRouter not configured; technologies of job %d not extracted", result.job_id)
+        result.technologies = None
+        return None
+    except Exception:
+        log.exception("Extracting technologies of job %d failed", result.job_id)
+        result.technologies = None
+        return None
+    result.technologies = technologies
+    return technologies
+
+
 def store_interview_steps(session: Session, result: JobParseResult) -> list[InterviewStep] | None:
     """Run ``extract_interview_steps`` on ``result.description`` and store the steps in
     ``result.interview_steps`` (not committed). An OpenRouter failure (or missing API key) is
@@ -320,6 +427,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_match": "<alias | exact | fuzzy | new, or None>",
             "description_chars": <length of the extracted description>,
             "interview_steps": <number of interview rounds found, None if not extracted>,
+            "technologies": <number of technologies found, None if not extracted>,
             "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
 
@@ -351,6 +459,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
                 "company_match": None,
                 "description_chars": len(result.description or "") if result else 0,
                 "interview_steps": len(result.interview_steps) if result and result.interview_steps is not None else None,
+                "technologies": len(result.technologies) if result and result.technologies is not None else None,
                 "evaluate_job": None,
             }
 
@@ -372,6 +481,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         pending.parsed_at = datetime.now(UTC)
         session.commit()
         steps = store_interview_steps(session, result)
+        technologies = store_technologies(session, result)
         session.commit()
         evaluate_job_id = enqueue_evaluation(result)
 
@@ -396,5 +506,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_match": match.match_kind if match else None,
             "description_chars": len(values["description"]),
             "interview_steps": len(steps) if steps is not None else None,
+            "technologies": len(technologies) if technologies is not None else None,
             "evaluate_job": evaluate_job_id,
         }

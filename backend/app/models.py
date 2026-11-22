@@ -191,6 +191,13 @@ class JobParseResult(Base):
     ``[{"number": 1, "title": "HR call", "duration_minutes": 30}, ...]``. ``[]`` when the
     description states none, ``None`` when the extraction did not run or failed. A new
     ``Application`` for the job starts with these as planned rounds."""
+    technologies: Mapped[list[dict] | None] = mapped_column(JSON)
+    """Technologies the description names, extracted by
+    ``app.tasks.parse.extract_technologies`` and verified against the text:
+    ``[{"name": "React", "key": "react"}, ...]``. ``key`` is
+    ``app.services.technologies.technology_key(name)``, unique within the list, and is what
+    ``match_technologies`` compares with ``WorkHistoryEntry.tech``. ``[]`` when none are
+    named, ``None`` when the extraction did not run or failed."""
     parsed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job: Mapped[Job] = relationship()

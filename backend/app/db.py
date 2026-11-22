@@ -57,6 +57,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     },
     "job_parse_results": {
         "interview_steps": "JSON",
+        "technologies": "JSON",
     },
 }
 """Columns added to tables after they were first created: ``create_all`` only creates
