@@ -56,6 +56,8 @@ export type CandidateDetailsInput = {
   github: string
   linkedin: string
   location: string
+  /** Profile picture as an image `data:` URL; empty when none is set. */
+  photo: string
   education: EducationEntry[]
   certifications: string[]
   languages: LanguageEntry[]

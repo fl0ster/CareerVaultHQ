@@ -425,6 +425,8 @@ class CandidateDetails(Base):
     github: Mapped[str] = mapped_column(String(512), default="")
     linkedin: Mapped[str] = mapped_column(String(512), default="")
     location: Mapped[str] = mapped_column(String(256), default="")
+    photo: Mapped[str] = mapped_column(Text, default="")
+    """Profile picture as a ``data:image/...;base64,`` URL (scaled down in the browser); blank = none."""
     education: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"degree", "institution", "date_start", "date_end", "note"}, ...]``; dates are free
     text (``Oct 2012``) because they are printed verbatim."""

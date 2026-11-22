@@ -46,36 +46,122 @@
   scrollbar-width: thin;
 }
 
-.sidebar-brand {
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+/* Profile card: raised above the menu, opens About me. */
+.profile-card {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 11px;
-  height: 48px;
-  padding: 0 4px 0 3px;
-  margin-bottom: 10px;
+  padding: 7px 10px 7px 7px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    box-shadow var(--t-fast) ease,
+    border-color var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out),
+    padding var(--t-med) var(--ease-out);
+
+  &:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-md), var(--focus-ring);
+  }
+  &.active {
+    border-color: var(--accent-border);
+  }
+  &.active .profile-avatar {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  }
 }
 
-.brand-mark {
+.profile-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: var(--stage);
-  box-shadow: var(--shadow-sm);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  transition: box-shadow var(--t-fast) ease;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
-.brand-name {
+.profile-text {
   flex: 1;
   min-width: 0;
-  font-family: var(--heading);
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  font-size: 19px;
-  font-weight: 560;
-  letter-spacing: -0.01em;
+  display: grid;
+  gap: 5px;
+  transition: opacity var(--t-fast) ease;
+}
+
+.profile-name {
+  font-size: 14.5px;
+  font-weight: 620;
+  line-height: 1.2;
   color: var(--text-h);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-sub {
+  font-size: 12.5px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.profile-card.loading .profile-name {
+  min-height: 1.2em;
+}
+
+/* Setup progress: one segment per step, the first always filled. */
+.profile-progress {
+  display: flex;
+  gap: 4px;
+
+  span {
+    flex: 1;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--neutral-bg);
+    transition: background var(--t-med) ease;
+  }
+  span.filled {
+    background: var(--accent);
+  }
+}
+
+.profile-chevron {
+  flex: none;
+  color: var(--text);
+  opacity: 0.6;
   transition: opacity var(--t-fast) ease;
 }
 
@@ -300,11 +386,16 @@
 
 /* Collapsed to an icon rail */
 .shell.rail .sidebar {
-  .brand-name,
+  .profile-text,
+  .profile-chevron,
   .nav-label,
   .nav-chevron {
     opacity: 0;
     pointer-events: none;
+  }
+  .profile-card {
+    padding: 5px;
+    overflow: hidden;
   }
   .nav-item {
     padding: 0 14px;
@@ -516,11 +607,15 @@
 
   /* The rail only applies to wide screens. */
   .shell.rail .sidebar {
-    .brand-name,
+    .profile-text,
+    .profile-chevron,
     .nav-label,
     .nav-chevron {
       opacity: 1;
       pointer-events: auto;
+    }
+    .profile-card {
+      padding: 7px 10px 7px 7px;
     }
     .nav-sub-item {
       padding: 0 12px;

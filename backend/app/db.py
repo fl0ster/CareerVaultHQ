@@ -59,6 +59,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "interview_steps": "JSON",
         "technologies": "JSON",
     },
+    "candidate_details": {
+        "photo": "TEXT NOT NULL DEFAULT ''",
+    },
     "gmail_monitor_settings": {
         "interview_label": "VARCHAR(128) NOT NULL DEFAULT 'interview-steps-registered'",
     },

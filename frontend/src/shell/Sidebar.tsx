@@ -1,6 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
-import Magpie from '../mascot/Magpie.tsx'
+import ProfileCard from './ProfileCard.tsx'
 import {
   NAV_SECTIONS,
   type NavGroup,
@@ -11,6 +11,7 @@ import {
   findPage,
   isGroup,
   isSettingsPage,
+  PROFILE_PAGE,
 } from './nav.ts'
 import type { Theme } from './useTheme.ts'
 
@@ -121,6 +122,8 @@ export default function Sidebar({
     if (!nav || !indicator) return
     const place = () => {
       const item = nav.querySelector<HTMLElement>('[data-indicator]')
+      // About me is opened from the profile card, outside the menu: no entry to highlight.
+      indicator.hidden = !item
       if (!item) return
       indicator.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
       indicator.style.width = `${item.offsetWidth}px`
@@ -135,11 +138,8 @@ export default function Sidebar({
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
-      <div className="sidebar-brand">
-        <span className="brand-mark">
-          <Magpie head size={34} />
-        </span>
-        <span className="brand-name">CareerVault HQ</span>
+      <div className="sidebar-head">
+        <ProfileCard active={active === PROFILE_PAGE.id} collapsed={collapsed} onNavigate={onNavigate} />
         <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
           <X size={18} />
         </button>
