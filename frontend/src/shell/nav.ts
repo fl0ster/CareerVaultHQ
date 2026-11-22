@@ -55,11 +55,34 @@ export const SETTINGS: NavGroup = {
   id: 'settings',
   label: 'Settings',
   icon: Settings,
+  // Each tab opens with its description as a one-line introduction (see SettingsHeader).
   items: [
-    { id: 'sources', label: 'Sources', title: 'Scrape sources', icon: Rss, hideHeader: true },
-    { id: 'generated-cv', label: 'Generated CVs', icon: FileText, hideHeader: true },
-    { id: 'gmail', label: 'Gmail monitor', title: 'Gmail rejection monitor', icon: Mail, hideHeader: true },
-    { id: 'cost', label: 'Cost', icon: Coins, hideHeader: true },
+    {
+      id: 'sources',
+      label: 'Sources',
+      title: 'Scrape sources',
+      icon: Rss,
+      description: 'The job boards that get scraped, how often each one runs and how relevant its jobs turn out.',
+    },
+    {
+      id: 'generated-cv',
+      label: 'Generated CVs',
+      icon: FileText,
+      description: 'Every CV tailored to a job, and how far each one got through generation.',
+    },
+    {
+      id: 'gmail',
+      label: 'Gmail monitor',
+      title: 'Gmail rejection monitor',
+      icon: Mail,
+      description: 'Watches a Gmail inbox for rejection e-mails and marks the matching applications as rejected.',
+    },
+    {
+      id: 'cost',
+      label: 'Cost',
+      icon: Coins,
+      description: 'What the AI model calls have cost, broken down by period, source, model and kind.',
+    },
   ],
 }
 
