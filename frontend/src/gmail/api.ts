@@ -106,27 +106,6 @@ export type InterviewCheck = {
   error: string | null
 }
 
-export const INTERVIEW_OUTCOME_LABEL: Record<InterviewOutcome, string> = {
-  applied: 'Steps added',
-  no_steps: 'No interview steps',
-  extraction_failed: 'Company not found in mail',
-  no_match: 'No matching application',
-  ambiguous: 'Ambiguous match',
-  has_steps: 'Job already has steps',
-  label_failed: 'Added, label failed',
-  error: 'Error',
-}
-
-export const OUTCOME_LABEL: Record<MailOutcome, string> = {
-  applied: 'Rejection registered',
-  not_rejection: 'Not a rejection',
-  extraction_failed: 'Company not found in mail',
-  no_match: 'No matching application',
-  ambiguous: 'Ambiguous match',
-  mark_failed: 'Registered, label failed',
-  error: 'Error',
-}
-
 /** Longest lookback the Apps Script allows (days). */
 export const MAX_LOOKBACK_DAYS = 30
 
