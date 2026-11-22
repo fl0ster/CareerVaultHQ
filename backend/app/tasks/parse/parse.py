@@ -109,8 +109,7 @@ FAITHFUL_QUESTIONS: dict[str, dict[str, Any]] = {
     FAITHFUL_QUESTION: {
         "type": "noul",
         "instructions": (
-            "Do the extracted interview steps accurately reflect the recruitment process "
-            "described in the job description?"
+            "Do the extracted interview steps accurately reflect the recruitment process described in the job description?"
         ),
         "criteria": {
             "true": (
@@ -125,10 +124,7 @@ FAITHFUL_QUESTIONS: dict[str, dict[str, Any]] = {
     }
 }
 
-EXTRACTION_SYSTEM = (
-    "You extract structured data from job descriptions. Answer with a single JSON object "
-    "and nothing else."
-)
+EXTRACTION_SYSTEM = "You extract structured data from job descriptions. Answer with a single JSON object and nothing else."
 EXTRACTION_PROMPT = """The job description below describes its recruitment process.
 List the stages a candidate goes through, in order, as a JSON object
 {{"steps": [{{"title": ..., "duration_minutes": ...}}, ...]}} where
@@ -202,8 +198,7 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
         state={
             "job_description": text,
             "extracted_steps": [
-                {"number": s.number, "title": s.title, "duration_minutes": s.duration_minutes}
-                for s in steps
+                {"number": s.number, "title": s.title, "duration_minutes": s.duration_minutes} for s in steps
             ],
         },
         questions=FAITHFUL_QUESTIONS,
@@ -222,9 +217,7 @@ def store_interview_steps(session: Session, result: JobParseResult) -> list[Inte
     try:
         steps = extract_interview_steps(OpenRouterService(session), result.description).steps
     except OpenRouterNotConfigured:
-        log.info(
-            "OpenRouter not configured; interview steps of job %d not extracted", result.job_id
-        )
+        log.info("OpenRouter not configured; interview steps of job %d not extracted", result.job_id)
         result.interview_steps = None
         return None
     except Exception:
@@ -275,9 +268,7 @@ def parse_fields(job: Job) -> dict[str, str]:
     return {field: parse_field(job, field, module) for field in FIELDS}
 
 
-def _save_result(
-    session: Session, job: Job, values: dict[str, str]
-) -> tuple[JobParseResult, CompanyMatch | None]:
+def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[JobParseResult, CompanyMatch | None]:
     """Upsert the ``JobParseResult`` of ``job``; the ``company`` value goes through the
     company ingestion pipeline and only the canonical ``company_id`` is stored."""
     result = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job.id))
@@ -359,9 +350,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
                 "company_id": company.id if company else None,
                 "company_match": None,
                 "description_chars": len(result.description or "") if result else 0,
-                "interview_steps": len(result.interview_steps)
-                if result and result.interview_steps is not None
-                else None,
+                "interview_steps": len(result.interview_steps) if result and result.interview_steps is not None else None,
                 "evaluate_job": None,
             }
 

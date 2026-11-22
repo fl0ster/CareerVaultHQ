@@ -75,9 +75,7 @@ def parse_description(html: str) -> str:
     for name, val in (salary.get("types") or {}).items():
         r = (val or {}).get("range") or []
         if r:
-            salaries.append(
-                f"{name}: {r[0]}-{r[-1]} {salary.get('currency', '')} / {val.get('period', '')}"
-            )
+            salaries.append(f"{name}: {r[0]}-{r[-1]} {salary.get('currency', '')} / {val.get('period', '')}")
     reqs = p.get("requirements") or {}
     benefits = p.get("benefits") or {}
     tasks = (p.get("specs") or {}).get("dailyTasks") or []

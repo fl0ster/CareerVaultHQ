@@ -104,10 +104,7 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     }
 }
 
-EXTRACTION_SYSTEM = (
-    "You extract data from job application e-mails. Answer with a single JSON object and "
-    "nothing else."
-)
+EXTRACTION_SYSTEM = "You extract data from job application e-mails. Answer with a single JSON object and nothing else."
 EXTRACTION_PROMPT = """The e-mail below is a rejection of a job application.
 Return a JSON object {{"company": ..., "role": ...}} where
 - "company" is the name of the hiring company the candidate applied to (not the recruitment
@@ -177,9 +174,7 @@ def open_applications(session: Session) -> list[Application]:
     rows = session.scalars(
         select(Application)
         .options(
-            joinedload(Application.job_parse_result)
-            .joinedload(JobParseResult.company)
-            .selectinload(Company.aliases),
+            joinedload(Application.job_parse_result).joinedload(JobParseResult.company).selectinload(Company.aliases),
             selectinload(Application.events).joinedload(ApplicationEvent.status),
         )
         .execution_options(populate_existing=True)
@@ -194,9 +189,7 @@ class Match:
     detail: str = ""
 
 
-def match_application(
-    session: Session, applications: list[Application], company: str, role: str | None
-) -> Match:
+def match_application(session: Session, applications: list[Application], company: str, role: str | None) -> Match:
     """The single open application the rejection refers to, or why there is none."""
     known = find_company(session, company)
     candidates = []
@@ -250,15 +243,11 @@ def _mail_state(message: GmailMessage) -> dict[str, Any]:
 
 
 def rejection_probability(service: OpenRouterService, message: GmailMessage) -> float:
-    decision = service.decide(
-        state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True
-    )
+    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True)
     return decision.noul(QUESTION_NAME)
 
 
-def extract_company_and_role(
-    service: OpenRouterService, message: GmailMessage
-) -> tuple[str | None, str | None]:
+def extract_company_and_role(service: OpenRouterService, message: GmailMessage) -> tuple[str | None, str | None]:
     """``(company, role)`` named in the mail; ``None`` for what could not be read."""
     reply = service.chat(
         EXTRACTION_PROMPT.format(sender=message.sender, subject=message.subject, body=message.body),
@@ -308,9 +297,7 @@ class RunSummary:
 
 
 def _processed(session: Session, message_id: str) -> GmailProcessedMail | None:
-    return session.scalar(
-        select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id)
-    )
+    return session.scalar(select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id))
 
 
 def _new_record(message: GmailMessage, outcome: str, **fields: Any) -> GmailProcessedMail:
@@ -358,9 +345,7 @@ def process_message(
     try:
         probability = rejection_probability(service, message)
         if probability < settings.threshold:
-            record = _new_record(
-                message, GmailProcessedMail.OUTCOME_NOT_REJECTION, probability=probability
-            )
+            record = _new_record(message, GmailProcessedMail.OUTCOME_NOT_REJECTION, probability=probability)
         else:
             company, role = extract_company_and_role(service, message)
             record = _register(session, message, probability, company, role)
@@ -452,9 +437,7 @@ def run_check(
             session.rollback()
             log.exception("Processing mail %s failed", message.id)
             if _processed(session, message.id) is None:
-                session.add(
-                    _new_record(message, GmailProcessedMail.OUTCOME_ERROR, error=repr(exc)[:2000])
-                )
+                session.add(_new_record(message, GmailProcessedMail.OUTCOME_ERROR, error=repr(exc)[:2000]))
                 session.commit()
             summary.count(GmailProcessedMail.OUTCOME_ERROR)
     return summary

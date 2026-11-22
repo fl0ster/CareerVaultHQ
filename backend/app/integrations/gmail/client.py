@@ -17,9 +17,7 @@ MAX_LOOKBACK_DAYS = 30
 LABEL_PATTERN = r"^[\w .\/-]{1,128}$"
 """Label names the script accepts (``LABEL_PATTERN`` in ``apps_script.gs``)."""
 DEFAULT_TIMEOUT = 60.0
-SCRIPT_URL_PATTERN = (
-    r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]+/exec$"
-)
+SCRIPT_URL_PATTERN = r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]+|macros)/s/[A-Za-z0-9_-]+/exec$"
 """Deployed Apps Script web apps only (consumer and Workspace accounts). The secret is sent
 to this URL, so nothing else is accepted."""
 REDIRECT_HOSTS = frozenset({"script.google.com", "script.googleusercontent.com"})
@@ -83,9 +81,7 @@ class AppsScriptClient:
         if not url:
             raise AppsScriptError("the Apps Script web app URL is not configured")
         if not is_script_url(url):
-            raise AppsScriptError(
-                "the web app URL must look like https://script.google.com/macros/s/<id>/exec"
-            )
+            raise AppsScriptError("the web app URL must look like https://script.google.com/macros/s/<id>/exec")
         self.url = url
         self.secret = secret
         self.timeout = timeout
@@ -95,9 +91,7 @@ class AppsScriptClient:
         """Address of the Google account the script runs as."""
         return str(self._call("ping").get("email") or "")
 
-    def list_messages(
-        self, lookback_days: int, label: str, max_messages: int = 30
-    ) -> list[GmailMessage]:
+    def list_messages(self, lookback_days: int, label: str, max_messages: int = 30) -> list[GmailMessage]:
         """Unread, job-related inbox messages of the last ``lookback_days`` days whose thread
         does not carry ``label``. The script builds the search itself (capped at
         ``MAX_LOOKBACK_DAYS``), so callers cannot query the rest of the mailbox."""
@@ -121,9 +115,7 @@ class AppsScriptClient:
             location = urljoin(str(response.request.url), response.headers.get("location", ""))
             parts = urlsplit(location)
             if parts.scheme != "https" or parts.hostname not in REDIRECT_HOSTS:
-                raise AppsScriptError(
-                    f"the web app redirected to an unexpected host: {parts.hostname}"
-                )
+                raise AppsScriptError(f"the web app redirected to an unexpected host: {parts.hostname}")
             response = client.get(location)
         raise AppsScriptError("too many redirects from the Apps Script web app")
 

@@ -112,10 +112,7 @@ def parse_description(html: str) -> str:
         if city and city not in cities:
             cities.append(city)
 
-    benefits = [
-        (b.get("name") or b.get("text")) if isinstance(b, dict) else str(b)
-        for b in job.get("benefits") or []
-    ]
+    benefits = [(b.get("name") or b.get("text")) if isinstance(b, dict) else str(b) for b in job.get("benefits") or []]
 
     return join_fields(
         [

@@ -194,9 +194,7 @@ def save_jobs(
     return pending, duplicates
 
 
-def enqueue_parse_jobs(
-    session: Session, pending: list[PendingJobParseRun], queue: Queue | None = None
-) -> list[str]:
+def enqueue_parse_jobs(session: Session, pending: list[PendingJobParseRun], queue: Queue | None = None) -> list[str]:
     """Enqueue ``parse_job`` for every pending row (which must be committed already) and
     store the RQ job ids on the rows. Returns the RQ job ids."""
     if not pending:
@@ -262,9 +260,7 @@ def scrape(source: str | None = None) -> dict[str, Any]:
                 result = run_source(row.key)
                 module = result.pop("module", None)
                 tagged = [{**job, "source": row.key} for job in result["jobs"]]
-                row_pending, row_duplicates = save_jobs(
-                    session, run, row, tagged, module, seen_offers
-                )
+                row_pending, row_duplicates = save_jobs(session, run, row, tagged, module, seen_offers)
                 result["new"] = len(row_pending)
                 result["duplicates"] = row_duplicates
                 apply_run_result(

@@ -95,9 +95,7 @@ def task_engine(engine, monkeypatch, tmp_path, requests_seen):
     monkeypatch.setattr(
         generate_task,
         "OpenRouterService",
-        lambda session, *_a, **_k: OpenRouterService(
-            session, settings, transport=httpx.MockTransport(handle)
-        ),
+        lambda session, *_a, **_k: OpenRouterService(session, settings, transport=httpx.MockTransport(handle)),
     )
 
     def fake_compile(tex_path, *, out_dir=None, **_kwargs):
@@ -198,10 +196,7 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
         assert any(line.startswith("trimmed") for line in pipeline["timeline_log"])
 
         # 3. contexts and technologies tailored.
-        assert all(
-            e["context"] == "Shipped tailored features. Improved performance."
-            for e in pipeline["main"]
-        )
+        assert all(e["context"] == "Shipped tailored features. Improved performance." for e in pipeline["main"])
         assert all(e["tech"] == "TypeScript, React Native" for e in pipeline["main"])
 
         # 4. categories keep only the candidate's technologies and drop invented ones.
@@ -253,9 +248,7 @@ def test_generate_cv_falls_back_and_warns_when_calls_fail(task_engine, requests_
         cv = session.get(models.GeneratedCV, cv_id)
         assert cv.summary == ""
         assert cv.pipeline["main"][1]["context"] == "Built pipelines. Led the app."  # original kept
-        failed = session.scalars(
-            select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")
-        ).all()
+        failed = session.scalars(select(models.OpenRouterCall).where(models.OpenRouterCall.status == "failed")).all()
         assert len(failed) == 2 * (2 + 1)  # two attempts for each of 2 contexts + 1 summary
 
 
@@ -278,9 +271,7 @@ def test_generate_cv_fails_when_latex_fails(task_engine):
     cv_id = _seed(task_engine)
 
     def broken(*_a, **_k):
-        raise LatexCompileError(
-            "pdflatex pass 1/2 exited with code 1\n! Undefined control sequence."
-        )
+        raise LatexCompileError("pdflatex pass 1/2 exited with code 1\n! Undefined control sequence.")
 
     task_engine.set_compile(broken)
     with pytest.raises(LatexCompileError):

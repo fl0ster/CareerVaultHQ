@@ -108,9 +108,7 @@ def list_sources(session: Annotated[Session, Depends(get_session)]) -> list[Sour
 
 
 @router.patch("/{key}", response_model=SourceOut)
-def update_source(
-    key: str, payload: SourceUpdate, session: Annotated[Session, Depends(get_session)]
-) -> SourceOut:
+def update_source(key: str, payload: SourceUpdate, session: Annotated[Session, Depends(get_session)]) -> SourceOut:
     """Change ``enabled`` and/or ``scrape_interval_seconds`` of one source.
 
     Changing the interval or (re-)enabling the source clears ``next_scrape_at`` so the

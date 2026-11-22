@@ -62,9 +62,7 @@ def _month(value: date | None) -> str | None:
 def _work_history_payload(session: Session) -> list[dict]:
     """The work history in the shape of ``GET /api/work-history/json``, newest first."""
     entries = session.scalars(
-        select(WorkHistoryEntry).order_by(
-            WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc()
-        )
+        select(WorkHistoryEntry).order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
     ).all()
     return [
         {
@@ -88,9 +86,7 @@ def work_history_id(work_history: list[dict]) -> str | None:
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
-def current_profile(
-    session: Session, ai_service: OpenRouterService
-) -> tuple[CandidateProfile | None, bool]:
+def current_profile(session: Session, ai_service: OpenRouterService) -> tuple[CandidateProfile | None, bool]:
     """The profile to use right now, generating a new one first when needed.
 
     Returns ``(profile, created)``. A new profile is generated (and committed) when the work

@@ -69,9 +69,7 @@ def _missing_columns(engine: Engine) -> list[str]:
     for table, columns in ADDED_COLUMNS.items():
         existing = {column["name"] for column in inspector.get_columns(table)}
         statements += [
-            f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"
-            for name, ddl in columns.items()
-            if name not in existing
+            f"ALTER TABLE {table} ADD COLUMN {name} {ddl}" for name, ddl in columns.items() if name not in existing
         ]
     return statements
 

@@ -138,9 +138,7 @@ def scrape_sched(queue, engine, monkeypatch):
         sources_service.get_source(session, "off").enabled = False
         session.commit()
     settings = Settings(cors_origins=[], scrape_interval_seconds=3600, scrape_jitter_ratio=0.5)
-    return scheduler.ScrapeScheduler(
-        queue, settings, sessions=session_factory(engine), rng=random.Random(1)
-    )
+    return scheduler.ScrapeScheduler(queue, settings, sessions=session_factory(engine), rng=random.Random(1))
 
 
 def _row(engine, key):
@@ -192,9 +190,7 @@ def test_scrape_does_not_enqueue_while_previous_run_is_active(scrape_sched, engi
     assert scrape_sched.tick(later)["alpha"] == "active"  # still queued
     assert len([j for j in queue.jobs if j.args == ("alpha",)]) == 1
 
-    Job.fetch(scheduler.SCRAPE_JOB_ID_PREFIX + "alpha", connection=queue.connection).set_status(
-        JobStatus.FINISHED
-    )
+    Job.fetch(scheduler.SCRAPE_JOB_ID_PREFIX + "alpha", connection=queue.connection).set_status(JobStatus.FINISHED)
     assert scrape_sched.tick(later)["alpha"] == "enqueued"
 
 

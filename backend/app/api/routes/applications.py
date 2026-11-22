@@ -215,9 +215,7 @@ class EventUpdate(BaseModel):
 
 def _query():
     return select(Application).options(
-        joinedload(Application.job_parse_result)
-        .joinedload(JobParseResult.job)
-        .joinedload(Job.source),
+        joinedload(Application.job_parse_result).joinedload(JobParseResult.job).joinedload(Job.source),
         joinedload(Application.job_parse_result).joinedload(JobParseResult.company),
         joinedload(Application.job_evaluation),
         joinedload(Application.generated_cv),
@@ -233,9 +231,7 @@ def _get_or_404(session: Session, application_id: int) -> Application:
 
 
 def _http_error(exc: EventRejected) -> HTTPException:
-    code = (
-        status.HTTP_422_UNPROCESSABLE_CONTENT if exc.kind == "invalid" else status.HTTP_409_CONFLICT
-    )
+    code = status.HTTP_422_UNPROCESSABLE_CONTENT if exc.kind == "invalid" else status.HTTP_409_CONFLICT
     return HTTPException(code, str(exc))
 
 
@@ -258,9 +254,7 @@ def _cv_with_job(session: Session, cv_id: int) -> GeneratedCV:
         select(GeneratedCV)
         .where(GeneratedCV.id == cv_id)
         .options(
-            joinedload(GeneratedCV.job_parse_result)
-            .joinedload(JobParseResult.job)
-            .joinedload(Job.source),
+            joinedload(GeneratedCV.job_parse_result).joinedload(JobParseResult.job).joinedload(Job.source),
             joinedload(GeneratedCV.job_parse_result).joinedload(JobParseResult.company),
         )
     )
@@ -286,9 +280,7 @@ def _reject_if_final(application: Application) -> None:
         raise _http_error(exc) from exc
 
 
-def _to_out(
-    application: Application, request: Request, session: Session, queue: Queue
-) -> ApplicationOut:
+def _to_out(application: Application, request: Request, session: Session, queue: Queue) -> ApplicationOut:
     parsed = application.job_parse_result
     job = parsed.job
     evaluation = application.job_evaluation
@@ -328,9 +320,7 @@ def _to_out(
     )
 
 
-def _reload_out(
-    session: Session, application_id: int, request: Request, queue: Queue
-) -> ApplicationOut:
+def _reload_out(session: Session, application_id: int, request: Request, queue: Queue) -> ApplicationOut:
     session.expire_all()
     return _to_out(_get_or_404(session, application_id), request, session, queue)
 
@@ -342,16 +332,12 @@ def _reload_out(
 def list_statuses(session: Annotated[Session, Depends(get_session)]) -> list[StatusOut]:
     """Available application states in display order."""
     ensure_statuses(session)
-    rows = session.scalars(
-        select(ApplicationStatus).order_by(ApplicationStatus.position, ApplicationStatus.id)
-    ).all()
+    rows = session.scalars(select(ApplicationStatus).order_by(ApplicationStatus.position, ApplicationStatus.id)).all()
     return [StatusOut.model_validate(r) for r in rows]
 
 
 @router.post("/statuses", response_model=StatusOut, status_code=status.HTTP_201_CREATED)
-def create_status(
-    payload: StatusCreate, session: Annotated[Session, Depends(get_session)]
-) -> StatusOut:
+def create_status(payload: StatusCreate, session: Annotated[Session, Depends(get_session)]) -> StatusOut:
     """Add a custom state (``409`` when the key exists). Listed last unless ``position``
     is given."""
     ensure_statuses(session)
@@ -391,14 +377,10 @@ def create_application(
     if evaluation is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job evaluation")
     existing = session.scalar(
-        select(Application.id).where(
-            Application.job_parse_result_id == evaluation.job_parse_result_id
-        )
+        select(Application.id).where(Application.job_parse_result_id == evaluation.job_parse_result_id)
     )
     if existing is not None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"application #{existing} already exists for this job"
-        )
+        raise HTTPException(status.HTTP_409_CONFLICT, f"application #{existing} already exists for this job")
     initial = _status_or_422(session, payload.status) if payload.status else None
     check_cv_inputs(session)
 
@@ -443,14 +425,10 @@ def list_applications(
     applications = session.scalars(_query().order_by(Application.id.desc())).unique().all()
     if status_key:
         key = status_key.upper()
-        applications = [
-            a for a in applications if a.current_event and a.current_event.status.key == key
-        ]
+        applications = [a for a in applications if a.current_event and a.current_event.status.key == key]
     if exclude_status:
         excluded = {k.strip().upper() for k in exclude_status.split(",") if k.strip()}
-        applications = [
-            a for a in applications if not (a.current_event and a.current_event.status.key in excluded)
-        ]
+        applications = [a for a in applications if not (a.current_event and a.current_event.status.key in excluded)]
     needle = (q or "").strip().casefold()
     if needle:
         applications = [a for a in applications if _matches(a, needle)]
@@ -490,9 +468,7 @@ def update_application(
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"{held} interview round(s) already held"
-            )
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{held} interview round(s) already held")
         interview = _status_or_422(session, INTERVIEW_STATUS)
         set_interview_rounds(session, application, payload.interview_rounds, interview)
     session.commit()
@@ -500,9 +476,7 @@ def update_application(
 
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_application(
-    application_id: int, session: Annotated[Session, Depends(get_session)]
-) -> Response:
+def delete_application(application_id: int, session: Annotated[Session, Depends(get_session)]) -> Response:
     """Delete the application and its state history (the generated CV is kept)."""
     session.delete(_get_or_404(session, application_id))
     session.commit()
@@ -542,9 +516,7 @@ def _event_or_404(application: Application, event_id: int) -> ApplicationEvent:
     raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown application event")
 
 
-@router.post(
-    "/{application_id}/events", response_model=ApplicationOut, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{application_id}/events", response_model=ApplicationOut, status_code=status.HTTP_201_CREATED)
 def add_event(
     application_id: int,
     payload: EventCreate,
@@ -556,9 +528,7 @@ def add_event(
     before a later one."""
     application = _get_or_404(session, application_id)
     try:
-        record_event(
-            session, application, payload.status, note=payload.note, occurred_at=payload.occurred_at
-        )
+        record_event(session, application, payload.status, note=payload.note, occurred_at=payload.occurred_at)
     except EventRejected as exc:
         raise _http_error(exc) from exc
     session.commit()
@@ -581,14 +551,10 @@ def update_event(
     sent = payload.model_fields_set
     if payload.status is not None and payload.status.upper() != event.status.key:
         if event.planned:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, "a planned round is always INTERVIEW"
-            )
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "a planned round is always INTERVIEW")
         _reject_initial_only(event.status.key)
         _reject_initial_only(payload.status)
-        if payload.status.upper() == APPLIED_STATUS and any(
-            e.status.key == APPLIED_STATUS for e in application.events
-        ):
+        if payload.status.upper() == APPLIED_STATUS and any(e.status.key == APPLIED_STATUS for e in application.events):
             raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
         event.status = _status_or_422(session, payload.status)
     if not event.planned:

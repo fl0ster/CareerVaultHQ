@@ -125,9 +125,7 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator(
-        "frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", mode="before"
-    )
+    @field_validator("frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", mode="before")
     @classmethod
     def _resolve_path(cls, value: object) -> object:
         if isinstance(value, str):

@@ -192,9 +192,7 @@ def _http_error(exc: OpenRouterError) -> HTTPException:
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(
-    payload: ChatRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]
-) -> ChatResponse:
+def chat(payload: ChatRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]) -> ChatResponse:
     try:
         result = service.chat(source=payload.source or SOURCE_CHAT, **_kwargs(payload))
     except OpenRouterError as exc:
@@ -208,9 +206,7 @@ def chat(
 
 
 @router.post("/decide", response_model=DecideResponse)
-def decide(
-    payload: DecideRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]
-) -> DecideResponse:
+def decide(payload: DecideRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]) -> DecideResponse:
     try:
         result = service.decide(
             state=payload.state,
@@ -248,16 +244,10 @@ def list_calls(
         filters.append(OpenRouterCall.status == status_)
 
     total, total_cost = session.execute(
-        select(
-            func.count(OpenRouterCall.id), func.coalesce(func.sum(OpenRouterCall.cost), 0.0)
-        ).where(*filters)
+        select(func.count(OpenRouterCall.id), func.coalesce(func.sum(OpenRouterCall.cost), 0.0)).where(*filters)
     ).one()
     items = session.scalars(
-        select(OpenRouterCall)
-        .where(*filters)
-        .order_by(OpenRouterCall.id.desc())
-        .limit(limit)
-        .offset(offset)
+        select(OpenRouterCall).where(*filters).order_by(OpenRouterCall.id.desc()).limit(limit).offset(offset)
     ).all()
     return OpenRouterCallsPage(
         total=total,
@@ -330,11 +320,7 @@ def cost_report(
 
     # The audit log is small (one row per LLM call), so bucketing in Python keeps the
     # date math portable across SQLite and Postgres.
-    rows = list(
-        session.scalars(
-            select(OpenRouterCall).where(*filters).order_by(OpenRouterCall.created_at)
-        ).all()
-    )
+    rows = list(session.scalars(select(OpenRouterCall).where(*filters).order_by(OpenRouterCall.created_at)).all())
 
     per_bucket: dict[datetime, list[OpenRouterCall]] = defaultdict(list)
     for row in rows:

@@ -97,9 +97,7 @@ class MonitorSettingsUpdate(BaseModel):
     @classmethod
     def _url(cls, value: str | None) -> str | None:
         if value and re.fullmatch(SCRIPT_URL_PATTERN, value) is None:
-            raise ValueError(
-                "the web app URL must look like https://script.google.com/macros/s/<id>/exec"
-            )
+            raise ValueError("the web app URL must look like https://script.google.com/macros/s/<id>/exec")
         return value
 
 
@@ -185,9 +183,7 @@ def read_settings(session: Annotated[Session, Depends(get_session)]) -> MonitorS
 
 
 @router.patch("/settings", response_model=MonitorSettingsOut)
-def update_settings(
-    payload: MonitorSettingsUpdate, session: Annotated[Session, Depends(get_session)]
-) -> MonitorSettingsOut:
+def update_settings(payload: MonitorSettingsUpdate, session: Annotated[Session, Depends(get_session)]) -> MonitorSettingsOut:
     """Change the given fields. Changing the interval or turning the monitor on makes the
     scheduler run a check at its next tick."""
     row = get_monitor_settings(session)
@@ -234,10 +230,7 @@ def test_connection(session: Annotated[Session, Depends(get_session)]) -> TestRe
     matches = bool(row.email) and same_address(email, row.email)
     error = None
     if not matches:
-        error = (
-            f"the script runs as {email or 'an unknown account'}, "
-            f"not {row.email or 'the configured address (none set)'}"
-        )
+        error = f"the script runs as {email or 'an unknown account'}, not {row.email or 'the configured address (none set)'}"
     return TestResult(ok=matches, email=email, matches_configured=matches, error=error)
 
 

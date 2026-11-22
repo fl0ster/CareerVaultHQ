@@ -97,9 +97,7 @@ def _fake_client(email):
 
 def test_connection_test_reports_account(client, monkeypatch):
     _configure(client)
-    monkeypatch.setattr(
-        "app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("Me@Gmail.com")
-    )
+    monkeypatch.setattr("app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("Me@Gmail.com"))
     assert client.post(f"{BASE}/test").json() == {
         "ok": True,
         "email": "Me@Gmail.com",
@@ -107,9 +105,7 @@ def test_connection_test_reports_account(client, monkeypatch):
         "error": None,
     }
 
-    monkeypatch.setattr(
-        "app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("other@gmail.com")
-    )
+    monkeypatch.setattr("app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("other@gmail.com"))
     body = client.post(f"{BASE}/test").json()
     assert body["ok"] is False and "other@gmail.com" in body["error"]
 
@@ -126,9 +122,7 @@ def test_run_enqueues_once(client, fake_queue):
     assert first.json()["job_id"] == GMAIL_JOB_ID
     # A second request while the first is still queued returns the same job.
     assert client.post(f"{BASE}/run").json()["job_id"] == GMAIL_JOB_ID
-    assert [j.func_name for j in fake_queue.jobs] == [
-        "app.tasks.gmail.rejections.check_rejection_mails"
-    ]
+    assert [j.func_name for j in fake_queue.jobs] == ["app.tasks.gmail.rejections.check_rejection_mails"]
     assert client.get(f"{BASE}/jobs/{GMAIL_JOB_ID}").json()["status"] == "queued"
     assert client.get(f"{BASE}/jobs/nope").status_code == 404
 
@@ -155,9 +149,7 @@ def test_mails_listing(client, db_session):
 @pytest.fixture
 def scheduler(engine):
     queue = Queue("jobs", connection=FakeStrictRedis())
-    sched = GmailMonitorScheduler(
-        queue, Settings(cors_origins=[]), sessions=session_factory(engine)
-    )
+    sched = GmailMonitorScheduler(queue, Settings(cors_origins=[]), sessions=session_factory(engine))
     return sched, queue
 
 

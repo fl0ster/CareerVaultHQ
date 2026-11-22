@@ -29,11 +29,7 @@ def mount_spa(app: FastAPI, dist_dir: Path, api_prefix: str) -> None:
             raise HTTPException(status_code=404)
 
         candidate = (dist_dir / full_path).resolve()
-        if (
-            full_path
-            and candidate.is_relative_to(dist_dir.resolve())
-            and candidate.is_file()
-        ):
+        if full_path and candidate.is_relative_to(dist_dir.resolve()) and candidate.is_file():
             return FileResponse(candidate)
 
         return FileResponse(index_file)

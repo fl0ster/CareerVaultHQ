@@ -90,9 +90,7 @@ def job_description_text(parsed: JobParseResult) -> str:
 
 def load_roles(session: Session, today: date | None = None) -> list[Role]:
     entries = session.scalars(
-        select(WorkHistoryEntry).order_by(
-            WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc()
-        )
+        select(WorkHistoryEntry).order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
     ).all()
     return [
         Role.from_dates(
@@ -134,10 +132,7 @@ def details_dict(details: CandidateDetails) -> dict[str, Any]:
 def check_details(details: CandidateDetails | None) -> None:
     """Raise :class:`CvGenerationError` unless the candidate's name is known."""
     if details is None or not (details.first_name.strip() and details.last_name.strip()):
-        raise CvGenerationError(
-            "missing candidate details: fill in your first and last name on the "
-            "Candidate profile tab"
-        )
+        raise CvGenerationError("missing candidate details: fill in your first and last name on the Candidate profile tab")
 
 
 # --------------------------------------------------------------------------- LLM access
@@ -169,9 +164,7 @@ class Llm:
         if not self.call_ids:
             return 0.0, 0
         total = session.scalar(
-            select(func.coalesce(func.sum(OpenRouterCall.cost), 0.0)).where(
-                OpenRouterCall.id.in_(self.call_ids)
-            )
+            select(func.coalesce(func.sum(OpenRouterCall.cost), 0.0)).where(OpenRouterCall.id.in_(self.call_ids))
         )
         return float(total or 0.0), len(self.call_ids)
 
@@ -228,9 +221,7 @@ class Llm:
     ) -> dict[str, dict[str, Any]] | None:
         for attempt in range(1, self.ATTEMPTS + 1):
             try:
-                result = service.decide(
-                    state=state, questions=questions, source=f"{SOURCE}.{source}"
-                )
+                result = service.decide(state=state, questions=questions, source=f"{SOURCE}.{source}")
             except OpenRouterNotConfigured:
                 raise
             except OpenRouterError as exc:
@@ -291,22 +282,15 @@ def score_relevance(llm: Llm, roles: list[Role], job_description: str, warnings:
 
 def _position_message(entry: dict, job_description: str, heading: str) -> str:
     position = {k: v for k, v in entry.items() if k != "relevance"}
-    return (
-        f"JOB DESCRIPTION:\n{job_description}\n\n"
-        f"{heading}:\n{json.dumps(position, indent=2, ensure_ascii=False)}"
-    )
+    return f"JOB DESCRIPTION:\n{job_description}\n\n{heading}:\n{json.dumps(position, indent=2, ensure_ascii=False)}"
 
 
-def tailor_main_roles(
-    llm: Llm, entries: list[dict], job_description: str, warnings: list[str]
-) -> list[dict]:
+def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
     """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job."""
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
-        return lambda service: llm.chat(
-            service, prompts.CONTEXT_SYSTEM_PROMPT, message, source="context", temperature=0.3
-        )
+        return lambda service: llm.chat(service, prompts.CONTEXT_SYSTEM_PROMPT, message, source="context", temperature=0.3)
 
     def tech_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         subset = {k: entry.get(k) for k in ("tech", "context")}
@@ -314,9 +298,7 @@ def tailor_main_roles(
             f"JOB DESCRIPTION:\n{job_description}\n\n"
             f"TECHNOLOGY AND CONTEXT:\n{json.dumps(subset, indent=2, ensure_ascii=False)}"
         )
-        return lambda service: llm.chat(
-            service, prompts.TECH_SYSTEM_PROMPT, message, source="tech", temperature=0.3
-        )
+        return lambda service: llm.chat(service, prompts.TECH_SYSTEM_PROMPT, message, source="tech", temperature=0.3)
 
     results = llm.run_all([context_call(e) for e in entries] + [tech_call(e) for e in entries])
     contexts, techs = results[: len(entries)], results[len(entries) :]
@@ -331,23 +313,19 @@ def tailor_main_roles(
         if tech is None:
             warnings.append(f"technologies of {label} could not be tailored; kept the original")
         else:
-            new_entry["tech"] = ", ".join(
-                t.strip() for t in _clean_line(tech).split(",") if t.strip()
-            ) or entry.get("tech", "")
+            new_entry["tech"] = ", ".join(t.strip() for t in _clean_line(tech).split(",") if t.strip()) or entry.get(
+                "tech", ""
+            )
         tailored.append(new_entry)
     return tailored
 
 
-def condense_early_roles(
-    llm: Llm, entries: list[dict], job_description: str, warnings: list[str]
-) -> list[dict]:
+def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
     """Step 3b: condense every early role's context into one sentence."""
 
     def call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "EARLIER POSITION")
-        return lambda service: llm.chat(
-            service, prompts.EARLY_SYSTEM_PROMPT, message, source="early", temperature=0.3
-        )
+        return lambda service: llm.chat(service, prompts.EARLY_SYSTEM_PROMPT, message, source="early", temperature=0.3)
 
     results = llm.run_all([call(e) for e in entries])
     condensed = []
@@ -355,8 +333,7 @@ def condense_early_roles(
         new_entry = dict(entry)
         if sentence is None:
             warnings.append(
-                f"context of {entry.get('role')} @ {entry.get('employer')} could not be "
-                "condensed; kept the original"
+                f"context of {entry.get('role')} @ {entry.get('employer')} could not be condensed; kept the original"
             )
         else:
             new_entry["context"] = _clean_line(sentence)
@@ -394,13 +371,8 @@ def categorize_technologies(
     fallback = [("Technologies", technologies)]
     if not technologies:
         return []
-    message = (
-        f"JOB DESCRIPTION:\n{job_description}\n\n"
-        f"TECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
-    )
-    reply = llm.chat(
-        service, prompts.CATEGORIES_SYSTEM_PROMPT, message, source="categories", temperature=0.2
-    )
+    message = f"JOB DESCRIPTION:\n{job_description}\n\nTECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
+    reply = llm.chat(service, prompts.CATEGORIES_SYSTEM_PROMPT, message, source="categories", temperature=0.2)
     categories = _parse_categories(reply) if reply else None
     if categories is None:
         warnings.append("technologies could not be categorised; listed in one category")
@@ -434,13 +406,8 @@ def generate_summary(
     job_description: str,
     warnings: list[str],
 ) -> str:
-    message = (
-        f"JOB DESCRIPTION:\n{job_description}\n\n"
-        f"WORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
-    )
-    reply = llm.chat(
-        service, prompts.SUMMARY_SYSTEM_PROMPT, message, source="summary", temperature=0.2
-    )
+    message = f"JOB DESCRIPTION:\n{job_description}\n\nWORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
+    reply = llm.chat(service, prompts.SUMMARY_SYSTEM_PROMPT, message, source="summary", temperature=0.2)
     if not reply:
         warnings.append("summary could not be generated; left empty")
         return ""
@@ -460,10 +427,7 @@ def pick_headline_role(
 ) -> str:
     """Job-tailored, experience-consistent headline title; the latest role on failure."""
     fallback = str((history[0].get("role") if history else "") or "").strip()
-    message = (
-        f"JOB DESCRIPTION:\n{job_description}\n\n"
-        f"WORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
-    )
+    message = f"JOB DESCRIPTION:\n{job_description}\n\nWORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
     reply = llm.chat(service, prompts.ROLE_SYSTEM_PROMPT, message, source="role", temperature=0.2)
     if not reply:
         warnings.append("headline role could not be picked; used the latest role")
@@ -486,13 +450,8 @@ def pick_core_technologies(
     fallback = technologies[: prompts.CORE_TECH_MAX]
     if not technologies:
         return []
-    message = (
-        f"JOB DESCRIPTION:\n{job_description}\n\n"
-        f"TECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
-    )
-    reply = llm.chat(
-        service, prompts.CORE_TECH_SYSTEM_PROMPT, message, source="core_tech", temperature=0.2
-    )
+    message = f"JOB DESCRIPTION:\n{job_description}\n\nTECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
+    reply = llm.chat(service, prompts.CORE_TECH_SYSTEM_PROMPT, message, source="core_tech", temperature=0.2)
     if not reply:
         warnings.append("core technologies could not be picked; used the first ones listed")
         return fallback
@@ -521,9 +480,7 @@ def pick_core_technologies(
 # --------------------------------------------------------------------------- pipeline
 
 
-def run_pipeline(
-    session: Session, cv: GeneratedCV, *, settings: Settings | None = None
-) -> dict[str, Any]:
+def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None = None) -> dict[str, Any]:
     """Run every step for ``cv`` and return what to store on the row::
 
         {
@@ -538,9 +495,7 @@ def run_pipeline(
     today = date.today()
     warnings: list[str] = []
 
-    parsed = session.get(
-        JobParseResult, cv.job_parse_result_id, options=[joinedload(JobParseResult.company)]
-    )
+    parsed = session.get(JobParseResult, cv.job_parse_result_id, options=[joinedload(JobParseResult.company)])
     if parsed is None:
         raise CvGenerationError("the parsed job no longer exists")
     job_description = job_description_text(parsed)
@@ -649,9 +604,7 @@ def run_pipeline(
         "timeline_log": history.log,
         "warnings": warnings,
     }
-    (out_dir / "pipeline.json").write_text(
-        json.dumps(pipeline, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    (out_dir / "pipeline.json").write_text(json.dumps(pipeline, indent=2, ensure_ascii=False), encoding="utf-8")
     compiled = compile_latex(str(tex_path), out_dir=str(out_dir))
     pipeline["latex_log_tail"] = compiled["log_tail"]
 

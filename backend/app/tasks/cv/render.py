@@ -118,9 +118,7 @@ def render_early_history(entries: list[dict]) -> str:
     """All early roles as a single ``cvrole`` block, one line per role (newest first)."""
     if not entries:
         return ""
-    dates = (
-        f"{tex_escape(entries[-1].get('date_start'))} -- {tex_escape(entries[0].get('date_end'))}"
-    )
+    dates = f"{tex_escape(entries[-1].get('date_start'))} -- {tex_escape(entries[0].get('date_end'))}"
     lines = [f"\\begin{{cvrole}}{{Additional Experience}}{{Various Companies}}{{{dates}}}{{}}"]
     for entry in entries:
         role = tex_escape(entry.get("role"))
@@ -169,8 +167,7 @@ def collect_technologies(entries: list[dict]) -> list[str]:
 def render_technologies(categories: list[tuple[str, list[str]]]) -> str:
     """``\\cvitem{Category}{a, b, c}`` lines; empty string when there is nothing."""
     return "\n".join(
-        f"  \\cvitem{{{tex_escape(name)}}}"
-        f"{{{{\\color{{muted}}{', '.join(tex_escape(t) for t in techs)}}}}}"
+        f"  \\cvitem{{{tex_escape(name)}}}{{{{\\color{{muted}}{', '.join(tex_escape(t) for t in techs)}}}}}"
         for name, techs in categories
         if techs
     )
@@ -208,9 +205,7 @@ def render_education(education: list[dict], certifications: list[str]) -> str:
         if entry.get("institution"):
             lines.append(f"  {{\\color{{muted}}\\itshape {tex_escape(entry['institution'])}\\par}}")
         if entry.get("note"):
-            lines.append(
-                f"  {{\\footnotesize\\color{{muted}}\\itshape {tex_escape(entry['note'])}\\par}}"
-            )
+            lines.append(f"  {{\\footnotesize\\color{{muted}}\\itshape {tex_escape(entry['note'])}\\par}}")
     if certifications:
         if education:
             lines.append("  \\vspace{6pt}")
@@ -233,8 +228,7 @@ def render_languages(languages: list[dict]) -> str:
     if not languages:
         return ""
     lines = [
-        f"  \\cvitem{{{tex_escape(lang['language'])}}}"
-        f"{{{{\\color{{muted}}{tex_escape(lang.get('level'))}}}}}"
+        f"  \\cvitem{{{tex_escape(lang['language'])}}}{{{{\\color{{muted}}{tex_escape(lang.get('level'))}}}}}"
         for lang in languages
     ]
     return _section_block("Languages", "\n".join(lines))
@@ -251,12 +245,7 @@ def render_consent(text: str | None) -> str:
     if not paragraphs:
         return ""
     body = "\\par\\vspace{4pt}".join(tex_escape(" ".join(p.split())) for p in paragraphs)
-    return (
-        "\\par\\vspace{18pt}\n"
-        "\\begin{cvblock}\n"
-        f"  {{\\footnotesize\\color{{muted}} {body}\\par}}\n"
-        "\\end{cvblock}"
-    )
+    return f"\\par\\vspace{{18pt}}\n\\begin{{cvblock}}\n  {{\\footnotesize\\color{{muted}} {body}\\par}}\n\\end{{cvblock}}"
 
 
 # --------------------------------------------------------------------------- template
@@ -287,9 +276,7 @@ def render_cv(
     categories: list[tuple[str, list[str]]],
 ) -> str:
     """The complete ``.tex`` document."""
-    name = " ".join(
-        part for part in (details.get("first_name", ""), details.get("last_name", "")) if part
-    ).strip()
+    name = " ".join(part for part in (details.get("first_name", ""), details.get("last_name", "")) if part).strip()
     return fill_template(
         template,
         {
@@ -299,9 +286,7 @@ def render_cv(
             "__CONTACTS__": render_contacts(details),
             "__SUMMARY__": tex_escape(summary),
             "__ROLES__": render_roles(main, early),
-            "__EDUCATION__": render_education(
-                details.get("education") or [], details.get("certifications") or []
-            ),
+            "__EDUCATION__": render_education(details.get("education") or [], details.get("certifications") or []),
             "__TECHNOLOGIES__": render_technologies_section(categories),
             "__LANGUAGES__": render_languages(details.get("languages") or []),
             "__CONSENT__": render_consent(details.get("consent_text")),

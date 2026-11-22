@@ -91,9 +91,7 @@ def compile_latex(
         if result.returncode != 0:
             stdout = result.stdout.decode("utf-8", errors="replace")
             tail = _log_tail(log_file) or stdout[-LOG_TAIL_CHARS:]
-            raise LatexCompileError(
-                f"{compiler} pass {i}/{passes} exited with code {result.returncode}\n{tail}"
-            )
+            raise LatexCompileError(f"{compiler} pass {i}/{passes} exited with code {result.returncode}\n{tail}")
 
     if not pdf_file.is_file():
         raise LatexCompileError(f"{compiler} finished but {pdf_file.name} was not produced")

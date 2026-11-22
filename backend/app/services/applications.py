@@ -18,9 +18,7 @@ from app.models import (
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
     """Record (or overwrite) the user's decision about a parsed job. Not committed."""
-    row = session.scalar(
-        select(JobDecision).where(JobDecision.job_parse_result_id == job_parse_result_id)
-    )
+    row = session.scalar(select(JobDecision).where(JobDecision.job_parse_result_id == job_parse_result_id))
     if row is None:
         row = JobDecision(job_parse_result_id=job_parse_result_id, decision=decision)
         session.add(row)
@@ -80,17 +78,13 @@ def status_by_key(session: Session, key: str) -> ApplicationStatus:
 
 def reject_initial_only(key: str) -> None:
     if key.upper() == INITIAL_ONLY_STATUS:
-        raise EventRejected(
-            f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid"
-        )
+        raise EventRejected(f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid")
 
 
 def reject_if_final(application: Application) -> None:
     current = application.current_event
     if current is not None and current.status.key in FINAL_STATUSES:
-        raise EventRejected(
-            f"application is {current.status.key}; remove that state to record new ones"
-        )
+        raise EventRejected(f"application is {current.status.key}; remove that state to record new ones")
 
 
 def reject_out_of_order(
@@ -209,9 +203,7 @@ def held_rounds(application: Application) -> list[ApplicationEvent]:
     return [e for e in application.history if e.status.key == INTERVIEW_STATUS]
 
 
-def set_interview_rounds(
-    session: Session, application: Application, rounds: int, interview: ApplicationStatus
-) -> None:
+def set_interview_rounds(session: Session, application: Application, rounds: int, interview: ApplicationStatus) -> None:
     """Add blank planned rounds at the end, or drop them from the end, so the application has
     ``rounds`` interview rounds (held + planned; at least the held ones). Not committed."""
     plan = application.plan
@@ -220,9 +212,7 @@ def set_interview_rounds(
         application.events.remove(event)
         session.delete(event)
     for _ in range(wanted - len(plan)):
-        application.events.append(
-            ApplicationEvent(status=interview, planned=True, occurred_at=None)
-        )
+        application.events.append(ApplicationEvent(status=interview, planned=True, occurred_at=None))
 
 
 def plan_parsed_rounds(session: Session, application: Application, parsed: JobParseResult) -> None:

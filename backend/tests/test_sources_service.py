@@ -167,12 +167,8 @@ def test_source_relevance_uses_only_the_latest_profile(db_session):
 
     rel = service.source_relevance(db_session)
 
-    assert rel[a.id] == service.Relevance(
-        job_count=4, evaluated_count=2, avg_match=pytest.approx(0.6), good_match_share=0.5
-    )
-    assert rel[b.id] == service.Relevance(
-        job_count=1, evaluated_count=1, avg_match=0.5, good_match_share=1.0
-    )
+    assert rel[a.id] == service.Relevance(job_count=4, evaluated_count=2, avg_match=pytest.approx(0.6), good_match_share=0.5)
+    assert rel[b.id] == service.Relevance(job_count=1, evaluated_count=1, avg_match=0.5, good_match_share=1.0)
     assert rel[c.id] == service.Relevance(job_count=1)
     assert set(rel) == {a.id, b.id, c.id}
 

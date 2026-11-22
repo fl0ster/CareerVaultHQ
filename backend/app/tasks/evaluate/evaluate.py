@@ -83,9 +83,7 @@ def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
     """``JobParseResult`` rows parsed within ``MAX_PARSE_AGE``, without a ``JobEvaluation``
     for ``profile_id`` and not waiting out a failure backoff, oldest first."""
     now = now or datetime.now(UTC)
-    evaluated = select(JobEvaluation.job_parse_result_id).where(
-        JobEvaluation.candidate_profile_id == profile_id
-    )
+    evaluated = select(JobEvaluation.job_parse_result_id).where(JobEvaluation.candidate_profile_id == profile_id)
     backing_off = select(JobEvaluationFailure.job_parse_result_id).where(
         JobEvaluationFailure.candidate_profile_id == profile_id,
         or_(
@@ -102,9 +100,7 @@ def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
     )
 
 
-def pending_parse_results(
-    session: Session, profile_id: int, *, limit: int | None = None
-) -> list[JobParseResult]:
+def pending_parse_results(session: Session, profile_id: int, *, limit: int | None = None) -> list[JobParseResult]:
     """Up to ``limit`` parsed jobs not yet evaluated against ``profile_id``."""
     stmt = _unevaluated_query(profile_id)
     if limit is not None:
@@ -112,9 +108,7 @@ def pending_parse_results(
     return list(session.scalars(stmt))
 
 
-def unevaluated_among(
-    session: Session, profile_id: int, parse_result_ids: list[int]
-) -> list[JobParseResult]:
+def unevaluated_among(session: Session, profile_id: int, parse_result_ids: list[int]) -> list[JobParseResult]:
     """Those of ``parse_result_ids`` not yet evaluated against ``profile_id``."""
     if not parse_result_ids:
         return []
@@ -134,13 +128,9 @@ def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, 
     }
 
 
-def evaluate_one(
-    service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult
-) -> JobEvaluation:
+def evaluate_one(service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult) -> JobEvaluation:
     """Ask OpenRouter about one job and return the (unsaved) ``JobEvaluation``."""
-    decision = service.decide(
-        state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE
-    )
+    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE)
     return JobEvaluation(
         job_parse_result_id=parsed.id,
         candidate_profile_id=profile.id,
@@ -149,9 +139,7 @@ def evaluate_one(
     )
 
 
-def _record_failure(
-    session: Session, profile: CandidateProfile, parsed: JobParseResult, error: str
-) -> None:
+def _record_failure(session: Session, profile: CandidateProfile, parsed: JobParseResult, error: str) -> None:
     """Bump the failure row for the pair and push its ``next_attempt_at`` out
     exponentially: ``backoff * 2**(attempts-1)``."""
     settings = get_settings()
@@ -162,9 +150,7 @@ def _record_failure(
         )
     )
     if failure is None:
-        failure = JobEvaluationFailure(
-            job_parse_result_id=parsed.id, candidate_profile_id=profile.id, attempts=0
-        )
+        failure = JobEvaluationFailure(job_parse_result_id=parsed.id, candidate_profile_id=profile.id, attempts=0)
         session.add(failure)
     failure.attempts += 1
     failure.last_error = error[:2000]
@@ -219,9 +205,7 @@ def evaluate_parse_results(parse_result_ids: list[int]) -> dict[str, Any]:
         return _evaluate(session, profile, pending)
 
 
-def _evaluate(
-    session: Session, profile: CandidateProfile, pending: list[JobParseResult]
-) -> dict[str, Any]:
+def _evaluate(session: Session, profile: CandidateProfile, pending: list[JobParseResult]) -> dict[str, Any]:
     """Score ``pending`` one by one, committing each ``JobEvaluation`` on its own.
 
     Returns::
@@ -256,9 +240,7 @@ def _evaluate(
             failed += 1
             session.rollback()
             _record_failure(session, profile, parsed, f"{type(exc).__name__}: {exc}")
-            log.warning(
-                "Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc
-            )
+            log.warning("Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc)
             continue
         session.add(evaluation)
         try:
