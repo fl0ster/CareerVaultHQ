@@ -97,12 +97,12 @@ export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me
 
 /** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness, hideHeader: true }],
+  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
   [
-    { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
-    { id: 'applications', label: 'Applications', icon: Send, hideHeader: true },
-    { id: 'jobs', label: 'Jobs', icon: Inbox, hideHeader: true },
+    { id: 'offers', label: 'Offers', icon: Trophy },
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
+    { id: 'applications', label: 'Applications', icon: Send },
+    { id: 'jobs', label: 'Jobs', icon: Inbox },
   ],
 ]
 

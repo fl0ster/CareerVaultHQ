@@ -196,7 +196,8 @@ function App() {
           ) : (
             <section key={page} aria-labelledby={`page-${page}`}>
               <div className="view">
-                <header className={item.hideHeader ? 'sr-only' : 'page-header'}>
+                {/* An open detail (application, job) has its own title, so the page heading steps aside. */}
+                <header className={item.hideHeader || route.detail !== null ? 'sr-only' : 'page-header'}>
                   <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
                   {item.description && <p>{item.description}</p>}
                 </header>
