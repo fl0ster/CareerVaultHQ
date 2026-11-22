@@ -362,7 +362,7 @@
   font: inherit;
   cursor: pointer;
   overflow: clip;
-  transition: opacity 0.15s, box-shadow 0.15s, transform 0.15s;
+  transition: opacity 0.15s, box-shadow 0.15s;
 
   &.ongoing {
     border-right: 0;
@@ -373,7 +373,6 @@
   &:hover,
   &:focus-visible {
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
     outline: none;
     z-index: 2;
   }

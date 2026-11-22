@@ -180,9 +180,6 @@
   &:hover:not(:disabled) {
     background: var(--hover-tint);
   }
-  &:active:not(:disabled) {
-    transform: none;
-  }
 }
 
 .nav-chevron {
@@ -397,7 +394,6 @@
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: rise-in var(--t-med) var(--ease-out);
 }
 
 /* Links back up the trail while a detail view is open. */
@@ -459,11 +455,6 @@
   margin: 0 auto;
   padding: 28px 36px 72px;
   box-sizing: border-box;
-}
-
-/* Shown again on every navigation: the animation restarts when [hidden] is removed. */
-.view {
-  animation: rise-in var(--t-med) var(--ease-out);
 }
 
 .page-header {

@@ -17,14 +17,10 @@ button,
     background-color var(--t-fast) ease,
     border-color var(--t-fast) ease,
     color var(--t-fast) ease,
-    box-shadow var(--t-fast) ease,
-    transform var(--t-fast) ease;
+    box-shadow var(--t-fast) ease;
 
   &:hover:not(:disabled) {
     border-color: var(--accent-border);
-  }
-  &:active:not(:disabled) {
-    transform: scale(0.98);
   }
   &:focus-visible {
     outline: none;

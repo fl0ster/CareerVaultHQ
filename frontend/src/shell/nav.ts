@@ -71,33 +71,33 @@ export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
 /** Menu sections, separated by a line: my profile, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-  [
-    {
-      id: 'jobs',
-      label: 'Jobs',
-      icon: Inbox,
+     [
+      {
+      id: 'candidate-profile',
+      label: 'About me',
+      icon: UserRound,
       hideHeader: true,
     },
+         {
+      id: 'work-history',
+      label: 'Career',
+      icon: History,
+      hideHeader: true,
+    }
+  ],
+  [
+    { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
+      { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
       {
       id: 'applications',
       label: 'Applications',
       icon: Send,
       hideHeader: true,
     },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
-    { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
-  ],
-  [
       {
-      id: 'work-history',
-      label: 'Career',
-      icon: History,
-      hideHeader: true,
-    },
-      {
-      id: 'candidate-profile',
-      label: 'About me',
-      icon: UserRound,
+      id: 'jobs',
+      label: 'Jobs',
+      icon: Inbox,
       hideHeader: true,
     },
   ]
