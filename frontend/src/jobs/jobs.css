@@ -388,10 +388,19 @@
 }
 
 .job-tech-pill {
+  gap: 4px;
   font-weight: 500;
-  background: var(--accent-bg);
+  background: var(--neutral-bg);
   color: var(--text-h);
-  border: 1px solid var(--accent-border);
+  border: 1px solid transparent;
+}
+
+/* Part of the user's tech stack (named in at least one work history entry). */
+.job-tech-pill.mine {
+  font-weight: 600;
+  background: var(--success-bg);
+  color: var(--success-fg);
+  border-color: var(--success-solid);
 }
 
 /* Job and application details: a view inside the layout, reached from the list. */

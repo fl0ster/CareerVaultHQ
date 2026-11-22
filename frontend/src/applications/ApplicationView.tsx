@@ -8,6 +8,7 @@ import ApplicationDetail from './ApplicationDetail.tsx'
 import { type EvaluatedJobDetail, jobsApi } from '../jobs/api.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import '../jobs/jobs.css'
+import TechPills from '../jobs/TechPills.tsx'
 
 type Props = {
   application: Application
@@ -80,15 +81,7 @@ export default function ApplicationView({
           </div>
         </div>
 
-        {technologies.length > 0 && (
-          <ul className="job-tech" aria-label="Technologies">
-            {technologies.map((name) => (
-              <li key={name} className="badge job-tech-pill">
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
+        <TechPills technologies={technologies} />
 
         <ApplicationDetail
           key={application.id}
