@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -234,3 +234,35 @@ def plan_parsed_rounds(session: Session, application: Application, parsed: JobPa
                 duration_minutes=step.get("duration_minutes"),
             )
         )
+
+
+def application_count(session: Session) -> int:
+    return session.scalar(select(func.count()).select_from(Application)) or 0
+
+
+def current_stage_counts(session: Session) -> dict[str, int]:
+    """``{status key: applications currently in it}``, counted in SQL.
+
+    An application's current state is its latest held (not planned) event, ordered like
+    ``Application.history``: by ``occurred_at`` (undated last), then by id.
+    """
+    rank = (
+        func.row_number()
+        .over(
+            partition_by=ApplicationEvent.application_id,
+            order_by=(
+                ApplicationEvent.occurred_at.is_(None).desc(),
+                ApplicationEvent.occurred_at.desc(),
+                ApplicationEvent.id.desc(),
+            ),
+        )
+        .label("rank")
+    )
+    latest = select(ApplicationEvent.status_id, rank).where(ApplicationEvent.planned.is_(False)).subquery()
+    rows = session.execute(
+        select(ApplicationStatus.key, func.count())
+        .join(latest, latest.c.status_id == ApplicationStatus.id)
+        .where(latest.c.rank == 1)
+        .group_by(ApplicationStatus.key)
+    ).all()
+    return dict(rows)

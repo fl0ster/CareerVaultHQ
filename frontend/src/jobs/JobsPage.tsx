@@ -2,7 +2,15 @@ import { Send } from 'lucide-react'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
-import { type EvaluatedJob, type EvaluatedJobDetail, type JobDecision, isRelevant, jobsApi } from './api.ts'
+import {
+  type EvaluatedJob,
+  type EvaluatedJobDetail,
+  type JobDecision,
+  isRelevant,
+  jobsApi,
+  notifyJobsChanged,
+} from './api.ts'
+import { processingStore } from './processingStore.ts'
 import JobView from './JobView.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import AddJobComposer from './AddJobComposer.tsx'
@@ -13,6 +21,7 @@ import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from
 import { describeError } from '../cv/api.ts'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
+import { useStore } from '../shell/store.ts'
 import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 50
@@ -25,8 +34,6 @@ const SEARCH_DEBOUNCE_MS = 300
 /** How often a manually added job's parse / evaluation is checked, in ms. */
 const PROCESSING_POLL_MS = 2_500
 
-/** A manually added job that is not parsed and scored yet. */
-type ProcessingJob = { jobId: number; title: string; company: string; error: string | null }
 
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
@@ -212,19 +219,17 @@ function JobRow({
 type Props = {
   /** Id of the job shown in place of the list (from the URL), or null for the list. */
   detailId: string | null
-  /** The Jobs page is the one on screen. */
-  active: boolean
+  /** The inbox size from the menu badge (null until known). It changing while the page is
+   * open means jobs were scored or decided elsewhere, so the page checks right away. */
+  inboxCount: number | null
   onOpen: (id: number) => void
   onBack: () => void
   /** Breadcrumb entries after "Jobs" while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
-  /** Called whenever the number of undecided relevant jobs changes (for the tab badge). */
-  onInboxCountChange?: (count: number) => void
 }
 
-export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsChange, onInboxCountChange }: Props) {
+export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumbsChange }: Props) {
   const [inbox, setInbox] = useState<EvaluatedJob[]>([])
-  const [inboxCount, setInboxCount] = useState(0)
   const [feed, setFeed] = useState<EvaluatedJob[]>([])
   const [profileId, setProfileId] = useState<number | null | undefined>(undefined)
   const [hasMore, setHasMore] = useState(true)
@@ -265,16 +270,12 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     inboxRef.current = inbox
   }, [inbox])
 
-  useEffect(() => {
-    onInboxCountChange?.(inboxCount)
-  }, [inboxCount, onInboxCountChange])
-
   const detailOpen = detailId != null
   const openId = detailId != null && /^\d+$/.test(detailId) ? Number(detailId) : null
-  useDetailScroll(detailOpen, active)
+  useDetailScroll(detailOpen)
   // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(toolbarRef, active && !detailOpen)
+  const stuck = useStuck(toolbarRef, !detailOpen)
 
   const onDetailTitle = useCallback(
     (title: string | null) => onCrumbsChange([{ label: title ?? 'Not found' }]),
@@ -346,7 +347,6 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setHasMore(true)
     setFeed([])
     setInbox([])
-    setInboxCount(0)
   }, [])
 
   /** Fetch the inbox and any newer feed rows. Also used for the first load. */
@@ -380,7 +380,6 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
       inboxRef.current = nextInbox
       setInbox(nextInbox)
-      setInboxCount(box.count)
       for (const job of left) {
         jobsApi
           .get(job.id)
@@ -413,16 +412,20 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }, [loadMore, mergeFeed, putInFeed, reset])
 
-  // Pages stay mounted: coming back to this tab (e.g. after editing the work history)
-  // checks right away instead of waiting for the next interval.
-  const wasActive = useRef(active)
+  // The menu badge saw the inbox change (new jobs scored, a decision made elsewhere): check
+  // right away instead of waiting for the next interval. The first value is not a change.
+  const seenInboxCount = useRef(inboxCount)
   useEffect(() => {
-    if (active && !wasActive.current) poll()
-    wasActive.current = active
-  }, [active, poll])
+    const prev = seenInboxCount.current
+    seenInboxCount.current = inboxCount
+    if (prev === null || prev === inboxCount) return
+    const timer = window.setTimeout(poll, 0)
+    return () => window.clearTimeout(timer)
+  }, [inboxCount, poll])
 
-  // First load, then check for newly evaluated jobs periodically and whenever the window
-  // regains focus or applications change elsewhere in the app.
+  // The page mounts on entry, so the first load is always fresh. Then check for newly
+  // evaluated jobs periodically and whenever the window regains focus or applications
+  // change elsewhere in the app.
   useEffect(() => {
     const first = window.setTimeout(poll, 0)
     const timer = window.setInterval(() => {
@@ -516,7 +519,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       if (inboxRef.current.some((j) => j.id === job.id)) {
         inboxRef.current = inboxRef.current.filter((j) => j.id !== job.id)
         setInbox(inboxRef.current)
-        setInboxCount((count) => Math.max(0, count - 1))
+        notifyJobsChanged()
       }
       putInFeed(job)
       setResults((prev) => prev?.map((j) => (j.id === job.id ? job : j)) ?? prev)
@@ -589,30 +592,31 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setInbox(inboxRef.current)
     setFeed((prev) => prev.map(update))
     setResults((prev) => prev?.map(update) ?? prev)
+    // The new score may move the job in or out of the inbox: refresh the menu badge.
+    notifyJobsChanged()
   }, [])
 
-  // Manually added jobs still going through parse -> evaluate, newest first.
-  const [processing, setProcessing] = useState<ProcessingJob[]>([])
-  const processingRef = useRef<ProcessingJob[]>([])
-  useEffect(() => {
-    processingRef.current = processing
-  }, [processing])
+  // Manually added jobs still going through parse -> evaluate, newest first. Kept in a store
+  // so they are still followed after leaving the page and coming back.
+  const processing = useStore(processingStore)
+  const setProcessing = processingStore.set
   const hasProcessing = processing.some((p) => !p.error)
   useEffect(() => {
     if (!hasProcessing) return
     const timer = window.setInterval(async () => {
-      for (const item of processingRef.current) {
+      for (const item of processingStore.get()) {
         if (item.error) continue
         try {
           const status = await jobsApi.manualStatus(item.jobId)
           if (status.status === 'FAILED') {
-            setProcessing((prev) =>
+            processingStore.set((prev) =>
               prev.map((p) => (p.jobId === item.jobId ? { ...p, error: status.error ?? 'Parsing failed' } : p)),
             )
           } else if (status.status === 'COMPLETED') {
             const job = await jobsApi.get(item.jobId)
             if (job.evaluation) {
-              setProcessing((prev) => prev.filter((p) => p.jobId !== item.jobId))
+              processingStore.set((prev) => prev.filter((p) => p.jobId !== item.jobId))
+              notifyJobsChanged()
               poll()
             }
           }
@@ -764,7 +768,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         </div>
       </div>
 
-      {active && !detailOpen && (
+      {!detailOpen && (
         <AddJobComposer
           onAdded={(status, input) =>
             setProcessing((prev) => [

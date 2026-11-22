@@ -1,5 +1,13 @@
 const API = '/api/jobs'
 
+/** Fired on `window` when a job leaves or enters the inbox here (a decision, a re-score, a
+ * manually added job that finished processing), so the menu badge refreshes right away. */
+export const JOBS_CHANGED = 'jobs:changed'
+
+export function notifyJobsChanged() {
+  window.dispatchEvent(new Event(JOBS_CHANGED))
+}
+
 export type JobEvaluation = {
   id: number
   candidate_profile_id: number

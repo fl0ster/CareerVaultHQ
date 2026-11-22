@@ -1,5 +1,9 @@
 const QUEUE_API = '/api/queue'
 
+/** Fired on `window` when the worker finishes a job (it may have scraped, scored or moved
+ * applications), so data the shell shows outside the current page (the menu badges) can refresh. */
+export const QUEUE_JOB_FINISHED = 'queue:job-finished'
+
 export type QueueJob = {
   job_id: string
   kind: string

@@ -8,6 +8,7 @@ import {
   type Application,
   type ApplicationStatus,
   INTERVIEW_STATUS,
+  OFFER_STATUS,
   applicationsApi,
   currentEvent,
   isAutoEvent,
@@ -21,7 +22,6 @@ import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import Confetti from './Confetti.tsx'
-import { OFFER_STATUS } from './useStageCounts.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import type { EvaluatedJobDetail } from '../jobs/api.ts'
 import type { Crumb } from '../shell/nav.ts'
@@ -40,15 +40,16 @@ type Props = {
   stage: Stage
   /** Id of the application shown in place of the list (from the URL), or null for the list. */
   detailId: string | null
-  /** This page is the one on screen. */
-  active: boolean
+  /** Changes when the menu counts change (possibly through a background task, e.g. the
+   * Gmail monitor); the list is refetched then. Empty until the counts are known. */
+  version: string
   onOpen: (id: number) => void
   onBack: () => void
   /** Breadcrumb entries after the page name while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
 }
 
-export default function ApplicationsPage({ stage, detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
+export default function ApplicationsPage({ stage, detailId, version, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [filter, setFilter] = useState('')
@@ -74,19 +75,20 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
 
   // The toolbar sticks under the top bar; once stuck it gets the top bar's translucent look.
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(toolbarRef, active && detailId == null)
+  const stuck = useStuck(toolbarRef, detailId == null)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
   const detailOpen = detailId != null
-  useDetailScroll(detailOpen, active)
+  useDetailScroll(detailOpen)
 
-  // Pages stay mounted; coming back to this one refetches it so changes made elsewhere
-  // (e.g. a work history edit that makes scores outdated) show without a page reload.
-  const wasActive = useRef(active)
-  useEffect(() => {
-    if (active && !wasActive.current) reload()
-    wasActive.current = active
-  }, [active, reload])
+  // The page mounts (and loads) on entry; while it is open, a change in the menu counts
+  // means applications changed somewhere else, so refetch. The counts arriving for the
+  // first time is not a change.
+  const [seenVersion, setSeenVersion] = useState(version)
+  if (version !== seenVersion) {
+    setSeenVersion(version)
+    if (seenVersion !== '') setTick((t) => t + 1)
+  }
 
   /** The application's job was re-scored from its relevance meter. */
   const rescored = (fresh: EvaluatedJobDetail) => {
