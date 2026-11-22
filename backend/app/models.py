@@ -607,6 +607,7 @@ class GmailMonitorSettings(Base):
     __tablename__ = "gmail_monitor_settings"
 
     DEFAULT_LABEL = "rejection-registered"
+    DEFAULT_INTERVIEW_LABEL = "interview-steps-registered"
     DEFAULT_INTERVAL_SECONDS = 30 * 60
     DEFAULT_LOOKBACK_DAYS = 7
     DEFAULT_THRESHOLD = 0.9
@@ -621,6 +622,8 @@ class GmailMonitorSettings(Base):
     """Shared token embedded in the script and sent with every request."""
     label: Mapped[str] = mapped_column(String(128), default=DEFAULT_LABEL)
     """Gmail label added to the mails whose rejection was registered."""
+    interview_label: Mapped[str] = mapped_column(String(128), default=DEFAULT_INTERVIEW_LABEL)
+    """Gmail label added to the mails whose interview steps were stored (read state kept)."""
     interval_seconds: Mapped[int] = mapped_column(Integer, default=DEFAULT_INTERVAL_SECONDS)
     lookback_days: Mapped[int] = mapped_column(Integer, default=DEFAULT_LOOKBACK_DAYS)
     """Only unread mails received within this many days are checked."""
@@ -668,6 +671,51 @@ class GmailProcessedMail(Base):
     outcome: Mapped[str] = mapped_column(String(32), index=True)
     probability: Mapped[float | None] = mapped_column(Float)
     """Probability that the mail is a rejection (Jev ``is_rejection``)."""
+    company: Mapped[str | None] = mapped_column(String(512))
+    role: Mapped[str | None] = mapped_column(String(512))
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GmailInterviewMail(Base):
+    """A mail the Gmail interview-steps check looked at (see
+    ``app.tasks.gmail.interview_steps``), so it is never sent to OpenRouter twice. Only
+    ``OUTCOME_APPLIED`` mails are labelled; their read state is never changed."""
+
+    __tablename__ = "gmail_interview_mails"
+
+    OUTCOME_APPLIED = "applied"
+    """Interview steps stored on the job of ``application_id`` (and planned on the application
+    when it had no planned rounds); the mail was labelled."""
+    OUTCOME_NO_STEPS = "no_steps"
+    """The mail does not describe the interview process (or the steps failed the checks)."""
+    OUTCOME_EXTRACTION_FAILED = "extraction_failed"
+    """Company could not be read from the mail."""
+    OUTCOME_NO_MATCH = "no_match"
+    """No open application matches the company (and role)."""
+    OUTCOME_AMBIGUOUS = "ambiguous"
+    """Several open applications match and the role does not single one out."""
+    OUTCOME_HAS_STEPS = "has_steps"
+    """The matched job already has interview steps; they are not overwritten."""
+    OUTCOME_LABEL_FAILED = "label_failed"
+    """Steps stored, but the mail could not be labelled (retried by the next run)."""
+    OUTCOME_ERROR = "error"
+    """Processing failed unexpectedly (see ``error``)."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    message_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128))
+    subject: Mapped[str] = mapped_column(String(1024), default="")
+    sender: Mapped[str] = mapped_column(String(512), default="")
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    present_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the mail describes the interview process."""
+    faithful_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the extracted steps are stated in the mail."""
+    steps: Mapped[list[dict] | None] = mapped_column(JSON)
+    """The extracted steps (``JobParseResult.interview_steps`` format)."""
     company: Mapped[str | None] = mapped_column(String(512))
     role: Mapped[str | None] = mapped_column(String(512))
     application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)

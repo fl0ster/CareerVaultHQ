@@ -162,8 +162,15 @@ def _steps_from_reply(reply: str) -> list[InterviewStep]:
     return steps
 
 
-def extract_interview_steps(service: OpenRouterService, text: str | None) -> InterviewStepsResult:
-    """Interview rounds described in ``text`` (a job description), in three LLM steps:
+def extract_interview_steps(
+    service: OpenRouterService,
+    text: str | None,
+    *,
+    source: str = INTERVIEW_STEPS_SOURCE,
+    private: bool = False,
+) -> InterviewStepsResult:
+    """Interview rounds described in ``text`` (a job description, or any text about one such
+    as a recruiter's e-mail), in three LLM steps:
 
     1. Jev ``noul``: does the text describe the recruitment process at all? Below
        ``INTERVIEW_STEPS_THRESHOLD`` nothing else is called and no steps are returned.
@@ -171,7 +178,8 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
     3. Jev ``noul``: are the extracted steps faithful to the text? Below the threshold the
        extraction is discarded.
 
-    OpenRouter errors propagate (``OpenRouterError``).
+    ``source`` labels the OpenRouter calls and ``private`` is passed to them (set it for
+    personal data such as e-mails). OpenRouter errors propagate (``OpenRouterError``).
     """
     if not text or not text.strip():
         return InterviewStepsResult([], 0.0)
@@ -179,7 +187,8 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
     present = service.decide(
         state={"job_description": text},
         questions=PRESENCE_QUESTIONS,
-        source=INTERVIEW_STEPS_SOURCE,
+        source=source,
+        private=private,
     ).noul(PRESENCE_QUESTION)
     if present < INTERVIEW_STEPS_THRESHOLD:
         return InterviewStepsResult([], present)
@@ -188,7 +197,8 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
         EXTRACTION_PROMPT.format(text=text),
         system=EXTRACTION_SYSTEM,
         temperature=0,
-        source=INTERVIEW_STEPS_SOURCE,
+        source=source,
+        private=private,
     ).text
     steps = _steps_from_reply(reply)
     if not steps:
@@ -202,7 +212,8 @@ def extract_interview_steps(service: OpenRouterService, text: str | None) -> Int
             ],
         },
         questions=FAITHFUL_QUESTIONS,
-        source=INTERVIEW_STEPS_SOURCE,
+        source=source,
+        private=private,
     ).noul(FAITHFUL_QUESTION)
     if faithful < INTERVIEW_STEPS_THRESHOLD:
         log.info("Discarded interview steps (faithfulness %.2f): %r", faithful, steps)

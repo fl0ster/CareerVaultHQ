@@ -160,3 +160,21 @@ table.gmail-mails {
     color: var(--warn-fg);
   }
 }
+
+.gmail-interview {
+  &.applied {
+    background: var(--success-bg);
+    color: var(--success-fg);
+  }
+  &.label_failed,
+  &.ambiguous,
+  &.error {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+  }
+}
+
+.gmail-steps {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}

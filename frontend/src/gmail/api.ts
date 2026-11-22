@@ -8,6 +8,13 @@ export type MonitorSummary = {
   failed: number
   outcomes: Record<string, number>
   applied: { message_id: string; application_id: number | null; company: string | null; role: string | null }[]
+  /** The interview-steps check run on the mails that are not rejections. */
+  interview_steps?: {
+    skipped: number
+    failed: number
+    outcomes: Record<string, number>
+    applied: { message_id: string; application_id: number | null; steps: number }[]
+  }
 }
 
 export type MonitorSettings = {
@@ -19,6 +26,8 @@ export type MonitorSettings = {
   /** Last characters of the shared secret embedded in the script. */
   secret_hint: string
   label: string
+  /** Gmail label added to mails whose interview steps were stored (read state kept). */
+  interview_label: string
   interval_seconds: number
   lookback_days: number
   /** Minimum rejection probability (0-1) to act on a mail. */
@@ -32,7 +41,7 @@ export type MonitorSettings = {
 }
 
 export type MonitorSettingsUpdate = Partial<
-  Pick<MonitorSettings, 'enabled' | 'email' | 'script_url' | 'label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
+  Pick<MonitorSettings, 'enabled' | 'email' | 'script_url' | 'label' | 'interview_label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
 >
 
 export type ConnectionTest = {
@@ -67,6 +76,45 @@ export type ProcessedMail = {
   application_title: string | null
   error: string | null
   created_at: string
+  /** Interview-steps check of the mail; null when it did not look at it (rejections). */
+  interview: InterviewCheck | null
+}
+
+export type InterviewOutcome =
+  | 'applied'
+  | 'no_steps'
+  | 'extraction_failed'
+  | 'no_match'
+  | 'ambiguous'
+  | 'has_steps'
+  | 'label_failed'
+  | 'error'
+
+export type InterviewStep = { number: number; title: string; duration_minutes: number | null }
+
+export type InterviewCheck = {
+  outcome: InterviewOutcome
+  /** Probability that the mail describes the interview process. */
+  present_probability: number | null
+  /** Probability that the extracted steps are stated in the mail. */
+  faithful_probability: number | null
+  steps: InterviewStep[] | null
+  company: string | null
+  role: string | null
+  application_id: number | null
+  application_title: string | null
+  error: string | null
+}
+
+export const INTERVIEW_OUTCOME_LABEL: Record<InterviewOutcome, string> = {
+  applied: 'Steps added',
+  no_steps: 'No interview steps',
+  extraction_failed: 'Company not found in mail',
+  no_match: 'No matching application',
+  ambiguous: 'Ambiguous match',
+  has_steps: 'Job already has steps',
+  label_failed: 'Added, label failed',
+  error: 'Error',
 }
 
 export const OUTCOME_LABEL: Record<MailOutcome, string> = {

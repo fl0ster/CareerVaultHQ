@@ -105,6 +105,11 @@ class AppsScriptClient:
         """Mark the message read and add ``label`` to its thread (created when missing)."""
         self._call("mark", id=message_id, label=label)
 
+    def label(self, message_id: str, label: str) -> None:
+        """Add ``label`` to the message's thread (created when missing) without changing
+        whether it is read. Needs a script deployed with the ``label`` action."""
+        self._call("label", id=message_id, label=label)
+
     @staticmethod
     def _follow(client: httpx.Client, response: httpx.Response) -> httpx.Response:
         """Follow the web app's redirects (as GETs, without the request body) to Google

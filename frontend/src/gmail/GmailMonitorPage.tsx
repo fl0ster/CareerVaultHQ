@@ -8,6 +8,8 @@ import {
   type MonitorSettingsUpdate,
   OUTCOME_LABEL,
   type ProcessedMail,
+  type InterviewCheck,
+  INTERVIEW_OUTCOME_LABEL,
   LABEL_PATTERN,
   MAX_LOOKBACK_DAYS,
   SCRIPT_URL_PATTERN,
@@ -195,6 +197,7 @@ function Activity({ mails }: { mails: ProcessedMail[] }) {
           <th>Outcome</th>
           <th>Rejection</th>
           <th>Company / role</th>
+          <th>Interview steps</th>
         </tr>
       </thead>
       <tbody>
@@ -218,10 +221,49 @@ function Activity({ mails }: { mails: ProcessedMail[] }) {
               {m.company ?? '—'}
               {m.role && <div className="muted">{m.role}</div>}
             </td>
+            <td>
+              <InterviewCell check={m.interview} />
+            </td>
           </tr>
         ))}
       </tbody>
     </table>
+  )
+}
+
+function InterviewCell({ check }: { check: InterviewCheck | null }) {
+  if (check == null) return <span className="muted">—</span>
+  const steps = check.steps ?? []
+  const pct = (p: number | null) => (p == null ? null : `${Math.round(p * 100)}%`)
+  const odds = [
+    pct(check.present_probability) && `describes process ${pct(check.present_probability)}`,
+    pct(check.faithful_probability) && `faithful ${pct(check.faithful_probability)}`,
+  ].filter(Boolean)
+  return (
+    <>
+      <span className={`badge gmail-interview ${check.outcome}`} title={check.error ?? undefined}>
+        {INTERVIEW_OUTCOME_LABEL[check.outcome] ?? check.outcome}
+      </span>
+      {odds.length > 0 && <div className="muted">{odds.join(' · ')}</div>}
+      {steps.length > 0 && (
+        <ol className="gmail-steps">
+          {steps.map((s) => (
+            <li key={s.number}>
+              {s.title}
+              {s.duration_minutes != null && <span className="muted"> ({s.duration_minutes} min)</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {check.company && check.outcome !== 'no_steps' && (
+        <div className="muted">
+          {check.company}
+          {check.role && ` · ${check.role}`}
+        </div>
+      )}
+      {check.application_title && <div className="muted">→ {check.application_title}</div>}
+      {check.error && check.outcome !== 'applied' && <div className="muted gmail-error">{check.error}</div>}
+    </>
   )
 }
 
@@ -400,6 +442,17 @@ export default function GmailMonitorPage() {
             hint="Created in Gmail when missing."
           />
           <Field
+            label="Gmail label for registered interview steps"
+            value={settings.interview_label}
+            toPatch={(t) =>
+              LABEL_PATTERN.test(t.trim())
+                ? { interview_label: t.trim() }
+                : 'Letters, digits, spaces and _ . / - only'
+            }
+            onSave={save}
+            hint="Added without marking the mail read."
+          />
+          <Field
             label="Check every (minutes)"
             type="number"
             min={MIN_INTERVAL_SECONDS / 60}
@@ -457,7 +510,7 @@ export default function GmailMonitorPage() {
               <span className={`badge ${job.status}`}>{job.status}</span>
               {running && <span className="spinner" aria-hidden="true" />}
               {finished?.status === 'finished' && finished.result &&
-                ` ${finished.result.fetched} mail(s) fetched, ${finished.result.outcomes.applied ?? 0} rejection(s) registered`}
+                ` ${finished.result.fetched} mail(s) fetched, ${finished.result.outcomes.applied ?? 0} rejection(s) registered, ${finished.result.interview_steps?.outcomes.applied ?? 0} interview plan(s) added`}
             </span>
           )}
         </div>
@@ -472,7 +525,8 @@ export default function GmailMonitorPage() {
             {summary && settings.last_status === 'ok' && (
               <span className="muted">
                 {' '}
-                {summary.fetched} fetched · {summary.outcomes.applied ?? 0} registered · {summary.skipped} already seen
+                {summary.fetched} fetched · {summary.outcomes.applied ?? 0} registered ·{' '}
+                {summary.interview_steps?.outcomes.applied ?? 0} interview plan(s) added · {summary.skipped} already seen
                 {summary.failed > 0 && ` · ${summary.failed} to retry`}
               </span>
             )}

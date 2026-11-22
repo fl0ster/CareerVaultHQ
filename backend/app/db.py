@@ -58,6 +58,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "job_parse_results": {
         "interview_steps": "JSON",
     },
+    "gmail_monitor_settings": {
+        "interview_label": "VARCHAR(128) NOT NULL DEFAULT 'interview-steps-registered'",
+    },
 }
 """Columns added to tables after they were first created: ``create_all`` only creates
 missing tables, so these are added to existing databases with ``ALTER TABLE``."""
