@@ -127,8 +127,8 @@ def test_ambiguous_match_is_left_alone(db_session, interview):
     assert _steps(db_session, a) is None
 
 
-@pytest.mark.parametrize("status", ["SHORTLISTED", "REJECTED"])
-def test_applications_not_open_are_not_touched(db_session, interview, status):
+@pytest.mark.parametrize("status", ["REJECTED", "OFFER"])
+def test_finished_applications_are_not_touched(db_session, interview, status):
     application = _application(db_session, _company(db_session, "Acme"), "Dev", i=1, status=status)
 
     _run(db_session, LabelClient([_message()]), interview)
@@ -220,3 +220,24 @@ def test_configured_interview_label_is_used(db_session, interview):
     _run(db_session, client, interview)
 
     assert client.labelled == [("msg-1", "cv/interviews")]
+
+
+def test_shortlisted_application_gets_steps(db_session, interview):
+    """The user may not have recorded APPLIED yet."""
+    application = _application(db_session, _company(db_session, "Acme"), "Dev", i=1, status="SHORTLISTED")
+    client = LabelClient([_message()])
+
+    _run(db_session, client, interview)
+
+    assert _record(db_session).outcome == "applied"
+    assert _steps(db_session, application) == STEPS
+    assert _plan(db_session, application) == [("INTERVIEW", "HR call", 30)]
+    assert client.labelled == [("msg-1", "interview-steps-registered")]
+
+
+def test_no_match_explains_finished_application(db_session, interview):
+    _application(db_session, _company(db_session, "Acme"), "Dev", i=1, status="REJECTED")
+
+    _run(db_session, LabelClient([_message()]), interview)
+
+    assert _record(db_session).error == "no open application at company (Dev: REJECTED, finished)"

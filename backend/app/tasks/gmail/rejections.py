@@ -47,6 +47,7 @@ from app.models import (
 )
 from app.scheduler.common import aware
 from app.services.applications import (
+    APPLIED_STATUS,
     REJECTED_STATUS,
     EventRejected,
     is_open,
@@ -176,16 +177,52 @@ def _company_names(company: Company | None) -> list[str]:
     return [company.name, *(alias.alias for alias in company.aliases)]
 
 
+def all_applications(session: Session) -> list[Application]:
+    return list(
+        session.scalars(
+            select(Application)
+            .options(
+                joinedload(Application.job_parse_result).joinedload(JobParseResult.company).selectinload(Company.aliases),
+                selectinload(Application.events).joinedload(ApplicationEvent.status),
+            )
+            .execution_options(populate_existing=True)
+        ).unique()
+    )
+
+
 def open_applications(session: Session) -> list[Application]:
-    rows = session.scalars(
-        select(Application)
-        .options(
-            joinedload(Application.job_parse_result).joinedload(JobParseResult.company).selectinload(Company.aliases),
-            selectinload(Application.events).joinedload(ApplicationEvent.status),
-        )
-        .execution_options(populate_existing=True)
-    ).unique()
-    return [a for a in rows if is_open(a)]
+    return [a for a in all_applications(session) if is_open(a)]
+
+
+def applications_at_company(session: Session, applications: list[Application], company: str) -> list[Application]:
+    """The ``applications`` whose company matches ``company`` by id, name or alias."""
+    known = find_company(session, company)
+    found = []
+    for application in applications:
+        parsed = application.job_parse_result
+        if known is not None and parsed.company_id == known.id:
+            found.append(application)
+            continue
+        names = _company_names(parsed.company)
+        if names and max(company_similarity(company, n) for n in names) >= COMPANY_THRESHOLD:
+            found.append(application)
+    return found
+
+
+def _no_open_application(session: Session, company: str) -> str:
+    """Why no open application matched: none at the company, or the ones there are not open
+    (not applied yet, or already finished)."""
+    closed = applications_at_company(session, all_applications(session), company)
+    if not closed:
+        return "no application at company"
+    states = []
+    for application in closed:
+        current = application.current_event
+        key = current.status.key if current is not None else "no state"
+        reason = "not applied yet" if not any(e.status.key == APPLIED_STATUS for e in application.history) else "finished"
+        title = application.job_parse_result.title or f"application {application.id}"
+        states.append(f"{title}: {key}, {reason}")
+    return "no open application at company (" + "; ".join(states) + ")"
 
 
 @dataclass
@@ -196,19 +233,10 @@ class Match:
 
 
 def match_application(session: Session, applications: list[Application], company: str, role: str | None) -> Match:
-    """The single open application the rejection refers to, or why there is none."""
-    known = find_company(session, company)
-    candidates = []
-    for application in applications:
-        parsed = application.job_parse_result
-        if known is not None and parsed.company_id == known.id:
-            candidates.append(application)
-            continue
-        names = _company_names(parsed.company)
-        if names and max(company_similarity(company, n) for n in names) >= COMPANY_THRESHOLD:
-            candidates.append(application)
+    """The single open application the mail refers to, or why there is none."""
+    candidates = applications_at_company(session, applications, company)
     if not candidates:
-        return Match(None, GmailProcessedMail.OUTCOME_NO_MATCH, "no open application at company")
+        return Match(None, GmailProcessedMail.OUTCOME_NO_MATCH, _no_open_application(session, company))
     if len(candidates) == 1:
         return Match(candidates[0], GmailProcessedMail.OUTCOME_APPLIED)
     if not role:

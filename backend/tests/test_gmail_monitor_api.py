@@ -145,6 +145,26 @@ def test_mails_listing(client, db_session):
     assert [m["message_id"] for m in client.get(f"{BASE}/mails?outcome=no_match").json()] == ["b"]
 
 
+def test_mails_listing_includes_interview_check(client, db_session):
+    from app.models import GmailInterviewMail, GmailProcessedMail
+
+    steps = [{"number": 1, "title": "HR call", "duration_minutes": 30}]
+    db_session.add_all(
+        [
+            GmailProcessedMail(message_id="a", subject="Invite", outcome="not_rejection"),
+            GmailInterviewMail(message_id="a", outcome="no_match", present_probability=0.99, steps=steps, error="why"),
+            GmailProcessedMail(message_id="b", subject="Sorry", outcome="applied"),
+        ]
+    )
+    db_session.commit()
+
+    by_id = {m["message_id"]: m for m in client.get(f"{BASE}/mails").json()}
+    interview = by_id["a"]["interview"]
+    assert interview["outcome"] == "no_match" and interview["steps"] == steps
+    assert interview["present_probability"] == 0.99 and interview["error"] == "why"
+    assert by_id["b"]["interview"] is None
+
+
 # --------------------------------------------------------------------------- scheduler
 
 

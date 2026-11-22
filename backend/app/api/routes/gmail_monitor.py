@@ -36,7 +36,7 @@ from app.integrations.gmail import (
     AppsScriptError,
     script_source,
 )
-from app.models import Application, GmailMonitorSettings, GmailProcessedMail, JobParseResult
+from app.models import Application, GmailInterviewMail, GmailMonitorSettings, GmailProcessedMail, JobParseResult
 from app.queue import get_queue
 from app.scheduler.gmail import GMAIL_JOB_ID, MIN_INTERVAL_SECONDS, enqueue_gmail_check
 from app.services.gmail_monitor import (
@@ -122,6 +122,21 @@ class MonitorJobInfo(BaseModel):
     error: str | None = None
 
 
+class InterviewCheckOut(BaseModel):
+    """Result of the interview-steps check on a mail (``gmail_interview_mails``)."""
+
+    outcome: str
+    present_probability: float | None
+    """Probability that the mail describes the interview process."""
+    faithful_probability: float | None
+    steps: list[dict[str, Any]] | None
+    company: str | None
+    role: str | None
+    application_id: int | None
+    application_title: str | None = None
+    error: str | None
+
+
 class ProcessedMailOut(BaseModel):
     id: int
     message_id: str
@@ -136,6 +151,9 @@ class ProcessedMailOut(BaseModel):
     application_title: str | None = None
     error: str | None
     created_at: datetime
+    interview: InterviewCheckOut | None = None
+    """``None`` when the interview-steps check did not look at the mail (rejections, and
+    mails whose check is to be retried)."""
 
 
 def _settings_out(row: GmailMonitorSettings) -> MonitorSettingsOut:
@@ -274,7 +292,13 @@ def list_mails(
     if outcome:
         stmt = stmt.where(GmailProcessedMail.outcome == outcome)
     rows = session.scalars(stmt).all()
-    app_ids = {r.application_id for r in rows if r.application_id is not None}
+    interviews = {
+        i.message_id: i
+        for i in session.scalars(
+            select(GmailInterviewMail).where(GmailInterviewMail.message_id.in_([r.message_id for r in rows]))
+        )
+    }
+    app_ids = {r.application_id for r in [*rows, *interviews.values()] if r.application_id is not None}
     titles: dict[int, str] = {}
     if app_ids:
         for application in session.scalars(
@@ -300,6 +324,23 @@ def list_mails(
             application_title=titles.get(r.application_id) if r.application_id else None,
             error=r.error,
             created_at=r.created_at,
+            interview=_interview_out(interviews.get(r.message_id), titles),
         )
         for r in rows
     ]
+
+
+def _interview_out(row: GmailInterviewMail | None, titles: dict[int, str]) -> InterviewCheckOut | None:
+    if row is None:
+        return None
+    return InterviewCheckOut(
+        outcome=row.outcome,
+        present_probability=row.present_probability,
+        faithful_probability=row.faithful_probability,
+        steps=row.steps,
+        company=row.company,
+        role=row.role,
+        application_id=row.application_id,
+        application_title=titles.get(row.application_id) if row.application_id else None,
+        error=row.error,
+    )

@@ -7,9 +7,10 @@ at by this check before):
    (``app.tasks.parse.parse.extract_interview_steps``: Jev presence check, chat extraction,
    Jev faithfulness check) on the mail; no faithful steps -> the mail is left alone;
 2. asks a chat model for the hiring company and the role (as the rejection check does);
-3. matches them against the *open* applications (``APPLIED`` recorded, no final state) with
-   the rejection check's matching: the company must match by name or alias and, when several
-   open applications are at that company, the role must single one out;
+3. matches them against the *unfinished* applications (no final state; unlike the rejection
+   check, ``APPLIED`` need not be recorded, as the user may not have moved it yet) with the
+   rejection check's matching: the company must match by name or alias and, when several
+   such applications are at that company, the role must single one out;
 4. when the matched job has no interview steps yet, stores the steps on its
    ``JobParseResult.interview_steps``, plans them on the application as interview rounds
    when it has no planned rounds yet, and adds ``gmail_monitor_settings.interview_label``
@@ -32,17 +33,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.integrations.gmail import AppsScriptClient, AppsScriptError, GmailMessage
-from app.models import GmailInterviewMail, GmailMonitorSettings
-from app.services.applications import plan_parsed_rounds
+from app.models import Application, GmailInterviewMail, GmailMonitorSettings
+from app.services.applications import FINAL_STATUSES, plan_parsed_rounds
 from app.services.openrouter import OpenRouterError, OpenRouterNotConfigured, OpenRouterService
 from app.tasks.gmail.rejections import (
+    all_applications,
     extract_company_and_role,
     match_application,
-    open_applications,
 )
 from app.tasks.parse.parse import extract_interview_steps
 
 log = logging.getLogger(__name__)
+
+
+def unfinished_applications(session: Session) -> list[Application]:
+    """Applications in any state but a final one (``SHORTLISTED`` included)."""
+    return [
+        a for a in all_applications(session) if a.current_event is None or a.current_event.status.key not in FINAL_STATUSES
+    ]
+
 
 SOURCE = "tasks.gmail_interview_steps"
 """``openrouter_calls.source`` label for calls made by this check."""
@@ -120,9 +129,9 @@ def _register(session: Session, service: OpenRouterService, message: GmailMessag
     fields.update(company=company, role=role)
     if not company:
         return _new_record(message, GmailInterviewMail.OUTCOME_EXTRACTION_FAILED, **fields)
-    # Match against all open applications (not only those without steps), so a mail about
-    # an application that has steps cannot be pinned on another one at the same company.
-    match = match_application(session, open_applications(session), company, role)
+    # Match against all unfinished applications (not only those without steps), so a mail
+    # about an application that has steps cannot be pinned on another one at the company.
+    match = match_application(session, unfinished_applications(session), company, role)
     if match.application is None:
         return _new_record(message, match.outcome, error=match.detail or None, **fields)
     fields["application_id"] = match.application.id
