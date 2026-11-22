@@ -3,7 +3,6 @@ import {
   Coins,
   Trophy,
   FileText,
-  History,
   Inbox,
   type LucideIcon,
   Mail,
@@ -11,6 +10,7 @@ import {
   Send,
   Settings,
   UserRound,
+  Vault,
 } from 'lucide-react'
 
 export type PageId =
@@ -74,7 +74,7 @@ export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me
 
 /** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-  [{ id: 'work-history', label: 'Career', icon: History, hideHeader: true }],
+  [{ id: 'work-history', label: 'My Career', icon: Vault, hideHeader: true }],
   [
     { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
     { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
