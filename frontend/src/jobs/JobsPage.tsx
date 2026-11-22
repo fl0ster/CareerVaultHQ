@@ -82,8 +82,23 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   }, [listRef, order])
 }
 
-/** Feed order: newest evaluation first. */
-const byEvaluationDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.evaluation.id - a.evaluation.id
+/** Feed order: most recently first scored first (stable across re-scores). */
+const byPositionDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.feed_position - a.feed_position
+
+/** Section a re-scored job stays in until the next full reload, whatever its new score. */
+type Section = 'inbox' | 'feed'
+
+/** The inbox as the server returned it, except that re-scored jobs pinned to a section stay
+ * where they were: pinned-to-inbox jobs keep their previous index (with fresh data when the
+ * server still lists them), pinned-to-feed jobs are left out. */
+function placeInbox(server: EvaluatedJob[], previous: EvaluatedJob[], pinned: Map<number, Section>): EvaluatedJob[] {
+  const result = server.filter((j) => !pinned.has(j.id))
+  const byId = new Map(server.map((j) => [j.id, j]))
+  previous.forEach((job, index) => {
+    if (pinned.get(job.id) === 'inbox') result.splice(Math.min(index, result.length), 0, byId.get(job.id) ?? job)
+  })
+  return result
+}
 
 function JobRow({
   job,
@@ -219,7 +234,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const profileRef = useRef<number | null | undefined>(undefined)
-  /** Oldest / newest evaluation id the feed endpoint returned (keyset cursors). Rows moved
+  /** Oldest / newest `feed_position` the feed endpoint returned (keyset cursors). Rows moved
    * into the feed locally do not move them, so polling and paging never skip a row. */
   const oldestRef = useRef<number | null>(null)
   const newestRef = useRef<number | null>(null)
@@ -227,6 +242,8 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   /** Bumped on every local decision; a poll that started before one is discarded. */
   const mutationRef = useRef(0)
   const pollingRef = useRef(false)
+  /** Jobs re-scored here, pinned to the section they were in so they do not move. */
+  const pinnedRef = useRef(new Map<number, Section>())
 
   useEffect(() => {
     inboxRef.current = inbox
@@ -258,16 +275,19 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setFeed((prev) => {
       const rest = prev.filter((j) => j.id !== job.id)
       const oldest = oldestRef.current
-      if (hasMoreRef.current && oldest !== null && job.evaluation.id < oldest) return rest
-      return [...rest, job].sort(byEvaluationDesc)
+      if (hasMoreRef.current && oldest !== null && job.feed_position < oldest) return rest
+      return [...rest, job].sort(byPositionDesc)
     })
   }, [])
 
   const mergeFeed = useCallback((items: EvaluatedJob[]) => {
     if (items.length === 0) return
+    // A job pinned to the inbox stays there even when the server now lists it in the feed.
+    const fresh = items.filter((j) => pinnedRef.current.get(j.id) !== 'inbox')
+    if (fresh.length === 0) return
     setFeed((prev) => {
-      const incoming = new Map(items.map((j) => [j.id, j]))
-      return [...prev.filter((j) => !incoming.has(j.id)), ...items].sort(byEvaluationDesc)
+      const incoming = new Map(fresh.map((j) => [j.id, j]))
+      return [...prev.filter((j) => !incoming.has(j.id)), ...fresh].sort(byPositionDesc)
     })
   }, [])
 
@@ -279,8 +299,8 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     try {
       const page = await jobsApi.feed({ before: oldestRef.current ?? undefined, limit: PAGE_SIZE })
       if (page.items.length > 0) {
-        oldestRef.current = page.items[page.items.length - 1].evaluation.id
-        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].evaluation.id)
+        oldestRef.current = page.items[page.items.length - 1].feed_position
+        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].feed_position)
       } else if (newestRef.current === null) {
         newestRef.current = 0
       }
@@ -299,6 +319,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     oldestRef.current = null
     newestRef.current = null
     hasMoreRef.current = true
+    pinnedRef.current.clear()
     setHasMore(true)
     setFeed([])
     setInbox([])
@@ -322,19 +343,26 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       if (version !== mutationRef.current) return
 
       // Jobs that left the inbox elsewhere (e.g. an application made on another device)
-      // move into the feed with their fresh state; jobs that entered it (e.g. re-scored
-      // above the threshold) leave the feed.
-      const stillThere = new Set(box.items.map((j) => j.id))
+      // move into the feed with their fresh state; jobs that entered it leave the feed.
+      // Jobs re-scored here stay in their section (see placeInbox).
+      const nextInbox = placeInbox(box.items, inboxRef.current, pinnedRef.current)
+      const stillThere = new Set(nextInbox.map((j) => j.id))
       setFeed((prev) => (prev.some((j) => stillThere.has(j.id)) ? prev.filter((j) => !stillThere.has(j.id)) : prev))
       const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
-      inboxRef.current = box.items
-      setInbox(box.items)
+      inboxRef.current = nextInbox
+      setInbox(nextInbox)
       setInboxCount(box.count)
       for (const job of left) {
         jobsApi
           .get(job.id)
           .then((fresh) => {
-            if (fresh.evaluation) putInFeed({ ...job, ...fresh, evaluation: fresh.evaluation })
+            if (fresh.evaluation)
+              putInFeed({
+                ...job,
+                ...fresh,
+                evaluation: fresh.evaluation,
+                feed_position: fresh.feed_position ?? job.feed_position,
+              })
           })
           .catch(() => {
             /* it shows up again on the next reload */
@@ -346,7 +374,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       } else {
         const fresh = await jobsApi.feed({ after: newestRef.current, limit: 200 })
         if (fresh.items.length > 0) {
-          newestRef.current = Math.max(newestRef.current, fresh.items[0].evaluation.id)
+          newestRef.current = Math.max(newestRef.current, fresh.items[0].feed_position)
           mergeFeed(fresh.items)
         }
       }
@@ -397,7 +425,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       const controller = new AbortController()
       searchControllerRef.current = controller
       const prev = fresh ? [] : (resultsRef.current ?? [])
-      const before = prev.length > 0 ? prev[prev.length - 1].evaluation.id : undefined
+      const before = prev.length > 0 ? prev[prev.length - 1].feed_position : undefined
       setResultsLoading(true)
       try {
         const page = await jobsApi.feed({ q: search, before, limit: PAGE_SIZE }, controller.signal)
@@ -449,6 +477,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const leaveInbox = useCallback(
     (job: EvaluatedJob) => {
       mutationRef.current += 1
+      pinnedRef.current.delete(job.id)
       if (inboxRef.current.some((j) => j.id === job.id)) {
         inboxRef.current = inboxRef.current.filter((j) => j.id !== job.id)
         setInbox(inboxRef.current)
@@ -508,22 +537,24 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }
 
-  /** A job was re-scored against the latest profile: show the new score in place, then let
-   * a poll move it between the inbox and the feed if it crossed the threshold. */
-  const rescored = useCallback(
-    (fresh: EvaluatedJobDetail) => {
-      if (!fresh.evaluation) return
-      const evaluation = fresh.evaluation
-      const update = (j: EvaluatedJob): EvaluatedJob => (j.id === fresh.id ? { ...j, evaluation } : j)
-      mutationRef.current += 1
-      inboxRef.current = inboxRef.current.map(update)
-      setInbox(inboxRef.current)
-      setFeed((prev) => prev.map(update).sort(byEvaluationDesc))
-      setResults((prev) => prev?.map(update) ?? prev)
-      poll()
-    },
-    [poll],
-  )
+  /** A job was re-scored against the latest profile: show the new score in place. The job
+   * keeps its position, even if the new score crosses the relevance threshold, until the
+   * next full reload. */
+  const rescored = useCallback((fresh: EvaluatedJobDetail) => {
+    if (!fresh.evaluation) return
+    const evaluation = fresh.evaluation
+    const update = (j: EvaluatedJob): EvaluatedJob => (j.id === fresh.id ? { ...j, evaluation } : j)
+    mutationRef.current += 1
+    const inInbox = inboxRef.current.some((j) => j.id === fresh.id)
+    pinnedRef.current.set(fresh.id, inInbox ? 'inbox' : 'feed')
+    // Re-scoring may have generated a new profile; it is not a reason to reload the list.
+    profileRef.current = evaluation.candidate_profile_id
+    setProfileId(evaluation.candidate_profile_id)
+    inboxRef.current = inboxRef.current.map(update)
+    setInbox(inboxRef.current)
+    setFeed((prev) => prev.map(update))
+    setResults((prev) => prev?.map(update) ?? prev)
+  }, [])
 
   // Manually added jobs still going through parse -> evaluate, newest first.
   const [processing, setProcessing] = useState<ProcessingJob[]>([])
