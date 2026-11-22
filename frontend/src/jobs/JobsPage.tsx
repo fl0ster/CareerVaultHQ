@@ -90,7 +90,7 @@ function JobRow({
   if (job.application_id != null) classes.push('applied')
 
   return (
-    <li className={classes.join(' ')} data-key={String(job.id)}>
+    <li className={classes.join(' ')}>
       {job.application_id != null && (
         <span className="job-applied-strip" title="Application created" aria-label="Application created">
           <Send size={11} aria-hidden="true" />
@@ -652,7 +652,6 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
             {shownProcessing.map((p) => (
               <li
                 key={`processing-${p.jobId}`}
-                data-key={String(p.jobId)}
                 className={p.error ? 'job-item processing failed' : 'job-item processing'}
                 aria-busy={!p.error}
               >
