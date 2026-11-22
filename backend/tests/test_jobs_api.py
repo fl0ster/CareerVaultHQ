@@ -295,3 +295,55 @@ def test_jobs_fall_back_to_the_newest_evaluation_of_an_older_profile(client, db_
 
     detail = client.get(f"/api/jobs/{last.job_id}").json()
     assert detail["evaluation"]["candidate_profile_id"] == old.id
+
+
+def _seed_outdated(db_session) -> tuple[JobParseResult, JobParseResult, CandidateProfile]:
+    """``seed_evaluated`` with the profiles built from different work histories and the
+    last job scored against the old profile only. Returns (current job, outdated job, old)."""
+    old, new = seed_evaluated(db_session, 3)
+    old.work_history_id, new.work_history_id = "wh-1", "wh-2"
+    parsed = db_session.query(JobParseResult).order_by(JobParseResult.id).all()
+    db_session.add(
+        JobEvaluation(
+            job_parse_result_id=parsed[-1].id,
+            candidate_profile_id=old.id,
+            match_probability=0.9,
+            openrouter_call=_call(),
+        )
+    )
+    db_session.commit()
+    return parsed[0], parsed[-1], new
+
+
+def test_evaluations_of_an_earlier_work_history_are_outdated(client, db_session):
+    _, last, new = _seed_outdated(db_session)
+
+    items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
+    outdated = {item["id"]: item["evaluation"]["outdated"] for item in items}
+    assert outdated.pop(last.job_id) is True
+    assert not any(outdated.values())
+    assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is True
+
+    # A profile rebuilt from the same work history does not make the old score outdated.
+    new.work_history_id = "wh-1"
+    db_session.commit()
+    assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is False
+
+
+def _rescore_jobs(fake_queue):
+    return [j for j in fake_queue.jobs if j.func_name.endswith("rescore_parse_results")]
+
+
+def test_rescore_enqueues_outdated_job(client, db_session, fake_queue):
+    first, last, _ = _seed_outdated(db_session)
+
+    res = client.post(f"/api/jobs/{last.job_id}/rescore")
+    assert res.status_code == 202
+    assert res.json()["job_id"] == last.job_id
+    (rq_job,) = _rescore_jobs(fake_queue)
+    assert rq_job.args == ([last.id],)
+
+    # Already scored against the latest work history, or not a parsed job at all.
+    assert client.post(f"/api/jobs/{first.job_id}/rescore").status_code == 409
+    assert client.post("/api/jobs/99999/rescore").status_code == 404
+    assert len(_rescore_jobs(fake_queue)) == 1

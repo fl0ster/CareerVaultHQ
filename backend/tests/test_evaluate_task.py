@@ -396,3 +396,32 @@ def test_evaluate_regenerates_stale_profile(task_engine):
 
     assert result["candidate_profile_id"] != seeded["profile_ids"][0]
     assert result["evaluated"] == 1
+
+
+def test_rescore_ignores_parse_age_and_failure_backoff(task_engine, requests_seen):
+    seeded = _seed(task_engine, jobs=2)
+    stale, failing = seeded["parsed_ids"]
+    profile_id = seeded["profile_ids"][0]
+    now = datetime.now(UTC)
+    with session_factory(task_engine)() as session:
+        session.get(models.JobParseResult, stale).parsed_at = now - timedelta(days=30)
+        session.add(
+            models.JobEvaluationFailure(
+                job_parse_result_id=failing,
+                candidate_profile_id=profile_id,
+                attempts=Settings().evaluate_max_attempts,
+                next_attempt_at=now + timedelta(hours=1),
+            )
+        )
+        session.commit()
+    assert evaluate_task.evaluate_parse_results([stale, failing])["pending"] == 0
+
+    result = evaluate_task.rescore_parse_results([stale, failing])
+
+    assert [e["job_parse_result_id"] for e in result["evaluations"]] == [stale, failing]
+    assert len(requests_seen) == 2
+    with session_factory(task_engine)() as session:
+        assert session.scalar(select(models.JobEvaluationFailure)) is None
+    # Already scored against the latest profile: re-scoring again is a no-op.
+    assert evaluate_task.rescore_parse_results([stale, failing])["pending"] == 0
+    assert len(requests_seen) == 2

@@ -112,3 +112,16 @@ def current_profile(session: Session, ai_service: OpenRouterService) -> tuple[Ca
     session.commit()
     session.refresh(profile)
     return profile, True
+
+
+def current_profile_ids(session: Session) -> set[int]:
+    """Ids of the profiles built from the same work history as the latest one (the latest
+    profile included). A job scored against any other profile is *outdated*: the work
+    history changed since, so it can be re-scored. Empty when there is no profile yet."""
+    latest = latest_profile(session)
+    if latest is None:
+        return set()
+    if latest.work_history_id is None:
+        return {latest.id}
+    ids = session.scalars(select(CandidateProfile.id).where(CandidateProfile.work_history_id == latest.work_history_id))
+    return set(ids)
