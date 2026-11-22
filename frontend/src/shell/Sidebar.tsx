@@ -112,10 +112,14 @@ export default function Sidebar({
     if (activeGroup && !open.includes(activeGroup)) setOpen([...open, activeGroup])
   }
 
+  // Which entries are in the menu: one appearing or leaving moves the entries below it.
+  const shownKey = hiddenPages.filter((id) => id !== active).join()
+
   const toggle = (id: GroupId) => setOpen((o) => (o.includes(id) ? o.filter((g) => g !== id) : [...o, id]))
 
   // Slide the highlight to the current page, or to its group while that group is closed.
-  // The observer keeps it in place while groups open and close.
+  // The observer keeps it in place while groups open and close; entries appearing or leaving
+  // (e.g. Applications once there is one) do not resize the nav, so they re-run this instead.
   useLayoutEffect(() => {
     const nav = navRef.current
     const indicator = indicatorRef.current
@@ -134,7 +138,7 @@ export default function Sidebar({
     observer.observe(nav)
     nav.querySelectorAll('.nav-sub').forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [active, collapsed, open])
+  }, [active, collapsed, open, shownKey])
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
