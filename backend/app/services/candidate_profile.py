@@ -115,13 +115,14 @@ def current_profile(session: Session, ai_service: OpenRouterService) -> tuple[Ca
 
 
 def current_profile_ids(session: Session) -> set[int]:
-    """Ids of the profiles built from the same work history as the latest one (the latest
-    profile included). A job scored against any other profile is *outdated*: the work
-    history changed since, so it can be re-scored. Empty when there is no profile yet."""
-    latest = latest_profile(session)
-    if latest is None:
-        return set()
-    if latest.work_history_id is None:
-        return {latest.id}
-    ids = session.scalars(select(CandidateProfile.id).where(CandidateProfile.work_history_id == latest.work_history_id))
-    return set(ids)
+    """Ids of the profiles built from the *current* work history. A job scored against any
+    other profile is *outdated*: the work history changed since, so it can be re-scored.
+
+    Profiles are generated lazily (see :func:`current_profile`), so right after the work
+    history is edited no profile matches it yet and every score is outdated. With an empty
+    work history the latest profile (if any) counts as current."""
+    wh_id = work_history_id(_work_history_payload(session))
+    if wh_id is None:
+        latest = latest_profile(session)
+        return {latest.id} if latest is not None else set()
+    return set(session.scalars(select(CandidateProfile.id).where(CandidateProfile.work_history_id == wh_id)))

@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 
 from app.api.routes.jobs import relevance
@@ -9,7 +11,9 @@ from app.models import (
     JobParseResult,
     OpenRouterCall,
     ScrapeRun,
+    WorkHistoryEntry,
 )
+from app.services.candidate_profile import _work_history_payload, work_history_id
 from app.services.companies import normalize_company_name
 from tests.conftest import ensure_source
 
@@ -297,11 +301,20 @@ def test_jobs_fall_back_to_the_newest_evaluation_of_an_older_profile(client, db_
     assert detail["evaluation"]["candidate_profile_id"] == old.id
 
 
+def _add_position(db_session, role: str) -> str:
+    """Add a work history entry and return the resulting ``work_history_id``."""
+    db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role=role, tech=["python"]))
+    db_session.commit()
+    return work_history_id(_work_history_payload(db_session))
+
+
 def _seed_outdated(db_session) -> tuple[JobParseResult, JobParseResult, CandidateProfile]:
-    """``seed_evaluated`` with the profiles built from different work histories and the
-    last job scored against the old profile only. Returns (current job, outdated job, old)."""
+    """``seed_evaluated`` with the old profile built from an earlier work history, the new
+    one from the current one, and the last job scored against the old profile only.
+    Returns (current job, outdated job, new profile)."""
     old, new = seed_evaluated(db_session, 3)
-    old.work_history_id, new.work_history_id = "wh-1", "wh-2"
+    old.work_history_id = _add_position(db_session, "Junior")
+    new.work_history_id = _add_position(db_session, "Senior")
     parsed = db_session.query(JobParseResult).order_by(JobParseResult.id).all()
     db_session.add(
         JobEvaluation(
@@ -316,7 +329,7 @@ def _seed_outdated(db_session) -> tuple[JobParseResult, JobParseResult, Candidat
 
 
 def test_evaluations_of_an_earlier_work_history_are_outdated(client, db_session):
-    _, last, new = _seed_outdated(db_session)
+    _, last, _ = _seed_outdated(db_session)
 
     items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
     outdated = {item["id"]: item["evaluation"]["outdated"] for item in items}
@@ -324,10 +337,16 @@ def test_evaluations_of_an_earlier_work_history_are_outdated(client, db_session)
     assert not any(outdated.values())
     assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is True
 
-    # A profile rebuilt from the same work history does not make the old score outdated.
-    new.work_history_id = "wh-1"
-    db_session.commit()
-    assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is False
+
+def test_editing_the_work_history_outdates_scores_before_a_new_profile_exists(client, db_session):
+    """Profiles are generated lazily: right after a position is added no profile matches
+    the work history yet, and every score is already outdated."""
+    first, last, _ = _seed_outdated(db_session)
+    _add_position(db_session, "Staff")
+
+    items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
+    assert items and all(item["evaluation"]["outdated"] for item in items)
+    assert client.get(f"/api/jobs/{first.job_id}").json()["evaluation"]["outdated"] is True
 
 
 def _rescore_jobs(fake_queue):
