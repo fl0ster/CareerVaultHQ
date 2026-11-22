@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import select
 
 from app.api.routes.jobs import relevance
 from app.models import (
