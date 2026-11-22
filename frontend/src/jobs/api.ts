@@ -30,9 +30,6 @@ export type EvaluatedJob = {
   application_id: number | null
   /** The user's call on the Jobs tab; `null` while undecided. */
   decision: JobDecision | null
-  /** Id of the job's first evaluation: the feed's sort and keyset key. It does not change
-   * when the job is re-scored, so the job keeps its place. */
-  feed_position: number
 }
 
 export type JobDecision = 'accepted' | 'rejected'
@@ -44,7 +41,7 @@ export type JobInbox = {
   candidate_profile_id: number | null
 }
 
-/** Every other evaluated job, most recently first scored first (keyset-paginated by `feed_position`). */
+/** Every other evaluated job, newest job first (keyset-paginated by job id). */
 export type JobFeedPage = {
   items: EvaluatedJob[]
   has_more: boolean
@@ -52,22 +49,20 @@ export type JobFeedPage = {
 }
 
 export type FeedParams = {
-  /** `feed_position`: return older rows. */
+  /** Job id: return older rows. */
   before?: number
-  /** `feed_position`: return newer rows (polling). */
+  /** Job id: return newer rows (polling). */
   after?: number
   limit?: number
   /** Search term: every evaluated job (inbox included) whose title or company contains it. */
   q?: string
 }
 
-export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation' | 'feed_position'> & {
+export type EvaluatedJobDetail = Omit<EvaluatedJob, 'evaluation'> & {
   description: string | null
   /** Technologies the description names, as written in it; `[]` when none were detected. */
   technologies: string[]
   evaluation: JobEvaluation | null
-  /** `null` only while the job has never been scored. */
-  feed_position: number | null
 }
 
 export type JobPage = {

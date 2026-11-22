@@ -82,8 +82,8 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   }, [listRef, order])
 }
 
-/** Feed order: most recently first scored first (stable across re-scores). */
-const byPositionDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.feed_position - a.feed_position
+/** Feed order: newest job first (stable across re-scores). */
+const byIdDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.id - a.id
 
 /** Section a re-scored job stays in until the next full reload, whatever its new score. */
 type Section = 'inbox' | 'feed'
@@ -234,7 +234,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const profileRef = useRef<number | null | undefined>(undefined)
-  /** Oldest / newest `feed_position` the feed endpoint returned (keyset cursors). Rows moved
+  /** Oldest / newest job id the feed endpoint returned (keyset cursors). Rows moved
    * into the feed locally do not move them, so polling and paging never skip a row. */
   const oldestRef = useRef<number | null>(null)
   const newestRef = useRef<number | null>(null)
@@ -275,8 +275,8 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setFeed((prev) => {
       const rest = prev.filter((j) => j.id !== job.id)
       const oldest = oldestRef.current
-      if (hasMoreRef.current && oldest !== null && job.feed_position < oldest) return rest
-      return [...rest, job].sort(byPositionDesc)
+      if (hasMoreRef.current && oldest !== null && job.id < oldest) return rest
+      return [...rest, job].sort(byIdDesc)
     })
   }, [])
 
@@ -287,7 +287,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     if (fresh.length === 0) return
     setFeed((prev) => {
       const incoming = new Map(fresh.map((j) => [j.id, j]))
-      return [...prev.filter((j) => !incoming.has(j.id)), ...fresh].sort(byPositionDesc)
+      return [...prev.filter((j) => !incoming.has(j.id)), ...fresh].sort(byIdDesc)
     })
   }, [])
 
@@ -299,8 +299,8 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     try {
       const page = await jobsApi.feed({ before: oldestRef.current ?? undefined, limit: PAGE_SIZE })
       if (page.items.length > 0) {
-        oldestRef.current = page.items[page.items.length - 1].feed_position
-        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].feed_position)
+        oldestRef.current = page.items[page.items.length - 1].id
+        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].id)
       } else if (newestRef.current === null) {
         newestRef.current = 0
       }
@@ -356,13 +356,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         jobsApi
           .get(job.id)
           .then((fresh) => {
-            if (fresh.evaluation)
-              putInFeed({
-                ...job,
-                ...fresh,
-                evaluation: fresh.evaluation,
-                feed_position: fresh.feed_position ?? job.feed_position,
-              })
+            if (fresh.evaluation) putInFeed({ ...job, ...fresh, evaluation: fresh.evaluation })
           })
           .catch(() => {
             /* it shows up again on the next reload */
@@ -374,7 +368,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       } else {
         const fresh = await jobsApi.feed({ after: newestRef.current, limit: 200 })
         if (fresh.items.length > 0) {
-          newestRef.current = Math.max(newestRef.current, fresh.items[0].feed_position)
+          newestRef.current = Math.max(newestRef.current, fresh.items[0].id)
           mergeFeed(fresh.items)
         }
       }
@@ -425,7 +419,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       const controller = new AbortController()
       searchControllerRef.current = controller
       const prev = fresh ? [] : (resultsRef.current ?? [])
-      const before = prev.length > 0 ? prev[prev.length - 1].feed_position : undefined
+      const before = prev.length > 0 ? prev[prev.length - 1].id : undefined
       setResultsLoading(true)
       try {
         const page = await jobsApi.feed({ q: search, before, limit: PAGE_SIZE }, controller.signal)

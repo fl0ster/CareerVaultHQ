@@ -208,25 +208,25 @@ def test_feed_keyset_pagination_and_polling(client, db_session):
 
     first = client.get("/api/jobs/feed", params={"limit": 4}).json()
     assert len(first["items"]) == 4 and first["has_more"] is True
-    oldest = first["items"][-1]["feed_position"]
+    oldest = first["items"][-1]["id"]
     second = client.get("/api/jobs/feed", params={"limit": 4, "before": oldest}).json()
     assert len(second["items"]) == 2 and second["has_more"] is False
-    assert all(i["feed_position"] < oldest for i in second["items"])
+    assert all(i["id"] < oldest for i in second["items"])
 
-    newest = first["items"][0]["feed_position"]
+    newest = first["items"][0]["id"]
     assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
     older = client.get("/api/jobs/feed", params={"after": oldest}).json()["items"]
-    assert [i["feed_position"] for i in older] == [i["feed_position"] for i in first["items"][:3]]
+    assert [i["id"] for i in older] == [i["id"] for i in first["items"][:3]]
 
 
-def test_rescored_job_keeps_its_feed_position(client, db_session):
+def test_rescored_job_keeps_its_place_in_the_feed(client, db_session):
     seed_evaluated(db_session, 6)
     latest = CandidateProfile(content="latest")
     db_session.add(latest)
     db_session.commit()
     before = client.get("/api/jobs/feed").json()["items"]
     order = [i["id"] for i in before]
-    newest = before[0]["feed_position"]
+    newest = before[0]["id"]
     # Re-score the oldest job in the feed (a newer evaluation than every other one).
     oldest_job = before[-1]
     parsed = db_session.query(JobParseResult).filter_by(job_id=oldest_job["id"]).one()
@@ -242,12 +242,9 @@ def test_rescored_job_keeps_its_feed_position(client, db_session):
 
     after = client.get("/api/jobs/feed").json()["items"]
     assert [i["id"] for i in after] == order
-    assert after[-1]["feed_position"] == oldest_job["feed_position"]
     assert after[-1]["evaluation"]["id"] > oldest_job["evaluation"]["id"]
     # Polling for new jobs does not return it either.
     assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
-    detail = client.get(f"/api/jobs/{oldest_job['id']}").json()
-    assert detail["feed_position"] == oldest_job["feed_position"]
 
 
 def test_inbox_and_feed_without_profile(client, db_session):
