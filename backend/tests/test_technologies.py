@@ -50,10 +50,11 @@ def test_grounded_technologies_are_kept_and_deduplicated(chat):
             _t("Python", "Python 3.11"),
             _t("Django", "Django,"),
             _t("PostgreSQL", "PostgreSQL"),
-            _t("Postgres", "Postgres 15"),  # same key -> dropped
+            _t("PostgreSQL", "Postgres 15"),  # duplicate -> dropped
             _t("Docker", "Docker"),
-            _t("Kubernetes", "k8s"),  # alias in evidence
-            _t("React", "React.js"),
+            _t("k8s", "Docker, k8s."),
+            _t("React.js", "React.js"),
+            _t("ReactJS", "React.js"),  # same key -> dropped
             _t("AWS", "AWS"),
         ]
     }
@@ -63,7 +64,7 @@ def test_grounded_technologies_are_kept_and_deduplicated(chat):
         "django",
         "postgresql",
         "docker",
-        "kubernetes",
+        "k8s",
         "react",
         "aws",
     ]
@@ -76,6 +77,7 @@ def test_hallucinated_technologies_are_dropped(chat):
             _t("JavaScript", "React.js"),  # inferred, not named in evidence
             _t("Redis", "Redis"),  # evidence not in text
             _t("Go", "Google products"),  # not a whole word
+            _t("Kubernetes", "k8s"),  # renamed: not literally in the evidence
             _t("Flask", "Django"),  # evidence names another technology
             {"name": "Docker"},  # no evidence
             "Docker",
@@ -103,15 +105,18 @@ def test_empty_text_skips_the_call(chat):
         ("ReactJS", "react"),
         ("React.js", "react"),
         ("react-js", "react"),
-        ("Postgres", "postgresql"),
+        ("Postgres", "postgres"),
+        ("PostgreSQL 15", "postgresql"),
         ("Java 17", "java"),
         ("Python 3.11", "python"),
-        ("K8s", "kubernetes"),
-        ("Golang", "go"),
+        ("K8s", "k8s"),
+        ("C++", "c++"),
         ("S3", "s3"),
         ("EC2", "ec2"),
         ("C#", "c#"),
-        (" Node JS ", "node.js"),
+        (".NET", "net"),
+        ("Next.js", "next"),
+        (" Node JS ", "node"),
     ],
 )
 def test_technology_key(spelling, key):
@@ -124,7 +129,7 @@ def test_match_technologies_against_work_history():
         {"name": "PostgreSQL", "key": "postgresql"},
         {"name": "Rust", "key": "rust"},
     ]
-    match = match_technologies(job, [["ReactJS", "Python"], ["Postgres"]])
+    match = match_technologies(job, [["ReactJS", "Python"], ["PostgreSQL 14"]])
     assert match.matched == ["React", "PostgreSQL"]
     assert match.missing == ["Rust"]
     assert match.ratio == pytest.approx(2 / 3)

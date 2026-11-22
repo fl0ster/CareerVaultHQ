@@ -36,7 +36,7 @@ from app.models import Job, JobParseResult, PendingJobParseRun
 from app.queue import get_queue
 from app.services.companies import CompanyMatch, resolve_company
 from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService
-from app.services.technologies import alias_spellings, dedupe_technologies, technology_key
+from app.services.technologies import dedupe_technologies, technology_key
 from app.tasks.evaluate import evaluate_parse_results
 from app.tasks.scrape.sources import load_source
 
@@ -221,9 +221,10 @@ TECHNOLOGIES_PROMPT = """List the technologies the job description below asks fo
 mentions as part of the role's work: programming languages, frameworks, libraries,
 databases, cloud platforms, tools, protocols and engines.
 Answer with a JSON object {{"technologies": [{{"name": ..., "evidence": ...}}, ...]}} where
-- "name" is the usual name of the technology (e.g. "React", "PostgreSQL", "Kubernetes"),
+- "name" is the technology's name exactly as written in the text (when the text spells it
+  several ways, the fullest spelling),
 - "evidence" is a short fragment copied EXACTLY, character for character, from the text,
-  that contains the technology's name as written there.
+  that contains that name.
 Rules:
 - Only technologies literally named in the text. Never infer one from another (no
   "JavaScript" because of "React", no "Docker" because of "Kubernetes").
@@ -239,13 +240,17 @@ def _squash(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-def _names_in(fragment: str, key: str, name: str) -> bool:
-    """Whether ``fragment`` (squashed) contains ``name`` or a known spelling of ``key`` as
-    a whole word (``C`` is not found in ``C#``, ``Go`` not in ``Google``)."""
-    for spelling in alias_spellings(key) | {_squash(name)}:
-        pattern = rf"(?<![\w+#.]){re.escape(spelling)}(?![\w+#])"
-        if re.search(pattern, fragment):
-            return True
+MAX_NAME_WORDS = 4
+
+
+def _names_in(fragment: str, key: str) -> bool:
+    """Whether a run of whole words of ``fragment`` has the technology ``key`` (so
+    "React.js," names React, but "Google" does not name Go and "C#" does not name C)."""
+    words = [word.strip(",;:()[]{}\"'!?/") for word in fragment.split()]
+    for start in range(len(words)):
+        for end in range(start + 1, min(start + MAX_NAME_WORDS, len(words)) + 1):
+            if technology_key(" ".join(words[start:end])) == key:
+                return True
     return False
 
 
@@ -274,7 +279,7 @@ def _technologies_from_reply(reply: str, text: str) -> list[dict[str, str]]:
         if not key or not fragment or fragment not in haystack:
             log.debug("Dropped technology %r: evidence %r not in text", name, evidence)
             continue
-        if not _names_in(fragment, key, name):
+        if not _names_in(fragment, key):
             log.debug("Dropped technology %r: not named in %r", name, evidence)
             continue
         grounded.append(name)
