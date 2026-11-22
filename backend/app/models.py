@@ -673,3 +673,47 @@ class GmailProcessedMail(Base):
     application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GmailInterviewMail(Base):
+    """A mail the Gmail interview-steps check looked at (see
+    ``app.tasks.gmail.interview_steps``), so it is never sent to OpenRouter twice. Only
+    ``OUTCOME_APPLIED`` mails are labelled; their read state is never changed."""
+
+    __tablename__ = "gmail_interview_mails"
+
+    OUTCOME_APPLIED = "applied"
+    """Interview steps stored on the job of ``application_id``; the mail was labelled."""
+    OUTCOME_NO_STEPS = "no_steps"
+    """The mail does not describe the interview process (or the steps failed the checks)."""
+    OUTCOME_EXTRACTION_FAILED = "extraction_failed"
+    """Company could not be read from the mail."""
+    OUTCOME_NO_MATCH = "no_match"
+    """No open application matches the company (and role)."""
+    OUTCOME_AMBIGUOUS = "ambiguous"
+    """Several open applications match and the role does not single one out."""
+    OUTCOME_HAS_STEPS = "has_steps"
+    """The matched job already has interview steps; they are not overwritten."""
+    OUTCOME_LABEL_FAILED = "label_failed"
+    """Steps stored, but the mail could not be labelled (retried by the next run)."""
+    OUTCOME_ERROR = "error"
+    """Processing failed unexpectedly (see ``error``)."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    message_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128))
+    subject: Mapped[str] = mapped_column(String(1024), default="")
+    sender: Mapped[str] = mapped_column(String(512), default="")
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    present_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the mail describes the interview process."""
+    faithful_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the extracted steps are stated in the mail."""
+    steps: Mapped[list[dict] | None] = mapped_column(JSON)
+    """The extracted steps (``JobParseResult.interview_steps`` format)."""
+    company: Mapped[str | None] = mapped_column(String(512))
+    role: Mapped[str | None] = mapped_column(String(512))
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -15,9 +15,10 @@ before:
    in the UI), then marks the mail read and labels it.
 
 Only high-confidence, unambiguous cases are acted on; everything else stays unread in the
-inbox for the user. Every mail is recorded in ``gmail_processed_mails`` with its outcome so
-it is never sent to OpenRouter twice (a failing OpenRouter call is not recorded, so the mail
-is retried by the next run).
+inbox for the user. Mails that are not rejections then go through the interview-steps
+check (``app.tasks.gmail.interview_steps``), which only labels mails. Every mail is
+recorded in ``gmail_processed_mails`` with its outcome so it is never sent to OpenRouter
+twice (a failing OpenRouter call is not recorded, so the mail is retried by the next run).
 """
 
 from __future__ import annotations
@@ -28,7 +29,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
-from typing import Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -62,6 +64,9 @@ from app.services.openrouter import (
     OpenRouterNotConfigured,
     OpenRouterService,
 )
+
+if TYPE_CHECKING:
+    from app.tasks.gmail.interview_steps import InterviewSummary
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +110,8 @@ QUESTIONS: dict[str, dict[str, Any]] = {
 }
 
 EXTRACTION_SYSTEM = "You extract data from job application e-mails. Answer with a single JSON object and nothing else."
-EXTRACTION_PROMPT = """The e-mail below is a rejection of a job application.
+REJECTION_ABOUT = "The e-mail below is a rejection of a job application."
+EXTRACTION_PROMPT = """{about}
 Return a JSON object {{"company": ..., "role": ...}} where
 - "company" is the name of the hiring company the candidate applied to (not the recruitment
   agency or applicant tracking system that sent the mail, unless it is the employer itself),
@@ -247,13 +253,20 @@ def rejection_probability(service: OpenRouterService, message: GmailMessage) -> 
     return decision.noul(QUESTION_NAME)
 
 
-def extract_company_and_role(service: OpenRouterService, message: GmailMessage) -> tuple[str | None, str | None]:
-    """``(company, role)`` named in the mail; ``None`` for what could not be read."""
+def extract_company_and_role(
+    service: OpenRouterService,
+    message: GmailMessage,
+    *,
+    about: str = REJECTION_ABOUT,
+    source: str = SOURCE,
+) -> tuple[str | None, str | None]:
+    """``(company, role)`` named in the mail; ``None`` for what could not be read. ``about``
+    is the first line of the prompt, telling the model what kind of mail it reads."""
     reply = service.chat(
-        EXTRACTION_PROMPT.format(sender=message.sender, subject=message.subject, body=message.body),
+        EXTRACTION_PROMPT.format(about=about, sender=message.sender, subject=message.subject, body=message.body),
         system=EXTRACTION_SYSTEM,
         temperature=0,
-        source=SOURCE,
+        source=source,
         private=True,
     ).text
     try:
@@ -282,6 +295,8 @@ class RunSummary:
     """OpenRouter failed; retried by the next run."""
     outcomes: dict[str, int] = field(default_factory=dict)
     applied: list[dict[str, Any]] = field(default_factory=list)
+    interview: InterviewSummary = field(default_factory=lambda: _interview().InterviewSummary())
+    """The interview-steps check run on the mails that are not rejections."""
 
     def count(self, outcome: str) -> None:
         self.outcomes[outcome] = self.outcomes.get(outcome, 0) + 1
@@ -293,6 +308,7 @@ class RunSummary:
             "failed": self.failed,
             "outcomes": dict(self.outcomes),
             "applied": list(self.applied),
+            "interview_steps": self.interview.as_dict(),
         }
 
 
@@ -440,7 +456,18 @@ def run_check(
                 session.add(_new_record(message, GmailProcessedMail.OUTCOME_ERROR, error=repr(exc)[:2000]))
                 session.commit()
             summary.count(GmailProcessedMail.OUTCOME_ERROR)
+            continue
+        record = _processed(session, message.id)
+        if record is not None and record.outcome == GmailProcessedMail.OUTCOME_NOT_REJECTION:
+            _interview().check_message(session, client, service, message, summary.interview)
     return summary
+
+
+def _interview() -> ModuleType:
+    """``app.tasks.gmail.interview_steps`` (imported lazily: it imports this module)."""
+    from app.tasks.gmail import interview_steps
+
+    return interview_steps
 
 
 class NotConfigured(RuntimeError):

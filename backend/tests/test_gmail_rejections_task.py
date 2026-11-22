@@ -61,21 +61,36 @@ def _message(i=1, subject="Your application", body="We will not move forward."):
 def openrouter(db_session):
     """OpenRouter mock: ``state["p"]`` is the rejection probability, ``state["extract"]``
     the chat reply (a dict is sent as JSON)."""
-    state = {"p": 0.97, "extract": {"company": "Acme", "role": "Backend Developer"}, "calls": []}
+    state = {
+        "p": 0.97,
+        "extract": {"company": "Acme", "role": "Backend Developer"},
+        "calls": [],
+        # interview-steps check (app.tasks.gmail.interview_steps)
+        "present": 0.0,
+        "faithful": 0.9,
+        "steps": {"steps": [{"title": "HR call", "duration_minutes": 30}]},
+    }
+    answers = {
+        "is_rejection": "p",
+        "describes_interview_process": "present",
+        "steps_are_faithful": "faithful",
+    }
 
     def handle(request: httpx.Request) -> httpx.Response:
         state["calls"].append(request.url.path)
+        body = json.loads(request.content)
         if request.url.path.endswith("/decisions"):
             return httpx.Response(
                 200,
                 json={
                     "id": "d",
                     "model": "jev",
-                    "answers": {"is_rejection": {"type": "noul", "noul": state["p"]}},
+                    "answers": {q: {"type": "noul", "noul": state[answers[q]]} for q in body["questions"]},
                     "usage": {"cost": 0.001},
                 },
             )
-        reply = state["extract"]
+        prompt = json.dumps(body["messages"])
+        reply = state["steps"] if "List the stages" in prompt else state["extract"]
         content = reply if isinstance(reply, str) else json.dumps(reply)
         return httpx.Response(
             200,
