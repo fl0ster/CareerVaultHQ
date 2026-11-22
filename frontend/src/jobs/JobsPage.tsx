@@ -119,7 +119,8 @@ function JobRow({
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
           <div className="job-main">
-            <span className="job-title">
+            <RelevanceMeter relevance={job.evaluation.relevance} />
+            <span className="job-title" style={{ marginLeft: '10px' }}>
               {job.title ?? job.link}
             </span>
             <div className="job-meta">
@@ -142,9 +143,8 @@ function JobRow({
             </div>
           </div>
         </button>
-        <div className="job-side">
-          <RelevanceMeter relevance={job.evaluation.relevance} />
-          {inbox && (
+        {inbox && (
+          <div className="job-side">
             <div className="job-decide">
               <button
                 type="button"
@@ -167,8 +167,8 @@ function JobRow({
                 ✕
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       {error && <p className="error">{error}</p>}
     </li>
