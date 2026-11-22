@@ -45,7 +45,22 @@ def extracted_steps(monkeypatch):
 
 
 @pytest.fixture
-def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps):
+def extracted_technologies(monkeypatch):
+    """Replaces the LLM technology extraction: set ``state["technologies"]`` or
+    ``state["error"]``."""
+    state = {"technologies": [], "error": None}
+
+    def fake(service, text):
+        if state["error"] is not None:
+            raise state["error"]
+        return state["technologies"]
+
+    monkeypatch.setattr(parse_task, "extract_technologies", fake)
+    return state
+
+
+@pytest.fixture
+def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps, extracted_technologies):
     monkeypatch.setattr(parse_task, "init_db", lambda: init_db(engine))
     monkeypatch.setattr(parse_task, "session_factory", lambda: session_factory(engine))
     return engine
@@ -317,3 +332,23 @@ def test_interview_step_failure_does_not_fail_the_parse(task_engine, extracted_s
     assert _parsed(task_engine, pending_id).interview_steps is None
     with session_factory(task_engine)() as session:
         assert session.get(models.PendingJobParseRun, pending_id).status == "COMPLETED"
+
+
+def test_parse_job_stores_technologies(task_engine, extracted_technologies):
+    extracted_technologies["technologies"] = [{"name": "Unity", "key": "unity"}]
+    pending_id = _make_pending(task_engine)
+
+    assert parse_task.parse_job(pending_id)["technologies"] == 1
+    assert _parsed(task_engine, pending_id).technologies == [{"name": "Unity", "key": "unity"}]
+    assert parse_task.parse_job(pending_id)["technologies"] == 1
+
+
+def test_technology_failure_does_not_fail_the_parse(task_engine, extracted_technologies):
+    extracted_technologies["error"] = OpenRouterError("boom", status_code=500)
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    assert result["technologies"] is None
+    assert result["title"] == "Unity Dev"
+    assert _parsed(task_engine, pending_id).technologies is None

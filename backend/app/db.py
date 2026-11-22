@@ -57,6 +57,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     },
     "job_parse_results": {
         "interview_steps": "JSON",
+        "technologies": "JSON",
     },
     "gmail_monitor_settings": {
         "interview_label": "VARCHAR(128) NOT NULL DEFAULT 'interview-steps-registered'",
