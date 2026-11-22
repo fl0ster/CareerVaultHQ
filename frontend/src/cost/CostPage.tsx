@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './cost.css'
 import { getCostReport, type CostQuery, type CostReport, type Granularity } from './api.ts'
 import { BreakdownChart, TimeChart } from './charts.tsx'
@@ -55,8 +55,8 @@ function toQuery(f: Filters): CostQuery {
   }
 }
 
-export default function CostPage({ active }: { active: boolean }) {
-  // ``n`` is bumped by every filter change and each time the page is entered; ``loadedFor`` tracks which
+export default function CostPage() {
+  // ``n`` is bumped by every filter change (the page loads fresh on every entry: it mounts then); ``loadedFor`` tracks which
   // request the shown report belongs to, so ``loading`` needs no state of its own.
   const [request, setRequest] = useState<Request>({ filters: DEFAULT_FILTERS, n: 0 })
   const [loadedFor, setLoadedFor] = useState(-1)
@@ -81,14 +81,6 @@ export default function CostPage({ active }: { active: boolean }) {
       })
     return () => controller.abort()
   }, [request])
-
-  // The page stays mounted while hidden, so reload whenever it becomes visible again.
-  // Skip the first run: the mount already triggered a load.
-  const mounted = useRef(false)
-  useEffect(() => {
-    if (mounted.current && active) setRequest((prev) => ({ ...prev, n: prev.n + 1 }))
-    mounted.current = true
-  }, [active])
 
   const update = (patch: Partial<Filters>) =>
     setRequest((prev) => ({ filters: { ...prev.filters, ...patch }, n: prev.n + 1 }))

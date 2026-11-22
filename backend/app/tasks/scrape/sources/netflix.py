@@ -80,9 +80,7 @@ def fetch_jobs() -> list[dict]:
     start = len(initial)
     while initial and start < total:
         params = {**API_PARAMS, "start": str(start), "num": str(PAGE_SIZE)}
-        api_resp = httpx.get(
-            API_URL, headers=HEADERS, params=params, follow_redirects=True, timeout=30
-        )
+        api_resp = httpx.get(API_URL, headers=HEADERS, params=params, follow_redirects=True, timeout=30)
         if api_resp.status_code != 200:
             log.warning("netflix API request failed with status %s", api_resp.status_code)
             break

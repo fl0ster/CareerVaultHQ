@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, ExternalLink } from 'lucide-react'
 import { type EvaluatedJob, type EvaluatedJobDetail, jobsApi } from './api.ts'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import '../applications/applications.css'
@@ -9,9 +9,11 @@ import { describeError } from '../cv/api.ts'
 import CreateApplicationButton from './CreateApplicationButton.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { pageHref } from '../shell/nav.ts'
+import TechPills from './TechPills.tsx'
 
-/** The job's application, or a button to create one. */
-function JobApplicationSection({
+/** Top-right of the job header: the application's status pill (a link to it), or an
+ * "Apply" pill that creates one. */
+function JobApplicationPill({
   applicationId,
   evaluationId,
   onCreated,
@@ -36,24 +38,32 @@ function JobApplicationSection({
     return () => controller.abort()
   }, [applicationId])
 
-  if (applicationId == null && evaluationId == null) return null
+  if (applicationId == null) {
+    if (evaluationId == null) return null
+    return (
+      <div className="job-apply-pill">
+        <CreateApplicationButton evaluationId={evaluationId} onCreated={onCreated} />
+      </div>
+    )
+  }
 
   return (
-    <div className="job-application">
-      <h3>Application</h3>
-      {applicationId != null ? (
-        application ? (
-          <div className="app-buttons">
-            <StatusBadge status={application.status} auto={isAutoEvent(currentEvent(application))} />
-            <a href={pageHref('applications', application.id)}>Open application #{application.id}</a>
-          </div>
+    <div className="job-apply-pill">
+      <a
+        className="job-application-link"
+        href={pageHref('applications', applicationId)}
+        title={error ?? `Open application #${applicationId}`}
+      >
+        {application ? (
+          <StatusBadge status={application.status} auto={isAutoEvent(currentEvent(application))} />
+        ) : error ? (
+          <span className="badge">Application #{applicationId}</span>
         ) : (
-          !error && <span className="spinner" aria-hidden="true" />
-        )
-      ) : (
-        evaluationId != null && <CreateApplicationButton evaluationId={evaluationId} onCreated={onCreated} />
-      )}
-      {error && <p className="error">{error}</p>}
+          <span className="spinner" aria-hidden="true" />
+        )}
+        <ArrowUpRight size={14} aria-hidden="true" />
+        <span className="sr-only">Open application #{applicationId}</span>
+      </a>
     </div>
   )
 }
@@ -65,12 +75,22 @@ type Props = {
   onBack: () => void
   onOpenCompany: (companyId: number) => void
   onApplicationCreated: (applicationId: number) => void
+  /** The job was re-scored against the latest profile from this view. */
+  onRescored: (job: EvaluatedJobDetail) => void
   /** Reports the job's title once known (for the breadcrumb), or null when it could not be loaded. */
   onTitle: (title: string | null) => void
 }
 
 /** Full details of one evaluated job, shown in place of the list. */
-export default function JobView({ jobId, initial, onBack, onOpenCompany, onApplicationCreated, onTitle }: Props) {
+export default function JobView({
+  jobId,
+  initial,
+  onBack,
+  onOpenCompany,
+  onApplicationCreated,
+  onRescored,
+  onTitle,
+}: Props) {
   const [detail, setDetail] = useState<EvaluatedJobDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [html, setHtml] = useState<string | null>(null)
@@ -134,14 +154,30 @@ export default function JobView({ jobId, initial, onBack, onOpenCompany, onAppli
 
   const evaluation = detail ? detail.evaluation : (initial?.evaluation ?? null)
   const applicationId = createdId ?? job.application_id
+  const technologies = detail?.technologies ?? []
 
   return (
     <article className="detail-view job-view" aria-labelledby={`job-${job.id}`}>
       {back}
       <div className="detail-card">
-        <div className="job-dialog-head">
+        <header className="job-view-head">
           <div className="job-main">
-            <h2 id={`job-${job.id}`}>{title}</h2>
+            <div className="detail-title">
+              {evaluation && (
+                <RelevanceMeter
+                  relevance={evaluation.relevance}
+                  outdated={evaluation.outdated}
+                  rescore={{
+                    jobId: job.id,
+                    onRescored: (fresh) => {
+                      setDetail(fresh)
+                      onRescored(fresh)
+                    },
+                  }}
+                />
+              )}
+              <h2 id={`job-${job.id}`}>{title}</h2>
+            </div>
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
@@ -158,41 +194,22 @@ export default function JobView({ jobId, initial, onBack, onOpenCompany, onAppli
                 </span>
               )}
               <span>{job.source}</span>
-              {job.scrape_run_id != null && <span>run #{job.scrape_run_id}</span>}
+              <a className="job-posting-link" href={job.link} target="_blank" rel="noreferrer">
+                Job posting <ExternalLink size={12} aria-hidden="true" />
+              </a>
             </div>
           </div>
-        </div>
+          <JobApplicationPill
+            applicationId={applicationId}
+            evaluationId={evaluation?.id ?? null}
+            onCreated={(id) => {
+              setCreatedId(id)
+              onApplicationCreated(id)
+            }}
+          />
+        </header>
 
-        <dl className="job-facts">
-          {evaluation && (
-            <>
-              <dt>Relevance</dt>
-              <dd>
-                <RelevanceMeter relevance={evaluation.relevance} />
-                {evaluation.model && <span className="muted">{evaluation.model}</span>}
-              </dd>
-              <dt>Evaluated</dt>
-              <dd>{new Date(evaluation.created_at).toLocaleString()}</dd>
-            </>
-          )}
-          <dt>Parsed</dt>
-          <dd>{new Date(job.parsed_at).toLocaleString()}</dd>
-          <dt>Link</dt>
-          <dd>
-            <a href={job.link} target="_blank" rel="noreferrer">
-              {job.link}
-            </a>
-          </dd>
-        </dl>
-
-        <JobApplicationSection
-          applicationId={applicationId}
-          evaluationId={evaluation?.id ?? null}
-          onCreated={(id) => {
-            setCreatedId(id)
-            onApplicationCreated(id)
-          }}
-        />
+        <TechPills technologies={technologies} />
 
         {error && <p className="error">Could not load job details: {error}</p>}
         {!detail && !error && <span className="spinner" aria-hidden="true" />}

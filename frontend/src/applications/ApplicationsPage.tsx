@@ -8,6 +8,7 @@ import {
   type Application,
   type ApplicationStatus,
   INTERVIEW_STATUS,
+  OFFER_STATUS,
   applicationsApi,
   currentEvent,
   isAutoEvent,
@@ -21,8 +22,8 @@ import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import Confetti from './Confetti.tsx'
-import { OFFER_STATUS } from './useStageCounts.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
+import type { EvaluatedJobDetail } from '../jobs/api.ts'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStuck } from '../shell/useStuck.ts'
@@ -39,15 +40,16 @@ type Props = {
   stage: Stage
   /** Id of the application shown in place of the list (from the URL), or null for the list. */
   detailId: string | null
-  /** This page is the one on screen. */
-  active: boolean
+  /** Changes when the menu counts change (possibly through a background task, e.g. the
+   * Gmail monitor); the list is refetched then. Empty until the counts are known. */
+  version: string
   onOpen: (id: number) => void
   onBack: () => void
   /** Breadcrumb entries after the page name while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
 }
 
-export default function ApplicationsPage({ stage, detailId, active, onOpen, onBack, onCrumbsChange }: Props) {
+export default function ApplicationsPage({ stage, detailId, version, onOpen, onBack, onCrumbsChange }: Props) {
   const [applications, setApplications] = useState<Application[] | null>(null)
   const [statuses, setStatuses] = useState<ApplicationStatus[]>([])
   const [filter, setFilter] = useState('')
@@ -73,11 +75,40 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
 
   // The toolbar sticks under the top bar; once stuck it gets the top bar's translucent look.
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(toolbarRef, active && detailId == null)
+  const stuck = useStuck(toolbarRef, detailId == null)
 
   const reload = useCallback(() => setTick((t) => t + 1), [])
   const detailOpen = detailId != null
-  useDetailScroll(detailOpen, active)
+  useDetailScroll(detailOpen)
+
+  // The page mounts (and loads) on entry; while it is open, a change in the menu counts
+  // means applications changed somewhere else, so refetch. The counts arriving for the
+  // first time is not a change.
+  const [seenVersion, setSeenVersion] = useState(version)
+  if (version !== seenVersion) {
+    setSeenVersion(version)
+    if (seenVersion !== '') setTick((t) => t + 1)
+  }
+
+  /** The application's job was re-scored from its relevance meter. */
+  const rescored = (fresh: EvaluatedJobDetail) => {
+    const score = fresh.evaluation
+    if (!score) return
+    const update = (a: Application): Application =>
+      a.job.id === fresh.id
+        ? {
+            ...a,
+            evaluation: {
+              id: score.id,
+              candidate_profile_id: score.candidate_profile_id,
+              relevance: score.relevance,
+              outdated: score.outdated,
+            },
+          }
+        : a
+    setApplications((prev) => prev?.map(update) ?? prev)
+    setSelected((prev) => (prev ? update(prev) : prev))
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -203,6 +234,7 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
             onDelete={removed}
             onOpenCompany={setCompanyId}
             onBack={onBack}
+            onRescored={rescored}
           />
         ) : (
           <div className="detail-view detail-status">
@@ -273,7 +305,13 @@ export default function ApplicationsPage({ stage, detailId, active, onOpen, onBa
             <li key={a.id} className="app-item">
               <button type="button" className="app-row" onClick={() => onOpen(a.id)}>
                 <div className="job-main">
-                  {a.evaluation && <RelevanceMeter relevance={a.evaluation.relevance} />}
+                  {a.evaluation && (
+                    <RelevanceMeter
+                      relevance={a.evaluation.relevance}
+                      outdated={a.evaluation.outdated}
+                      rescore={{ jobId: a.job.id, onRescored: rescored }}
+                    />
+                  )}
                   <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
                   <div className="job-meta">
                     {a.job.company && (

@@ -35,10 +35,12 @@ def test_settings_defaults_and_update(client):
     body = client.get(f"{BASE}/settings").json()
     assert body["enabled"] is False and body["configured"] is False
     assert body["label"] == "rejection-registered"
+    assert body["interview_label"] == "interview-steps-registered"
     assert body["threshold"] == 0.9 and body["interval_seconds"] == 1800
     assert body["secret_hint"].startswith("…") and "secret" not in body
 
-    body = _configure(client, label="cv/rejected", threshold=0.95, enabled=True)
+    body = _configure(client, label="cv/rejected", interview_label="cv/interviews", threshold=0.95, enabled=True)
+    assert body["interview_label"] == "cv/interviews"
     assert body["configured"] is True and body["enabled"] is True
     assert body["label"] == "cv/rejected" and body["threshold"] == 0.95
 
@@ -97,9 +99,7 @@ def _fake_client(email):
 
 def test_connection_test_reports_account(client, monkeypatch):
     _configure(client)
-    monkeypatch.setattr(
-        "app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("Me@Gmail.com")
-    )
+    monkeypatch.setattr("app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("Me@Gmail.com"))
     assert client.post(f"{BASE}/test").json() == {
         "ok": True,
         "email": "Me@Gmail.com",
@@ -107,9 +107,7 @@ def test_connection_test_reports_account(client, monkeypatch):
         "error": None,
     }
 
-    monkeypatch.setattr(
-        "app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("other@gmail.com")
-    )
+    monkeypatch.setattr("app.api.routes.gmail_monitor.client_for", lambda row: _fake_client("other@gmail.com"))
     body = client.post(f"{BASE}/test").json()
     assert body["ok"] is False and "other@gmail.com" in body["error"]
 
@@ -126,9 +124,7 @@ def test_run_enqueues_once(client, fake_queue):
     assert first.json()["job_id"] == GMAIL_JOB_ID
     # A second request while the first is still queued returns the same job.
     assert client.post(f"{BASE}/run").json()["job_id"] == GMAIL_JOB_ID
-    assert [j.func_name for j in fake_queue.jobs] == [
-        "app.tasks.gmail.rejections.check_rejection_mails"
-    ]
+    assert [j.func_name for j in fake_queue.jobs] == ["app.tasks.gmail.rejections.check_rejection_mails"]
     assert client.get(f"{BASE}/jobs/{GMAIL_JOB_ID}").json()["status"] == "queued"
     assert client.get(f"{BASE}/jobs/nope").status_code == 404
 
@@ -149,15 +145,33 @@ def test_mails_listing(client, db_session):
     assert [m["message_id"] for m in client.get(f"{BASE}/mails?outcome=no_match").json()] == ["b"]
 
 
+def test_mails_listing_includes_interview_check(client, db_session):
+    from app.models import GmailInterviewMail, GmailProcessedMail
+
+    steps = [{"number": 1, "title": "HR call", "duration_minutes": 30}]
+    db_session.add_all(
+        [
+            GmailProcessedMail(message_id="a", subject="Invite", outcome="not_rejection"),
+            GmailInterviewMail(message_id="a", outcome="no_match", present_probability=0.99, steps=steps, error="why"),
+            GmailProcessedMail(message_id="b", subject="Sorry", outcome="applied"),
+        ]
+    )
+    db_session.commit()
+
+    by_id = {m["message_id"]: m for m in client.get(f"{BASE}/mails").json()}
+    interview = by_id["a"]["interview"]
+    assert interview["outcome"] == "no_match" and interview["steps"] == steps
+    assert interview["present_probability"] == 0.99 and interview["error"] == "why"
+    assert by_id["b"]["interview"] is None
+
+
 # --------------------------------------------------------------------------- scheduler
 
 
 @pytest.fixture
 def scheduler(engine):
     queue = Queue("jobs", connection=FakeStrictRedis())
-    sched = GmailMonitorScheduler(
-        queue, Settings(cors_origins=[]), sessions=session_factory(engine)
-    )
+    sched = GmailMonitorScheduler(queue, Settings(cors_origins=[]), sessions=session_factory(engine))
     return sched, queue
 
 

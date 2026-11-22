@@ -36,7 +36,7 @@ from app.integrations.gmail import (
     AppsScriptError,
     script_source,
 )
-from app.models import Application, GmailMonitorSettings, GmailProcessedMail, JobParseResult
+from app.models import Application, GmailInterviewMail, GmailMonitorSettings, GmailProcessedMail, JobParseResult
 from app.queue import get_queue
 from app.scheduler.gmail import GMAIL_JOB_ID, MIN_INTERVAL_SECONDS, enqueue_gmail_check
 from app.services.gmail_monitor import (
@@ -59,6 +59,8 @@ class MonitorSettingsOut(BaseModel):
     secret_hint: str
     """Last characters of the shared secret, to tell whether the deployed script is current."""
     label: str
+    interview_label: str
+    """Gmail label added to the mails whose interview steps were stored."""
     interval_seconds: int
     lookback_days: int
     threshold: float
@@ -77,11 +79,12 @@ class MonitorSettingsUpdate(BaseModel):
     script_url: str | None = Field(default=None, max_length=1024)
     label: str | None = Field(default=None, pattern=LABEL_PATTERN)
     """Letters, digits, spaces and ``_ . / -`` only (what the Apps Script accepts)."""
+    interview_label: str | None = Field(default=None, pattern=LABEL_PATTERN)
     interval_seconds: int | None = Field(default=None, ge=MIN_INTERVAL_SECONDS, le=7 * 24 * 3600)
     lookback_days: int | None = Field(default=None, ge=1, le=MAX_LOOKBACK_DAYS)
     threshold: float | None = Field(default=None, ge=0.5, le=1.0)
 
-    @field_validator("email", "script_url", "label")
+    @field_validator("email", "script_url", "label", "interview_label")
     @classmethod
     def _strip(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
@@ -97,9 +100,7 @@ class MonitorSettingsUpdate(BaseModel):
     @classmethod
     def _url(cls, value: str | None) -> str | None:
         if value and re.fullmatch(SCRIPT_URL_PATTERN, value) is None:
-            raise ValueError(
-                "the web app URL must look like https://script.google.com/macros/s/<id>/exec"
-            )
+            raise ValueError("the web app URL must look like https://script.google.com/macros/s/<id>/exec")
         return value
 
 
@@ -121,6 +122,21 @@ class MonitorJobInfo(BaseModel):
     error: str | None = None
 
 
+class InterviewCheckOut(BaseModel):
+    """Result of the interview-steps check on a mail (``gmail_interview_mails``)."""
+
+    outcome: str
+    present_probability: float | None
+    """Probability that the mail describes the interview process."""
+    faithful_probability: float | None
+    steps: list[dict[str, Any]] | None
+    company: str | None
+    role: str | None
+    application_id: int | None
+    application_title: str | None = None
+    error: str | None
+
+
 class ProcessedMailOut(BaseModel):
     id: int
     message_id: str
@@ -135,6 +151,9 @@ class ProcessedMailOut(BaseModel):
     application_title: str | None = None
     error: str | None
     created_at: datetime
+    interview: InterviewCheckOut | None = None
+    """``None`` when the interview-steps check did not look at the mail (rejections, and
+    mails whose check is to be retried)."""
 
 
 def _settings_out(row: GmailMonitorSettings) -> MonitorSettingsOut:
@@ -145,6 +164,7 @@ def _settings_out(row: GmailMonitorSettings) -> MonitorSettingsOut:
         script_url=row.script_url or "",
         secret_hint=f"…{row.secret[-4:]}" if row.secret else "",
         label=row.label,
+        interview_label=row.interview_label,
         interval_seconds=row.interval_seconds,
         lookback_days=row.lookback_days,
         threshold=row.threshold,
@@ -185,9 +205,7 @@ def read_settings(session: Annotated[Session, Depends(get_session)]) -> MonitorS
 
 
 @router.patch("/settings", response_model=MonitorSettingsOut)
-def update_settings(
-    payload: MonitorSettingsUpdate, session: Annotated[Session, Depends(get_session)]
-) -> MonitorSettingsOut:
+def update_settings(payload: MonitorSettingsUpdate, session: Annotated[Session, Depends(get_session)]) -> MonitorSettingsOut:
     """Change the given fields. Changing the interval or turning the monitor on makes the
     scheduler run a check at its next tick."""
     row = get_monitor_settings(session)
@@ -234,10 +252,7 @@ def test_connection(session: Annotated[Session, Depends(get_session)]) -> TestRe
     matches = bool(row.email) and same_address(email, row.email)
     error = None
     if not matches:
-        error = (
-            f"the script runs as {email or 'an unknown account'}, "
-            f"not {row.email or 'the configured address (none set)'}"
-        )
+        error = f"the script runs as {email or 'an unknown account'}, not {row.email or 'the configured address (none set)'}"
     return TestResult(ok=matches, email=email, matches_configured=matches, error=error)
 
 
@@ -277,7 +292,13 @@ def list_mails(
     if outcome:
         stmt = stmt.where(GmailProcessedMail.outcome == outcome)
     rows = session.scalars(stmt).all()
-    app_ids = {r.application_id for r in rows if r.application_id is not None}
+    interviews = {
+        i.message_id: i
+        for i in session.scalars(
+            select(GmailInterviewMail).where(GmailInterviewMail.message_id.in_([r.message_id for r in rows]))
+        )
+    }
+    app_ids = {r.application_id for r in [*rows, *interviews.values()] if r.application_id is not None}
     titles: dict[int, str] = {}
     if app_ids:
         for application in session.scalars(
@@ -303,6 +324,23 @@ def list_mails(
             application_title=titles.get(r.application_id) if r.application_id else None,
             error=r.error,
             created_at=r.created_at,
+            interview=_interview_out(interviews.get(r.message_id), titles),
         )
         for r in rows
     ]
+
+
+def _interview_out(row: GmailInterviewMail | None, titles: dict[int, str]) -> InterviewCheckOut | None:
+    if row is None:
+        return None
+    return InterviewCheckOut(
+        outcome=row.outcome,
+        present_probability=row.present_probability,
+        faithful_probability=row.faithful_probability,
+        steps=row.steps,
+        company=row.company,
+        role=row.role,
+        application_id=row.application_id,
+        application_title=titles.get(row.application_id) if row.application_id else None,
+        error=row.error,
+    )

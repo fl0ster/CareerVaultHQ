@@ -1,4 +1,7 @@
+from datetime import date
+
 import pytest
+from sqlalchemy import select
 
 from app.api.routes.jobs import relevance
 from app.models import (
@@ -9,7 +12,9 @@ from app.models import (
     JobParseResult,
     OpenRouterCall,
     ScrapeRun,
+    WorkHistoryEntry,
 )
+from app.services.candidate_profile import _work_history_payload, work_history_id
 from app.services.companies import normalize_company_name
 from tests.conftest import ensure_source
 
@@ -48,9 +53,7 @@ def seed_evaluated(db_session, n: int) -> tuple[CandidateProfile, CandidateProfi
     for i, job in enumerate(jobs):
         name = f"Company {i}"
         company = Company(name=name, normalized_name=normalize_company_name(name))
-        parsed = JobParseResult(
-            job=job, title=f"Title {i}", company=company, description=f"Desc {i}"
-        )
+        parsed = JobParseResult(job=job, title=f"Title {i}", company=company, description=f"Desc {i}")
         db_session.add(parsed)
         db_session.flush()
         if i < n - 1:
@@ -145,6 +148,17 @@ def test_get_job_returns_description_and_latest_evaluation(client, db_session):
     assert client.get("/api/jobs/999").status_code == 404
 
 
+def test_get_job_lists_detected_technologies(client, db_session):
+    seed_evaluated(db_session, 3)
+    parsed = db_session.execute(select(JobParseResult).filter_by(job_id=2)).scalar_one()
+    assert client.get("/api/jobs/2").json()["technologies"] == []  # extraction did not run
+
+    parsed.technologies = [{"name": "React", "key": "react"}, {"name": "Node.js", "key": "nodejs"}]
+    db_session.commit()
+    assert client.get("/api/jobs/2").json()["technologies"] == ["React", "Node.js"]
+    assert "technologies" not in client.get("/api/jobs/feed").json()["items"][0]
+
+
 def test_get_job_unparsed_is_404(client, db_session):
     seed(db_session, 1)
     assert client.get("/api/jobs/1").status_code == 404
@@ -195,23 +209,87 @@ def test_feed_keyset_pagination_and_polling(client, db_session):
 
     first = client.get("/api/jobs/feed", params={"limit": 4}).json()
     assert len(first["items"]) == 4 and first["has_more"] is True
-    oldest = first["items"][-1]["evaluation"]["id"]
+    oldest = first["items"][-1]["id"]
     second = client.get("/api/jobs/feed", params={"limit": 4, "before": oldest}).json()
     assert len(second["items"]) == 2 and second["has_more"] is False
-    assert all(i["evaluation"]["id"] < oldest for i in second["items"])
+    assert all(i["id"] < oldest for i in second["items"])
 
-    newest = first["items"][0]["evaluation"]["id"]
-    assert client.get("/api/jobs/feed", params={"after": newest}).json()["items"] == []
-    older = client.get("/api/jobs/feed", params={"after": oldest}).json()["items"]
-    assert [i["evaluation"]["id"] for i in older] == [
-        i["evaluation"]["id"] for i in first["items"][:3]
-    ]
+    # Polling by evaluation id: nothing newer than the newest score seen, and paging from
+    # the start (oldest score first) visits every feed row exactly once.
+    shown = first["items"] + second["items"]
+    assert client.get("/api/jobs/feed", params={"scored_after": _max_evaluation_id(shown)}).json()["items"] == []
+    seen, cursor = [], 0
+    while True:
+        page = client.get("/api/jobs/feed", params={"scored_after": cursor, "limit": 4}).json()
+        seen += [i["id"] for i in page["items"]]
+        if not page["has_more"]:
+            break
+        cursor = page["items"][-1]["evaluation"]["id"]
+    assert sorted(seen) == sorted(i["id"] for i in shown)
+
+
+def _max_evaluation_id(items) -> int:
+    return max(i["evaluation"]["id"] for i in items)
+
+
+def _score(db_session, job_id: int, profile: CandidateProfile, probability: float = 0.1) -> JobEvaluation:
+    parsed = db_session.query(JobParseResult).filter_by(job_id=job_id).one()
+    evaluation = JobEvaluation(
+        job_parse_result_id=parsed.id,
+        candidate_profile_id=profile.id,
+        match_probability=probability,
+        openrouter_call=_call(),
+    )
+    db_session.add(evaluation)
+    db_session.commit()
+    return evaluation
+
+
+def test_rescored_job_keeps_its_place_and_is_polled_as_an_update(client, db_session):
+    seed_evaluated(db_session, 6)
+    latest = CandidateProfile(content="latest")
+    db_session.add(latest)
+    db_session.commit()
+    before = client.get("/api/jobs/feed").json()["items"]
+    cursor = _max_evaluation_id(before)
+    # Re-score the oldest job in the feed (a newer evaluation than every other one).
+    oldest_job = before[-1]
+    rescored = _score(db_session, oldest_job["id"], latest)
+
+    after = client.get("/api/jobs/feed").json()["items"]
+    assert [i["id"] for i in after] == [i["id"] for i in before]
+    assert after[-1]["evaluation"]["id"] == rescored.id
+    # Polling returns it with the new score, despite its low job id.
+    (update,) = client.get("/api/jobs/feed", params={"scored_after": cursor}).json()["items"]
+    assert (update["id"], update["evaluation"]["id"]) == (oldest_job["id"], rescored.id)
+
+
+def test_polling_returns_a_job_scored_after_newer_jobs(client, db_session):
+    """A job added early but scored late (a backlog, a retried failure) has a lower id than
+    the jobs already shown; polling must still return it."""
+    seed(db_session, 4)
+    profile = CandidateProfile(content="p")
+    db_session.add(profile)
+    jobs = db_session.query(Job).order_by(Job.id).all()
+    db_session.add_all(JobParseResult(job=job, title=f"Title {job.id}") for job in jobs)
+    db_session.commit()
+    for job in jobs[1:]:
+        _score(db_session, job.id, profile)
+    shown = client.get("/api/jobs/feed").json()["items"]
+    assert [i["id"] for i in shown] == [j.id for j in reversed(jobs[1:])]
+
+    late = _score(db_session, jobs[0].id, profile)  # the lowest job id, scored last
+
+    polled = client.get("/api/jobs/feed", params={"scored_after": _max_evaluation_id(shown)}).json()["items"]
+    assert [(i["id"], i["evaluation"]["id"]) for i in polled] == [(jobs[0].id, late.id)]
+    # In the feed it still sits by job id: last.
+    assert client.get("/api/jobs/feed").json()["items"][-1]["id"] == jobs[0].id
 
 
 def test_inbox_and_feed_without_profile(client, db_session):
     seed(db_session, 2)
     assert client.get("/api/jobs/inbox").json() == {
-        "items": [], "count": 0, "candidate_profile_id": None,
+        "items": [], "count": 0, "candidate_profile_id": None, "current_profile_ids": [],
     }  # fmt: skip
     assert client.get("/api/jobs/feed").json() == {
         "items": [], "has_more": False, "candidate_profile_id": None,
@@ -288,3 +366,73 @@ def test_jobs_fall_back_to_the_newest_evaluation_of_an_older_profile(client, db_
 
     detail = client.get(f"/api/jobs/{last.job_id}").json()
     assert detail["evaluation"]["candidate_profile_id"] == old.id
+
+
+def _add_position(db_session, role: str) -> str:
+    """Add a work history entry and return the resulting ``work_history_id``."""
+    db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role=role, tech=["python"]))
+    db_session.commit()
+    return work_history_id(_work_history_payload(db_session))
+
+
+def _seed_outdated(db_session) -> tuple[JobParseResult, JobParseResult, CandidateProfile]:
+    """``seed_evaluated`` with the old profile built from an earlier work history, the new
+    one from the current one, and the last job scored against the old profile only.
+    Returns (current job, outdated job, new profile)."""
+    old, new = seed_evaluated(db_session, 3)
+    old.work_history_id = _add_position(db_session, "Junior")
+    new.work_history_id = _add_position(db_session, "Senior")
+    parsed = db_session.query(JobParseResult).order_by(JobParseResult.id).all()
+    db_session.add(
+        JobEvaluation(
+            job_parse_result_id=parsed[-1].id,
+            candidate_profile_id=old.id,
+            match_probability=0.9,
+            openrouter_call=_call(),
+        )
+    )
+    db_session.commit()
+    return parsed[0], parsed[-1], new
+
+
+def test_evaluations_of_an_earlier_work_history_are_outdated(client, db_session):
+    _, last, new = _seed_outdated(db_session)
+
+    items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
+    outdated = {item["id"]: item["evaluation"]["outdated"] for item in items}
+    assert outdated.pop(last.job_id) is True
+    assert not any(outdated.values())
+    assert client.get(f"/api/jobs/{last.job_id}").json()["evaluation"]["outdated"] is True
+    assert client.get("/api/jobs/inbox").json()["current_profile_ids"] == [new.id]
+
+
+def test_editing_the_work_history_outdates_scores_before_a_new_profile_exists(client, db_session):
+    """Profiles are generated lazily: right after a position is added no profile matches
+    the work history yet, and every score is already outdated."""
+    first, last, _ = _seed_outdated(db_session)
+    _add_position(db_session, "Staff")
+
+    items = client.get("/api/jobs", params={"limit": 50}).json()["items"]
+    assert items and all(item["evaluation"]["outdated"] for item in items)
+    assert client.get(f"/api/jobs/{first.job_id}").json()["evaluation"]["outdated"] is True
+    # Lets the Jobs tab flag rows it loaded before the edit without refetching them.
+    assert client.get("/api/jobs/inbox").json()["current_profile_ids"] == []
+
+
+def _rescore_jobs(fake_queue):
+    return [j for j in fake_queue.jobs if j.func_name.endswith("rescore_parse_results")]
+
+
+def test_rescore_enqueues_outdated_job(client, db_session, fake_queue):
+    first, last, _ = _seed_outdated(db_session)
+
+    res = client.post(f"/api/jobs/{last.job_id}/rescore")
+    assert res.status_code == 202
+    assert res.json()["job_id"] == last.job_id
+    (rq_job,) = _rescore_jobs(fake_queue)
+    assert rq_job.args == ([last.id],)
+
+    # Already scored against the latest work history, or not a parsed job at all.
+    assert client.post(f"/api/jobs/{first.job_id}/rescore").status_code == 409
+    assert client.post("/api/jobs/99999/rescore").status_code == 404
+    assert len(_rescore_jobs(fake_queue)) == 1

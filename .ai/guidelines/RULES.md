@@ -46,7 +46,7 @@
 
 - **Test Coverage:** Changes to `backend/app/api/routes/` or `backend/app/tasks/` must include corresponding unit/integration tests in `backend/tests/` (using `fakeredis` rather than live Redis).
 - **Formatting & Linting Standards:**
-  - **Backend:** Must adhere to `ruff` rules (`E`, `F`, `I`, `B`, `UP`) with a max line length of `100`, Python 3.12 typing syntax (`X | Y` instead of `Optional`/`Union`), and Pydantic v2 / SQLAlchemy 2.0 idioms (flag legacy SQLAlchemy 1.x `.query()` or Pydantic v1 `@validator`).
+  - **Backend:** Must adhere to `ruff` rules (`E`, `F`, `I`, `B`, `UP`) with a max line length of `125`, Python 3.12 typing syntax (`X | Y` instead of `Optional`/`Union`), and Pydantic v2 / SQLAlchemy 2.0 idioms (flag legacy SQLAlchemy 1.x `.query()` or Pydantic v1 `@validator`).
   - **Frontend:** Must pass ESLint (`npm run lint`) and strict TypeScript checks (`tsc -b --noEmit`). Flag `any` types or broken type definitions.
 - **Secrets & Hygiene:** Flag any committed `.env` files, hardcoded API keys (OpenRouter, Gmail credentials), or accidental build artifacts (`frontend/dist/`, `.db` files).
 - **PR Target:** Verify the PR targets `dev` (not `main` or `master`).

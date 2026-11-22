@@ -3,8 +3,8 @@ import type { GeneratedCv } from '../cv/api.ts'
 
 const API = '/api/applications'
 
-/** Fired on `window` whenever an application is created, changed or deleted, so pages
- * that stay mounted in other tabs can refresh. */
+/** Fired on `window` whenever an application is created, changed or deleted, so the open
+ * page and the menu badges can refresh. */
 export const APPLICATIONS_CHANGED = 'applications:changed'
 
 export function notifyApplicationsChanged() {
@@ -69,7 +69,8 @@ export type Application = {
     link: string
     source: string
   }
-  evaluation: { id: number; candidate_profile_id: number; relevance: number } | null
+  /** The job's newest score; `outdated` when made against an earlier work history. */
+  evaluation: { id: number; candidate_profile_id: number; relevance: number; outdated: boolean } | null
   cv: GeneratedCv | null
 }
 
@@ -221,6 +222,7 @@ export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
 
 /** State of interview rounds; every one is a round, planned rounds always have it. */
 export const INTERVIEW_STATUS = 'INTERVIEW'
+export const OFFER_STATUS = 'OFFER'
 
 export const MAX_INTERVIEW_ROUNDS = 20
 

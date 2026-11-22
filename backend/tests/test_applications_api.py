@@ -12,6 +12,7 @@ from app.models import (
     JobParseResult,
     WorkHistoryEntry,
 )
+from app.services.candidate_profile import _work_history_payload, work_history_id
 from tests.conftest import ensure_source
 
 BASE = "/api/applications"
@@ -26,25 +27,16 @@ def seed_evaluation(db_session, i=0, profile=None) -> JobEvaluation:
         company=Company(name=f"Acme {i}", normalized_name=f"acme {i}"),
     )
     profile = profile or CandidateProfile(content="p")
-    evaluation = JobEvaluation(
-        job_parse_result=parsed, candidate_profile=profile, match_probability=0.8
-    )
+    evaluation = JobEvaluation(job_parse_result=parsed, candidate_profile=profile, match_probability=0.8)
     db_session.add_all([job, parsed, evaluation])
     db_session.commit()
     return evaluation
 
 
 def seed_cv_inputs(client, db_session):
-    db_session.add(
-        WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[])
-    )
+    db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[]))
     db_session.commit()
-    assert (
-        client.put(
-            "/api/candidate-details", json={"first_name": "Jane", "last_name": "Doe"}
-        ).status_code
-        == 200
-    )
+    assert client.put("/api/candidate-details", json={"first_name": "Jane", "last_name": "Doe"}).status_code == 200
 
 
 def _cv_jobs(fake_queue):
@@ -66,9 +58,7 @@ def test_create_application_queues_cv(client, db_session, fake_queue):
     evaluation = seed_evaluation(db_session)
     seed_cv_inputs(client, db_session)
 
-    res = client.post(
-        BASE, json={"job_evaluation_id": evaluation.id, "notes": "referral", "status_note": "x"}
-    )
+    res = client.post(BASE, json={"job_evaluation_id": evaluation.id, "notes": "referral", "status_note": "x"})
     assert res.status_code == 201, res.text
     body = res.json()
     assert body["notes"] == "referral"
@@ -175,9 +165,7 @@ def test_events_notes_and_listing(client, db_session):
 
 def test_regenerate_cv(client, db_session, fake_queue):
     seed_cv_inputs(client, db_session)
-    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()[
-        "id"
-    ]
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
     assert client.post(f"{BASE}/{app_id}/cv").status_code == 409  # first one still queued
 
     cv = db_session.query(GeneratedCV).one()
@@ -191,9 +179,7 @@ def test_regenerate_cv(client, db_session, fake_queue):
 
 def test_event_dates_are_stored_in_utc(client, db_session):
     seed_cv_inputs(client, db_session)
-    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()[
-        "id"
-    ]
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
     res = client.post(
         f"{BASE}/{app_id}/events",
         json={"status": "INTERVIEW", "occurred_at": "2030-01-01T12:00:00+02:00"},
@@ -307,9 +293,7 @@ def test_interview_rounds_are_planned_and_resized(client, db_session):
     assert body["status"]["key"] == "INTERVIEW" and body["notes"] == ""
 
     first = body["planned_events"][0]["id"]
-    body = client.patch(
-        f"{url}/events/{first}", json={"title": "Culture match", "duration_minutes": 60}
-    ).json()
+    body = client.patch(f"{url}/events/{first}", json={"title": "Culture match", "duration_minutes": 60}).json()
     assert body["planned_events"][0]["duration_minutes"] == 60
 
     # Shrinking drops rounds from the end; 0 drops every planned one.
@@ -430,9 +414,7 @@ def test_held_parsed_round_comes_after_applied(client, db_session):
 
 def test_states_cannot_be_dated_before_applied(client, db_session):
     seed_cv_inputs(client, db_session)
-    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()[
-        "id"
-    ]
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
     url = f"{BASE}/{app_id}/events"
     now = datetime.now(UTC)
     applied = client.post(url, json={"status": "APPLIED", "occurred_at": now.isoformat()})
@@ -469,3 +451,28 @@ def test_no_parsed_interview_steps_means_no_planned_rounds(client, db_session):
     evaluation = seed_evaluation(db_session)
     body = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()
     assert body["planned_events"] == []
+
+
+def test_application_shows_the_newest_score_and_whether_it_is_outdated(client, db_session):
+    seed_cv_inputs(client, db_session)
+    old = CandidateProfile(content="old", work_history_id="earlier history")
+    evaluation = seed_evaluation(db_session, profile=old)
+    app_id = client.post(BASE, json={"job_evaluation_id": evaluation.id}).json()["id"]
+
+    score = client.get(f"{BASE}/{app_id}").json()["evaluation"]
+    assert score["id"] == evaluation.id and score["outdated"] is True
+
+    # Re-scored against a profile built from the current work history.
+    current = CandidateProfile(content="new", work_history_id=work_history_id(_work_history_payload(db_session)))
+    rescored = JobEvaluation(
+        job_parse_result_id=evaluation.job_parse_result_id, candidate_profile=current, match_probability=0.2
+    )
+    db_session.add(rescored)
+    db_session.commit()
+
+    (listed,) = client.get(BASE).json()["items"]
+    detail = client.get(f"{BASE}/{app_id}").json()
+    for body in (listed, detail):
+        assert body["evaluation"]["id"] == rescored.id
+        assert body["evaluation"]["outdated"] is False
+        assert body["evaluation"]["relevance"] < 0

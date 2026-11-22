@@ -45,15 +45,28 @@ def extracted_steps(monkeypatch):
 
 
 @pytest.fixture
-def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps):
+def extracted_technologies(monkeypatch):
+    """Replaces the LLM technology extraction: set ``state["technologies"]`` or
+    ``state["error"]``."""
+    state = {"technologies": [], "error": None}
+
+    def fake(service, text):
+        if state["error"] is not None:
+            raise state["error"]
+        return state["technologies"]
+
+    monkeypatch.setattr(parse_task, "extract_technologies", fake)
+    return state
+
+
+@pytest.fixture
+def task_engine(engine, monkeypatch, evaluate_queue, extracted_steps, extracted_technologies):
     monkeypatch.setattr(parse_task, "init_db", lambda: init_db(engine))
     monkeypatch.setattr(parse_task, "session_factory", lambda: session_factory(engine))
     return engine
 
 
-def _make_pending(
-    engine, *, source="skillshot", html=HTML, link="https://www.skillshot.pl/jobs/1"
-) -> int:
+def _make_pending(engine, *, source="skillshot", html=HTML, link="https://www.skillshot.pl/jobs/1") -> int:
     with session_factory(engine)() as session:
         job = models.Job(link=link, source=ensure_source(session, source), html=html)
         pending = models.PendingJobParseRun(job=job)
@@ -79,9 +92,7 @@ def test_parse_job_dispatches_to_source_and_stores_result(task_engine):
         assert pending.parsed_at is not None
         assert pending.error is None
 
-        parsed = session.scalar(
-            select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id)
-        )
+        parsed = session.scalar(select(models.JobParseResult).where(models.JobParseResult.job_id == pending.job_id))
         assert parsed.title == "Unity Dev"
         assert parsed.description == "Unity Dev\ndla\nACME\nWe need\nUnity"
         assert parsed.parsed_at is not None
@@ -126,13 +137,9 @@ def test_parse_job_links_typo_to_existing_company(task_engine):
 
     with session_factory(task_engine)() as session:
         assert session.scalar(select(func.count(models.Company.id))) == 2
-        aliases = session.scalars(
-            select(models.CompanyAlias.alias).order_by(models.CompanyAlias.id)
-        ).all()
+        aliases = session.scalars(select(models.CompanyAlias.alias).order_by(models.CompanyAlias.id)).all()
         assert aliases == ["ACME", "Techland", "Techlnad"]
-        parse_results = session.scalars(
-            select(models.JobParseResult).order_by(models.JobParseResult.id)
-        ).all()
+        parse_results = session.scalars(select(models.JobParseResult).order_by(models.JobParseResult.id)).all()
         assert [r.company_id for r in parse_results] == [
             first["company_id"],
             second["company_id"],
@@ -283,9 +290,7 @@ def test_parse_job_unknown_pending_id(task_engine):
 def _parsed(engine, pending_id):
     with session_factory(engine)() as session:
         job_id = session.get(models.PendingJobParseRun, pending_id).job_id
-        return session.scalar(
-            select(models.JobParseResult).where(models.JobParseResult.job_id == job_id)
-        )
+        return session.scalar(select(models.JobParseResult).where(models.JobParseResult.job_id == job_id))
 
 
 def test_parse_job_stores_interview_steps(task_engine, extracted_steps):
@@ -327,3 +332,23 @@ def test_interview_step_failure_does_not_fail_the_parse(task_engine, extracted_s
     assert _parsed(task_engine, pending_id).interview_steps is None
     with session_factory(task_engine)() as session:
         assert session.get(models.PendingJobParseRun, pending_id).status == "COMPLETED"
+
+
+def test_parse_job_stores_technologies(task_engine, extracted_technologies):
+    extracted_technologies["technologies"] = [{"name": "Unity", "key": "unity"}]
+    pending_id = _make_pending(task_engine)
+
+    assert parse_task.parse_job(pending_id)["technologies"] == 1
+    assert _parsed(task_engine, pending_id).technologies == [{"name": "Unity", "key": "unity"}]
+    assert parse_task.parse_job(pending_id)["technologies"] == 1
+
+
+def test_technology_failure_does_not_fail_the_parse(task_engine, extracted_technologies):
+    extracted_technologies["error"] = OpenRouterError("boom", status_code=500)
+    pending_id = _make_pending(task_engine)
+
+    result = parse_task.parse_job(pending_id)
+
+    assert result["technologies"] is None
+    assert result["title"] == "Unity Dev"
+    assert _parsed(task_engine, pending_id).technologies is None

@@ -192,9 +192,7 @@ def _file_or_409(settings: Settings, cv: GeneratedCV, path: str | None) -> Path:
 def check_cv_inputs(session: Session) -> None:
     """``400`` unless the inputs every CV needs (work history, candidate name) exist."""
     if session.scalar(select(func.count()).select_from(WorkHistoryEntry)) == 0:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first")
     details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))
     try:
         check_details(details)
@@ -202,9 +200,7 @@ def check_cv_inputs(session: Session) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
-def enqueue_cv(
-    session: Session, queue: Queue, settings: Settings, parsed: JobParseResult
-) -> GeneratedCV:
+def enqueue_cv(session: Session, queue: Queue, settings: Settings, parsed: JobParseResult) -> GeneratedCV:
     """Create a ``generated_cvs`` row for ``parsed`` and queue its generation. When the
     queue is unreachable the row is committed as ``failed`` instead of raising."""
     cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex)
@@ -256,9 +252,7 @@ def generate(
     check_cv_inputs(session)
     cv = enqueue_cv(session, queue, settings, parsed)
     if cv.status == GeneratedCV.STATUS_FAILED:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "job queue unavailable; try again later"
-        )
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "job queue unavailable; try again later")
     return cv_out(_get_or_404(session, cv.id), request)
 
 
@@ -320,9 +314,7 @@ def get_pdf(
     """Download the PDF (``409`` while the generation is still running or has failed)."""
     cv = _get_or_404(session, cv_id)
     pdf = _file_or_409(settings, cv, cv.pdf_path)
-    return FileResponse(
-        pdf, media_type="application/pdf", filename=_download_name(session, cv, ".pdf")
-    )
+    return FileResponse(pdf, media_type="application/pdf", filename=_download_name(session, cv, ".pdf"))
 
 
 @router.get("/{cv_id}/tex", name="generated_cv_tex")
@@ -334,9 +326,7 @@ def get_tex(
     """Download the LaTeX source the PDF was built from."""
     cv = _get_or_404(session, cv_id)
     tex = _file_or_409(settings, cv, cv.tex_path)
-    return FileResponse(
-        tex, media_type="application/x-tex", filename=_download_name(session, cv, ".tex")
-    )
+    return FileResponse(tex, media_type="application/x-tex", filename=_download_name(session, cv, ".tex"))
 
 
 @router.get("/{cv_id}/pipeline", response_model=dict[str, Any])

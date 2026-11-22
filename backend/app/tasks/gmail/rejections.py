@@ -15,9 +15,10 @@ before:
    in the UI), then marks the mail read and labels it.
 
 Only high-confidence, unambiguous cases are acted on; everything else stays unread in the
-inbox for the user. Every mail is recorded in ``gmail_processed_mails`` with its outcome so
-it is never sent to OpenRouter twice (a failing OpenRouter call is not recorded, so the mail
-is retried by the next run).
+inbox for the user. Mails that are not rejections then go through the interview-steps
+check (``app.tasks.gmail.interview_steps``), which only labels mails. Every mail is
+recorded in ``gmail_processed_mails`` with its outcome so it is never sent to OpenRouter
+twice (a failing OpenRouter call is not recorded, so the mail is retried by the next run).
 """
 
 from __future__ import annotations
@@ -28,7 +29,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
-from typing import Any
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -45,6 +47,7 @@ from app.models import (
 )
 from app.scheduler.common import aware
 from app.services.applications import (
+    APPLIED_STATUS,
     REJECTED_STATUS,
     EventRejected,
     is_open,
@@ -62,6 +65,9 @@ from app.services.openrouter import (
     OpenRouterNotConfigured,
     OpenRouterService,
 )
+
+if TYPE_CHECKING:
+    from app.tasks.gmail.interview_steps import InterviewSummary
 
 log = logging.getLogger(__name__)
 
@@ -104,11 +110,9 @@ QUESTIONS: dict[str, dict[str, Any]] = {
     }
 }
 
-EXTRACTION_SYSTEM = (
-    "You extract data from job application e-mails. Answer with a single JSON object and "
-    "nothing else."
-)
-EXTRACTION_PROMPT = """The e-mail below is a rejection of a job application.
+EXTRACTION_SYSTEM = "You extract data from job application e-mails. Answer with a single JSON object and nothing else."
+REJECTION_ABOUT = "The e-mail below is a rejection of a job application."
+EXTRACTION_PROMPT = """{about}
 Return a JSON object {{"company": ..., "role": ...}} where
 - "company" is the name of the hiring company the candidate applied to (not the recruitment
   agency or applicant tracking system that sent the mail, unless it is the employer itself),
@@ -173,18 +177,52 @@ def _company_names(company: Company | None) -> list[str]:
     return [company.name, *(alias.alias for alias in company.aliases)]
 
 
+def all_applications(session: Session) -> list[Application]:
+    return list(
+        session.scalars(
+            select(Application)
+            .options(
+                joinedload(Application.job_parse_result).joinedload(JobParseResult.company).selectinload(Company.aliases),
+                selectinload(Application.events).joinedload(ApplicationEvent.status),
+            )
+            .execution_options(populate_existing=True)
+        ).unique()
+    )
+
+
 def open_applications(session: Session) -> list[Application]:
-    rows = session.scalars(
-        select(Application)
-        .options(
-            joinedload(Application.job_parse_result)
-            .joinedload(JobParseResult.company)
-            .selectinload(Company.aliases),
-            selectinload(Application.events).joinedload(ApplicationEvent.status),
-        )
-        .execution_options(populate_existing=True)
-    ).unique()
-    return [a for a in rows if is_open(a)]
+    return [a for a in all_applications(session) if is_open(a)]
+
+
+def applications_at_company(session: Session, applications: list[Application], company: str) -> list[Application]:
+    """The ``applications`` whose company matches ``company`` by id, name or alias."""
+    known = find_company(session, company)
+    found = []
+    for application in applications:
+        parsed = application.job_parse_result
+        if known is not None and parsed.company_id == known.id:
+            found.append(application)
+            continue
+        names = _company_names(parsed.company)
+        if names and max(company_similarity(company, n) for n in names) >= COMPANY_THRESHOLD:
+            found.append(application)
+    return found
+
+
+def _no_open_application(session: Session, company: str) -> str:
+    """Why no open application matched: none at the company, or the ones there are not open
+    (not applied yet, or already finished)."""
+    closed = applications_at_company(session, all_applications(session), company)
+    if not closed:
+        return "no application at company"
+    states = []
+    for application in closed:
+        current = application.current_event
+        key = current.status.key if current is not None else "no state"
+        reason = "not applied yet" if not any(e.status.key == APPLIED_STATUS for e in application.history) else "finished"
+        title = application.job_parse_result.title or f"application {application.id}"
+        states.append(f"{title}: {key}, {reason}")
+    return "no open application at company (" + "; ".join(states) + ")"
 
 
 @dataclass
@@ -194,22 +232,11 @@ class Match:
     detail: str = ""
 
 
-def match_application(
-    session: Session, applications: list[Application], company: str, role: str | None
-) -> Match:
-    """The single open application the rejection refers to, or why there is none."""
-    known = find_company(session, company)
-    candidates = []
-    for application in applications:
-        parsed = application.job_parse_result
-        if known is not None and parsed.company_id == known.id:
-            candidates.append(application)
-            continue
-        names = _company_names(parsed.company)
-        if names and max(company_similarity(company, n) for n in names) >= COMPANY_THRESHOLD:
-            candidates.append(application)
+def match_application(session: Session, applications: list[Application], company: str, role: str | None) -> Match:
+    """The single open application the mail refers to, or why there is none."""
+    candidates = applications_at_company(session, applications, company)
     if not candidates:
-        return Match(None, GmailProcessedMail.OUTCOME_NO_MATCH, "no open application at company")
+        return Match(None, GmailProcessedMail.OUTCOME_NO_MATCH, _no_open_application(session, company))
     if len(candidates) == 1:
         return Match(candidates[0], GmailProcessedMail.OUTCOME_APPLIED)
     if not role:
@@ -250,21 +277,24 @@ def _mail_state(message: GmailMessage) -> dict[str, Any]:
 
 
 def rejection_probability(service: OpenRouterService, message: GmailMessage) -> float:
-    decision = service.decide(
-        state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True
-    )
+    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True)
     return decision.noul(QUESTION_NAME)
 
 
 def extract_company_and_role(
-    service: OpenRouterService, message: GmailMessage
+    service: OpenRouterService,
+    message: GmailMessage,
+    *,
+    about: str = REJECTION_ABOUT,
+    source: str = SOURCE,
 ) -> tuple[str | None, str | None]:
-    """``(company, role)`` named in the mail; ``None`` for what could not be read."""
+    """``(company, role)`` named in the mail; ``None`` for what could not be read. ``about``
+    is the first line of the prompt, telling the model what kind of mail it reads."""
     reply = service.chat(
-        EXTRACTION_PROMPT.format(sender=message.sender, subject=message.subject, body=message.body),
+        EXTRACTION_PROMPT.format(about=about, sender=message.sender, subject=message.subject, body=message.body),
         system=EXTRACTION_SYSTEM,
         temperature=0,
-        source=SOURCE,
+        source=source,
         private=True,
     ).text
     try:
@@ -293,6 +323,8 @@ class RunSummary:
     """OpenRouter failed; retried by the next run."""
     outcomes: dict[str, int] = field(default_factory=dict)
     applied: list[dict[str, Any]] = field(default_factory=list)
+    interview: InterviewSummary = field(default_factory=lambda: _interview().InterviewSummary())
+    """The interview-steps check run on the mails that are not rejections."""
 
     def count(self, outcome: str) -> None:
         self.outcomes[outcome] = self.outcomes.get(outcome, 0) + 1
@@ -304,13 +336,12 @@ class RunSummary:
             "failed": self.failed,
             "outcomes": dict(self.outcomes),
             "applied": list(self.applied),
+            "interview_steps": self.interview.as_dict(),
         }
 
 
 def _processed(session: Session, message_id: str) -> GmailProcessedMail | None:
-    return session.scalar(
-        select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id)
-    )
+    return session.scalar(select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id))
 
 
 def _new_record(message: GmailMessage, outcome: str, **fields: Any) -> GmailProcessedMail:
@@ -358,9 +389,7 @@ def process_message(
     try:
         probability = rejection_probability(service, message)
         if probability < settings.threshold:
-            record = _new_record(
-                message, GmailProcessedMail.OUTCOME_NOT_REJECTION, probability=probability
-            )
+            record = _new_record(message, GmailProcessedMail.OUTCOME_NOT_REJECTION, probability=probability)
         else:
             company, role = extract_company_and_role(service, message)
             record = _register(session, message, probability, company, role)
@@ -452,12 +481,21 @@ def run_check(
             session.rollback()
             log.exception("Processing mail %s failed", message.id)
             if _processed(session, message.id) is None:
-                session.add(
-                    _new_record(message, GmailProcessedMail.OUTCOME_ERROR, error=repr(exc)[:2000])
-                )
+                session.add(_new_record(message, GmailProcessedMail.OUTCOME_ERROR, error=repr(exc)[:2000]))
                 session.commit()
             summary.count(GmailProcessedMail.OUTCOME_ERROR)
+            continue
+        record = _processed(session, message.id)
+        if record is not None and record.outcome == GmailProcessedMail.OUTCOME_NOT_REJECTION:
+            _interview().check_message(session, client, service, settings, message, summary.interview)
     return summary
+
+
+def _interview() -> ModuleType:
+    """``app.tasks.gmail.interview_steps`` (imported lazily: it imports this module)."""
+    from app.tasks.gmail import interview_steps
+
+    return interview_steps
 
 
 class NotConfigured(RuntimeError):

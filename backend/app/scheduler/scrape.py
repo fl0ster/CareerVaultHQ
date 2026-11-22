@@ -82,9 +82,7 @@ class ScrapeScheduler:
         return "enqueued"
 
     def interval_for(self, row: ScrapeSource) -> timedelta:
-        return timedelta(
-            seconds=row.scrape_interval_seconds or self.settings.scrape_interval_seconds
-        )
+        return timedelta(seconds=row.scrape_interval_seconds or self.settings.scrape_interval_seconds)
 
     def _jitter(self, interval: timedelta) -> timedelta:
         """A random share of ``interval``, up to ``scrape_jitter_ratio``."""

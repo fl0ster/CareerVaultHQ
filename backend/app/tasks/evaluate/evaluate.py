@@ -9,6 +9,9 @@ the probability of "yes" in ``job_evaluations``:
   for that profile yet (a periodic catch-up, e.g. from the scheduler).
 * ``evaluate_parse_results(ids)`` - the given ``job_parse_results`` rows only (the parse
   task enqueues this for the job it just parsed).
+* ``rescore_parse_results(ids)`` - like ``evaluate_parse_results`` but on the user's explicit
+  request (``POST /api/jobs/{job_id}/rescore``) for a job scored against an outdated
+  profile: neither ``MAX_PARSE_AGE`` nor the failure backoff applies.
 
 Jobs are scored one by one and each result is committed on its own, so a failure (or a
 worker restart) half-way through loses nothing: re-running picks up where it stopped.
@@ -79,13 +82,15 @@ class NoCandidateProfile(RuntimeError):
     """``candidate_profiles`` is empty, so there is nothing to evaluate against."""
 
 
-def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
-    """``JobParseResult`` rows parsed within ``MAX_PARSE_AGE``, without a ``JobEvaluation``
-    for ``profile_id`` and not waiting out a failure backoff, oldest first."""
+def _unevaluated_query(profile_id: int, *, now: datetime | None = None, limits: bool = True):
+    """``JobParseResult`` rows without a ``JobEvaluation`` for ``profile_id``, oldest first.
+    With ``limits`` only rows parsed within ``MAX_PARSE_AGE`` and not waiting out a failure
+    backoff are selected."""
     now = now or datetime.now(UTC)
-    evaluated = select(JobEvaluation.job_parse_result_id).where(
-        JobEvaluation.candidate_profile_id == profile_id
-    )
+    evaluated = select(JobEvaluation.job_parse_result_id).where(JobEvaluation.candidate_profile_id == profile_id)
+    stmt = select(JobParseResult).where(JobParseResult.id.not_in(evaluated)).order_by(JobParseResult.id)
+    if not limits:
+        return stmt
     backing_off = select(JobEvaluationFailure.job_parse_result_id).where(
         JobEvaluationFailure.candidate_profile_id == profile_id,
         or_(
@@ -93,18 +98,10 @@ def _unevaluated_query(profile_id: int, *, now: datetime | None = None):
             JobEvaluationFailure.next_attempt_at > now,
         ),
     )
-    return (
-        select(JobParseResult)
-        .where(JobParseResult.id.not_in(evaluated))
-        .where(JobParseResult.id.not_in(backing_off))
-        .where(JobParseResult.parsed_at >= now - MAX_PARSE_AGE)
-        .order_by(JobParseResult.id)
-    )
+    return stmt.where(JobParseResult.id.not_in(backing_off)).where(JobParseResult.parsed_at >= now - MAX_PARSE_AGE)
 
 
-def pending_parse_results(
-    session: Session, profile_id: int, *, limit: int | None = None
-) -> list[JobParseResult]:
+def pending_parse_results(session: Session, profile_id: int, *, limit: int | None = None) -> list[JobParseResult]:
     """Up to ``limit`` parsed jobs not yet evaluated against ``profile_id``."""
     stmt = _unevaluated_query(profile_id)
     if limit is not None:
@@ -113,12 +110,13 @@ def pending_parse_results(
 
 
 def unevaluated_among(
-    session: Session, profile_id: int, parse_result_ids: list[int]
+    session: Session, profile_id: int, parse_result_ids: list[int], *, limits: bool = True
 ) -> list[JobParseResult]:
-    """Those of ``parse_result_ids`` not yet evaluated against ``profile_id``."""
+    """Those of ``parse_result_ids`` not yet evaluated against ``profile_id`` (``limits``:
+    see ``_unevaluated_query``)."""
     if not parse_result_ids:
         return []
-    stmt = _unevaluated_query(profile_id).where(JobParseResult.id.in_(parse_result_ids))
+    stmt = _unevaluated_query(profile_id, limits=limits).where(JobParseResult.id.in_(parse_result_ids))
     return list(session.scalars(stmt))
 
 
@@ -134,13 +132,9 @@ def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, 
     }
 
 
-def evaluate_one(
-    service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult
-) -> JobEvaluation:
+def evaluate_one(service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult) -> JobEvaluation:
     """Ask OpenRouter about one job and return the (unsaved) ``JobEvaluation``."""
-    decision = service.decide(
-        state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE
-    )
+    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE)
     return JobEvaluation(
         job_parse_result_id=parsed.id,
         candidate_profile_id=profile.id,
@@ -149,9 +143,7 @@ def evaluate_one(
     )
 
 
-def _record_failure(
-    session: Session, profile: CandidateProfile, parsed: JobParseResult, error: str
-) -> None:
+def _record_failure(session: Session, profile: CandidateProfile, parsed: JobParseResult, error: str) -> None:
     """Bump the failure row for the pair and push its ``next_attempt_at`` out
     exponentially: ``backoff * 2**(attempts-1)``."""
     settings = get_settings()
@@ -162,9 +154,7 @@ def _record_failure(
         )
     )
     if failure is None:
-        failure = JobEvaluationFailure(
-            job_parse_result_id=parsed.id, candidate_profile_id=profile.id, attempts=0
-        )
+        failure = JobEvaluationFailure(job_parse_result_id=parsed.id, candidate_profile_id=profile.id, attempts=0)
         session.add(failure)
     failure.attempts += 1
     failure.last_error = error[:2000]
@@ -219,9 +209,18 @@ def evaluate_parse_results(parse_result_ids: list[int]) -> dict[str, Any]:
         return _evaluate(session, profile, pending)
 
 
-def _evaluate(
-    session: Session, profile: CandidateProfile, pending: list[JobParseResult]
-) -> dict[str, Any]:
+def rescore_parse_results(parse_result_ids: list[int]) -> dict[str, Any]:
+    """Score the given ``job_parse_results`` rows against the latest candidate profile on
+    the user's request, regardless of their age or earlier failed attempts. Rows already
+    scored against that profile are left alone. Returns the summary of :func:`_evaluate`."""
+    init_db()
+    with session_factory()() as session:
+        profile = _current_profile(session)
+        pending = unevaluated_among(session, profile.id, parse_result_ids, limits=False)
+        return _evaluate(session, profile, pending)
+
+
+def _evaluate(session: Session, profile: CandidateProfile, pending: list[JobParseResult]) -> dict[str, Any]:
     """Score ``pending`` one by one, committing each ``JobEvaluation`` on its own.
 
     Returns::
@@ -256,9 +255,7 @@ def _evaluate(
             failed += 1
             session.rollback()
             _record_failure(session, profile, parsed, f"{type(exc).__name__}: {exc}")
-            log.warning(
-                "Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc
-            )
+            log.warning("Evaluating parsed job %d (job %d) failed: %s", parsed.id, parsed.job_id, exc)
             continue
         session.add(evaluation)
         try:

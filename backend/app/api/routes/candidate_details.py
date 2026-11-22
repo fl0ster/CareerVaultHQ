@@ -56,14 +56,10 @@ class CandidateDetailsIn(BaseModel):
             if isinstance(value, str):
                 data[key] = value.strip()
         data["education"] = [
-            {k: v.strip() for k, v in e.items()}
-            for e in data["education"]
-            if any(v.strip() for v in e.values())
+            {k: v.strip() for k, v in e.items()} for e in data["education"] if any(v.strip() for v in e.values())
         ]
         data["languages"] = [
-            {k: v.strip() for k, v in lang.items()}
-            for lang in data["languages"]
-            if lang["language"].strip()
+            {k: v.strip() for k, v in lang.items()} for lang in data["languages"] if lang["language"].strip()
         ]
         data["certifications"] = [c.strip() for c in data["certifications"] if c.strip()]
         return data
@@ -88,9 +84,7 @@ def get_details(session: Annotated[Session, Depends(get_session)]) -> CandidateD
 
 
 @router.put("", response_model=CandidateDetailsOut)
-def put_details(
-    payload: CandidateDetailsIn, session: Annotated[Session, Depends(get_session)]
-) -> CandidateDetails:
+def put_details(payload: CandidateDetailsIn, session: Annotated[Session, Depends(get_session)]) -> CandidateDetails:
     """Create or replace the details."""
     details = _current(session)
     if details is None:

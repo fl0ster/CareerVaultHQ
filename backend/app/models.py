@@ -84,9 +84,7 @@ class ScrapeSource(Base):
     """When the scheduler enqueues the next run (jitter included). ``None`` means "not
     planned yet": the scheduler computes it on its next tick."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     jobs: Mapped[list[Job]] = relationship(back_populates="source")
 
@@ -111,9 +109,7 @@ class ScrapeRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    source_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
-    )
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True)
     """Source the run was limited to; ``None`` means every enabled source."""
     status: Mapped[str] = mapped_column(String(16), default="running")
     """``running`` -> ``finished`` (some sources may still have failed) or ``failed``."""
@@ -140,15 +136,11 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     link: Mapped[str] = mapped_column(String(2048), unique=True, index=True)
-    source_id: Mapped[int] = mapped_column(
-        ForeignKey("scrape_sources.id", ondelete="RESTRICT"), index=True, nullable=False
-    )
+    source_id: Mapped[int] = mapped_column(ForeignKey("scrape_sources.id", ondelete="RESTRICT"), index=True, nullable=False)
     """The ``ScrapeSource`` (plugin module) that found the job and parses its page."""
     html: Mapped[str | None] = mapped_column(Text)
     """Raw HTML of the job page as fetched during scraping (``None`` if unavailable)."""
-    scrape_run_id: Mapped[int] = mapped_column(
-        ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True, nullable=True
-    )
+    scrape_run_id: Mapped[int] = mapped_column(ForeignKey("scrape_runs.id", ondelete="SET NULL"), index=True, nullable=True)
     """Run that first discovered this job (its ``started_at`` is when the job was scraped)."""
 
     source: Mapped[ScrapeSource] = relationship(back_populates="jobs")
@@ -166,9 +158,7 @@ class PendingJobParseRun(Base):
     STATUS_FAILED = "FAILED"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    job_id: Mapped[int] = mapped_column(
-        ForeignKey("jobs.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True, nullable=False)
     rq_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
     status: Mapped[str] = mapped_column(String(16), default=STATUS_NOT_STARTED, index=True)
     """``NOT_STARTED`` -> ``COMPLETED`` (or ``FAILED`` when the parser raised)."""
@@ -187,14 +177,10 @@ class JobParseResult(Base):
     __tablename__ = "job_parse_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    job_id: Mapped[int] = mapped_column(
-        ForeignKey("jobs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
-    )
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
     title: Mapped[str | None] = mapped_column(String(512))
     """Job title as returned by the source's ``parse_title``."""
-    company_id: Mapped[int | None] = mapped_column(
-        ForeignKey("companies.id", ondelete="SET NULL"), index=True
-    )
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), index=True)
     """Canonical ``Company`` the source's ``parse_company`` value was resolved to by
     ``app.services.companies.resolve_company`` (``None`` when the page named no company)."""
     description: Mapped[str | None] = mapped_column(Text)
@@ -205,9 +191,14 @@ class JobParseResult(Base):
     ``[{"number": 1, "title": "HR call", "duration_minutes": 30}, ...]``. ``[]`` when the
     description states none, ``None`` when the extraction did not run or failed. A new
     ``Application`` for the job starts with these as planned rounds."""
-    parsed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    technologies: Mapped[list[dict] | None] = mapped_column(JSON)
+    """Technologies the description names, extracted by
+    ``app.tasks.parse.extract_technologies`` and verified against the text:
+    ``[{"name": "React", "key": "react"}, ...]``. ``key`` is
+    ``app.services.technologies.technology_key(name)``, unique within the list, and is what
+    ``match_technologies`` compares with ``WorkHistoryEntry.tech``. ``[]`` when none are
+    named, ``None`` when the extraction did not run or failed."""
+    parsed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job: Mapped[Job] = relationship()
     company: Mapped[Company | None] = relationship(back_populates="parse_results")
@@ -234,13 +225,9 @@ class Company(Base):
     tag: Mapped[str | None] = mapped_column(String(32))
     """One of ``TAGS`` set by hand, or ``None``; shown next to the company's jobs too."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    aliases: Mapped[list[CompanyAlias]] = relationship(
-        back_populates="company", cascade="all, delete-orphan"
-    )
+    aliases: Mapped[list[CompanyAlias]] = relationship(back_populates="company", cascade="all, delete-orphan")
     parse_results: Mapped[list[JobParseResult]] = relationship(back_populates="company")
 
 
@@ -261,9 +248,7 @@ class CompanyAlias(Base):
     """Entered or re-pointed by a human."""
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
-        ForeignKey("companies.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True, nullable=False)
     alias: Mapped[str] = mapped_column(String(256), nullable=False)
     """The spelling exactly as it appeared on the job page."""
     normalized_alias: Mapped[str] = mapped_column(String(256), unique=True, index=True)
@@ -272,9 +257,7 @@ class CompanyAlias(Base):
     """How the alias was attached: ``exact``, ``fuzzy``, ``new`` or ``manual``."""
     similarity: Mapped[float | None] = mapped_column(Float)
     """Score (0-1) of the fuzzy match that attached it (``None`` otherwise)."""
-    source_id: Mapped[int | None] = mapped_column(
-        ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True
-    )
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("scrape_sources.id", ondelete="SET NULL"), index=True)
     """Scrape source the spelling was first seen on (``None`` for manual entries)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -299,9 +282,7 @@ class WorkHistoryEntry(Base):
     context: Mapped[str | None] = mapped_column(Text)
     """Free-form, potentially long description of the role."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class CandidateProfile(Base):
@@ -315,9 +296,7 @@ class CandidateProfile(Base):
     work_history_id: Mapped[str | None] = mapped_column(String(256))
     """Opaque reference to the work history this profile was built from (free string for now)."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class OpenRouterCall(Base):
@@ -360,11 +339,7 @@ class JobEvaluation(Base):
     (parsed job, profile) pair; a newer profile yields a fresh row for every job."""
 
     __tablename__ = "job_evaluations"
-    __table_args__ = (
-        UniqueConstraint(
-            "job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_pair"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_pair"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_parse_result_id: Mapped[int] = mapped_column(
@@ -406,9 +381,7 @@ class JobDecision(Base):
         nullable=False,
     )
     decision: Mapped[str] = mapped_column(String(16), nullable=False)
-    decided_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class JobEvaluationFailure(Base):
@@ -418,9 +391,7 @@ class JobEvaluationFailure(Base):
 
     __tablename__ = "job_evaluation_failures"
     __table_args__ = (
-        UniqueConstraint(
-            "job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_failure_pair"
-        ),
+        UniqueConstraint("job_parse_result_id", "candidate_profile_id", name="uq_job_evaluation_failure_pair"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -463,9 +434,7 @@ class CandidateDetails(Base):
     consent_text: Mapped[str] = mapped_column(Text, default="")
     """Data-processing consent printed in small type at the end of the CV; blank = omitted."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class GeneratedCV(Base):
@@ -550,19 +519,13 @@ class Application(Base):
         index=True,
         nullable=False,
     )
-    job_evaluation_id: Mapped[int | None] = mapped_column(
-        ForeignKey("job_evaluations.id", ondelete="SET NULL"), index=True
-    )
+    job_evaluation_id: Mapped[int | None] = mapped_column(ForeignKey("job_evaluations.id", ondelete="SET NULL"), index=True)
     """The evaluation the application was created from (``None`` once it is deleted)."""
-    generated_cv_id: Mapped[int | None] = mapped_column(
-        ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True
-    )
+    generated_cv_id: Mapped[int | None] = mapped_column(ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True)
     """The CV generated for this application (the latest one when regenerated)."""
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()
     job_evaluation: Mapped[JobEvaluation | None] = relationship()
@@ -624,9 +587,7 @@ class ApplicationEvent(Base):
     title: Mapped[str] = mapped_column(String(128), default="")
     """Kind of interview round ("Culture match", "Technical", ...)."""
     duration_minutes: Mapped[int | None] = mapped_column(Integer)
-    occurred_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), default=_default_occurred_at
-    )
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=_default_occurred_at)
     """When the state was reached (defaults to when it was recorded; editable). For a planned
     round the optional scheduled time; always set on held events."""
     source: Mapped[str] = mapped_column(String(16), default="manual", server_default="manual")
@@ -653,6 +614,7 @@ class GmailMonitorSettings(Base):
     __tablename__ = "gmail_monitor_settings"
 
     DEFAULT_LABEL = "rejection-registered"
+    DEFAULT_INTERVIEW_LABEL = "interview-steps-registered"
     DEFAULT_INTERVAL_SECONDS = 30 * 60
     DEFAULT_LOOKBACK_DAYS = 7
     DEFAULT_THRESHOLD = 0.9
@@ -667,6 +629,8 @@ class GmailMonitorSettings(Base):
     """Shared token embedded in the script and sent with every request."""
     label: Mapped[str] = mapped_column(String(128), default=DEFAULT_LABEL)
     """Gmail label added to the mails whose rejection was registered."""
+    interview_label: Mapped[str] = mapped_column(String(128), default=DEFAULT_INTERVIEW_LABEL)
+    """Gmail label added to the mails whose interview steps were stored (read state kept)."""
     interval_seconds: Mapped[int] = mapped_column(Integer, default=DEFAULT_INTERVAL_SECONDS)
     lookback_days: Mapped[int] = mapped_column(Integer, default=DEFAULT_LOOKBACK_DAYS)
     """Only unread mails received within this many days are checked."""
@@ -680,9 +644,7 @@ class GmailMonitorSettings(Base):
     last_error: Mapped[str | None] = mapped_column(Text)
     last_summary: Mapped[dict | None] = mapped_column(JSON)
     """Counts of the last run: ``{"checked": n, "applied": n, ...}``."""
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class GmailProcessedMail(Base):
@@ -718,8 +680,51 @@ class GmailProcessedMail(Base):
     """Probability that the mail is a rejection (Jev ``is_rejection``)."""
     company: Mapped[str | None] = mapped_column(String(512))
     role: Mapped[str | None] = mapped_column(String(512))
-    application_id: Mapped[int | None] = mapped_column(
-        ForeignKey("applications.id", ondelete="SET NULL"), index=True
-    )
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GmailInterviewMail(Base):
+    """A mail the Gmail interview-steps check looked at (see
+    ``app.tasks.gmail.interview_steps``), so it is never sent to OpenRouter twice. Only
+    ``OUTCOME_APPLIED`` mails are labelled; their read state is never changed."""
+
+    __tablename__ = "gmail_interview_mails"
+
+    OUTCOME_APPLIED = "applied"
+    """Interview steps stored on the job of ``application_id`` (and planned on the application
+    when it had no planned rounds); the mail was labelled."""
+    OUTCOME_NO_STEPS = "no_steps"
+    """The mail does not describe the interview process (or the steps failed the checks)."""
+    OUTCOME_EXTRACTION_FAILED = "extraction_failed"
+    """Company could not be read from the mail."""
+    OUTCOME_NO_MATCH = "no_match"
+    """No open application matches the company (and role)."""
+    OUTCOME_AMBIGUOUS = "ambiguous"
+    """Several open applications match and the role does not single one out."""
+    OUTCOME_HAS_STEPS = "has_steps"
+    """The matched job already has interview steps; they are not overwritten."""
+    OUTCOME_LABEL_FAILED = "label_failed"
+    """Steps stored, but the mail could not be labelled (retried by the next run)."""
+    OUTCOME_ERROR = "error"
+    """Processing failed unexpectedly (see ``error``)."""
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    message_id: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(128))
+    subject: Mapped[str] = mapped_column(String(1024), default="")
+    sender: Mapped[str] = mapped_column(String(512), default="")
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    present_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the mail describes the interview process."""
+    faithful_probability: Mapped[float | None] = mapped_column(Float)
+    """Jev: probability that the extracted steps are stated in the mail."""
+    steps: Mapped[list[dict] | None] = mapped_column(JSON)
+    """The extracted steps (``JobParseResult.interview_steps`` format)."""
+    company: Mapped[str | None] = mapped_column(String(512))
+    role: Mapped[str | None] = mapped_column(String(512))
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

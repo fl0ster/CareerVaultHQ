@@ -7,9 +7,7 @@ MINIMAL_TEX = b"\\documentclass{article}\\begin{document}Hello\\end{document}\n"
 
 
 def test_compile_with_upload_enqueues_job(client, fake_queue, upload_root, jobs_root):
-    response = client.post(
-        "/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}
-    )
+    response = client.post("/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")})
     assert response.status_code == 202, response.text
     body = response.json()
     assert body["status"] == "queued"
@@ -27,9 +25,7 @@ def test_compile_with_upload_enqueues_job(client, fake_queue, upload_root, jobs_
 
 
 def test_job_status_and_pdf_lifecycle(client, fake_queue, jobs_root):
-    job_id = client.post(
-        "/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}
-    ).json()["job_id"]
+    job_id = client.post("/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}).json()["job_id"]
 
     queued = client.get(f"/api/latex/jobs/{job_id}")
     assert queued.status_code == 200
@@ -56,13 +52,9 @@ def test_job_status_and_pdf_lifecycle(client, fake_queue, jobs_root):
 
 
 def test_job_status_reports_failure(client, fake_queue):
-    job_id = client.post(
-        "/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}
-    ).json()["job_id"]
+    job_id = client.post("/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}).json()["job_id"]
     job = Job.fetch(job_id, connection=fake_queue.connection)
-    Result.create_failure(
-        job, ttl=60, exc_string="LatexCompileError: pass 1/2 failed\n! Undefined control sequence."
-    )
+    Result.create_failure(job, ttl=60, exc_string="LatexCompileError: pass 1/2 failed\n! Undefined control sequence.")
     job.set_status("failed")
 
     body = client.get(f"/api/latex/jobs/{job_id}").json()
@@ -78,9 +70,7 @@ def test_unknown_job_is_404(client):
 
 
 def test_events_stream_closes_on_terminal_status(client, fake_queue):
-    job_id = client.post(
-        "/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}
-    ).json()["job_id"]
+    job_id = client.post("/api/latex/compile", files={"file": ("cv.tex", MINIMAL_TEX, "text/plain")}).json()["job_id"]
     job = Job.fetch(job_id, connection=fake_queue.connection)
     job.set_status("failed")
 

@@ -6,7 +6,6 @@ import {
   type MonitorJob,
   type MonitorSettings,
   type MonitorSettingsUpdate,
-  OUTCOME_LABEL,
   type ProcessedMail,
   LABEL_PATTERN,
   MAX_LOOKBACK_DAYS,
@@ -14,6 +13,7 @@ import {
 } from './api.ts'
 import { isTerminal } from '../tools/api.ts'
 import { notifyApplicationsChanged } from '../applications/api.ts'
+import { createStore, useStore } from '../shell/store.ts'
 import './gmail.css'
 
 function when(iso: string | null): string {
@@ -184,50 +184,127 @@ function SetupInstructions({ settings, onRotate }: { settings: MonitorSettings; 
   )
 }
 
+type MailKind = 'rejection' | 'interview' | 'other' | 'error'
+type Tone = 'done' | 'attention' | 'none'
+
+const KIND_LABEL: Record<MailKind, string> = {
+  rejection: 'Rejection',
+  interview: 'Interview steps',
+  other: 'Other',
+  error: 'Check failed',
+}
+
+const NOT_MATCHED: Record<string, string> = {
+  extraction_failed: 'Company not found in the mail',
+  no_match: 'No matching application',
+  ambiguous: 'Several applications match',
+}
+
+const FAILED = 'Check failed, retried on the next run'
+
+/** How a mail was classified and what the app did about it, in plain words. */
+function describe(m: ProcessedMail): { kind: MailKind; result: string; tone: Tone; detail: string | null } {
+  const check = m.interview
+  if (m.outcome === 'error') return { kind: 'error', result: FAILED, tone: 'attention', detail: m.error }
+  if (m.outcome !== 'not_rejection') {
+    const done = m.outcome === 'applied' || m.outcome === 'mark_failed'
+    const result = done
+      ? `Marked as rejected${m.outcome === 'mark_failed' ? ' (Gmail label not added)' : ''}`
+      : (NOT_MATCHED[m.outcome] ?? m.outcome)
+    return { kind: 'rejection', result, tone: done ? 'done' : 'attention', detail: done ? null : m.error }
+  }
+  if (!check || check.outcome === 'no_steps') return { kind: 'other', result: 'No action needed', tone: 'none', detail: null }
+  if (check.outcome === 'error') return { kind: 'error', result: FAILED, tone: 'attention', detail: check.error }
+
+  const done = check.outcome === 'applied' || check.outcome === 'label_failed'
+  if (done) {
+    const n = check.steps?.length ?? 0
+    const label = check.outcome === 'label_failed' ? ' (Gmail label not added)' : ''
+    return { kind: 'interview', result: `${n} step${n === 1 ? '' : 's'} added${label}`, tone: 'done', detail: null }
+  }
+  if (check.outcome === 'has_steps')
+    return { kind: 'interview', result: 'Application already has steps', tone: 'none', detail: null }
+  return { kind: 'interview', result: NOT_MATCHED[check.outcome] ?? check.outcome, tone: 'attention', detail: check.error }
+}
+
 function Activity({ mails }: { mails: ProcessedMail[] }) {
   if (mails.length === 0) return <p className="muted">No mails checked yet.</p>
   return (
-    <table className="gmail-mails">
-      <thead>
-        <tr>
-          <th>Received</th>
-          <th>Mail</th>
-          <th>Outcome</th>
-          <th>Rejection</th>
-          <th>Company / role</th>
-        </tr>
-      </thead>
-      <tbody>
-        {mails.map((m) => (
-          <tr key={m.id}>
-            <td className="nowrap">{when(m.received_at ?? m.created_at)}</td>
-            <td>
-              <div className="gmail-subject">{m.subject || '(no subject)'}</div>
-              <div className="muted">{m.sender}</div>
-            </td>
-            <td>
-              <span className={`badge gmail-outcome ${m.outcome}`} title={m.error ?? undefined}>
-                {m.outcome === 'applied' && '⚡ '}
-                {OUTCOME_LABEL[m.outcome] ?? m.outcome}
-              </span>
-              {m.application_title && <div className="muted">→ {m.application_title}</div>}
-              {m.error && m.outcome !== 'applied' && <div className="muted gmail-error">{m.error}</div>}
-            </td>
-            <td>{m.probability == null ? '—' : `${Math.round(m.probability * 100)}%`}</td>
-            <td>
-              {m.company ?? '—'}
-              {m.role && <div className="muted">{m.role}</div>}
-            </td>
+    <div className="gmail-mails-wrap">
+      <table className="gmail-mails">
+        <thead>
+          <tr>
+            <th>Mail</th>
+            <th>Type</th>
+            <th>Company · role</th>
+            <th>Result</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {mails.map((m) => {
+            const { kind, result, tone, detail } = describe(m)
+            // Each check reads the company itself: prefer the one that classified the mail.
+            const primary = kind === 'interview' ? m.interview : m
+            const company = primary?.company || m.company || m.interview?.company || null
+            const role = primary?.role || m.role || m.interview?.role || null
+            const application = primary?.application_title ?? null
+            const steps = kind === 'interview' && tone === 'done' ? (m.interview?.steps ?? []) : []
+            return (
+              <tr key={m.id}>
+                <td>
+                  <div className="gmail-subject">{m.subject || '(no subject)'}</div>
+                  <div className="muted">
+                    {m.sender} · <span className="nowrap">{when(m.received_at ?? m.created_at)}</span>
+                  </div>
+                </td>
+                <td>
+                  <span className={`badge gmail-kind ${kind}`}>{KIND_LABEL[kind]}</span>
+                </td>
+                <td>
+                  {company ? (
+                    <>
+                      <div className="gmail-company">{company}</div>
+                      {role && <div className="muted">{role}</div>}
+                    </>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                <td>
+                  <div className={`gmail-result ${tone}`}>{result}</div>
+                  {application && tone === 'done' && <div className="muted">→ {application}</div>}
+                  {detail && <div className="muted gmail-error">{detail}</div>}
+                  {steps.length > 0 && (
+                    <details className="gmail-steps">
+                      <summary>Show steps</summary>
+                      <ol>
+                        {steps.map((s) => (
+                          <li key={s.number}>
+                            {s.title}
+                            {s.duration_minutes != null && <span className="muted"> · {s.duration_minutes} min</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
+/** The last started check, kept outside the page so leaving it and coming back still shows
+ * a running check (and follows it to the end). */
+const monitorJobStore = createStore<MonitorJob | null>(null)
+
 /** Follows a check job (polling once a second) until it reaches a terminal state. */
 function useMonitorJob(onFinished: () => void) {
-  const [job, setJob] = useState<MonitorJob | null>(null)
+  const job = useStore(monitorJobStore)
+  const setJob = monitorJobStore.set
   const jobId = job?.job_id
   const done = job ? isTerminal(job.status) : false
 
@@ -239,7 +316,7 @@ function useMonitorJob(onFinished: () => void) {
       try {
         const info = await gmailMonitorApi.job(jobId)
         if (cancelled) return
-        setJob(info)
+        monitorJobStore.set(info)
         if (isTerminal(info.status)) onFinished()
         else timer = window.setTimeout(poll, 1000)
       } catch {
@@ -400,6 +477,17 @@ export default function GmailMonitorPage() {
             hint="Created in Gmail when missing."
           />
           <Field
+            label="Gmail label for registered interview steps"
+            value={settings.interview_label}
+            toPatch={(t) =>
+              LABEL_PATTERN.test(t.trim())
+                ? { interview_label: t.trim() }
+                : 'Letters, digits, spaces and _ . / - only'
+            }
+            onSave={save}
+            hint="Added without marking the mail read."
+          />
+          <Field
             label="Check every (minutes)"
             type="number"
             min={MIN_INTERVAL_SECONDS / 60}
@@ -457,7 +545,7 @@ export default function GmailMonitorPage() {
               <span className={`badge ${job.status}`}>{job.status}</span>
               {running && <span className="spinner" aria-hidden="true" />}
               {finished?.status === 'finished' && finished.result &&
-                ` ${finished.result.fetched} mail(s) fetched, ${finished.result.outcomes.applied ?? 0} rejection(s) registered`}
+                ` ${finished.result.fetched} mail(s) fetched, ${finished.result.outcomes.applied ?? 0} rejection(s) registered, ${finished.result.interview_steps?.outcomes.applied ?? 0} interview plan(s) added`}
             </span>
           )}
         </div>
@@ -472,7 +560,8 @@ export default function GmailMonitorPage() {
             {summary && settings.last_status === 'ok' && (
               <span className="muted">
                 {' '}
-                {summary.fetched} fetched · {summary.outcomes.applied ?? 0} registered · {summary.skipped} already seen
+                {summary.fetched} fetched · {summary.outcomes.applied ?? 0} registered ·{' '}
+                {summary.interview_steps?.outcomes.applied ?? 0} interview plan(s) added · {summary.skipped} already seen
                 {summary.failed > 0 && ` · ${summary.failed} to retry`}
               </span>
             )}

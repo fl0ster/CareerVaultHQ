@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import type { GeneratedCv } from '../cv/api.ts'
 import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
 import { type Application, type ApplicationStatus } from './api.ts'
 import ApplicationDetail from './ApplicationDetail.tsx'
+import { type EvaluatedJobDetail, jobsApi } from '../jobs/api.ts'
+import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
+import '../jobs/jobs.css'
+import TechPills from '../jobs/TechPills.tsx'
 
 type Props = {
   application: Application
@@ -13,6 +17,8 @@ type Props = {
   onDelete: (id: number) => void
   onOpenCompany: (companyId: number) => void
   onBack: () => void
+  /** The job was re-scored from the relevance meter. */
+  onRescored?: (job: EvaluatedJobDetail) => void
 }
 
 /** Full details of one application, shown in place of the list. */
@@ -23,10 +29,24 @@ export default function ApplicationView({
   onDelete,
   onOpenCompany,
   onBack,
+  onRescored,
 }: Props) {
   // "How it was generated" stays a popup over the view.
   const [pipelineCv, setPipelineCv] = useState<GeneratedCv | null>(null)
-  const { job } = application
+  const { job, evaluation } = application
+
+  // Technologies live on the job's parse result, which only the job detail carries.
+  const [technologies, setTechnologies] = useState<string[]>([])
+  useEffect(() => {
+    const controller = new AbortController()
+    jobsApi
+      .get(job.id, controller.signal)
+      .then((detail) => setTechnologies(detail.technologies ?? []))
+      .catch(() => {
+        /* the pills are optional: leave them out */
+      })
+    return () => controller.abort()
+  }, [job.id])
 
   return (
     <article className="detail-view app-view" aria-labelledby={`application-${application.id}`}>
@@ -36,7 +56,16 @@ export default function ApplicationView({
       <div className="detail-card">
         <div className="job-dialog-head">
           <div className="job-main">
-            <h2 id={`application-${application.id}`}>{job.title ?? 'Untitled job'}</h2>
+            <div className="detail-title">
+              {evaluation && (
+                <RelevanceMeter
+                  relevance={evaluation.relevance}
+                  outdated={evaluation.outdated}
+                  rescore={onRescored && { jobId: job.id, onRescored }}
+                />
+              )}
+              <h2 id={`application-${application.id}`}>{job.title ?? 'Untitled job'}</h2>
+            </div>
             <div className="job-meta">
               {job.company && (
                 <span className="job-company">
@@ -51,6 +80,8 @@ export default function ApplicationView({
             </div>
           </div>
         </div>
+
+        <TechPills technologies={technologies} />
 
         <ApplicationDetail
           key={application.id}

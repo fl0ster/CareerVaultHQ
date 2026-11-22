@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -18,9 +18,7 @@ from app.models import (
 
 def set_job_decision(session: Session, job_parse_result_id: int, decision: str) -> JobDecision:
     """Record (or overwrite) the user's decision about a parsed job. Not committed."""
-    row = session.scalar(
-        select(JobDecision).where(JobDecision.job_parse_result_id == job_parse_result_id)
-    )
+    row = session.scalar(select(JobDecision).where(JobDecision.job_parse_result_id == job_parse_result_id))
     if row is None:
         row = JobDecision(job_parse_result_id=job_parse_result_id, decision=decision)
         session.add(row)
@@ -80,17 +78,13 @@ def status_by_key(session: Session, key: str) -> ApplicationStatus:
 
 def reject_initial_only(key: str) -> None:
     if key.upper() == INITIAL_ONLY_STATUS:
-        raise EventRejected(
-            f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid"
-        )
+        raise EventRejected(f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid")
 
 
 def reject_if_final(application: Application) -> None:
     current = application.current_event
     if current is not None and current.status.key in FINAL_STATUSES:
-        raise EventRejected(
-            f"application is {current.status.key}; remove that state to record new ones"
-        )
+        raise EventRejected(f"application is {current.status.key}; remove that state to record new ones")
 
 
 def reject_out_of_order(
@@ -209,9 +203,7 @@ def held_rounds(application: Application) -> list[ApplicationEvent]:
     return [e for e in application.history if e.status.key == INTERVIEW_STATUS]
 
 
-def set_interview_rounds(
-    session: Session, application: Application, rounds: int, interview: ApplicationStatus
-) -> None:
+def set_interview_rounds(session: Session, application: Application, rounds: int, interview: ApplicationStatus) -> None:
     """Add blank planned rounds at the end, or drop them from the end, so the application has
     ``rounds`` interview rounds (held + planned; at least the held ones). Not committed."""
     plan = application.plan
@@ -220,9 +212,7 @@ def set_interview_rounds(
         application.events.remove(event)
         session.delete(event)
     for _ in range(wanted - len(plan)):
-        application.events.append(
-            ApplicationEvent(status=interview, planned=True, occurred_at=None)
-        )
+        application.events.append(ApplicationEvent(status=interview, planned=True, occurred_at=None))
 
 
 def plan_parsed_rounds(session: Session, application: Application, parsed: JobParseResult) -> None:
@@ -244,3 +234,35 @@ def plan_parsed_rounds(session: Session, application: Application, parsed: JobPa
                 duration_minutes=step.get("duration_minutes"),
             )
         )
+
+
+def application_count(session: Session) -> int:
+    return session.scalar(select(func.count()).select_from(Application)) or 0
+
+
+def current_stage_counts(session: Session) -> dict[str, int]:
+    """``{status key: applications currently in it}``, counted in SQL.
+
+    An application's current state is its latest held (not planned) event, ordered like
+    ``Application.history``: by ``occurred_at`` (undated last), then by id.
+    """
+    rank = (
+        func.row_number()
+        .over(
+            partition_by=ApplicationEvent.application_id,
+            order_by=(
+                ApplicationEvent.occurred_at.is_(None).desc(),
+                ApplicationEvent.occurred_at.desc(),
+                ApplicationEvent.id.desc(),
+            ),
+        )
+        .label("rank")
+    )
+    latest = select(ApplicationEvent.status_id, rank).where(ApplicationEvent.planned.is_(False)).subquery()
+    rows = session.execute(
+        select(ApplicationStatus.key, func.count())
+        .join(latest, latest.c.status_id == ApplicationStatus.id)
+        .where(latest.c.rank == 1)
+        .group_by(ApplicationStatus.key)
+    ).all()
+    return dict(rows)

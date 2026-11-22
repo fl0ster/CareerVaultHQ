@@ -114,6 +114,4 @@ def test_patch_interval_replans_and_null_resets_to_default(client, db_session):
 
 def test_patch_rejects_too_short_interval(client):
     client.get(BASE)
-    assert (
-        client.patch(f"{BASE}/skillshot", json={"scrape_interval_seconds": 60}).status_code == 422
-    )
+    assert client.patch(f"{BASE}/skillshot", json={"scrape_interval_seconds": 60}).status_code == 422

@@ -111,10 +111,7 @@ class DecisionResult:
         except KeyError as exc:
             raise OpenRouterError(f"no answer for question {name!r}") from exc
         if expected_type is not None and answer.get("type") != expected_type:
-            raise OpenRouterError(
-                f"question {name!r}: expected a {expected_type!r} answer, "
-                f"got {answer.get('type')!r}"
-            )
+            raise OpenRouterError(f"question {name!r}: expected a {expected_type!r} answer, got {answer.get('type')!r}")
         return answer
 
     def noul(self, name: str) -> float:
@@ -258,9 +255,7 @@ class OpenRouterService:
     # --- internals --------------------------------------------------------------------
 
     @staticmethod
-    def _messages(
-        prompt: str | None, messages: list[Message] | None, system: str | None
-    ) -> list[Message]:
+    def _messages(prompt: str | None, messages: list[Message] | None, system: str | None) -> list[Message]:
         if messages:
             return list(messages)
         if prompt is None:
@@ -338,9 +333,7 @@ class OpenRouterService:
 
         started = time.perf_counter()
         try:
-            with httpx.Client(
-                timeout=self.settings.openrouter_timeout, transport=self._transport
-            ) as client:
+            with httpx.Client(timeout=self.settings.openrouter_timeout, transport=self._transport) as client:
                 response = client.post(url, json=body, headers=self._headers())
         except httpx.HTTPError as exc:
             self._mark_failed(call, f"request failed: {exc}", started)
@@ -414,9 +407,7 @@ def redact_input(body: dict[str, Any]) -> dict[str, Any]:
     if "state" in body:
         redacted["state"] = REDACTED
     if "messages" in body:
-        redacted["messages"] = [
-            m if m.get("role") == "system" else {**m, "content": REDACTED} for m in body["messages"]
-        ]
+        redacted["messages"] = [m if m.get("role") == "system" else {**m, "content": REDACTED} for m in body["messages"]]
     redacted["redacted"] = True
     return redacted
 

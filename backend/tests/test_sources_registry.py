@@ -25,6 +25,7 @@ def _valid(name: str, **overrides) -> types.ModuleType:
     attrs.update(overrides)
     return _module(name, **attrs)
 
+
 def test_validate_source_reports_every_problem():
     mod = _module("bad", NAME="", URL=42, fetch_jobs="not callable", parse_title=lambda h: "")
 
@@ -42,9 +43,7 @@ def test_validate_source_reports_every_problem():
 def test_discover_sources_reports_import_and_contract_errors(monkeypatch):
     monkeypatch.setattr(sources, "get_available_sources", lambda: ["alpha", "broken", "crash"])
     monkeypatch.setitem(sys.modules, "app.tasks.scrape.sources.alpha", _valid("alpha"))
-    monkeypatch.setitem(
-        sys.modules, "app.tasks.scrape.sources.broken", _valid("broken", parse_title=None)
-    )
+    monkeypatch.setitem(sys.modules, "app.tasks.scrape.sources.broken", _valid("broken", parse_title=None))
 
     def boom(name, package=None):
         if name.endswith(".crash"):
@@ -55,9 +54,7 @@ def test_discover_sources_reports_import_and_contract_errors(monkeypatch):
 
     infos = {info.key: info for info in sources.discover_sources()}
 
-    assert infos["alpha"] == sources.SourceInfo(
-        key="alpha", name="Alpha", url="https://alpha.example/jobs", error=None
-    )
+    assert infos["alpha"] == sources.SourceInfo(key="alpha", name="Alpha", url="https://alpha.example/jobs", error=None)
     assert infos["broken"].name == "Broken"
     assert infos["broken"].error == "missing parse_title()"
     assert infos["crash"].name == "crash"

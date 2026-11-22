@@ -146,16 +146,11 @@ def _newest_first(roles: list[Role]) -> list[Role]:
 # --------------------------------------------------------------------------- steps
 
 
-def split_irrelevant(
-    roles: list[Role], irrelevant_relevance: float, log: list[str]
-) -> tuple[list[Role], list[Role]]:
+def split_irrelevant(roles: list[Role], irrelevant_relevance: float, log: list[str]) -> tuple[list[Role], list[Role]]:
     """``(kept, irrelevant)``: roles below the threshold go to early history."""
     irrelevant = [r for r in roles if r.relevance < irrelevant_relevance]
     if irrelevant:
-        log.append(
-            f"moved {len(irrelevant)} irrelevant role(s) (relevance < {irrelevant_relevance}) "
-            "to early history:"
-        )
+        log.append(f"moved {len(irrelevant)} irrelevant role(s) (relevance < {irrelevant_relevance}) to early history:")
         for r in _newest_first(irrelevant):
             log.append(f"    - {r.label} [{r.relevance:.2f}]")
     kept = [r for r in roles if r.relevance >= irrelevant_relevance]
@@ -205,9 +200,7 @@ def _span(role: Role) -> str:
     return f"{format_month(role.start)} - {format_month(role.end)}"
 
 
-def resolve_overlaps(
-    roles: list[Role], high_relevance: float, min_months: int, log: list[str]
-) -> list[Role]:
+def resolve_overlaps(roles: list[Role], high_relevance: float, min_months: int, log: list[str]) -> list[Role]:
     roles = list(roles)
     while True:
         roles.sort(key=lambda r: (r.start, r.end))
@@ -233,23 +226,16 @@ def resolve_overlaps(
                 and not covered(remainder.start, remainder.end, others)
             ):
                 drop_loser = False
-                log.append(
-                    f"keeping  {loser.label}: dropping it would leave a gap ({_span(remainder)})"
-                )
+                log.append(f"keeping  {loser.label}: dropping it would leave a gap ({_span(remainder)})")
 
         if not drop_loser and trim_around(loser, winner):
-            log.append(
-                f"trimmed  {loser.label} ({old} -> {_span(loser)}) in favour of "
-                f"{winner.label} {scores}"
-            )
+            log.append(f"trimmed  {loser.label} ({old} -> {_span(loser)}) in favour of {winner.label} {scores}")
         else:
             roles.remove(loser)
             log.append(f"dropped  {loser.label} ({old}) in favour of {winner.label} {scores}")
 
 
-def backfill(
-    kept: list[Role], pool: list[Role], min_entries: int, log: list[str]
-) -> tuple[list[Role], list[Role]]:
+def backfill(kept: list[Role], pool: list[Role], min_entries: int, log: list[str]) -> tuple[list[Role], list[Role]]:
     """``(kept, pool)``: move the most relevant roles from ``pool`` into ``kept`` until it
     holds ``min_entries`` roles or the pool is empty."""
     missing = min_entries - len(kept)
@@ -298,9 +284,7 @@ def drop_short(roles: list[Role], min_months: int, log: list[str]) -> list[Role]
     return kept
 
 
-def split_early_career(
-    roles: list[Role], max_entries: int, log: list[str]
-) -> tuple[list[Role], list[Role]]:
+def split_early_career(roles: list[Role], max_entries: int, log: list[str]) -> tuple[list[Role], list[Role]]:
     """``(kept, early)``: everything older than the newest ``max_entries`` roles."""
     newest_first = _newest_first(roles)
     cut = max(max_entries, 0)
@@ -351,9 +335,7 @@ def build_coherent_history(
     main = _newest_first(kept)
     early = _newest_first(early)
     for r in main:
-        log.append(
-            f"  {format_month(r.start):>8} - {format_month(r.end):<8}  {r.relevance:.2f}  {r.label}"
-        )
+        log.append(f"  {format_month(r.start):>8} - {format_month(r.end):<8}  {r.relevance:.2f}  {r.label}")
     for newer, older_role in zip(main, main[1:], strict=False):
         gap = newer.start - older_role.end - 1
         if gap > 0:

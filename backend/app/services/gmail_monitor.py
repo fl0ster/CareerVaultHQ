@@ -29,6 +29,7 @@ def get_monitor_settings(session: Session) -> GmailMonitorSettings:
             script_url="",
             secret=new_secret(),
             label=GmailMonitorSettings.DEFAULT_LABEL,
+            interview_label=GmailMonitorSettings.DEFAULT_INTERVIEW_LABEL,
             interval_seconds=GmailMonitorSettings.DEFAULT_INTERVAL_SECONDS,
             lookback_days=GmailMonitorSettings.DEFAULT_LOOKBACK_DAYS,
             threshold=GmailMonitorSettings.DEFAULT_THRESHOLD,

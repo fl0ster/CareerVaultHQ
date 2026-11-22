@@ -16,16 +16,23 @@ The Jobs tab uses two views of the same evaluations:
 * ``GET /api/jobs/inbox`` - the *undecided relevant* jobs (score at or above
   ``settings.relevant_job_threshold``, no ``job_decisions`` row and no application), best
   match first. Its ``count`` drives the badge on the tab.
-* ``GET /api/jobs/feed`` - everything else, newest evaluation first, keyset-paginated by
-  evaluation id (``before`` for older pages, ``after`` to poll for newer rows) so pages stay
-  stable while jobs move out of the inbox.
+* ``GET /api/jobs/feed`` - everything else, newest job first, keyset-paginated by job id
+  (``before``) so pages stay stable while jobs move out of the inbox and a re-scored job
+  keeps its place. Polling uses a separate cursor, the evaluation id (``scored_after``):
+  a job can be scored - or re-scored - long after it was added, so a job-id cursor would
+  miss it.
 
 ``PUT /api/jobs/{job_id}/decision`` records ``accepted`` / ``rejected`` (creating an
 application through ``POST /api/applications`` records ``accepted`` by itself).
+
+A job keeps the score of an older candidate profile until it is re-scored; such an
+evaluation is flagged ``outdated`` (the profile was built from an earlier work history) and
+``POST /api/jobs/{job_id}/rescore`` enqueues scoring it against the latest profile.
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
@@ -51,9 +58,17 @@ from app.models import (
 )
 from app.queue import get_queue
 from app.services.applications import set_job_decision
+from app.services.candidate_profile import current_profile_ids
+from app.services.evaluations import newest_evaluations
 from app.services.relevance import relevance
+from app.tasks.evaluate import rescore_parse_results
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+RESCORE_TIMEOUT = 600
+"""RQ ``job_timeout`` for a single-job re-score (may regenerate the profile first)."""
 
 MAX_PAGE_SIZE = 200
 
@@ -143,10 +158,13 @@ class EvaluationOut(BaseModel):
     (see ``relevance``): 0 at the threshold, positive above it. For display only."""
     model: str | None
     """Model that produced the score (from the ``openrouter_calls`` row), if still known."""
+    outdated: bool = False
+    """Scored against a profile built from an earlier work history than the latest profile;
+    ``POST /api/jobs/{job_id}/rescore`` scores it again."""
     created_at: datetime
 
 
-def _evaluation_out(evaluation: JobEvaluation | None, threshold: float) -> EvaluationOut | None:
+def _evaluation_out(evaluation: JobEvaluation | None, threshold: float, current_ids: set[int]) -> EvaluationOut | None:
     if evaluation is None:
         return None
     call = evaluation.openrouter_call
@@ -156,6 +174,7 @@ def _evaluation_out(evaluation: JobEvaluation | None, threshold: float) -> Evalu
         match_probability=evaluation.match_probability,
         relevance=relevance(evaluation.match_probability, threshold),
         model=call.model if call is not None else None,
+        outdated=evaluation.candidate_profile_id not in current_ids,
         created_at=evaluation.created_at,
     )
 
@@ -185,6 +204,9 @@ class EvaluatedJobOut(BaseModel):
 
 class EvaluatedJobDetail(EvaluatedJobOut):
     description: str | None
+    technologies: list[str] = []
+    """Names of the technologies the description names (``JobParseResult.technologies``),
+    in extraction order; ``[]`` when none were detected or extraction did not run."""
     evaluation: EvaluationOut | None
     """``None`` when the job is parsed but not yet scored against the latest profile."""
 
@@ -220,9 +242,7 @@ def _application_ids(session: Session, parse_result_ids: list[int]) -> dict[int,
     if not parse_result_ids:
         return {}
     rows = session.execute(
-        select(Application.job_parse_result_id, Application.id).where(
-            Application.job_parse_result_id.in_(parse_result_ids)
-        )
+        select(Application.job_parse_result_id, Application.id).where(Application.job_parse_result_id.in_(parse_result_ids))
     ).all()
     return dict(rows)
 
@@ -233,6 +253,7 @@ def _evaluated(
     evaluation: JobEvaluation | None,
     *,
     threshold: float,
+    current_ids: set[int],
     description: bool,
     application_id: int | None = None,
     decision: str | None = None,
@@ -248,12 +269,13 @@ def _evaluated(
         "company_id": parsed.company.id if parsed.company is not None else None,
         "company_tag": parsed.company.tag if parsed.company is not None else None,
         "parsed_at": parsed.parsed_at,
-        "evaluation": _evaluation_out(evaluation, threshold),
+        "evaluation": _evaluation_out(evaluation, threshold, current_ids),
         "application_id": application_id,
         "decision": decision,
     }
     if description:
         data["description"] = parsed.description
+        data["technologies"] = [t["name"] for t in parsed.technologies or [] if t.get("name")]
     return data
 
 
@@ -293,6 +315,7 @@ def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
     parse_ids = [parsed.id for _, parsed, _ in rows]
     applications = _application_ids(session, parse_ids)
     decisions = _decisions(session, parse_ids)
+    current_ids = current_profile_ids(session)
     return [
         EvaluatedJobOut(
             **_evaluated(
@@ -300,6 +323,7 @@ def _items(session: Session, rows, threshold: float) -> list[EvaluatedJobOut]:
                 parsed,
                 evaluation,
                 threshold=threshold,
+                current_ids=current_ids,
                 description=False,
                 application_id=applications.get(parsed.id),
                 decision=decisions.get(parsed.id),
@@ -324,17 +348,33 @@ class InboxOut(BaseModel):
     items: list[EvaluatedJobOut]
     count: int
     candidate_profile_id: int | None
+    current_profile_ids: list[int] = []
+    """Profiles built from the current work history: a score made against any other one is
+    outdated. Lets a client refresh the ``outdated`` flag of rows it loaded earlier."""
 
 
 class FeedPage(BaseModel):
     items: list[EvaluatedJobOut]
-    """Newest evaluation first."""
+    """Newest job first; with ``scored_after``, oldest evaluation first."""
     has_more: bool
-    """More (older) rows exist before the last item; only meaningful without ``after``."""
+    """More rows exist after the last item: older jobs, or with ``scored_after`` newer
+    evaluations (ask again with the last item's evaluation id)."""
     candidate_profile_id: int | None
 
 
 INBOX_LIMIT = 500
+
+
+def _count(session: Session, query: Select) -> int:
+    return session.scalar(select(func.count()).select_from(query.subquery())) or 0
+
+
+def inbox_count(session: Session, threshold: float) -> int:
+    """How many jobs the inbox holds (its ``count``), without loading them."""
+    profile_id = _latest_profile_id(session)
+    if profile_id is None:
+        return 0
+    return _count(session, _evaluated_query(profile_id).where(_undecided_relevant(threshold)))
 
 
 @router.get("/inbox", response_model=InboxOut)
@@ -347,16 +387,15 @@ def jobs_inbox(
     if profile_id is None:
         return InboxOut(items=[], count=0, candidate_profile_id=None)
     query = _evaluated_query(profile_id).where(_undecided_relevant(settings.relevant_job_threshold))
-    count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    count = _count(session, query)
     rows = session.execute(
-        query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(
-            INBOX_LIMIT
-        )
+        query.order_by(JobEvaluation.match_probability.desc(), JobEvaluation.id.desc()).limit(INBOX_LIMIT)
     ).all()
     return InboxOut(
         items=_items(session, rows, settings.relevant_job_threshold),
         count=count,
         candidate_profile_id=profile_id,
+        current_profile_ids=sorted(current_profile_ids(session)),
     )
 
 
@@ -365,17 +404,22 @@ def jobs_feed(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     before: Annotated[int | None, Query(ge=1)] = None,
-    after: Annotated[int | None, Query(ge=0)] = None,
+    scored_after: Annotated[int | None, Query(ge=0)] = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 50,
     q: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FeedPage:
-    """Every evaluated job not in the inbox, newest evaluation first.
+    """Every evaluated job not in the inbox, newest job first.
 
     ``q`` turns the feed into a search: every evaluated job (inbox included) whose title
     or company name contains it (case-insensitive).
 
-    ``before=<evaluation id>`` returns the next older page; ``after=<evaluation id>``
-    returns rows newer than it (up to ``limit``, still newest first) for polling.
+    ``before=<job id>`` returns the next older page. Ordering by job rather than evaluation
+    keeps a re-scored job in place.
+
+    ``scored_after=<evaluation id>`` is for polling: the jobs whose newest evaluation is
+    newer than it - newly scored jobs as well as re-scored ones, whatever their job id -
+    oldest evaluation first, so a client can page through them by passing the last item's
+    evaluation id while ``has_more``.
     """
     profile_id = _latest_profile_id(session)
     if profile_id is None:
@@ -394,10 +438,12 @@ def jobs_feed(
     else:
         query = query.where(not_(_undecided_relevant(settings.relevant_job_threshold)))
     if before is not None:
-        query = query.where(JobEvaluation.id < before)
-    if after is not None:
-        query = query.where(JobEvaluation.id > after)
-    rows = session.execute(query.order_by(JobEvaluation.id.desc()).limit(limit + 1)).all()
+        query = query.where(Job.id < before)
+    if scored_after is not None:
+        query = query.where(JobEvaluation.id > scored_after).order_by(JobEvaluation.id)
+    else:
+        query = query.order_by(Job.id.desc())
+    rows = session.execute(query.limit(limit + 1)).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
     return FeedPage(
@@ -457,15 +503,10 @@ def add_manual_job(
 
 
 @router.get("/manual/{job_id}", response_model=ManualJobStatus)
-def manual_job_status(
-    job_id: int, session: Annotated[Session, Depends(get_session)]
-) -> ManualJobStatus:
+def manual_job_status(job_id: int, session: Annotated[Session, Depends(get_session)]) -> ManualJobStatus:
     """Parse status of a job (latest parse run)."""
     pending = session.scalar(
-        select(PendingJobParseRun)
-        .where(PendingJobParseRun.job_id == job_id)
-        .order_by(PendingJobParseRun.id.desc())
-        .limit(1)
+        select(PendingJobParseRun).where(PendingJobParseRun.job_id == job_id).order_by(PendingJobParseRun.id.desc()).limit(1)
     )
     if pending is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")
@@ -490,6 +531,53 @@ def decide_job(
     set_job_decision(session, parsed.id, payload.decision)
     session.commit()
     return get_job(job_id, session, settings)
+
+
+class RescoreOut(BaseModel):
+    job_id: int
+    rq_job_id: str
+    """RQ job scoring it; poll ``GET /api/jobs/{job_id}`` until ``outdated`` is false."""
+
+
+@router.post("/{job_id}/rescore", response_model=RescoreOut, status_code=status.HTTP_202_ACCEPTED)
+def rescore_job(
+    job_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> RescoreOut:
+    """Enqueue scoring a job against the latest candidate profile (the profile is first
+    regenerated by the task when the work history changed since it was built).
+
+    404 when the job does not exist or has not been parsed; 409 when its newest score was
+    already made against the latest work history; 503 when the queue is unreachable.
+    """
+    parsed = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job_id))
+    if parsed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown or unparsed job")
+    scored_by = session.scalar(
+        select(JobEvaluation.candidate_profile_id)
+        .where(JobEvaluation.job_parse_result_id == parsed.id)
+        .order_by(JobEvaluation.id.desc())
+        .limit(1)
+    )
+    if scored_by is not None and scored_by in current_profile_ids(session):
+        raise HTTPException(status.HTTP_409_CONFLICT, "already scored against the latest profile")
+    try:
+        rq_job = queue.enqueue(
+            rescore_parse_results,
+            [parsed.id],
+            job_id=uuid.uuid4().hex,
+            job_timeout=RESCORE_TIMEOUT,
+            result_ttl=settings.job_result_ttl,
+            failure_ttl=settings.job_result_ttl,
+            meta={"job_parse_result_id": parsed.id, "job_id": job_id},
+            description=f"re-score job {job_id}",
+        )
+    except Exception as exc:
+        log.exception("Could not enqueue re-scoring of job %d", job_id)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "queue unavailable") from exc
+    return RescoreOut(job_id=job_id, rq_job_id=rq_job.id)
 
 
 @router.get("", response_model=EvaluatedJobPage)
@@ -563,12 +651,7 @@ def get_job(
     job, parsed = row
 
     # Newest score from any profile (see ``_evaluated_query``).
-    evaluation = session.scalars(
-        select(JobEvaluation)
-        .where(JobEvaluation.job_parse_result_id == parsed.id)
-        .order_by(JobEvaluation.id.desc())
-        .limit(1)
-    ).first()
+    evaluation = newest_evaluations(session, [parsed.id]).get(parsed.id)
     application_id = _application_ids(session, [parsed.id]).get(parsed.id)
     return EvaluatedJobDetail(
         **_evaluated(
@@ -576,6 +659,7 @@ def get_job(
             parsed,
             evaluation,
             threshold=settings.relevant_job_threshold,
+            current_ids=current_profile_ids(session),
             description=True,
             application_id=application_id,
             decision=_decisions(session, [parsed.id]).get(parsed.id),

@@ -77,9 +77,7 @@ def test_first_run_inserts_jobs_with_html(task_engine, fake_sources, parse_queue
         assert all(j.source.key == "skillshot" for j in jobs)
         assert jobs[0].html == "<html>https://www.skillshot.pl/jobs/1</html>"
 
-        pending = session.scalars(
-            select(models.PendingJobParseRun).order_by(models.PendingJobParseRun.job_id)
-        ).all()
+        pending = session.scalars(select(models.PendingJobParseRun).order_by(models.PendingJobParseRun.job_id)).all()
         assert [p.job_id for p in pending] == [j.id for j in jobs]
         assert all(p.status == "NOT_STARTED" for p in pending)
         assert all(p.parsed_at is None for p in pending)
@@ -105,12 +103,7 @@ def test_second_run_only_counts_duplicates(task_engine, fake_sources, parse_queu
     assert second["scrape_run_id"] != first["scrape_run_id"]
 
     with session_factory(task_engine)() as session:
-        assert (
-            session.scalar(
-                select(models.Job).where(models.Job.scrape_run_id == second["scrape_run_id"])
-            )
-            is None
-        )
+        assert session.scalar(select(models.Job).where(models.Job.scrape_run_id == second["scrape_run_id"])) is None
         assert len(session.scalars(select(models.ScrapeRun)).all()) == 2
         run = session.get(models.ScrapeRun, second["scrape_run_id"])
         assert run.source is None
@@ -138,10 +131,7 @@ def test_unknown_source_raises(task_engine, fake_sources):
 
 
 def test_skillshot_parse_description():
-    html = (
-        "<html><body><div id='job_presentation'>"
-        "<p>We need</p><ul><li>Unity</li></ul></div></body></html>"
-    )
+    html = "<html><body><div id='job_presentation'><p>We need</p><ul><li>Unity</li></ul></div></body></html>"
     assert skillshot.parse_description(html) == "We need\nUnity"
 
 
@@ -200,9 +190,7 @@ def test_failures_degrade_then_fail_the_source(task_engine, fake_sources, parse_
     assert (row.health, row.consecutive_failures) == ("healthy", 0)
 
 
-def test_disabled_source_is_skipped_by_scrape_all_but_runs_by_name(
-    task_engine, fake_sources, parse_queue
-):
+def test_disabled_source_is_skipped_by_scrape_all_but_runs_by_name(task_engine, fake_sources, parse_queue):
     scrape_task.scrape(None)  # creates the row
     with session_factory(task_engine)() as session:
         row = session.scalar(select(models.ScrapeSource))
@@ -222,9 +210,7 @@ def test_disabled_source_is_skipped_by_scrape_all_but_runs_by_name(
 
 
 def test_broken_source_cannot_be_run_by_name(task_engine, fake_sources, monkeypatch):
-    monkeypatch.setattr(
-        "app.tasks.scrape.sources.get_available_sources", lambda: ["skillshot", "junk"]
-    )
+    monkeypatch.setattr("app.tasks.scrape.sources.get_available_sources", lambda: ["skillshot", "junk"])
     monkeypatch.setitem(sys.modules, "app.tasks.scrape.sources.junk", types.ModuleType("junk"))
 
     with pytest.raises(ValueError, match="not available \\(missing NAME"):
@@ -243,9 +229,7 @@ def test_scrape_all_runs_usable_sources_in_key_order(task_engine, parse_queue, m
         mod.parse_title = mod.parse_company = mod.parse_description = lambda html: ""
         return mod
 
-    monkeypatch.setattr(
-        "app.tasks.scrape.sources.get_available_sources", lambda: ["alpha", "beta", "gamma"]
-    )
+    monkeypatch.setattr("app.tasks.scrape.sources.get_available_sources", lambda: ["alpha", "beta", "gamma"])
     for key in ("alpha", "beta", "gamma"):
         monkeypatch.setitem(sys.modules, f"app.tasks.scrape.sources.{key}", stub(key))
     monkeypatch.setattr(scrape_task, "fetch_page", lambda url: "<html></html>")
@@ -277,9 +261,7 @@ def test_crashed_run_is_marked_failed(task_engine, fake_sources, parse_queue, mo
         assert run.finished_at is not None
 
 
-def test_same_offer_within_one_run_is_deduplicated(
-    task_engine, fake_sources, parse_queue, monkeypatch
-):
+def test_same_offer_within_one_run_is_deduplicated(task_engine, fake_sources, parse_queue, monkeypatch):
     pages = {  # link -> (title, company)
         "https://www.skillshot.pl/jobs/1-warszawa": ("Python  Developer", "Acme Sp. z o.o."),
         "https://skillshot.pl/jobs/1-krakow": ("python developer ", "ACME sp. z o.o."),

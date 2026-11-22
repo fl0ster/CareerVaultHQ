@@ -8,9 +8,7 @@ from rq import Queue
 from rq.exceptions import NoSuchJobError
 from rq.job import Job, JobStatus
 
-ACTIVE_STATUSES = frozenset(
-    {JobStatus.QUEUED, JobStatus.STARTED, JobStatus.DEFERRED, JobStatus.SCHEDULED}
-)
+ACTIVE_STATUSES = frozenset({JobStatus.QUEUED, JobStatus.STARTED, JobStatus.DEFERRED, JobStatus.SCHEDULED})
 """RQ statuses meaning a job still occupies its fixed id."""
 
 EPOCH = datetime.min.replace(tzinfo=UTC)

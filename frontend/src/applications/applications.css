@@ -95,8 +95,7 @@
   }
 }
 
-.app-detail,
-.job-application {
+.app-detail {
   textarea,
   input[type='datetime-local'] {
     font: inherit;
@@ -309,20 +308,6 @@
   justify-content: flex-end;
 }
 
-/* Job dialog section */
-.job-application {
-  margin: 16px 0;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-
-  h3 {
-    margin: 0 0 8px;
-    font-size: 15px;
-    color: var(--text-h);
-  }
-}
-
 .job-row .app-status {
   margin-left: 8px;
 }
@@ -353,15 +338,6 @@
   }
 }
 
-.job-application .create-application {
-  align-items: flex-start;
-
-  .error {
-    text-align: left;
-    max-width: none;
-  }
-}
-
 @media (max-width: 600px) {
   .app-row {
     flex-direction: column;
@@ -372,7 +348,6 @@
     justify-content: flex-start;
   }
   .app-detail button,
-  .job-application button,
   .create-application button {
     width: auto;
   }

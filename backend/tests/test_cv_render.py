@@ -86,9 +86,7 @@ def test_split_sentences():
 
 def test_render_role_and_early_history():
     tex = render_role(MAIN[0])
-    assert tex.startswith(
-        "\\begin{cvrole}{Senior Mobile Engineer}{VGW}{Jul 2024 -- Present}{Remote}"
-    )
+    assert tex.startswith("\\begin{cvrole}{Senior Mobile Engineer}{VGW}{Jul 2024 -- Present}{Remote}")
     assert "\\item Built CI/CD pipelines." in tex
     assert "\\item Reduced ANR rate from 4\\% to 0.45\\%." in tex
     assert "\\cvtech{React Native, TypeScript}" in tex
@@ -121,8 +119,7 @@ def test_render_contacts_and_headline():
     assert render_contacts({}) == ""
 
     assert render_headline("Senior Engineer", ["React Native", "TypeScript"]) == (
-        "Senior Engineer\\ \\textperiodcentered\\ \\ React Native\\ \\textperiodcentered\\ \\ "
-        "TypeScript"
+        "Senior Engineer\\ \\textperiodcentered\\ \\ React Native\\ \\textperiodcentered\\ \\ TypeScript"
     )
     assert render_headline("", []) == ""
 
@@ -133,9 +130,7 @@ def test_render_education_variants():
     assert "\\textbf{B.Sc. Computer Science} \\hfill" in both
     assert "Oct 2012 -- May 2015" in both
     assert "\\item AWS Cloud Technical Essentials" in both
-    assert render_education(DETAILS["education"], []).startswith(
-        "\\begin{cvsectionblock}{Education}"
-    )
+    assert render_education(DETAILS["education"], []).startswith("\\begin{cvsectionblock}{Education}")
     assert render_education([], ["X"]).startswith("\\begin{cvsectionblock}{Certifications}")
     assert render_education([], []) == ""
     assert render_education([{"degree": "", "institution": ""}], []) == ""

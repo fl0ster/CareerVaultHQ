@@ -61,21 +61,36 @@ def _message(i=1, subject="Your application", body="We will not move forward."):
 def openrouter(db_session):
     """OpenRouter mock: ``state["p"]`` is the rejection probability, ``state["extract"]``
     the chat reply (a dict is sent as JSON)."""
-    state = {"p": 0.97, "extract": {"company": "Acme", "role": "Backend Developer"}, "calls": []}
+    state = {
+        "p": 0.97,
+        "extract": {"company": "Acme", "role": "Backend Developer"},
+        "calls": [],
+        # interview-steps check (app.tasks.gmail.interview_steps)
+        "present": 0.0,
+        "faithful": 0.9,
+        "steps": {"steps": [{"title": "HR call", "duration_minutes": 30}]},
+    }
+    answers = {
+        "is_rejection": "p",
+        "describes_interview_process": "present",
+        "steps_are_faithful": "faithful",
+    }
 
     def handle(request: httpx.Request) -> httpx.Response:
         state["calls"].append(request.url.path)
+        body = json.loads(request.content)
         if request.url.path.endswith("/decisions"):
             return httpx.Response(
                 200,
                 json={
                     "id": "d",
                     "model": "jev",
-                    "answers": {"is_rejection": {"type": "noul", "noul": state["p"]}},
+                    "answers": {q: {"type": "noul", "noul": state[answers[q]]} for q in body["questions"]},
                     "usage": {"cost": 0.001},
                 },
             )
-        reply = state["extract"]
+        prompt = json.dumps(body["messages"])
+        reply = state["steps"] if "List the stages" in prompt else state["extract"]
         content = reply if isinstance(reply, str) else json.dumps(reply)
         return httpx.Response(
             200,
@@ -88,9 +103,7 @@ def openrouter(db_session):
         )
 
     settings = Settings(openrouter_api_key="sk-test", cors_origins=[])
-    state["service"] = OpenRouterService(
-        db_session, settings, transport=httpx.MockTransport(handle)
-    )
+    state["service"] = OpenRouterService(db_session, settings, transport=httpx.MockTransport(handle))
     return state
 
 
@@ -103,12 +116,8 @@ def _application(db_session, company, title, *, i, status="APPLIED"):
     db_session.flush()
     from app.models import ApplicationStatus
 
-    shortlisted = db_session.scalar(
-        select(ApplicationStatus).where(ApplicationStatus.key == "SHORTLISTED")
-    )
-    application.events.append(
-        ApplicationEvent(status=shortlisted, occurred_at=APPLIED_AT - timedelta(days=1))
-    )
+    shortlisted = db_session.scalar(select(ApplicationStatus).where(ApplicationStatus.key == "SHORTLISTED"))
+    application.events.append(ApplicationEvent(status=shortlisted, occurred_at=APPLIED_AT - timedelta(days=1)))
     db_session.flush()
     if status != "SHORTLISTED":
         record_event(db_session, application, "APPLIED", occurred_at=APPLIED_AT)
@@ -123,9 +132,7 @@ def _application(db_session, company, title, *, i, status="APPLIED"):
 def _company(db_session, name, *aliases):
     company = Company(name=name, normalized_name=name.lower())
     for alias in aliases:
-        company.aliases.append(
-            CompanyAlias(alias=alias, normalized_alias=alias.lower(), match_kind="exact")
-        )
+        company.aliases.append(CompanyAlias(alias=alias, normalized_alias=alias.lower(), match_kind="exact"))
     db_session.add(company)
     db_session.flush()
     return company
@@ -142,9 +149,7 @@ def _current(db_session, application_id):
 
 
 def _record(db_session, message_id="msg-1"):
-    return db_session.scalar(
-        select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id)
-    )
+    return db_session.scalar(select(GmailProcessedMail).where(GmailProcessedMail.message_id == message_id))
 
 
 # --------------------------------------------------------------------------- run_check
@@ -277,9 +282,7 @@ def test_applications_not_open_are_not_touched(db_session, openrouter, status):
 
 
 def test_interview_stage_application_can_be_rejected(db_session, openrouter):
-    application = _application(
-        db_session, _company(db_session, "Acme"), "Dev", i=1, status="INTERVIEW"
-    )
+    application = _application(db_session, _company(db_session, "Acme"), "Dev", i=1, status="INTERVIEW")
 
     _run(db_session, FakeClient([_message()]), openrouter)
 
@@ -369,9 +372,7 @@ def test_client_follows_redirect_and_sends_token():
         seen.append((request.method, str(request.url)))
         if request.url.host == "script.google.com":
             assert json.loads(request.content) == {"token": "s3cret", "action": "ping"}
-            return httpx.Response(
-                302, headers={"Location": "https://script.googleusercontent.com/echo?x=1"}
-            )
+            return httpx.Response(302, headers={"Location": "https://script.googleusercontent.com/echo?x=1"})
         return httpx.Response(200, json={"email": "me@gmail.com"})
 
     client = AppsScriptClient(
@@ -459,9 +460,7 @@ def test_client_does_not_follow_redirects_off_google():
             return httpx.Response(302, headers={"Location": "https://evil.example/steal"})
         raise AssertionError("must not be called")
 
-    client = AppsScriptClient(
-        "https://script.google.com/macros/s/abc/exec", "s", transport=httpx.MockTransport(handle)
-    )
+    client = AppsScriptClient("https://script.google.com/macros/s/abc/exec", "s", transport=httpx.MockTransport(handle))
     with pytest.raises(AppsScriptError, match="unexpected host"):
         client.ping()
 

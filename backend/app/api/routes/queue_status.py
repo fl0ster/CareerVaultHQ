@@ -74,9 +74,5 @@ def queue_status(queue: Annotated[Queue, Depends(get_queue)], limit: int = 50) -
     current = next((_to_out(j) for j in started if j is not None), None)
 
     pending_ids = queue.get_job_ids()
-    pending = [
-        _to_out(j)
-        for j in Job.fetch_many(pending_ids[:limit], connection=queue.connection)
-        if j is not None
-    ]
+    pending = [_to_out(j) for j in Job.fetch_many(pending_ids[:limit], connection=queue.connection) if j is not None]
     return QueueStatus(current=current, pending=pending, pending_count=len(pending_ids))

@@ -45,6 +45,9 @@ function doPost(e) {
       case 'mark':
         markMessage_(request.id, request.label);
         return reply_({ ok: true });
+      case 'label':
+        labelMessage_(request.id, request.label);
+        return reply_({ ok: true });
       default:
         return reply_({ error: 'unknown action: ' + request.action });
     }
@@ -105,19 +108,32 @@ function listMessages_(lookbackDays, labelName, max) {
   return out;
 }
 
-function markMessage_(id, labelName) {
+function eligibleMessage_(id) {
   const message = GmailApp.getMessageById(String(id));
   if (!message) throw new Error('message not found: ' + id);
   // Only mails the monitor could have listed may be changed.
   if (!message.isInInbox() || !isJobMail_(message.getSubject() || '', message.getPlainBody() || '')) {
     throw new Error('message not eligible: ' + id);
   }
+  return message;
+}
+
+function addLabel_(message, labelName) {
+  const name = checkLabel_(labelName);
+  const label = GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
+  message.getThread().addLabel(label);
+}
+
+/** Mark the message read and label its thread. */
+function markMessage_(id, labelName) {
+  const message = eligibleMessage_(id);
   message.markRead();
-  if (labelName) {
-    const name = checkLabel_(labelName);
-    const label = GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
-    message.getThread().addLabel(label);
-  }
+  if (labelName) addLabel_(message, labelName);
+}
+
+/** Label the message's thread; its read/unread state is left as it is. */
+function labelMessage_(id, labelName) {
+  addLabel_(eligibleMessage_(id), labelName);
 }
 
 function reply_(payload) {

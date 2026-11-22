@@ -162,9 +162,7 @@ def _all_entries(session: Session) -> list[WorkHistoryEntry]:
     """All work history entries, most recent position first."""
     return list(
         session.scalars(
-            select(WorkHistoryEntry).order_by(
-                WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc()
-            )
+            select(WorkHistoryEntry).order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
         ).all()
     )
 
@@ -209,9 +207,7 @@ def import_entries(
         try:
             creates.append(item.to_create())
         except ValueError as exc:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"entry {index}: {exc}"
-            ) from exc
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"entry {index}: {exc}") from exc
 
     if replace:
         session.execute(delete(WorkHistoryEntry))
@@ -224,9 +220,7 @@ def import_entries(
 
 
 @router.post("", response_model=WorkHistoryOut, status_code=status.HTTP_201_CREATED)
-def create_entry(
-    payload: WorkHistoryCreate, session: Annotated[Session, Depends(get_session)]
-) -> WorkHistoryEntry:
+def create_entry(payload: WorkHistoryCreate, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryEntry:
     entry = WorkHistoryEntry(**payload.model_dump())
     session.add(entry)
     session.commit()

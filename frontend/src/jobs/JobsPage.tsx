@@ -2,7 +2,15 @@ import { Send } from 'lucide-react'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
-import { type EvaluatedJob, type JobDecision, isRelevant, jobsApi } from './api.ts'
+import {
+  type EvaluatedJob,
+  type EvaluatedJobDetail,
+  type JobDecision,
+  isRelevant,
+  jobsApi,
+  notifyJobsChanged,
+} from './api.ts'
+import { processingStore } from './processingStore.ts'
 import JobView from './JobView.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import AddJobComposer from './AddJobComposer.tsx'
@@ -13,9 +21,12 @@ import { APPLICATIONS_CHANGED, applicationsApi, notifyApplicationsChanged } from
 import { describeError } from '../cv/api.ts'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
+import { useStore } from '../shell/store.ts'
 import { useStuck } from '../shell/useStuck.ts'
 
 const PAGE_SIZE = 50
+/** Rows per request while polling for newly scored jobs (the API maximum). */
+const POLL_PAGE_SIZE = 200
 /** How often the tab checks for newly evaluated jobs, in ms. */
 const POLL_INTERVAL = 30_000
 const SEARCH_MIN_CHARS = 3
@@ -23,8 +34,6 @@ const SEARCH_DEBOUNCE_MS = 300
 /** How often a manually added job's parse / evaluation is checked, in ms. */
 const PROCESSING_POLL_MS = 2_500
 
-/** A manually added job that is not parsed and scored yet. */
-type ProcessingJob = { jobId: number; title: string; company: string; error: string | null }
 
 /** Vertical offset currently applied by a running transform animation, in px. */
 function currentTranslateY(el: HTMLElement): number {
@@ -82,8 +91,34 @@ function useFlip(listRef: RefObject<HTMLUListElement | null>, order: string) {
   }, [listRef, order])
 }
 
-/** Feed order: newest evaluation first. */
-const byEvaluationDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.evaluation.id - a.evaluation.id
+/** Feed order: newest job first (stable across re-scores). */
+const byIdDesc = (a: EvaluatedJob, b: EvaluatedJob) => b.id - a.id
+
+/** Section a re-scored job stays in until the next full reload, whatever its new score. */
+type Section = 'inbox' | 'feed'
+
+/** `jobs` with each score's `outdated` flag recomputed against the profiles built from the
+ * current work history (`current`); the same array when nothing changed. */
+function withOutdated(jobs: EvaluatedJob[], current: Set<number>): EvaluatedJob[] {
+  const isStale = (j: EvaluatedJob) => !current.has(j.evaluation.candidate_profile_id)
+  if (jobs.every((j) => isStale(j) === j.evaluation.outdated)) return jobs
+  return jobs.map((j) => {
+    const outdated = isStale(j)
+    return outdated === j.evaluation.outdated ? j : { ...j, evaluation: { ...j.evaluation, outdated } }
+  })
+}
+
+/** The inbox as the server returned it, except that re-scored jobs pinned to a section stay
+ * where they were: pinned-to-inbox jobs keep their previous index (with fresh data when the
+ * server still lists them), pinned-to-feed jobs are left out. */
+function placeInbox(server: EvaluatedJob[], previous: EvaluatedJob[], pinned: Map<number, Section>): EvaluatedJob[] {
+  const result = server.filter((j) => !pinned.has(j.id))
+  const byId = new Map(server.map((j) => [j.id, j]))
+  previous.forEach((job, index) => {
+    if (pinned.get(job.id) === 'inbox') result.splice(Math.min(index, result.length), 0, byId.get(job.id) ?? job)
+  })
+  return result
+}
 
 function JobRow({
   job,
@@ -92,6 +127,7 @@ function JobRow({
   error,
   onSelect,
   onDecide,
+  onRescored,
   onOpenCompany,
 }: {
   job: EvaluatedJob
@@ -101,6 +137,7 @@ function JobRow({
   error: string | null
   onSelect: (job: EvaluatedJob) => void
   onDecide: (job: EvaluatedJob, decision: JobDecision) => void
+  onRescored: (job: EvaluatedJobDetail) => void
   onOpenCompany: (companyId: number) => void
 }) {
   const classes = ['job-item']
@@ -119,7 +156,12 @@ function JobRow({
       <div className="job-row-wrap">
         <button type="button" className="job-row" onClick={() => onSelect(job)}>
           <div className="job-main">
-            <span className="job-title">
+            <RelevanceMeter
+              relevance={job.evaluation.relevance}
+              outdated={job.evaluation.outdated}
+              rescore={{ jobId: job.id, onRescored }}
+            />
+            <span className="job-title" style={{ marginLeft: '10px' }}>
               {job.title ?? job.link}
             </span>
             <div className="job-meta">
@@ -142,9 +184,8 @@ function JobRow({
             </div>
           </div>
         </button>
-        <div className="job-side">
-          <RelevanceMeter relevance={job.evaluation.relevance} />
-          {inbox && (
+        {inbox && (
+          <div className="job-side">
             <div className="job-decide">
               <button
                 type="button"
@@ -167,8 +208,8 @@ function JobRow({
                 ✕
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       {error && <p className="error">{error}</p>}
     </li>
@@ -178,19 +219,17 @@ function JobRow({
 type Props = {
   /** Id of the job shown in place of the list (from the URL), or null for the list. */
   detailId: string | null
-  /** The Jobs page is the one on screen. */
-  active: boolean
+  /** The inbox size from the menu badge (null until known). It changing while the page is
+   * open means jobs were scored or decided elsewhere, so the page checks right away. */
+  inboxCount: number | null
   onOpen: (id: number) => void
   onBack: () => void
   /** Breadcrumb entries after "Jobs" while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
-  /** Called whenever the number of undecided relevant jobs changes (for the tab badge). */
-  onInboxCountChange?: (count: number) => void
 }
 
-export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsChange, onInboxCountChange }: Props) {
+export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumbsChange }: Props) {
   const [inbox, setInbox] = useState<EvaluatedJob[]>([])
-  const [inboxCount, setInboxCount] = useState(0)
   const [feed, setFeed] = useState<EvaluatedJob[]>([])
   const [profileId, setProfileId] = useState<number | null | undefined>(undefined)
   const [hasMore, setHasMore] = useState(true)
@@ -213,29 +252,30 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const loadingRef = useRef(false)
   const hasMoreRef = useRef(true)
   const profileRef = useRef<number | null | undefined>(undefined)
-  /** Oldest / newest evaluation id the feed endpoint returned (keyset cursors). Rows moved
-   * into the feed locally do not move them, so polling and paging never skip a row. */
+  /** Oldest job id the feed endpoint returned: the paging cursor (the feed is ordered by
+   * job id, so rows never move). Rows moved into the feed locally do not move it. */
   const oldestRef = useRef<number | null>(null)
-  const newestRef = useRef<number | null>(null)
+  /** Newest evaluation id polled so far: the polling cursor. Separate from the paging one
+   * because a job can be scored (or re-scored) long after newer jobs were added. `null`
+   * until the first page is loaded. */
+  const scoredRef = useRef<number | null>(null)
   const inboxRef = useRef<EvaluatedJob[]>([])
   /** Bumped on every local decision; a poll that started before one is discarded. */
   const mutationRef = useRef(0)
   const pollingRef = useRef(false)
+  /** Jobs re-scored here, pinned to the section they were in so they do not move. */
+  const pinnedRef = useRef(new Map<number, Section>())
 
   useEffect(() => {
     inboxRef.current = inbox
   }, [inbox])
 
-  useEffect(() => {
-    onInboxCountChange?.(inboxCount)
-  }, [inboxCount, onInboxCountChange])
-
   const detailOpen = detailId != null
   const openId = detailId != null && /^\d+$/.test(detailId) ? Number(detailId) : null
-  useDetailScroll(detailOpen, active)
+  useDetailScroll(detailOpen)
   // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const stuck = useStuck(toolbarRef, active && !detailOpen)
+  const stuck = useStuck(toolbarRef, !detailOpen)
 
   const onDetailTitle = useCallback(
     (title: string | null) => onCrumbsChange([{ label: title ?? 'Not found' }]),
@@ -252,16 +292,25 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setFeed((prev) => {
       const rest = prev.filter((j) => j.id !== job.id)
       const oldest = oldestRef.current
-      if (hasMoreRef.current && oldest !== null && job.evaluation.id < oldest) return rest
-      return [...rest, job].sort(byEvaluationDesc)
+      if (hasMoreRef.current && oldest !== null && job.id < oldest) return rest
+      return [...rest, job].sort(byIdDesc)
     })
   }, [])
 
+  /** Merge rows into the feed, replacing existing copies in place (the order is by job id).
+   * Rows older than the loaded pages are left out: they arrive with the page they belong
+   * to, already up to date. */
   const mergeFeed = useCallback((items: EvaluatedJob[]) => {
-    if (items.length === 0) return
+    const oldest = oldestRef.current
+    const fresh = items.filter(
+      (j) =>
+        // A job pinned to the inbox stays there even when the server now lists it in the feed.
+        pinnedRef.current.get(j.id) !== 'inbox' && !(hasMoreRef.current && oldest !== null && j.id < oldest),
+    )
+    if (fresh.length === 0) return
     setFeed((prev) => {
-      const incoming = new Map(items.map((j) => [j.id, j]))
-      return [...prev.filter((j) => !incoming.has(j.id)), ...items].sort(byEvaluationDesc)
+      const incoming = new Map(fresh.map((j) => [j.id, j]))
+      return [...prev.filter((j) => !incoming.has(j.id)), ...fresh].sort(byIdDesc)
     })
   }, [])
 
@@ -272,12 +321,13 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     setError(null)
     try {
       const page = await jobsApi.feed({ before: oldestRef.current ?? undefined, limit: PAGE_SIZE })
-      if (page.items.length > 0) {
-        oldestRef.current = page.items[page.items.length - 1].evaluation.id
-        newestRef.current = Math.max(newestRef.current ?? 0, page.items[0].evaluation.id)
-      } else if (newestRef.current === null) {
-        newestRef.current = 0
+      // Only the first page sets the polling cursor. A later (older) page may hold a newer
+      // score than some update to an already loaded row that has not been polled yet, and
+      // advancing past it would lose that update; polling those rows again is harmless.
+      if (scoredRef.current === null) {
+        scoredRef.current = page.items.reduce((max, j) => Math.max(max, j.evaluation.id), 0)
       }
+      if (page.items.length > 0) oldestRef.current = page.items[page.items.length - 1].id
       hasMoreRef.current = page.has_more
       setHasMore(page.has_more)
       mergeFeed(page.items)
@@ -291,12 +341,12 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
 
   const reset = useCallback(() => {
     oldestRef.current = null
-    newestRef.current = null
+    scoredRef.current = null
     hasMoreRef.current = true
+    pinnedRef.current.clear()
     setHasMore(true)
     setFeed([])
     setInbox([])
-    setInboxCount(0)
   }, [])
 
   /** Fetch the inbox and any newer feed rows. Also used for the first load. */
@@ -316,12 +366,20 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       if (version !== mutationRef.current) return
 
       // Jobs that left the inbox elsewhere (e.g. an application made on another device)
-      // move into the feed with their fresh state.
-      const stillThere = new Set(box.items.map((j) => j.id))
+      // move into the feed with their fresh state; jobs that entered it leave the feed.
+      // Jobs re-scored here stay in their section (see placeInbox).
+      // Rows loaded earlier carry the `outdated` flag of when they were fetched; recompute it
+      // so a work history edit shows on every row without reloading them.
+      const current = new Set(box.current_profile_ids)
+      const nextInbox = withOutdated(placeInbox(box.items, inboxRef.current, pinnedRef.current), current)
+      const stillThere = new Set(nextInbox.map((j) => j.id))
+      setFeed((prev) =>
+        withOutdated(prev.some((j) => stillThere.has(j.id)) ? prev.filter((j) => !stillThere.has(j.id)) : prev, current),
+      )
+      setResults((prev) => (prev ? withOutdated(prev, current) : prev))
       const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
-      inboxRef.current = box.items
-      setInbox(box.items)
-      setInboxCount(box.count)
+      inboxRef.current = nextInbox
+      setInbox(nextInbox)
       for (const job of left) {
         jobsApi
           .get(job.id)
@@ -333,13 +391,17 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
           })
       }
 
-      if (newestRef.current === null) {
+      if (scoredRef.current === null) {
         await loadMore()
       } else {
-        const fresh = await jobsApi.feed({ after: newestRef.current, limit: 200 })
-        if (fresh.items.length > 0) {
-          newestRef.current = Math.max(newestRef.current, fresh.items[0].evaluation.id)
+        // Every job scored or re-scored since the last poll, oldest score first, page by
+        // page; each lands in its place by job id.
+        for (;;) {
+          const fresh = await jobsApi.feed({ scored_after: scoredRef.current, limit: POLL_PAGE_SIZE })
+          if (fresh.items.length === 0) break
           mergeFeed(fresh.items)
+          scoredRef.current = fresh.items[fresh.items.length - 1].evaluation.id
+          if (!fresh.has_more) break
         }
       }
       setError(null)
@@ -350,8 +412,20 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }, [loadMore, mergeFeed, putInFeed, reset])
 
-  // First load, then check for newly evaluated jobs periodically and whenever the window
-  // regains focus or applications change elsewhere in the app.
+  // The menu badge saw the inbox change (new jobs scored, a decision made elsewhere): check
+  // right away instead of waiting for the next interval. The first value is not a change.
+  const seenInboxCount = useRef(inboxCount)
+  useEffect(() => {
+    const prev = seenInboxCount.current
+    seenInboxCount.current = inboxCount
+    if (prev === null || prev === inboxCount) return
+    const timer = window.setTimeout(poll, 0)
+    return () => window.clearTimeout(timer)
+  }, [inboxCount, poll])
+
+  // The page mounts on entry, so the first load is always fresh. Then check for newly
+  // evaluated jobs periodically and whenever the window regains focus or applications
+  // change elsewhere in the app.
   useEffect(() => {
     const first = window.setTimeout(poll, 0)
     const timer = window.setInterval(() => {
@@ -389,7 +463,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       const controller = new AbortController()
       searchControllerRef.current = controller
       const prev = fresh ? [] : (resultsRef.current ?? [])
-      const before = prev.length > 0 ? prev[prev.length - 1].evaluation.id : undefined
+      const before = prev.length > 0 ? prev[prev.length - 1].id : undefined
       setResultsLoading(true)
       try {
         const page = await jobsApi.feed({ q: search, before, limit: PAGE_SIZE }, controller.signal)
@@ -441,10 +515,11 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
   const leaveInbox = useCallback(
     (job: EvaluatedJob) => {
       mutationRef.current += 1
+      pinnedRef.current.delete(job.id)
       if (inboxRef.current.some((j) => j.id === job.id)) {
         inboxRef.current = inboxRef.current.filter((j) => j.id !== job.id)
         setInbox(inboxRef.current)
-        setInboxCount((count) => Math.max(0, count - 1))
+        notifyJobsChanged()
       }
       putInFeed(job)
       setResults((prev) => prev?.map((j) => (j.id === job.id ? job : j)) ?? prev)
@@ -500,28 +575,48 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }
 
-  // Manually added jobs still going through parse -> evaluate, newest first.
-  const [processing, setProcessing] = useState<ProcessingJob[]>([])
-  const processingRef = useRef<ProcessingJob[]>([])
-  useEffect(() => {
-    processingRef.current = processing
-  }, [processing])
+  /** A job was re-scored against the latest profile: show the new score in place. The job
+   * keeps its position, even if the new score crosses the relevance threshold, until the
+   * next full reload. */
+  const rescored = useCallback((fresh: EvaluatedJobDetail) => {
+    if (!fresh.evaluation) return
+    const evaluation = fresh.evaluation
+    const update = (j: EvaluatedJob): EvaluatedJob => (j.id === fresh.id ? { ...j, evaluation } : j)
+    mutationRef.current += 1
+    const inInbox = inboxRef.current.some((j) => j.id === fresh.id)
+    pinnedRef.current.set(fresh.id, inInbox ? 'inbox' : 'feed')
+    // Re-scoring may have generated a new profile; it is not a reason to reload the list.
+    profileRef.current = evaluation.candidate_profile_id
+    setProfileId(evaluation.candidate_profile_id)
+    inboxRef.current = inboxRef.current.map(update)
+    setInbox(inboxRef.current)
+    setFeed((prev) => prev.map(update))
+    setResults((prev) => prev?.map(update) ?? prev)
+    // The new score may move the job in or out of the inbox: refresh the menu badge.
+    notifyJobsChanged()
+  }, [])
+
+  // Manually added jobs still going through parse -> evaluate, newest first. Kept in a store
+  // so they are still followed after leaving the page and coming back.
+  const processing = useStore(processingStore)
+  const setProcessing = processingStore.set
   const hasProcessing = processing.some((p) => !p.error)
   useEffect(() => {
     if (!hasProcessing) return
     const timer = window.setInterval(async () => {
-      for (const item of processingRef.current) {
+      for (const item of processingStore.get()) {
         if (item.error) continue
         try {
           const status = await jobsApi.manualStatus(item.jobId)
           if (status.status === 'FAILED') {
-            setProcessing((prev) =>
+            processingStore.set((prev) =>
               prev.map((p) => (p.jobId === item.jobId ? { ...p, error: status.error ?? 'Parsing failed' } : p)),
             )
           } else if (status.status === 'COMPLETED') {
             const job = await jobsApi.get(item.jobId)
             if (job.evaluation) {
-              setProcessing((prev) => prev.filter((p) => p.jobId !== item.jobId))
+              processingStore.set((prev) => prev.filter((p) => p.jobId !== item.jobId))
+              notifyJobsChanged()
               poll()
             }
           }
@@ -555,6 +650,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
             onBack={onBack}
             onOpenCompany={setCompanyId}
             onApplicationCreated={(applicationId) => applicationCreated(openId, applicationId)}
+            onRescored={rescored}
             onTitle={onDetailTitle}
           />
         ) : (
@@ -658,6 +754,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
                   error={rowErrors.get(job.id) ?? null}
                   onSelect={(j) => onOpen(j.id)}
                   onDecide={decide}
+                  onRescored={rescored}
                   onOpenCompany={setCompanyId}
                 />
               )
@@ -671,7 +768,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
         </div>
       </div>
 
-      {active && !detailOpen && (
+      {!detailOpen && (
         <AddJobComposer
           onAdded={(status, input) =>
             setProcessing((prev) => [

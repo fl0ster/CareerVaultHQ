@@ -21,9 +21,7 @@ def seed_job(db_session, i=0, *, company=True) -> Job:
 
 
 def seed_inputs(client, db_session):
-    db_session.add(
-        WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[])
-    )
+    db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[]))
     db_session.commit()
     assert client.put(DETAILS, json={"first_name": "Jane", "last_name": "Doe"}).status_code == 200
 
@@ -48,9 +46,7 @@ def test_generate_requires_work_history_and_name(client, db_session):
     assert res.status_code == 400
     assert "work history" in res.json()["detail"]
 
-    db_session.add(
-        WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[])
-    )
+    db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[]))
     db_session.commit()
     res = client.post(f"{BASE}/generate", json={"job_id": job.id})
     assert res.status_code == 400

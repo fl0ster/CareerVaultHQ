@@ -81,9 +81,7 @@ def _get_or_404(session: Session, profile_id: int) -> CandidateProfile:
 @router.get("", response_model=list[CandidateProfileOut])
 def list_profiles(session: Annotated[Session, Depends(get_session)]) -> list[CandidateProfile]:
     """All profiles, newest first."""
-    return list(
-        session.scalars(select(CandidateProfile).order_by(CandidateProfile.id.desc())).all()
-    )
+    return list(session.scalars(select(CandidateProfile).order_by(CandidateProfile.id.desc())).all())
 
 
 @router.get("/latest", response_model=CandidateProfileOut | None)
@@ -108,7 +106,5 @@ def latest_profile(
 
 
 @router.get("/{profile_id}", response_model=CandidateProfileOut)
-def get_profile(
-    profile_id: int, session: Annotated[Session, Depends(get_session)]
-) -> CandidateProfile:
+def get_profile(profile_id: int, session: Annotated[Session, Depends(get_session)]) -> CandidateProfile:
     return _get_or_404(session, profile_id)

@@ -33,9 +33,7 @@ from app.tasks.latex import compile_latex
 
 router = APIRouter()
 
-JobStatus = Literal[
-    "queued", "started", "deferred", "finished", "failed", "stopped", "scheduled", "canceled"
-]
+JobStatus = Literal["queued", "started", "deferred", "finished", "failed", "stopped", "scheduled", "canceled"]
 TERMINAL_STATUSES = {"finished", "failed", "stopped", "canceled"}
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -81,10 +79,12 @@ def _latex_upload_root(settings: Settings) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     return root
 
+
 def _latex_jobs_root(settings: Settings) -> Path:
     root = settings.latex_jobs_root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     return root
+
 
 def _safe_filename(name: str | None) -> str:
     name = Path(name or "document.tex").name
@@ -109,9 +109,7 @@ async def _store_upload(upload: UploadFile, root: Path, max_bytes: int) -> Path:
     if not content:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "uploaded file is empty")
     if len(content) > max_bytes:
-        raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"file exceeds {max_bytes} bytes"
-        )
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, f"file exceeds {max_bytes} bytes")
     job_dir = root / uuid.uuid4().hex
     job_dir.mkdir()
     target = job_dir / _safe_filename(upload.filename)
@@ -167,9 +165,7 @@ async def compile_tex(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "provide 'file'")
 
     root = _latex_upload_root(settings)
-    source = (
-        await _store_upload(file, root, settings.latex_max_upload_bytes)
-    )
+    source = await _store_upload(file, root, settings.latex_max_upload_bytes)
     relative = str(source.relative_to(root))
     out_dir = _latex_jobs_root(settings) / source.parent.name
 
@@ -196,17 +192,13 @@ async def compile_tex(
 
 
 @router.get("/jobs/{job_id}", response_model=JobInfo, name="latex_job_status")
-def job_status(
-    job_id: str, request: Request, queue: Annotated[Queue, Depends(get_queue)]
-) -> JobInfo:
+def job_status(job_id: str, request: Request, queue: Annotated[Queue, Depends(get_queue)]) -> JobInfo:
     """Current state of a compile job. Poll until ``status`` is ``finished`` or ``failed``."""
     return _job_info(_fetch_job(job_id, queue), request)
 
 
 @router.get("/jobs/{job_id}/events", name="latex_job_events")
-async def job_events(
-    job_id: str, request: Request, queue: Annotated[Queue, Depends(get_queue)]
-) -> StreamingResponse:
+async def job_events(job_id: str, request: Request, queue: Annotated[Queue, Depends(get_queue)]) -> StreamingResponse:
     """Server-Sent Events: emits the job state on every change and closes when it is terminal.
 
     Frontend: ``new EventSource(events_url).onmessage = e => JSON.parse(e.data)``.

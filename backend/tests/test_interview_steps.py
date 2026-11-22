@@ -59,9 +59,7 @@ def openrouter(db_session):
         )
 
     settings = Settings(openrouter_api_key="sk-test", cors_origins=[])
-    state["service"] = OpenRouterService(
-        db_session, settings, transport=httpx.MockTransport(handle)
-    )
+    state["service"] = OpenRouterService(db_session, settings, transport=httpx.MockTransport(handle))
     return state
 
 
