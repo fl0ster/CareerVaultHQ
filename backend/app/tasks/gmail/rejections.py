@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from difflib import SequenceMatcher
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.db import init_db, session_factory
@@ -42,7 +42,6 @@ from app.models import (
     GmailMonitorSettings,
     GmailProcessedMail,
     JobParseResult,
-    OpenRouterCall,
 )
 from app.scheduler.common import aware
 from app.services.applications import (
@@ -62,7 +61,6 @@ from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
     OpenRouterService,
-    redact_input,
 )
 
 log = logging.getLogger(__name__)
