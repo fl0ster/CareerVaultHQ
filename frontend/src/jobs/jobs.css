@@ -161,6 +161,67 @@
   }
 }
 
+/* Scored against an earlier work history: the same bar, faded over a hatched track. */
+.relevance.outdated {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--border) 0 3px,
+    color-mix(in srgb, var(--border) 45%, transparent) 3px 6px
+  );
+
+  .relevance-fill,
+  &.above .relevance-fill {
+    opacity: 0.4;
+  }
+}
+
+.relevance.rescoring {
+  animation: relevance-rescoring 1s ease-in-out infinite alternate;
+}
+
+@keyframes relevance-rescoring {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relevance.rescoring {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* Clickable wrapper of an outdated meter: no button chrome, just a hover / focus hint. */
+.relevance-rescore {
+  all: unset;
+  display: inline-flex;
+  flex: none;
+  border-radius: 999px;
+  cursor: pointer;
+
+  .relevance {
+    transition: box-shadow 0.15s ease;
+  }
+  &:hover:not(:disabled) .relevance,
+  &:focus-visible .relevance {
+    box-shadow: 0 0 0 2px var(--border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+  &:disabled {
+    cursor: progress;
+  }
+  &.failed .relevance {
+    box-shadow: 0 0 0 1px var(--danger-fg);
+  }
+}
+
 .job-facts .relevance {
   margin-top: 0;
 }

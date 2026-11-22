@@ -8,6 +8,9 @@ export type JobEvaluation = {
    * threshold, positive above it. For display only. */
   relevance: number
   model: string | null
+  /** Scored against a profile built from an earlier work history; `jobsApi.rescore` scores
+   * it against the latest one. */
+  outdated: boolean
   created_at: string
 }
 
@@ -146,6 +149,10 @@ export const jobsApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decision }),
     }).then((r) => parse<EvaluatedJobDetail>(r)),
-  get: (id: number) => fetch(`${API}/${id}`).then((r) => parse<EvaluatedJobDetail>(r)),
+  get: (id: number, signal?: AbortSignal) => fetch(`${API}/${id}`, { signal }).then((r) => parse<EvaluatedJobDetail>(r)),
+  /** Enqueue scoring the job against the latest profile; poll `get` until it is not outdated.
+   * A 409 (already scored against the latest profile) resolves too: there is nothing to wait for. */
+  rescore: (id: number) =>
+    fetch(`${API}/${id}/rescore`, { method: 'POST' }).then((r) => (r.status === 409 ? undefined : parse<void>(r))),
   raw: (id: number) => fetch(`${API}/raw/${id}`).then((r) => parse<{ html: string | null }>(r)),
 }

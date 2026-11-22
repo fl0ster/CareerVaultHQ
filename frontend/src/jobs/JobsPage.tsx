@@ -2,7 +2,7 @@ import { Send } from 'lucide-react'
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './jobs.css'
 import '../applications/applications.css'
-import { type EvaluatedJob, type JobDecision, isRelevant, jobsApi } from './api.ts'
+import { type EvaluatedJob, type EvaluatedJobDetail, type JobDecision, isRelevant, jobsApi } from './api.ts'
 import JobView from './JobView.tsx'
 import RelevanceMeter from './RelevanceMeter.tsx'
 import AddJobComposer from './AddJobComposer.tsx'
@@ -92,6 +92,7 @@ function JobRow({
   error,
   onSelect,
   onDecide,
+  onRescored,
   onOpenCompany,
 }: {
   job: EvaluatedJob
@@ -101,6 +102,7 @@ function JobRow({
   error: string | null
   onSelect: (job: EvaluatedJob) => void
   onDecide: (job: EvaluatedJob, decision: JobDecision) => void
+  onRescored: (job: EvaluatedJobDetail) => void
   onOpenCompany: (companyId: number) => void
 }) {
   const classes = ['job-item']
@@ -143,7 +145,11 @@ function JobRow({
           </div>
         </button>
         <div className="job-side">
-          <RelevanceMeter relevance={job.evaluation.relevance} />
+          <RelevanceMeter
+            relevance={job.evaluation.relevance}
+            outdated={job.evaluation.outdated}
+            rescore={{ jobId: job.id, onRescored }}
+          />
           {inbox && (
             <div className="job-decide">
               <button
@@ -316,8 +322,10 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
       if (version !== mutationRef.current) return
 
       // Jobs that left the inbox elsewhere (e.g. an application made on another device)
-      // move into the feed with their fresh state.
+      // move into the feed with their fresh state; jobs that entered it (e.g. re-scored
+      // above the threshold) leave the feed.
       const stillThere = new Set(box.items.map((j) => j.id))
+      setFeed((prev) => (prev.some((j) => stillThere.has(j.id)) ? prev.filter((j) => !stillThere.has(j.id)) : prev))
       const left = inboxRef.current.filter((j) => !stillThere.has(j.id))
       inboxRef.current = box.items
       setInbox(box.items)
@@ -500,6 +508,23 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
     }
   }
 
+  /** A job was re-scored against the latest profile: show the new score in place, then let
+   * a poll move it between the inbox and the feed if it crossed the threshold. */
+  const rescored = useCallback(
+    (fresh: EvaluatedJobDetail) => {
+      if (!fresh.evaluation) return
+      const evaluation = fresh.evaluation
+      const update = (j: EvaluatedJob): EvaluatedJob => (j.id === fresh.id ? { ...j, evaluation } : j)
+      mutationRef.current += 1
+      inboxRef.current = inboxRef.current.map(update)
+      setInbox(inboxRef.current)
+      setFeed((prev) => prev.map(update).sort(byEvaluationDesc))
+      setResults((prev) => prev?.map(update) ?? prev)
+      poll()
+    },
+    [poll],
+  )
+
   // Manually added jobs still going through parse -> evaluate, newest first.
   const [processing, setProcessing] = useState<ProcessingJob[]>([])
   const processingRef = useRef<ProcessingJob[]>([])
@@ -555,6 +580,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
             onBack={onBack}
             onOpenCompany={setCompanyId}
             onApplicationCreated={(applicationId) => applicationCreated(openId, applicationId)}
+            onRescored={rescored}
             onTitle={onDetailTitle}
           />
         ) : (
@@ -658,6 +684,7 @@ export default function JobsPage({ detailId, active, onOpen, onBack, onCrumbsCha
                   error={rowErrors.get(job.id) ?? null}
                   onSelect={(j) => onOpen(j.id)}
                   onDecide={decide}
+                  onRescored={rescored}
                   onOpenCompany={setCompanyId}
                 />
               )
