@@ -9,6 +9,7 @@ import { describeError } from '../cv/api.ts'
 import CreateApplicationButton from './CreateApplicationButton.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { pageHref } from '../shell/nav.ts'
+import TechPills from './TechPills.tsx'
 
 /** Top-right of the job header: the application's status pill (a link to it), or an
  * "Apply" pill that creates one. */
@@ -208,15 +209,7 @@ export default function JobView({
           />
         </header>
 
-        {technologies.length > 0 && (
-          <ul className="job-tech" aria-label="Technologies">
-            {technologies.map((name) => (
-              <li key={name} className="badge job-tech-pill">
-                {name}
-              </li>
-            ))}
-          </ul>
-        )}
+        <TechPills technologies={technologies} />
 
         {error && <p className="error">Could not load job details: {error}</p>}
         {!detail && !error && <span className="spinner" aria-hidden="true" />}
