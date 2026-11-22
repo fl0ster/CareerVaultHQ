@@ -34,7 +34,8 @@ class ScrapeSource(Base):
     """One row per scraper plugin module in ``app.tasks.scrape.sources``; ``key`` is the
     module name. Rows are created and refreshed by ``app.services.sources.sync_sources``
     and never deleted (``jobs`` reference them): a module that disappears from disk is kept
-    with ``module_error`` set. ``enabled`` and ``scrape_interval_seconds`` are edited through ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the
+    with ``module_error`` set. ``enabled`` and ``scrape_interval_seconds`` are
+    edited through ``PATCH /api/sources/{key}``; the ``last_*`` fields are maintained by the
     scrape task and ``next_scrape_at`` by ``app.scheduler``."""
 
     __tablename__ = "scrape_sources"
