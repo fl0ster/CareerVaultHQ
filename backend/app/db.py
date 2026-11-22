@@ -51,6 +51,13 @@ def init_db(engine: Engine | None = None) -> None:
 
 
 ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "applications": {
+        "start_date": "DATE",
+    },
+    "work_history": {
+        "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
+        "prefill_state": "VARCHAR(16)",
+    },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
         "source_ref": "VARCHAR(128)",

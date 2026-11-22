@@ -5,6 +5,11 @@ import { type Bar, formatDuration, layout, todayIndex } from './timeline-model.t
 import { useScrollPointer } from './useScrollPointer.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
+import ApplicationSteps from './ApplicationSteps.tsx'
+import { formatDay } from '../applications/api.ts'
+
+/** How often the list is reloaded while an entry is being filled in from its application. */
+const PREFILL_POLL_MS = 3000
 
 function formatMonth(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
@@ -33,6 +38,8 @@ function EntryCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const filling = entry.prefill_state === 'queued'
+  const hasDetails = !!entry.context || entry.application_id != null
   return (
     <li
       ref={cardRef}
@@ -45,13 +52,39 @@ function EntryCard({
       <div className="wh-head">
         <div className="wh-main">
           <strong>{entry.role}</strong> at {entry.employer}
-          <div className="wh-meta">
-            <span>
-              {formatMonth(entry.date_start)} – {entry.date_end ? formatMonth(entry.date_end) : 'present'}
+          {entry.pending && (
+            <span
+              className="badge wh-pending"
+              title="Not started yet: left out of your CVs and candidate profile until the start date."
+            >
+              Pending
             </span>
-            {bar && <span>{formatDuration(bar.end - bar.start)}</span>}
+          )}
+          <div className="wh-meta">
+            {entry.pending ? (
+              <span>
+                Starts {formatDay(entry.date_start)}
+                {entry.date_end ? ` – ${formatMonth(entry.date_end)}` : ''}
+              </span>
+            ) : (
+              <>
+                <span>
+                  {formatMonth(entry.date_start)} – {entry.date_end ? formatMonth(entry.date_end) : 'present'}
+                </span>
+                {bar && <span>{formatDuration(bar.end - bar.start)}</span>}
+              </>
+            )}
             {entry.location && <span>{entry.location}</span>}
+            {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
           </div>
+          {filling && (
+            <p className="wh-prefill" role="status">
+              <span className="spinner" aria-hidden="true" /> Filling in the details from the application…
+            </p>
+          )}
+          {entry.prefill_state === 'failed' && (
+            <p className="wh-prefill failed">Could not fill in the details from the application. Edit them by hand.</p>
+          )}
           {entry.tech.length > 0 && (
             <div className="wh-tech">
               {entry.tech.map((t) => (
@@ -61,23 +94,37 @@ function EntryCard({
           )}
         </div>
         <div className="wh-buttons">
-          {entry.context && (
-            <button type="button" className="secondary small" onClick={onToggle}>
+          {hasDetails && (
+            <button type="button" className="secondary small" onClick={onToggle} aria-expanded={open}>
               {open ? 'Hide' : 'Details'}
             </button>
           )}
-          <button type="button" className="secondary small" onClick={onEdit}>Edit</button>
+          <button
+            type="button"
+            className="secondary small"
+            onClick={onEdit}
+            disabled={filling}
+            title={filling ? 'Available once the details are filled in' : undefined}
+          >
+            Edit
+          </button>
           <button type="button" className="secondary small danger" onClick={onDelete}>Delete</button>
         </div>
       </div>
       {open && entry.context && <pre className="wh-context">{entry.context}</pre>}
+      {open && entry.application_id != null && <ApplicationSteps applicationId={entry.application_id} />}
     </li>
   )
 }
 
 type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; entry: WorkHistoryEntry }
 
-export default function WorkHistoryPage() {
+type PageProps = {
+  /** Id of an entry to scroll to and open (from the URL, e.g. right after accepting an offer). */
+  focusId?: string | null
+}
+
+export default function WorkHistoryPage({ focusId = null }: PageProps) {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
@@ -131,6 +178,24 @@ export default function WorkHistoryPage() {
     load()
   }, [])
 
+  // Keep reloading while an entry is being filled in from its application in the background.
+  const filling = entries?.some((e) => e.prefill_state === 'queued') ?? false
+  useEffect(() => {
+    if (!filling) return
+    const timer = window.setTimeout(load, PREFILL_POLL_MS)
+    return () => window.clearTimeout(timer)
+  }, [filling, entries])
+
+  // Bring the entry named in the URL into view once, when it is first listed.
+  const focused = useRef<string | null>(null)
+  useEffect(() => {
+    if (focusId == null || focused.current === focusId || !entries) return
+    const id = Number(focusId)
+    if (!entries.some((e) => e.id === id)) return
+    focused.current = focusId
+    selectFromTimeline(id)
+  })
+
   const create = async (input: WorkHistoryInput) => {
     await workHistoryApi.create(input)
     setMode({ kind: 'list' })
@@ -144,7 +209,8 @@ export default function WorkHistoryPage() {
   }
 
   const remove = async (entry: WorkHistoryEntry) => {
-    if (!window.confirm(`Delete "${entry.role} at ${entry.employer}"?`)) return
+    const note = entry.application_id != null ? '\n\nThe application stays accepted.' : ''
+    if (!window.confirm(`Delete "${entry.role} at ${entry.employer}"?${note}`)) return
     try {
       await workHistoryApi.remove(entry.id)
       await load()

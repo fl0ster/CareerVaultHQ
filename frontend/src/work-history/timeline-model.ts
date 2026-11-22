@@ -5,7 +5,9 @@ import type { WorkHistoryEntry } from './api.ts'
  *
  * Time is measured in "month indices" (year * 12 + month0), possibly fractional for today.
  * A position covers [start month, end month + 1), so "Jan 2020 – Mar 2020" spans 3 months.
- * Overlapping positions are packed into separate lanes.
+ * Overlapping positions are packed into separate lanes. A pending position (starting in
+ * the future) is drawn one month wide from its start and does not count towards the time
+ * employed or the gaps.
  */
 
 export const TONES = ['accent', 'info', 'success', 'lavender', 'peach', 'warn'] as const
@@ -16,6 +18,8 @@ export type Bar = {
   start: number
   end: number
   ongoing: boolean
+  /** Starts in the future (an accepted offer). */
+  pending: boolean
   lane: number
   tone: Tone
 }
@@ -62,11 +66,12 @@ export function layout(entries: WorkHistoryEntry[], today: number) {
   const bars: Bar[] = sorted.map((entry, i) => {
     const start = monthIndex(entry.date_start)
     const ongoing = entry.date_end === null
-    const end = ongoing ? Math.max(today, start + 0.5) : monthIndex(entry.date_end!) + 1
+    const pending = entry.pending
+    const end = ongoing ? (pending ? start + 1 : Math.max(today, start + 0.5)) : monthIndex(entry.date_end!) + 1
     let lane = laneEnds.findIndex((e) => e <= start)
     if (lane === -1) lane = laneEnds.length
     laneEnds[lane] = end
-    return { entry, start, end, ongoing, lane, tone: TONES[i % TONES.length] }
+    return { entry, start, end, ongoing, pending, lane, tone: TONES[i % TONES.length] }
   })
   const byId = new Map(bars.map((b) => [b.entry.id, b]))
 
@@ -88,7 +93,7 @@ export function layout(entries: WorkHistoryEntry[], today: number) {
   let covered = 0
   let cursor = -Infinity
   let runStart = 0
-  for (const bar of [...bars].sort((a, b) => a.start - b.start)) {
+  for (const bar of bars.filter((b) => !b.pending).sort((a, b) => a.start - b.start)) {
     if (bar.start > cursor) {
       if (cursor !== -Infinity) {
         covered += cursor - runStart

@@ -88,6 +88,87 @@
   overflow: auto;
 }
 
+/* A position that has not started yet (an accepted offer). */
+.wh-pending {
+  margin-left: 8px;
+  vertical-align: 1px;
+  background: transparent;
+  border: 1px dashed var(--tone-fg, var(--border-strong));
+  color: var(--tone-fg, var(--text-h));
+  font-size: 11.5px;
+  padding: 0 8px;
+}
+
+.wh-origin {
+  color: var(--success-fg);
+  font-weight: 600;
+}
+
+.wh-prefill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text);
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+  }
+
+  &.failed {
+    color: var(--danger-fg);
+  }
+}
+
+/* The recruitment steps of the application an entry came from. */
+.wh-steps {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  h4 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-h);
+  }
+}
+
+.wh-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+}
+
+.wh-steps-note {
+  flex-basis: 100%;
+  margin: 0 0 0 4px;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
 .wh-form {
   display: flex;
   flex-direction: column;
@@ -368,6 +449,16 @@
     border-right: 0;
     border-radius: 6px 0 0 6px;
     mask-image: linear-gradient(to right, #000 calc(100% - 28px), rgba(0, 0, 0, 0.35));
+  }
+
+  /* Not started yet: an outline only, open to the right. */
+  &.pending {
+    border-style: dashed;
+    border-left-style: solid;
+    border-right: 0;
+    border-radius: 6px 0 0 6px;
+    background: color-mix(in srgb, var(--tone-bg) 45%, transparent);
+    overflow: visible;
   }
 
   &:hover,

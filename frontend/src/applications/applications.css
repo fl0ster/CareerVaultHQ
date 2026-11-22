@@ -59,6 +59,10 @@
     background: var(--success-bg);
     color: var(--success-fg);
   }
+  &.accepted {
+    background: var(--success-strong);
+    color: var(--on-strong);
+  }
   &.rejected {
     background: var(--danger-bg);
     color: var(--danger-fg);
@@ -277,7 +281,7 @@
   }
 }
 
-.interview-progress.offer .interview-progress-seg.held {
+.interview-progress:is(.offer, .accepted) .interview-progress-seg.held {
   background: var(--success-solid);
 }
 
@@ -625,4 +629,129 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+}
+
+/* Accepting an offer: a solid green pill (a role="button" span, so it can sit in a row button). */
+.accept-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--on-strong);
+  background: var(--success-strong);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-fast) ease, box-shadow var(--t-fast) ease;
+
+  &:hover {
+    background: var(--success-strong-hover);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  &.busy {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+.app-badges .accept-offer {
+  padding: 7px 14px;
+}
+
+/* Start date + "Accept offer" under the status history of an application with an offer. */
+.app-offer-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--success-bg);
+
+  .app-offer-hint,
+  .error {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 13px;
+  }
+}
+.app-offer-start {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+
+  input {
+    padding: 4px 8px;
+  }
+}
+
+.app-accepted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 12px 0 0;
+  color: var(--success-fg);
+  font-weight: 600;
+
+  a {
+    font-weight: 600;
+  }
+}
+
+/* Start date asked when accepting an offer. */
+.accept-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 20px 24px;
+  text-align: left;
+
+  h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+  .accept-dialog-job {
+    margin: 4px 0 16px;
+  }
+  .accept-dialog-hint {
+    margin: 12px 0 0;
+    font-size: 13px;
+  }
+}
+.accept-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+
+  input {
+    padding: 7px 10px;
+  }
+}
+.accept-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+button.accept-dialog-submit {
+  color: var(--on-strong);
+  background: var(--success-strong);
+
+  &:hover:not(:disabled) {
+    background: var(--success-strong-hover);
+    border-color: var(--success-strong-hover);
+  }
 }

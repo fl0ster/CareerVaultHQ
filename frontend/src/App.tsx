@@ -140,7 +140,7 @@ function App() {
       case 'candidate-profile':
         return <CandidateProfilePage />
       case 'work-history':
-        return <WorkHistoryPage />
+        return <WorkHistoryPage focusId={detailOf('work-history')} />
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':
