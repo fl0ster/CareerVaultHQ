@@ -8,18 +8,16 @@ evaluations, the Gmail monitor) as well as those made in the UI.
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.api.routes.jobs import inbox_count
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import Application, ApplicationEvent
+from app.services.applications import application_count, current_stage_counts
 
 router = APIRouter()
 
@@ -42,13 +40,10 @@ def nav_counts(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> NavCounts:
-    applications = session.scalars(
-        select(Application).options(selectinload(Application.events).joinedload(ApplicationEvent.status))
-    ).all()
-    stages = Counter(a.current_event.status.key for a in applications if a.current_event is not None)
+    stages = current_stage_counts(session)
     return NavCounts(
         jobs_inbox=inbox_count(session, settings.relevant_job_threshold),
-        applications=len(applications),
-        interviews=stages[INTERVIEW_STATUS],
-        offers=stages[OFFER_STATUS],
+        applications=application_count(session),
+        interviews=stages.get(INTERVIEW_STATUS, 0),
+        offers=stages.get(OFFER_STATUS, 0),
     )

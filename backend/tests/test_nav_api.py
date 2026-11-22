@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from tests.test_applications_api import BASE, seed_cv_inputs, seed_evaluation
 from tests.test_jobs_api import seed_evaluated
 
@@ -39,3 +41,24 @@ def test_application_counts_follow_the_current_stage(client, db_session):
     client.post(f"{BASE}/{interview}/events", json={"status": "OFFER"})
     counts = client.get(URL).json()
     assert (counts["interviews"], counts["offers"]) == (0, 2)
+
+
+def test_stage_counts_use_the_latest_held_event(client, db_session):
+    """Planned rounds and back-dated states do not count as the current stage."""
+    seed_cv_inputs(client, db_session)
+    planned = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, 0).id}).json()["id"]
+    client.post(f"{BASE}/{planned}/events", json={"status": "APPLIED"})
+    client.post(f"{BASE}/{planned}/events", json={"status": "INTERVIEW"})
+    client.patch(f"{BASE}/{planned}", json={"interview_rounds": 4})  # three more planned rounds
+    assert client.post(f"{BASE}/{planned}/events", json={"status": "REJECTED"}).status_code == 201
+
+    backdated = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, 1).id}).json()["id"]
+    client.post(f"{BASE}/{backdated}/events", json={"status": "INTERVIEW"})
+    past = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+    client.post(f"{BASE}/{backdated}/events", json={"status": "OFFER", "occurred_at": past})
+
+    counts = client.get(URL).json()
+    assert (counts["applications"], counts["interviews"], counts["offers"]) == (2, 1, 0)
+    # Same answer as the ORM's notion of the current state.
+    keys = [client.get(f"{BASE}/{i}").json()["status"]["key"] for i in (planned, backdated)]
+    assert keys == ["REJECTED", "INTERVIEW"]
