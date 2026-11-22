@@ -126,7 +126,7 @@ export default function Sidebar({
     if (!nav || !indicator) return
     const place = () => {
       const item = nav.querySelector<HTMLElement>('[data-indicator]')
-      // About me is opened from the profile card, outside the menu: no entry to highlight.
+      // About me is opened from the profile card's cog, outside the menu: no entry to highlight.
       indicator.hidden = !item
       if (!item) return
       indicator.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
