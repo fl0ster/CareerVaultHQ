@@ -1,4 +1,5 @@
-import { type SyntheticEvent, useEffect, useId, useRef, useState } from 'react'
+import { type CSSProperties, type SyntheticEvent, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { type EvaluatedJobDetail, jobsApi } from './api.ts'
 import { describeError } from '../cv/api.ts'
 
@@ -8,6 +9,19 @@ const RESCORE_POLL_MS = 2_500
 const RESCORE_TIMEOUT_MS = 3 * 60_000
 /** Width of the hover popup in px (keep in sync with `.relevance-tip` in jobs.css). */
 const TIP_WIDTH = 240
+/** Room the popup needs below the meter before it opens above it instead, in px. */
+const TIP_ROOM_BELOW = 120
+/** Gap between the meter and the popup, and the popup and the viewport edge, in px. */
+const TIP_GAP = 8
+
+/** Fixed-position style placing the popup under (or, near the bottom, above) `anchor`,
+ * horizontally kept inside the viewport. */
+function tipPosition(anchor: DOMRect): CSSProperties {
+  const left = Math.max(TIP_GAP, Math.min(anchor.left - TIP_GAP, window.innerWidth - TIP_WIDTH - TIP_GAP))
+  return anchor.bottom + TIP_ROOM_BELOW > window.innerHeight
+    ? { left, bottom: window.innerHeight - anchor.top + TIP_GAP }
+    : { left, top: anchor.bottom + TIP_GAP }
+}
 
 type Rescore = {
   /** The job the score belongs to (`jobs.id`). */
@@ -43,10 +57,24 @@ async function rescoreJob(jobId: number, signal: AbortSignal): Promise<Evaluated
 export default function RelevanceMeter({ relevance, outdated = false, rescore }: Props) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [align, setAlign] = useState<'start' | 'end'>('start')
+  /** Where the hover popup is shown; `null` while it is closed. */
+  const [tip, setTip] = useState<CSSProperties | null>(null)
   const tipId = useId()
   const controllerRef = useRef<AbortController | null>(null)
   useEffect(() => () => controllerRef.current?.abort(), [])
+
+  // The popup is fixed to the viewport: close it as soon as anything scrolls or resizes.
+  const tipOpen = tip !== null
+  useEffect(() => {
+    if (!tipOpen) return
+    const close = () => setTip(null)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [tipOpen])
 
   const value = Math.max(-1, Math.min(1, relevance))
   const width = `${Math.abs(value) * 50}%`
@@ -96,50 +124,54 @@ export default function RelevanceMeter({ relevance, outdated = false, rescore }:
     e.preventDefault()
     start()
   }
-  // The popup opens towards whichever side of the screen has room for it.
-  const place = (e: SyntheticEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setAlign(rect.left + TIP_WIDTH > window.innerWidth - 16 ? 'end' : 'start')
-  }
-  const triggerClasses = ['relevance-rescore', `tip-${align}`]
-  if (error) triggerClasses.push('failed')
+  // The popup is portalled to <body>: list rows create stacking contexts (opacity,
+  // transforms) that would otherwise clip it or paint over it.
+  const openTip = (e: SyntheticEvent<HTMLElement>) => setTip(tipPosition(e.currentTarget.getBoundingClientRect()))
+  const closeTip = () => setTip(null)
+  const tipContent = running ? (
+    <>
+      <strong>Re-evaluating…</strong>
+      <span>Scoring this job against your updated career.</span>
+    </>
+  ) : error ? (
+    <>
+      <strong>Re-evaluation failed</strong>
+      <span>{error}</span>
+      <span className="relevance-tip-action">Click to try again</span>
+    </>
+  ) : (
+    <>
+      <strong>Career updated</strong>
+      <span>This score is based on your previous work history.</span>
+      <span className="relevance-tip-action">Click to re-evaluate now</span>
+    </>
+  )
   return (
     <span
       role="button"
       tabIndex={running ? -1 : 0}
-      className={triggerClasses.join(' ')}
+      className={error ? 'relevance-rescore failed' : 'relevance-rescore'}
       onClick={activate}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') activate(e)
       }}
-      onMouseEnter={place}
-      onFocus={place}
+      onMouseEnter={openTip}
+      onMouseLeave={closeTip}
+      onFocus={openTip}
+      onBlur={closeTip}
       aria-disabled={running}
       aria-busy={running}
-      aria-describedby={tipId}
+      aria-describedby={tip ? tipId : undefined}
       aria-label={running ? 'Re-evaluating the job' : 'Re-evaluate the job against your updated career'}
     >
       {meter}
-      <span className="relevance-tip" role="tooltip" id={tipId}>
-        {running ? (
-          <>
-            <strong>Re-evaluating…</strong>
-            <span>Scoring this job against your updated career.</span>
-          </>
-        ) : error ? (
-          <>
-            <strong>Re-evaluation failed</strong>
-            <span>{error}</span>
-            <span className="relevance-tip-action">Click to try again</span>
-          </>
-        ) : (
-          <>
-            <strong>Career updated</strong>
-            <span>This score is based on your previous work history.</span>
-            <span className="relevance-tip-action">Click to re-evaluate now</span>
-          </>
+      {tip &&
+        createPortal(
+          <span className={error ? 'relevance-tip failed' : 'relevance-tip'} role="tooltip" id={tipId} style={tip}>
+            {tipContent}
+          </span>,
+          document.body,
         )}
-      </span>
     </span>
   )
 }

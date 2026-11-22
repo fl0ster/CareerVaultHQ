@@ -222,67 +222,54 @@
   }
 }
 
-/* Hover / focus popup of an outdated meter, saying what a click does. Opens below the
-   meter (the sticky toolbar would cover it above), towards the side with room. */
-.relevance-rescore {
-  position: relative;
-}
-
+/* Hover / focus popup of an outdated meter, saying what a click does. Rendered into
+   <body> with fixed positioning (see RelevanceMeter) so no list row can clip it. A plain
+   dark panel in both themes, so it stands apart from the light or dark page. */
 .relevance-tip {
-  position: absolute;
-  top: calc(100% + 8px);
-  z-index: 20;
+  --tip-bg: #11171a;
+  --tip-fg: #c9d3d8;
+  --tip-strong: #ffffff;
+  --tip-action: #7fd3c4;
+  --tip-danger: #ff9b8f;
+
+  position: fixed;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 240px; /* TIP_WIDTH in RelevanceMeter.tsx */
-  padding: 8px 12px;
-  border: 1px solid var(--border);
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--tip-bg);
   box-shadow: var(--shadow-md);
-  color: var(--text);
+  color: var(--tip-fg);
   font-size: 12.5px;
   font-weight: 400;
   line-height: 1.4;
   text-align: left;
-  white-space: normal;
   pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.12s ease,
-    transform 0.12s ease,
-    visibility 0.12s;
+  animation: relevance-tip-in 0.12s ease-out;
 
   strong {
-    color: var(--text-h);
+    color: var(--tip-strong);
     font-size: 13px;
   }
   .relevance-tip-action {
     margin-top: 4px;
-    color: var(--accent);
+    color: var(--tip-action);
     font-weight: 600;
+  }
+  &.failed strong {
+    color: var(--tip-danger);
   }
 }
 
-.relevance-rescore.tip-start .relevance-tip {
-  left: -8px;
-}
-.relevance-rescore.tip-end .relevance-tip {
-  right: -8px;
-}
-
-.relevance-rescore:hover .relevance-tip,
-.relevance-rescore:focus-visible .relevance-tip {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
-}
-
-.relevance-rescore.failed .relevance-tip strong {
-  color: var(--danger-fg);
+@keyframes relevance-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
 
 .job-facts .relevance {
