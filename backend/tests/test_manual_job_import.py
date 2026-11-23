@@ -1,12 +1,7 @@
-import importlib
-
 import httpx
 import pytest
 
-from app.tasks.scrape import description, generic
-
-# The package re-exports the ``scrape`` function under the module's name.
-scrape_task = importlib.import_module("app.tasks.scrape.scrape")
+from app.tasks.scrape import description, generic, safe_fetch
 
 UNKNOWN_PAGE = """
 <html><head>
@@ -75,7 +70,7 @@ def test_import_job_uses_the_matching_source(monkeypatch):
 
 
 def test_import_endpoint_returns_fields_without_storing(client, fake_queue, monkeypatch):
-    monkeypatch.setattr(scrape_task, "fetch_html", lambda url: UNKNOWN_PAGE)
+    monkeypatch.setattr(safe_fetch, "fetch_public_html", lambda url: UNKNOWN_PAGE)
     res = client.post("/api/jobs/manual/import", json={"link": "https://careers.acme.example/jobs/1"})
     assert res.status_code == 200, res.text
     body = res.json()
@@ -85,8 +80,21 @@ def test_import_endpoint_returns_fields_without_storing(client, fake_queue, monk
     assert client.get("/api/jobs").json()["total"] == 0
 
 
-@pytest.mark.parametrize("link", ["ftp://x.io/1", "not a url", "javascript:alert(1)"])
-def test_import_endpoint_rejects_non_http_links(client, link):
+@pytest.mark.parametrize(
+    "link",
+    [
+        "ftp://x.io/1",
+        "not a url",
+        "javascript:alert(1)",
+        "http://127.0.0.1:8000/api/jobs",
+        "http://192.168.1.1/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://[::1]/",
+        "http://localhost/",
+    ],
+)
+def test_import_endpoint_rejects_non_public_links(client, link):
+    """Real ``fetch_public_html``: these never reach the network."""
     assert client.post("/api/jobs/manual/import", json={"link": link}).status_code == 422
 
 
@@ -94,6 +102,6 @@ def test_import_endpoint_reports_fetch_failures(client, monkeypatch):
     def boom(url):
         raise httpx.ConnectError("refused")
 
-    monkeypatch.setattr(scrape_task, "fetch_html", boom)
+    monkeypatch.setattr(safe_fetch, "fetch_public_html", boom)
     res = client.post("/api/jobs/manual/import", json={"link": "https://x.io/1"})
     assert res.status_code == 502

@@ -36,7 +36,6 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
-from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -519,15 +518,19 @@ class ManualJobImport(BaseModel):
 @router.post("/manual/import", response_model=ManualJobImport)
 def import_manual_job(payload: ManualJobImportIn) -> ManualJobImport:
     """Fetch the page at ``link`` and parse it into form fields for the "add job" composer.
-    Stores nothing: the user reviews the fields and submits ``POST /api/jobs/manual``."""
-    from app.tasks.scrape.description import import_job
-    from app.tasks.scrape.scrape import fetch_html
+    Stores nothing: the user reviews the fields and submits ``POST /api/jobs/manual``.
 
-    parsed = urlparse(payload.link)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "link must be an http(s) URL")
+    The link is user-supplied, so it is fetched with ``fetch_public_html``: public
+    addresses only (every redirect hop included) and a capped body size."""
+    from app.tasks.scrape import safe_fetch
+    from app.tasks.scrape.description import import_job
+
     try:
-        job = import_job(payload.link, fetch_html)
+        job = import_job(payload.link, safe_fetch.fetch_public_html)
+    except safe_fetch.UnsafeURLError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except safe_fetch.FetchError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not fetch the page: {exc}") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not fetch the page: {exc}") from exc
     if not (job.title or job.description):
