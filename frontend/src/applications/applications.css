@@ -67,6 +67,12 @@
     background: var(--danger-bg);
     color: var(--danger-fg);
   }
+  /* The candidate turned the offer down: an offer, but closed. */
+  &.declined {
+    background: var(--neutral-bg);
+    color: var(--success-fg);
+    box-shadow: inset 0 0 0 1px var(--success-solid);
+  }
   &.closed {
     background: var(--neutral-bg);
     color: var(--neutral-fg);
@@ -283,6 +289,16 @@
 
 .interview-progress:is(.offer, .accepted) .interview-progress-seg.held {
   background: var(--success-solid);
+}
+
+.interview-progress.declined .interview-progress-seg {
+  &.held {
+    background: var(--success-solid);
+    opacity: 0.55;
+  }
+  &.planned {
+    opacity: 0.4;
+  }
 }
 
 .interview-progress.closed {
@@ -660,8 +676,47 @@
     cursor: progress;
   }
 }
+/* Declining an offer: a quiet outlined pill next to "Accept". */
+.decline-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--t-fast) ease, border-color var(--t-fast) ease, background-color var(--t-fast) ease,
+    box-shadow var(--t-fast) ease;
+
+  &:hover {
+    color: var(--danger-fg);
+    border-color: var(--danger-solid);
+    background: var(--danger-bg);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  &.busy {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
 .app-badges .accept-offer {
   padding: 7px 14px;
+}
+.app-badges .decline-offer {
+  padding: 6px 13px;
+}
+.app-offer-box .decline-offer:not(:hover) {
+  background: var(--surface);
 }
 
 /* Start date + "Accept offer" under the status history of an application with an offer. */
@@ -710,6 +765,15 @@
   }
 }
 
+.app-declined {
+  margin: 12px 0 0;
+  color: var(--text);
+
+  strong {
+    color: var(--text-h);
+  }
+}
+
 /* Start date asked when accepting an offer. */
 .accept-dialog {
   width: min(420px, calc(100vw - 32px));
@@ -736,8 +800,14 @@
   font-weight: 600;
   color: var(--text-h);
 
-  input {
+  input,
+  textarea {
     padding: 7px 10px;
+    font: inherit;
+    font-weight: 400;
+  }
+  textarea {
+    resize: vertical;
   }
 }
 .accept-dialog-buttons {
@@ -745,6 +815,15 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+button.decline-dialog-submit {
+  color: var(--on-strong);
+  background: var(--danger-fg);
+  border-color: var(--danger-fg);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
 }
 button.accept-dialog-submit {
   color: var(--on-strong);

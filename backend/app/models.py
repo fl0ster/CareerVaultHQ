@@ -512,6 +512,7 @@ class ApplicationStatus(Base):
         ("REJECTED", "Rejected", ""),
         ("CLOSED", "Closed", ""),
         ("ACCEPTED", "Accepted", ""),
+        ("DECLINED", "Declined", ""),
     )
     """``(key, label, next_key)`` triples created on first use, in display order; an empty
     ``next_key`` means the state has no default successor."""
