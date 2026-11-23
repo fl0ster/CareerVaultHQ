@@ -7,6 +7,8 @@ from app.api.routes import (
     cleanup,
     companies,
     cv,
+    cv_import,
+    dashboard,
     gmail_monitor,
     health,
     jobs,
@@ -30,9 +32,11 @@ api_router.include_router(work_history.router, prefix="/work-history", tags=["wo
 api_router.include_router(candidate_profile.router, prefix="/candidate-profile", tags=["candidate-profile"])
 api_router.include_router(candidate_details.router, prefix="/candidate-details", tags=["candidate-details"])
 api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
+api_router.include_router(cv_import.router, prefix="/cv-import", tags=["cv-import"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])
 api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
 api_router.include_router(cleanup.router, prefix="/cleanup", tags=["cleanup"])
 api_router.include_router(applications.router, prefix="/applications", tags=["applications"])
 api_router.include_router(gmail_monitor.router, prefix="/gmail-monitor", tags=["gmail-monitor"])
 api_router.include_router(nav.router, prefix="/nav", tags=["nav"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])

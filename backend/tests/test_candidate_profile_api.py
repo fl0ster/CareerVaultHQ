@@ -82,6 +82,21 @@ def test_latest_generates_profile_lazily(client, db_session):
     assert call.source == "candidate_profile.create"
 
 
+def test_education_and_certificates_are_not_part_of_the_profile(client):
+    _add_entry(client)
+    seen = []
+    _mock_openrouter(client, "profile", seen)
+    first = client.get(f"{BASE}/latest").json()
+
+    for kind, role in (("education", "MSc Physics"), ("certificate", "CKA")):
+        res = client.post(WORK_HISTORY, json={"kind": kind, "date_start": "2019-01-01", "role": role})
+        assert res.status_code == 201, res.text
+    # the profile describes the work experience only: unchanged, so it is reused
+    assert client.get(f"{BASE}/latest").json()["id"] == first["id"]
+    assert len(seen) == 1
+    assert "MSc Physics" not in seen[0]["messages"][-1]["content"]
+
+
 def test_latest_reuses_profile_while_work_history_unchanged(client):
     _add_entry(client)
     seen = []

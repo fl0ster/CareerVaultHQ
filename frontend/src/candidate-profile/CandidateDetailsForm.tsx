@@ -1,20 +1,14 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react'
 import { ImageUp, Trash2, UserRound } from 'lucide-react'
-import {
-  type CandidateDetails,
-  type CandidateDetailsInput,
-  candidateDetailsApi,
-  type EducationEntry,
-  type LanguageEntry,
-} from './api.ts'
+import { type CandidateDetails, type CandidateDetailsInput, candidateDetailsApi, type LanguageEntry } from './api.ts'
 import { candidateDetailsStore } from './store.ts'
+import { pageHref } from '../shell/nav.ts'
 
 const DEFAULT_CONSENT =
   'I consent to the processing of my personal data for recruitment purposes in accordance with GDPR (Regulation (EU) 2016/679).'
 
-type Draft = Omit<CandidateDetailsInput, 'certifications'> & { certifications: string }
+type Draft = CandidateDetailsInput
 
-const EMPTY_EDUCATION: EducationEntry = { degree: '', institution: '', date_start: '', date_end: '', note: '' }
 const EMPTY_LANGUAGE: LanguageEntry = { language: '', level: '' }
 
 function toDraft(details: CandidateDetails | null): Draft {
@@ -28,17 +22,8 @@ function toDraft(details: CandidateDetails | null): Draft {
     linkedin: details?.linkedin ?? '',
     location: details?.location ?? '',
     photo: details?.photo ?? '',
-    education: details?.education.map((e) => ({ ...EMPTY_EDUCATION, ...e })) ?? [],
-    certifications: details?.certifications.join('\n') ?? '',
     languages: details?.languages.map((l) => ({ ...EMPTY_LANGUAGE, ...l })) ?? [],
     consent_text: details ? details.consent_text : DEFAULT_CONSENT,
-  }
-}
-
-function toInput(d: Draft): CandidateDetailsInput {
-  return {
-    ...d,
-    certifications: d.certifications.split('\n').map((c) => c.trim()).filter(Boolean),
   }
 }
 
@@ -105,11 +90,6 @@ export default function CandidateDetailsForm() {
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
-  const setEducation = (index: number, patch: Partial<EducationEntry>) =>
-    set(
-      'education',
-      draft.education.map((e, i) => (i === index ? { ...e, ...patch } : e)),
-    )
   const setLanguage = (index: number, patch: Partial<LanguageEntry>) =>
     set(
       'languages',
@@ -133,7 +113,7 @@ export default function CandidateDetailsForm() {
     setSaving(true)
     setSaveError(null)
     try {
-      apply(await candidateDetailsApi.save(toInput(draft)))
+      apply(await candidateDetailsApi.save(draft))
     } catch (err) {
       setSaveError(String(err instanceof Error ? err.message : err))
     } finally {
@@ -230,58 +210,10 @@ export default function CandidateDetailsForm() {
         </label>
       </div>
 
-      <fieldset className="cd-fieldset">
-        <legend>Education</legend>
-        {draft.education.map((entry, i) => (
-          <div key={i} className="cd-row">
-            <div className="cd-grid">
-              <label>
-                Degree
-                <input value={entry.degree} onChange={(e) => setEducation(i, { degree: e.target.value })} />
-              </label>
-              <label>
-                Institution
-                <input value={entry.institution} onChange={(e) => setEducation(i, { institution: e.target.value })} />
-              </label>
-              <label>
-                From
-                <input value={entry.date_start} onChange={(e) => setEducation(i, { date_start: e.target.value })} placeholder="Oct 2012" />
-              </label>
-              <label>
-                To
-                <input value={entry.date_end} onChange={(e) => setEducation(i, { date_end: e.target.value })} placeholder="May 2015" />
-              </label>
-            </div>
-            <label>
-              Note
-              <input value={entry.note} onChange={(e) => setEducation(i, { note: e.target.value })} placeholder="Optional remark printed in small type" />
-            </label>
-            <button
-              type="button"
-              className="secondary small danger"
-              onClick={() => set('education', draft.education.filter((_, j) => j !== i))}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="secondary small"
-          onClick={() => set('education', [...draft.education, { ...EMPTY_EDUCATION }])}
-        >
-          Add education
-        </button>
-      </fieldset>
-
-      <label>
-        Certifications (one per line)
-        <textarea
-          rows={3}
-          value={draft.certifications}
-          onChange={(e) => set('certifications', e.target.value)}
-        />
-      </label>
+      <p className="cd-note">
+        Education and certifications are part of your career timeline: add them in{' '}
+        <a href={pageHref('work-history')}>My Career</a>.
+      </p>
 
       <fieldset className="cd-fieldset">
         <legend>Languages</legend>

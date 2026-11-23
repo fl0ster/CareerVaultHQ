@@ -6,6 +6,8 @@ export const OUTCOMES = [
   { key: 'INTERVIEW', label: 'Interview', icon: '💬' },
   { key: 'REJECTED', label: 'Rejected', icon: '✕' },
   { key: 'OFFER', label: 'Offer', icon: '🏆' },
+  // Shown as a greyed, struck-through trophy (see tags.css).
+  { key: 'DECLINED', label: 'Declined offer', icon: '🏆' },
 ] as const
 
 export type CompanyStats = Partial<Record<(typeof OUTCOMES)[number]['key'], number>>

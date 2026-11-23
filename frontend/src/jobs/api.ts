@@ -136,8 +136,24 @@ export type ManualJobStatus = {
   error: string | null
 }
 
+/** Form fields parsed from a job link; `source` is the scraper used (`null`: generic parser). */
+export type ManualJobImport = {
+  title: string
+  company: string
+  description: string
+  source: string | null
+}
+
 export const jobsApi = {
-  addManual: (input: ManualJobInput) =>
+  /** Fetch and parse the page at `link` into form fields. Stores nothing on the server. */
+  importManual: (link: string, signal?: AbortSignal) =>
+    fetch(`${API}/manual/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link }),
+      signal,
+    }).then((r) => parse<ManualJobImport>(r)),
+  addManual:(input: ManualJobInput) =>
     fetch(`${API}/manual`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

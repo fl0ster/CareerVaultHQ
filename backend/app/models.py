@@ -266,15 +266,28 @@ class CompanyAlias(Base):
 
 
 class WorkHistoryEntry(Base):
-    """One position in the user's work history (employer, role, dates, tech stack)."""
+    """One event on the user's career timeline: a position (``KIND_JOB``), an education entry
+    (``KIND_EDUCATION``) or a certificate (``KIND_CERTIFICATE``).
+
+    The columns are shared by every kind: ``role`` is the title (role, degree or certificate
+    name), ``employer`` the organisation (employer, institution or issuer) and ``context``
+    the free-form details."""
 
     __tablename__ = "work_history"
 
+    KIND_JOB = "job"
+    KIND_EDUCATION = "education"
+    KIND_CERTIFICATE = "certificate"
+    KINDS = (KIND_JOB, KIND_EDUCATION, KIND_CERTIFICATE)
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(16), default=KIND_JOB, server_default=KIND_JOB)
     date_start: Mapped[date] = mapped_column(Date, index=True)
     date_end: Mapped[date | None] = mapped_column(Date)
-    """``None`` means the position is current."""
+    """``None`` means the position or education is ongoing; for a certificate it means the
+    certificate is a single point in time (no duration)."""
     employer: Mapped[str] = mapped_column(String(256))
+    """Employer, institution or issuer; may be blank for education and certificates."""
     role: Mapped[str] = mapped_column(String(256))
     location: Mapped[str | None] = mapped_column(String(256))
     tech: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -430,9 +443,9 @@ class JobEvaluationFailure(Base):
 
 
 class CandidateDetails(Base):
-    """Personal details printed on a generated CV (name, contact lines, education,
-    certifications, languages and the consent clause). A singleton: at most one row exists
-    and ``PUT /api/candidate-details`` upserts it."""
+    """Personal details printed on a generated CV (name, contact lines, languages and the
+    consent clause). A singleton: at most one row exists and ``PUT /api/candidate-details``
+    upserts it. Education and certifications are career events in ``WorkHistoryEntry``."""
 
     __tablename__ = "candidate_details"
 
@@ -447,10 +460,6 @@ class CandidateDetails(Base):
     location: Mapped[str] = mapped_column(String(256), default="")
     photo: Mapped[str] = mapped_column(Text, default="")
     """Profile picture as a ``data:image/...;base64,`` URL (scaled down in the browser); blank = none."""
-    education: Mapped[list[dict]] = mapped_column(JSON, default=list)
-    """``[{"degree", "institution", "date_start", "date_end", "note"}, ...]``; dates are free
-    text (``Oct 2012``) because they are printed verbatim."""
-    certifications: Mapped[list[str]] = mapped_column(JSON, default=list)
     languages: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"language": "English", "level": "Advanced (C1)"}, ...]``."""
     consent_text: Mapped[str] = mapped_column(Text, default="")
@@ -512,6 +521,7 @@ class ApplicationStatus(Base):
         ("REJECTED", "Rejected", ""),
         ("CLOSED", "Closed", ""),
         ("ACCEPTED", "Accepted", ""),
+        ("DECLINED", "Declined", ""),
     )
     """``(key, label, next_key)`` triples created on first use, in display order; an empty
     ``next_key`` means the state has no default successor."""

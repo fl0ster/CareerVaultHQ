@@ -1,14 +1,36 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStuck } from '../shell/useStuck.ts'
-import { type Bar, formatDuration, monthLabel, type TimelineModel } from './timeline-model.ts'
+import type { WorkHistoryEntry } from './api.ts'
+import { countLabel, entryTitle, KIND_ORDER, KINDS } from './kinds.ts'
+import { type Bar, type EventKind, formatDuration, monthLabel, type TimelineModel } from './timeline-model.ts'
 
 /*
- * Horizontal, scrollable timeline of work history positions. It sticks below the top bar
- * while the page scrolls; a pointer line marks the point in time the list underneath is
- * scrolled to. Above the lanes is an event row (joined / left markers, merged when they fall
- * on the same boundary), behind them are shaded career gaps and a "today" line, and below is
- * the year/month axis.
+ * Horizontal, scrollable timeline of the career: positions, education and certificates, each
+ * kind in its own band of lanes and style (education hatched, certificates as thin bars or,
+ * without a duration, diamond markers). It sticks below the top bar while the page scrolls; a
+ * pointer line marks the point in time the list underneath is scrolled to. Above the lanes is
+ * an event row (start / end markers, merged when they fall on the same boundary), behind
+ * them are shaded career gaps and a "today" line, and below is the year/month axis.
  */
+
+/** Tooltip / screen reader wording of a timeline event: `[before, highlighted, after]`. */
+function eventText(kind: EventKind, entry: WorkHistoryEntry): [string, string, string] {
+  const at = entry.employer ? ` at ${entry.employer}` : ''
+  if (entry.kind === 'job') {
+    return kind === 'start' ? ['Joined ', entry.employer, ` as ${entry.role}`] : ['Left ', entry.employer, '']
+  }
+  if (kind === 'point') return ['Earned ', entry.role, entry.employer ? ` from ${entry.employer}` : '']
+  if (entry.kind === 'education') {
+    return kind === 'start' ? ['Started ', entry.role, at] : ['Finished ', entry.role, at]
+  }
+  return kind === 'start' ? ['Started ', entry.role, at] : ['Completed ', entry.role, at]
+}
+
+/** Month an event is shown under: an end boundary belongs to the month before it. */
+const eventMonth = (kind: EventKind, at: number) => monthLabel(kind === 'end' ? at - 1 : at)
+
+/** Marker of a certificate without a duration; the label shows when there is room for it. */
+const MARKER = 18
 
 const PAD = 32
 const EVENT_ROW = 40
@@ -33,7 +55,7 @@ export default function WorkHistoryTimeline({
   pointer: number | null
   onSelect: (id: number) => void
 }) {
-  const { bars, byId, events, gaps, covered, rangeStart, rangeEnd, lanes } = model
+  const { bars, byId, events, gaps, covered, counts, rangeStart, rangeEnd, lanes } = model
   const [ppm, setPpm] = useState(DEFAULT_PPM)
   const [hoverId, setHoverId] = useState<number | null>(null)
   const section = useRef<HTMLElement>(null)
@@ -175,15 +197,26 @@ export default function WorkHistoryTimeline({
   const activeBar = active !== null ? byId.get(active) : undefined
 
   return (
-    <section ref={section} className={`wh-tl${stuck ? ' stuck' : ''}`} aria-label="Work history timeline">
+    <section ref={section} className={`wh-tl${stuck ? ' stuck' : ''}`} aria-label="Career timeline">
       <header className="wh-tl-bar">
         <div className="wh-tl-stats">
-          <span>
-            <strong>{formatDuration(covered)}</strong> employed
-          </span>
-          <span>
-            <strong>{bars.length}</strong> position{bars.length === 1 ? '' : 's'}
-          </span>
+          {counts.job > 0 && (
+            <span>
+              <strong>{formatDuration(covered)}</strong> employed
+            </span>
+          )}
+          {KIND_ORDER.filter((kind) => counts[kind] > 0).map((kind) => {
+            const Icon = KINDS[kind].icon
+            const [count, ...rest] = countLabel(counts[kind], kind).split(' ')
+            return (
+              <span key={kind} className={`wh-tl-legend kind-${kind}`}>
+                <i aria-hidden="true">
+                  <Icon size={12} />
+                </i>
+                <strong>{count}</strong> {rest.join(' ')}
+              </span>
+            )
+          })}
           {gaps.length > 0 && (
             <span>
               <strong>{gaps.length}</strong> gap{gaps.length === 1 ? '' : 's'}
@@ -263,39 +296,78 @@ export default function WorkHistoryTimeline({
             <span>Today</span>
           </div>
 
-          {/* Positions */}
+          {/* Positions, education and certificates */}
           {bars.map((bar) => {
-            const w = Math.max(6, (bar.end - bar.start) * ppm)
             const { entry } = bar
+            const { icon: Icon, label: kindLabel } = KINDS[bar.kind]
             const isActive = entry.id === activeId
             const dim = active !== null && entry.id !== active
+            const title = entryTitle(entry)
+            const top = lanesTop + bar.lane * (LANE_H + LANE_GAP)
+            const common = {
+              ref: (el: HTMLButtonElement | null) => {
+                if (el) barRefs.current.set(entry.id, el)
+                else barRefs.current.delete(entry.id)
+              },
+              type: 'button' as const,
+              'aria-current': isActive || undefined,
+              onClick: () => onSelect(entry.id),
+              onKeyDown: (e: React.KeyboardEvent) => onBarKey(e, bar),
+              onMouseEnter: () => setHoverId(entry.id),
+              onMouseLeave: () => setHoverId(null),
+            }
+            const state = `${isActive ? ' selected' : ''}${dim ? ' dim' : ''}`
+
+            if (bar.point) {
+              // Room for the label up to the next entry in the lane, or the end of the canvas.
+              const room = Math.min(bar.next - bar.start, rangeEnd - bar.start) * ppm - MARKER - 8
+              return (
+                <button
+                  key={entry.id}
+                  {...common}
+                  className={`wh-tl-mark kind-${bar.kind} tone-${bar.tone}${state}`}
+                  style={{ left: x(bar.start + 0.5) - MARKER / 2, top, height: LANE_H }}
+                  aria-label={`${kindLabel}: ${title}, ${monthLabel(bar.start)}`}
+                  title={`${title} (${monthLabel(bar.start)})`}
+                >
+                  <span className="wh-tl-mark-gem" aria-hidden="true">
+                    <Icon size={11} />
+                  </span>
+                  {room > 40 && (
+                    <span className="wh-tl-pos-label" style={{ maxWidth: room }}>
+                      <strong>{entry.role}</strong>
+                      <small>{[entry.employer, monthLabel(bar.start)].filter(Boolean).join(' · ')}</small>
+                    </span>
+                  )}
+                </button>
+              )
+            }
+
+            const w = Math.max(6, (bar.end - bar.start) * ppm)
+            // A course (certificate with a duration) is a slimmer bar than a position or a degree.
+            const inset = bar.kind === 'certificate' ? 6 : 0
+            const period = bar.pending
+              ? `starts ${monthLabel(bar.start)}`
+              : formatDuration(bar.end - bar.start)
             return (
               <button
                 key={entry.id}
-                ref={(el) => {
-                  if (el) barRefs.current.set(entry.id, el)
-                  else barRefs.current.delete(entry.id)
-                }}
-                type="button"
-                className={`wh-tl-pos tone-${bar.tone}${bar.pending ? ' pending' : bar.ongoing ? ' ongoing' : ''}${isActive ? ' selected' : ''}${dim ? ' dim' : ''}`}
-                style={{ left: x(bar.start), width: w, top: lanesTop + bar.lane * (LANE_H + LANE_GAP), height: LANE_H }}
-                aria-current={isActive || undefined}
+                {...common}
+                className={`wh-tl-pos kind-${bar.kind} tone-${bar.tone}${bar.pending ? ' pending' : bar.ongoing ? ' ongoing' : ''}${state}`}
+                style={{ left: x(bar.start), width: w, top: top + inset, height: LANE_H - 2 * inset }}
                 aria-label={
                   bar.pending
-                    ? `${entry.role} at ${entry.employer}, pending, starts ${monthLabel(bar.start)}`
-                    : `${entry.role} at ${entry.employer}, ${monthLabel(bar.start)} to ${bar.ongoing ? 'present' : monthLabel(bar.end - 1)}, ${formatDuration(bar.end - bar.start)}`
+                    ? `${kindLabel}: ${title}, pending, starts ${monthLabel(bar.start)}`
+                    : `${kindLabel}: ${title}, ${monthLabel(bar.start)} to ${bar.ongoing ? 'present' : monthLabel(bar.end - 1)}, ${formatDuration(bar.end - bar.start)}`
                 }
-                title={`${entry.role} at ${entry.employer}${bar.pending ? ' (pending)' : ''}`}
-                onClick={() => onSelect(entry.id)}
-                onKeyDown={(e) => onBarKey(e, bar)}
-                onMouseEnter={() => setHoverId(entry.id)}
-                onMouseLeave={() => setHoverId(null)}
+                title={`${title}${bar.pending ? ' (pending)' : ''}`}
               >
                 <span className="wh-tl-pos-label">
-                  <strong>{entry.role}</strong>
-                  <small>
-                    {entry.employer} · {bar.pending ? `starts ${monthLabel(bar.start)}` : formatDuration(bar.end - bar.start)}
-                  </small>
+                  <strong>
+                    {bar.kind !== 'job' && <Icon size={12} aria-hidden="true" />}
+                    {entry.role}
+                  </strong>
+                  <small>{[entry.employer, period].filter(Boolean).join(' · ')}</small>
                 </span>
               </button>
             )
@@ -304,11 +376,8 @@ export default function WorkHistoryTimeline({
           {/* Events */}
           {events.map((ev) => {
             const involved = ev.items.some((it) => it.bar.entry.id === active)
-            const kind = ev.items.every((it) => it.kind === 'start')
-              ? 'start'
-              : ev.items.every((it) => it.kind === 'end')
-                ? 'end'
-                : 'switch'
+            const kinds = new Set(ev.items.map((it) => it.kind))
+            const kind = kinds.size === 1 ? ev.items[0].kind : kinds.has('start') && kinds.has('end') ? 'switch' : 'mixed'
             const alignRight = x(ev.at) > width - 220
             const alignLeft = x(ev.at) < 120
             return (
@@ -319,30 +388,24 @@ export default function WorkHistoryTimeline({
                 style={{ left: x(ev.at), top: EVENT_ROW / 2 - 2 }}
                 onClick={() => onSelect(ev.items[ev.items.length - 1].bar.entry.id)}
                 aria-label={ev.items
-                  .map((it) =>
-                    it.kind === 'start'
-                      ? `Joined ${it.bar.entry.employer} in ${monthLabel(ev.at)}`
-                      : `Left ${it.bar.entry.employer} in ${monthLabel(ev.at - 1)}`,
-                  )
+                  .map((it) => `${eventText(it.kind, it.bar.entry).join('')} in ${eventMonth(it.kind, ev.at)}`)
                   .join('; ')}
               >
                 <span className={`wh-tl-tip${alignRight ? ' right' : alignLeft ? ' left' : ''}`} aria-hidden>
-                  {ev.items.map((it) => (
-                    <span key={`${it.kind}-${it.bar.entry.id}`} className="wh-tl-tip-row">
-                      <i className={`tone-${it.bar.tone}`} />
-                      {it.kind === 'start' ? (
-                        <>
-                          Joined <strong>{it.bar.entry.employer}</strong> as {it.bar.entry.role}
-                          <em>{monthLabel(ev.at)}</em>
-                        </>
-                      ) : (
-                        <>
-                          Left <strong>{it.bar.entry.employer}</strong>
-                          <em>{monthLabel(ev.at - 1)}</em>
-                        </>
-                      )}
-                    </span>
-                  ))}
+                  {ev.items.map((it) => {
+                    const [before, name, after] = eventText(it.kind, it.bar.entry)
+                    const Icon = KINDS[it.bar.kind].icon
+                    return (
+                      <span key={`${it.kind}-${it.bar.entry.id}`} className="wh-tl-tip-row">
+                        <i className={`tone-${it.bar.tone}`} />
+                        {it.bar.kind !== 'job' && <Icon size={12} aria-hidden="true" />}
+                        {before}
+                        <strong>{name}</strong>
+                        {after}
+                        <em>{eventMonth(it.kind, ev.at)}</em>
+                      </span>
+                    )
+                  })}
                 </span>
               </button>
             )
@@ -358,7 +421,7 @@ export default function WorkHistoryTimeline({
       </div>
 
       <p className="wh-tl-hint">
-        Click a position to jump to it · Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · ← → to step through positions
+        Click an entry to jump to it · Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · ← → to step through entries
       </p>
     </section>
   )

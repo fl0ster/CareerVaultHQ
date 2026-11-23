@@ -1,5 +1,6 @@
 """Candidate details: the personal data printed on a generated CV (name, contact lines,
-education, certifications, languages and the consent clause).
+languages and the consent clause). Education and certifications are career timeline
+entries (``api.routes.work_history``).
 
 A singleton: ``GET`` returns the row (``null`` until it is saved once) and ``PUT`` creates
 or replaces it in full.
@@ -11,64 +12,15 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import CandidateDetails
+from app.schemas.candidate_details import CandidateDetailsIn
 
 router = APIRouter()
-
-MAX_PHOTO_LENGTH = 1_000_000
-"""The browser scales the picture down before saving; this only rejects runaway payloads."""
-PHOTO_PATTERN = r"^(data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*)?$"
-
-
-class EducationEntry(BaseModel):
-    degree: str = Field(default="", max_length=256)
-    institution: str = Field(default="", max_length=256)
-    date_start: str = Field(default="", max_length=64)
-    """Free text, printed verbatim (``Oct 2012``)."""
-    date_end: str = Field(default="", max_length=64)
-    note: str = Field(default="", max_length=1024)
-
-
-class LanguageEntry(BaseModel):
-    language: str = Field(default="", max_length=64)
-    level: str = Field(default="", max_length=128)
-
-
-class CandidateDetailsIn(BaseModel):
-    first_name: str = Field(default="", max_length=128)
-    last_name: str = Field(default="", max_length=128)
-    email: str = Field(default="", max_length=256)
-    phone: str = Field(default="", max_length=64)
-    website: str = Field(default="", max_length=512)
-    github: str = Field(default="", max_length=512)
-    linkedin: str = Field(default="", max_length=512)
-    location: str = Field(default="", max_length=256)
-    photo: str = Field(default="", max_length=MAX_PHOTO_LENGTH, pattern=PHOTO_PATTERN)
-    """Profile picture as a base64 image ``data:`` URL; blank = none."""
-    education: list[EducationEntry] = Field(default_factory=list)
-    certifications: list[str] = Field(default_factory=list)
-    languages: list[LanguageEntry] = Field(default_factory=list)
-    consent_text: str = ""
-
-    def cleaned(self) -> dict:
-        """Trimmed values; blank education/language rows and certifications are dropped."""
-        data = self.model_dump()
-        for key, value in data.items():
-            if isinstance(value, str):
-                data[key] = value.strip()
-        data["education"] = [
-            {k: v.strip() for k, v in e.items()} for e in data["education"] if any(v.strip() for v in e.values())
-        ]
-        data["languages"] = [
-            {k: v.strip() for k, v in lang.items()} for lang in data["languages"] if lang["language"].strip()
-        ]
-        data["certifications"] = [c.strip() for c in data["certifications"] if c.strip()]
-        return data
 
 
 class CandidateDetailsOut(CandidateDetailsIn):

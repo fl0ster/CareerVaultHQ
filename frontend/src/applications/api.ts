@@ -200,6 +200,12 @@ export const applicationsApi = {
     fetch(`${API}/${id}/accept`, json('POST', startDate ? { start_date: startDate } : {}))
       .then((r) => parse<Application>(r))
       .then(changed),
+  /** Declines the offer: the application becomes `DECLINED` (final), with `note` as the
+   * reason. */
+  decline: (id: number, note = '') =>
+    fetch(`${API}/${id}/decline`, json('POST', { note }))
+      .then((r) => parse<Application>(r))
+      .then(changed),
   /** Sets the number of interview rounds (held + planned); 0 drops the planned ones. */
   setInterviewRounds: (id: number, rounds: number) =>
     fetch(`${API}/${id}`, json('PATCH', { interview_rounds: rounds }))
@@ -224,6 +230,9 @@ export const APPLIED_STATUS = 'APPLIED'
 /** The offer was accepted; only set by `applicationsApi.accept`, never picked as a state. */
 export const ACCEPTED_STATUS = 'ACCEPTED'
 
+/** The offer was declined; only set by `applicationsApi.decline`, never picked as a state. */
+export const DECLINED_STATUS = 'DECLINED'
+
 /**
  * States the user can pick for a new event (`current` = key of the current state) or, with
  * `current` omitted, for an edited one.
@@ -233,11 +242,12 @@ export const pickableStatuses = (statuses: ApplicationStatus[], current?: string
     (s) =>
       s.key !== INITIAL_ONLY_STATUS &&
       s.key !== ACCEPTED_STATUS &&
+      s.key !== DECLINED_STATUS &&
       (current === undefined || s.key !== APPLIED_STATUS || current === INITIAL_ONLY_STATUS),
   )
 
 /** Terminal states: while one is current no new state can be added (removing it reopens). */
-export const FINAL_STATUSES: readonly string[] = ['OFFER', 'ACCEPTED', 'REJECTED', 'CLOSED']
+export const FINAL_STATUSES: readonly string[] = ['OFFER', 'ACCEPTED', 'DECLINED', 'REJECTED', 'CLOSED']
 
 export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
   status != null && FINAL_STATUSES.includes(status.key)

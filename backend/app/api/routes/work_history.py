@@ -1,8 +1,10 @@
-"""CRUD for the user's work history.
+"""CRUD for the user's career timeline ("My Career"): positions, education and certificates.
 
-Entries are returned newest first (by ``date_start``); a ``null`` ``date_end`` marks a
-current position. ``tech`` is a free list of technology names. An entry starting in the
-future is ``pending``: it is left out of CVs and the candidate profile until it starts.
+Every entry has a ``kind`` (``job``, ``education`` or ``certificate``). Entries are
+returned newest first (by ``date_start``); a ``null`` ``date_end`` marks a current position
+or ongoing education, and a certificate that is a single point in time. ``tech`` is a free
+list of technology names. An entry starting in the future is ``pending``: it is left out
+of CVs and the candidate profile until it starts.
 Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
 """
@@ -13,136 +15,31 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models import WorkHistoryEntry
+from app.schemas.work_history import (
+    EntryKind,
+    WorkHistoryCreate,
+    WorkHistoryExport,
+    WorkHistoryImport,
+    WorkHistoryUpdate,
+    _check_dates,
+    _check_employer,
+    _format_month,
+)
 
 router = APIRouter()
-
-
-def _check_dates(date_start: date | None, date_end: date | None) -> None:
-    if date_start is not None and date_end is not None and date_end < date_start:
-        raise ValueError("date_end must not be earlier than date_start")
-
-
-def _clean_tech(tech: list[str]) -> list[str]:
-    """Strip whitespace, drop empties and duplicates while keeping order."""
-    seen: set[str] = set()
-    out: list[str] = []
-    for item in tech:
-        name = item.strip()
-        if name and name.lower() not in seen:
-            seen.add(name.lower())
-            out.append(name)
-    return out
-
-
-class WorkHistoryCreate(BaseModel):
-    date_start: date
-    date_end: date | None = None
-    employer: str = Field(min_length=1, max_length=256)
-    role: str = Field(min_length=1, max_length=256)
-    location: str | None = Field(default=None, max_length=256)
-    tech: list[str] = Field(default_factory=list)
-    context: str | None = None
-
-    @model_validator(mode="after")
-    def _validate(self) -> WorkHistoryCreate:
-        _check_dates(self.date_start, self.date_end)
-        self.tech = _clean_tech(self.tech)
-        return self
-
-
-class WorkHistoryUpdate(BaseModel):
-    """Partial update; omitted fields are left untouched, explicit ``null`` clears them."""
-
-    date_start: date | None = None
-    date_end: date | None = None
-    employer: str | None = Field(default=None, min_length=1, max_length=256)
-    role: str | None = Field(default=None, min_length=1, max_length=256)
-    location: str | None = Field(default=None, max_length=256)
-    tech: list[str] | None = None
-    context: str | None = None
-
-    @model_validator(mode="after")
-    def _validate(self) -> WorkHistoryUpdate:
-        if self.tech is not None:
-            self.tech = _clean_tech(self.tech)
-        return self
-
-
-MONTH_FORMAT = "%b %Y"
-"""Date format used by the JSON export/import (``Jan 2020``)."""
-
-
-def _format_month(value: date | None) -> str | None:
-    return value.strftime(MONTH_FORMAT) if value else None
-
-
-def _parse_month(value: str | None) -> date | None:
-    """Inverse of :func:`_format_month`; also accepts ISO dates (``2020-01-15``)."""
-    if value is None:
-        return None
-    text = value.strip()
-    if not text:
-        return None
-    for fmt in (MONTH_FORMAT, "%B %Y", "%Y-%m-%d", "%Y-%m"):
-        try:
-            return datetime.strptime(text, fmt).date()
-        except ValueError:
-            continue
-    raise ValueError(f"unrecognised date {value!r}; expected e.g. 'Jan 2020'")
-
-
-class WorkHistoryExport(BaseModel):
-    """Plain export shape; key names are part of the contract."""
-
-    date_start: str
-    date_end: str | None
-    employer: str
-    role: str
-    location: str | None
-    tech: str
-    context: str | None
-
-
-class WorkHistoryImport(BaseModel):
-    """One entry of an import payload. Same shape as :class:`WorkHistoryExport`, so an
-    export can be fed straight back in; ``tech`` may be either a comma separated string
-    or a list."""
-
-    date_start: str
-    date_end: str | None = None
-    employer: str = Field(min_length=1, max_length=256)
-    role: str = Field(min_length=1, max_length=256)
-    location: str | None = Field(default=None, max_length=256)
-    tech: str | list[str] = ""
-    context: str | None = None
-
-    def to_create(self) -> WorkHistoryCreate:
-        """Convert to the validated create payload; raises ``ValueError`` on bad dates."""
-        tech = self.tech.split(",") if isinstance(self.tech, str) else self.tech
-        date_start = _parse_month(self.date_start)
-        if date_start is None:
-            raise ValueError("date_start is required")
-        return WorkHistoryCreate(
-            date_start=date_start,
-            date_end=_parse_month(self.date_end),
-            employer=self.employer,
-            role=self.role,
-            location=self.location,
-            tech=tech,
-            context=self.context,
-        )
 
 
 class WorkHistoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    kind: EntryKind
     date_start: date
     date_end: date | None
     employer: str
@@ -185,9 +82,10 @@ def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[Work
 @router.get("/json", response_model=list[WorkHistoryExport])
 def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryExport]:
     """Work history as a bare JSON array with exactly the keys
-    ``date_start, date_end, employer, role, location, tech, context``."""
+    ``kind, date_start, date_end, employer, role, location, tech, context``."""
     return [
         WorkHistoryExport(
+            kind=e.kind,
             date_start=_format_month(e.date_start),
             date_end=_format_month(e.date_end),
             employer=e.employer,
@@ -251,11 +149,16 @@ def update_entry(
     """Update the given fields only. Send ``"date_end": null`` to mark a position current."""
     entry = _get_or_404(session, entry_id)
     changes = payload.model_dump(exclude_unset=True)
+    if changes.get("kind", "") is None:
+        del changes["kind"]
+    if "employer" in changes:
+        changes["employer"] = (changes["employer"] or "").strip()
 
     new_start = changes.get("date_start", entry.date_start)
     new_end = changes.get("date_end", entry.date_end)
     try:
         _check_dates(new_start, new_end)
+        _check_employer(changes.get("kind", entry.kind), changes.get("employer", entry.employer))
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 

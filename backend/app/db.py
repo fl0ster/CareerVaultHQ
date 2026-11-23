@@ -3,7 +3,7 @@
 The schema is created with ``init_db()`` (``Base.metadata.create_all``) at API and
 worker startup; there is no Alembic migration history yet. ``create_all`` never alters an
 existing table, so ``init_db`` also adds the columns listed in ``ADDED_COLUMNS`` to
-tables created before those columns existed.
+tables created before those columns existed, and drops the ones in ``DROPPED_COLUMNS``.
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ def init_db(engine: Engine | None = None) -> None:
     engine = engine or get_engine()
     Base.metadata.create_all(engine)
     _execute(engine, _missing_columns(engine))
+    _execute(engine, _obsolete_columns(engine))
 
 
 ADDED_COLUMNS: dict[str, dict[str, str]] = {
@@ -57,6 +58,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "work_history": {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
         "prefill_state": "VARCHAR(16)",
+        "kind": "VARCHAR(16) NOT NULL DEFAULT 'job'",
     },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
@@ -85,6 +87,24 @@ def _missing_columns(engine: Engine) -> list[str]:
         statements += [
             f"ALTER TABLE {table} ADD COLUMN {name} {ddl}" for name, ddl in columns.items() if name not in existing
         ]
+    return statements
+
+
+DROPPED_COLUMNS: dict[str, list[str]] = {
+    "candidate_details": ["education", "certifications"],
+}
+"""Columns no longer in the models; dropped from existing databases with ``ALTER TABLE``.
+Education and certifications moved to ``work_history`` (``kind``)."""
+
+
+def _obsolete_columns(engine: Engine) -> list[str]:
+    inspector = inspect(engine)
+    statements = []
+    for table, columns in DROPPED_COLUMNS.items():
+        if not inspector.has_table(table):
+            continue
+        existing = {column["name"] for column in inspector.get_columns(table)}
+        statements += [f"ALTER TABLE {table} DROP COLUMN {name}" for name in columns if name in existing]
     return statements
 
 

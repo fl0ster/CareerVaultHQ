@@ -13,6 +13,7 @@ import {
   isFinalStatus,
   ACCEPTED_STATUS,
   APPLIED_STATUS,
+  DECLINED_STATUS,
   INITIAL_ONLY_STATUS,
   INTERVIEW_STATUS,
   MAX_INTERVIEW_ROUNDS,
@@ -32,7 +33,7 @@ import {
 } from './api.ts'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
-import { AcceptOfferButton } from './AcceptOffer.tsx'
+import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
 
 type Props = {
@@ -146,9 +147,9 @@ function EventRow({
   const [duration, setDuration] = useState(event.duration_minutes)
   const [when, setWhen] = useState(toLocalInput(event.occurred_at))
   const { busy, error, run } = useAction()
-  // SHORTLISTED is fixed for good; ACCEPTED can only be removed (undoing the acceptance).
+  // SHORTLISTED is fixed for good; ACCEPTED / DECLINED can only be removed (undoing the answer).
   const locked = event.status.key === INITIAL_ONLY_STATUS
-  const statusLocked = locked || event.status.key === ACCEPTED_STATUS
+  const statusLocked = locked || event.status.key === ACCEPTED_STATUS || event.status.key === DECLINED_STATUS
   const isRound = status === INTERVIEW_STATUS
   const min = earliestFor(application, status, event.id)
   const dateError = when !== toLocalInput(event.occurred_at) ? tooEarly(when, min) : null
@@ -188,7 +189,9 @@ function EventRow({
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`
       : event.status.key === ACCEPTED_STATUS
         ? `Undo accepting the offer? The application goes back to "Offer" and the position it added to My Career is deleted.`
-        : `Remove the "${event.status.label}" state?`
+        : event.status.key === DECLINED_STATUS
+          ? `Undo declining the offer? The application goes back to "Offer".`
+          : `Remove the "${event.status.label}" state?`
     if (!window.confirm(question)) return
     const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))
     if (updated) onChange(updated)
@@ -509,7 +512,8 @@ function AddEventForm({
   )
 }
 
-/** The offer stage: the agreed start date (saved when changed) and accepting the offer. */
+/** The offer stage: the agreed start date (saved when changed) and accepting or declining
+ * the offer. */
 function OfferBox({
   application,
   onChange,
@@ -548,9 +552,10 @@ function OfferBox({
         onAccepted={onAccepted}
         onError={setAcceptError}
       />
+      <DeclineOfferButton application={application} label="Decline offer" onDeclined={onChange} />
       <p className="muted app-offer-hint">
-        Accepting moves the position to My Career{startDate ? '' : ' (you will be asked for the start date)'}.
-        Remove the offer state instead to record more steps.
+        Accepting moves the position to My Career{startDate ? '' : ' (you will be asked for the start date)'};
+        declining closes the application. Remove the offer state instead to record more steps.
       </p>
       {(error || acceptError) && <p className="error">{error ?? acceptError}</p>}
     </div>
@@ -709,6 +714,10 @@ export default function ApplicationDetail({
             ) : (
               <span className="muted">Its My Career entry was deleted.</span>
             )}
+          </p>
+        ) : application.status?.key === DECLINED_STATUS ? (
+          <p className="app-declined">
+            <strong>Offer declined.</strong> Remove the “Declined” state to reopen the offer.
           </p>
         ) : isFinalStatus(application.status) ? (
           <p className="muted">{application.status?.label} is final — remove that state to record new ones.</p>

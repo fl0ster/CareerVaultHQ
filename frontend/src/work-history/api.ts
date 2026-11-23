@@ -1,10 +1,17 @@
 const API = '/api/work-history'
 
+/** Kind of career event: a position, an education entry or a certificate. */
+export type EntryKind = 'job' | 'education' | 'certificate'
+
 export type WorkHistoryEntry = {
   id: number
+  kind: EntryKind
   date_start: string
+  /** Null: a current position / ongoing education, or a certificate without a duration. */
   date_end: string | null
+  /** Employer, institution or issuer (may be blank except for a job). */
   employer: string
+  /** Role, degree or certificate name. */
   role: string
   location: string | null
   tech: string[]
@@ -26,6 +33,8 @@ export type WorkHistoryInput = Omit<
 
 /** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
 export type WorkHistoryExport = {
+  /** Missing in older exports, which hold positions only. */
+  kind?: EntryKind
   date_start: string
   date_end: string | null
   employer: string
@@ -68,7 +77,6 @@ export const workHistoryApi = {
       body: JSON.stringify(input),
     }).then((r) => parse<WorkHistoryEntry>(r)),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
-  exportJson: () => fetch(`${API}/json`).then((r) => parse<WorkHistoryExport[]>(r)),
   importJson: (items: WorkHistoryExport[], replace: boolean) =>
     fetch(`${API}/json?replace=${replace}`, {
       method: 'POST',

@@ -1,5 +1,8 @@
 import { type FormEvent, useState } from 'react'
 import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
+import { type Draft, draftError, toDraft, toInput, withKind } from './draft.ts'
+import { KINDS } from './kinds.ts'
+import KindSwitch from './KindSwitch.tsx'
 
 type Props = {
   initial?: WorkHistoryEntry
@@ -7,54 +10,21 @@ type Props = {
   onCancel: () => void
 }
 
-type Draft = {
-  date_start: string
-  date_end: string
-  current: boolean
-  employer: string
-  role: string
-  location: string
-  tech: string
-  context: string
-}
-
-function toDraft(entry?: WorkHistoryEntry): Draft {
-  return {
-    date_start: entry?.date_start ?? '',
-    date_end: entry?.date_end ?? '',
-    current: entry ? entry.date_end === null : false,
-    employer: entry?.employer ?? '',
-    role: entry?.role ?? '',
-    location: entry?.location ?? '',
-    tech: entry?.tech.join(', ') ?? '',
-    context: entry?.context ?? '',
-  }
-}
-
-function toInput(d: Draft): WorkHistoryInput {
-  return {
-    date_start: d.date_start,
-    date_end: d.current || !d.date_end ? null : d.date_end,
-    employer: d.employer.trim(),
-    role: d.role.trim(),
-    location: d.location.trim() || null,
-    tech: d.tech.split(/[,\n]/).map((t) => t.trim()).filter(Boolean),
-    context: d.context.trim() || null,
-  }
-}
-
 export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const info = KINDS[draft.kind]
+  const point = draft.kind === 'certificate' && draft.current
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft.current && draft.date_end && draft.date_end < draft.date_start) {
-      setError('End date must not be earlier than start date.')
+    const invalid = draftError(draft)
+    if (invalid) {
+      setError(invalid)
       return
     }
     setSaving(true)
@@ -70,23 +40,34 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
   return (
     <form className="wh-form" onSubmit={submit}>
-      <h2>{initial ? 'Edit position' : 'New position'}</h2>
+      <h2>{initial ? `Edit ${info.noun}` : `New ${info.noun}`}</h2>
+
+      <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />
 
       <div className="wh-grid">
         <label>
-          Employer *
-          <input required value={draft.employer} onChange={(e) => set('employer', e.target.value)} />
-        </label>
-        <label>
-          Role *
+          {info.title} *
           <input required value={draft.role} onChange={(e) => set('role', e.target.value)} />
         </label>
         <label>
-          Location
-          <input value={draft.location} onChange={(e) => set('location', e.target.value)} />
+          {info.organisation}
+          {info.organisationRequired ? ' *' : ''}
+          <input
+            required={info.organisationRequired}
+            value={draft.employer}
+            onChange={(e) => set('employer', e.target.value)}
+          />
         </label>
+        {info.showLocation ? (
+          <label>
+            Location
+            <input value={draft.location} onChange={(e) => set('location', e.target.value)} />
+          </label>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <label>
-          Start date *
+          {point ? 'Date *' : 'Start date *'}
           <input
             type="date"
             required
@@ -98,7 +79,7 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
           End date
           <input
             type="date"
-            value={draft.date_end}
+            value={draft.current ? '' : draft.date_end}
             disabled={draft.current}
             min={draft.date_start || undefined}
             onChange={(e) => set('date_end', e.target.value)}
@@ -110,23 +91,25 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
             checked={draft.current}
             onChange={(e) => set('current', e.target.checked)}
           />
-          Current position
+          {info.openEnded}
         </label>
       </div>
 
-      <label>
-        Technologies <span className="muted">(comma separated)</span>
-        <input
-          value={draft.tech}
-          placeholder="Python, FastAPI, PostgreSQL"
-          onChange={(e) => set('tech', e.target.value)}
-        />
-      </label>
+      {info.showTech && (
+        <label>
+          Technologies <span className="muted">(comma separated)</span>
+          <input
+            value={draft.tech}
+            placeholder="Python, FastAPI, PostgreSQL"
+            onChange={(e) => set('tech', e.target.value)}
+          />
+        </label>
+      )}
 
       <label>
-        Context <span className="muted">(what you did, achievements, team, scope)</span>
+        {info.contextLabel} <span className="muted">({info.contextPlaceholder.replace('…', '')})</span>
         <textarea
-          rows={10}
+          rows={info.showTech ? 10 : 4}
           value={draft.context}
           onChange={(e) => set('context', e.target.value)}
         />
@@ -136,7 +119,7 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
       <div className="wh-actions">
         <button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : initial ? 'Save changes' : 'Add position'}
+          {saving ? 'Saving…' : initial ? 'Save changes' : `Add ${info.noun}`}
         </button>
         <button type="button" className="secondary" onClick={onCancel} disabled={saving}>
           Cancel

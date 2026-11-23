@@ -4,9 +4,23 @@ import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, w
 import { type Bar, formatDuration, layout, todayIndex } from './timeline-model.ts'
 import { useScrollPointer } from './useScrollPointer.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
+import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import ApplicationSteps from './ApplicationSteps.tsx'
 import { formatDay } from '../applications/api.ts'
+import { candidateDetailsApi } from '../candidate-profile/api.ts'
+import { candidateDetailsStore } from '../candidate-profile/store.ts'
+import { isPdf, mergeDetails, parseCv } from './cvImport.ts'
+import { countLabel, entryTitle, isPoint, KIND_ORDER, KINDS } from './kinds.ts'
+
+/** "3 positions, 1 education entry and 2 certificates". */
+function importedSummary(entries: { kind?: WorkHistoryEntry['kind'] }[]): string {
+  const parts = KIND_ORDER.map((kind) => [kind, entries.filter((e) => (e.kind ?? 'job') === kind).length] as const)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => countLabel(count, kind))
+  if (parts.length === 0) return 'nothing'
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
 
 /** How often the list is reloaded while an entry is being filled in from its application. */
 const PREFILL_POLL_MS = 3000
@@ -40,18 +54,25 @@ function EntryCard({
 }) {
   const filling = entry.prefill_state === 'queued'
   const hasDetails = !!entry.context || entry.application_id != null
+  const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
+  const point = isPoint(entry)
   return (
     <li
       ref={cardRef}
       data-id={entry.id}
-      className={`wh-item${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}${flash ? ' flash' : ''}`}
+      className={`wh-item kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}${flash ? ' flash' : ''}`}
       onAnimationEnd={(e) => {
         if (e.animationName === 'wh-flash') onFlashEnd()
       }}
     >
       <div className="wh-head">
         <div className="wh-main">
-          <strong>{entry.role}</strong> at {entry.employer}
+          <span className="wh-kind-badge" title={kindLabel}>
+            <Icon size={13} aria-hidden="true" />
+            {kindLabel}
+          </span>
+          <strong>{entry.role}</strong>
+          {entry.employer && (entry.kind === 'certificate' ? ` · ${entry.employer}` : ` at ${entry.employer}`)}
           {entry.pending && (
             <span
               className="badge wh-pending"
@@ -66,6 +87,8 @@ function EntryCard({
                 Starts {formatDay(entry.date_start)}
                 {entry.date_end ? ` – ${formatMonth(entry.date_end)}` : ''}
               </span>
+            ) : point ? (
+              <span>Issued {formatMonth(entry.date_start)}</span>
             ) : (
               <>
                 <span>
@@ -117,7 +140,61 @@ function EntryCard({
   )
 }
 
-type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; entry: WorkHistoryEntry }
+function ImportDropzone({ busy, onFile }: { busy: string | null; onFile: (file: File) => void }) {
+  const input = useRef<HTMLInputElement>(null)
+  const [over, setOver] = useState(false)
+  return (
+    <div
+      className={`wh-dropzone${over ? ' over' : ''}${busy ? ' busy' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-disabled={!!busy}
+      onClick={() => !busy && input.current?.click()}
+      onKeyDown={(e) => {
+        if (busy || (e.key !== 'Enter' && e.key !== ' ')) return
+        e.preventDefault()
+        input.current?.click()
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (!busy) setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        const file = e.dataTransfer.files[0]
+        if (file && !busy) onFile(file)
+      }}
+    >
+      <strong role={busy ? 'status' : undefined}>
+        {busy && <span className="spinner" aria-hidden="true" />}
+        {busy ?? 'Your career timeline is empty'}
+      </strong>
+      <span>
+        Drop your CV (a PDF) or a work history JSON file here, or{' '}
+        <span className="wh-dropzone-link">pick one from disk</span>.
+      </span>
+      <span className="wh-dropzone-hint">
+        A CV adds your positions, education and certificates, and fills in the blank fields of About me. Or add
+        them by hand with the + button.
+      </span>
+      <input
+        ref={input}
+        type="file"
+        accept="application/pdf,.pdf,application/json,.json"
+        hidden
+        onChange={(ev) => {
+          const file = ev.target.files?.[0]
+          ev.target.value = ''
+          if (file) onFile(file)
+        }}
+      />
+    </div>
+  )
+}
+
+type Mode = { kind: 'list' } | { kind: 'edit'; entry: WorkHistoryEntry }
 
 type PageProps = {
   /** Id of an entry to scroll to and open (from the URL, e.g. right after accepting an offer). */
@@ -128,9 +205,10 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
-  const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-  const [importing, setImporting] = useState(false)
-  const fileInput = useRef<HTMLInputElement>(null)
+  const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string; notes?: string[] } | null>(null)
+  /** What the dropzone is busy with (`null` when idle). */
+  const [importing, setImporting] = useState<string | null>(null)
+  const left = useRef(false)
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
   const [flashId, setFlashId] = useState<number | null>(null)
   const viewRef = useRef<HTMLDivElement>(null)
@@ -171,11 +249,15 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
         setEntries(items)
         setError(null)
       },
-      (e) => setError(`Could not load work history: ${String(e instanceof Error ? e.message : e)}`),
+      (e) => setError(`Could not load your career: ${String(e instanceof Error ? e.message : e)}`),
     )
 
   useEffect(() => {
     load()
+    left.current = false
+    return () => {
+      left.current = true
+    }
   }, [])
 
   // Keep reloading while an entry is being filled in from its application in the background.
@@ -198,7 +280,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   const create = async (input: WorkHistoryInput) => {
     await workHistoryApi.create(input)
-    setMode({ kind: 'list' })
     await load()
   }
 
@@ -210,32 +291,12 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   const remove = async (entry: WorkHistoryEntry) => {
     const note = entry.application_id != null ? '\n\nThe application stays accepted.' : ''
-    if (!window.confirm(`Delete "${entry.role} at ${entry.employer}"?${note}`)) return
+    if (!window.confirm(`Delete "${entryTitle(entry)}"?${note}`)) return
     try {
       await workHistoryApi.remove(entry.id)
       await load()
     } catch (e) {
       setError(`Could not delete: ${String(e instanceof Error ? e.message : e)}`)
-    }
-  }
-
-  const hasEntries = !!entries && entries.length > 0
-
-  const describe = (e: unknown) => String(e instanceof Error ? e.message : e)
-
-  const exportJson = async () => {
-    setTransfer(null)
-    try {
-      const items = await workHistoryApi.exportJson()
-      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `work-history-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      setTransfer({ kind: 'error', text: `Could not export work history: ${describe(e)}` })
     }
   }
 
@@ -249,70 +310,90 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       return
     }
     if (!Array.isArray(items) || items.length === 0) {
-      setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of positions.` })
+      setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of entries.` })
       return
     }
-    const replace = hasEntries
-      ? window.confirm(
-          `Replace the existing ${entries.length} position${entries.length === 1 ? '' : 's'} with the imported ones?\n\n` +
-            'OK = replace, Cancel = keep them and add the imported positions.',
-        )
-      : false
-    setImporting(true)
+    setImporting('Importing…')
     try {
-      const created = await workHistoryApi.importJson(items as WorkHistoryExport[], replace)
+      const created = await workHistoryApi.importJson(items as WorkHistoryExport[], false)
       await load()
       setTransfer({
         kind: 'ok',
-        text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.`,
+        text: `Imported ${importedSummary(created)} from ${file.name}.`,
       })
     } catch (e) {
-      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${describe(e)}` })
+      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
     } finally {
-      setImporting(false)
+      setImporting(null)
+    }
+  }
+
+  /** Parses a CV PDF, imports its positions, education and certificates and fills the blank About me fields. */
+  const importCv = async (file: File) => {
+    setTransfer(null)
+    setImporting('Reading your CV… this can take a minute')
+    try {
+      const cv = await parseCv(file, () => left.current)
+      if (cv.work_history.length === 0) {
+        setTransfer({
+          kind: 'error',
+          text: `No positions, education or certificates were found in ${file.name}.`,
+          notes: cv.warnings,
+        })
+        return
+      }
+      setImporting('Importing…')
+      const created = await workHistoryApi.importJson(cv.work_history, false)
+      await load()
+      const notes = [...cv.warnings]
+      let filledText = ''
+      try {
+        const { details, filled } = mergeDetails(await candidateDetailsApi.get(), cv.candidate_details)
+        if (filled.length > 0) {
+          candidateDetailsStore.set(await candidateDetailsApi.save(details))
+          filledText = ` Filled in About me: ${filled.join(', ')}.`
+        }
+      } catch (e) {
+        notes.unshift(`About me was not updated: ${String(e instanceof Error ? e.message : e)}`)
+      }
+      setTransfer({
+        kind: 'ok',
+        text: `Imported ${importedSummary(created)} from ${file.name}.${filledText}`,
+        notes,
+      })
+    } catch (e) {
+      if (left.current) return
+      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
+    } finally {
+      if (!left.current) setImporting(null)
     }
   }
 
   return (
     <>
-      {mode.kind === 'list' && (
-        <p>
-          {entries === null ? 'Loading…' : `${entries.length} position${entries.length === 1 ? '' : 's'}.`}{' '}
-          <button type="button" className="small" onClick={() => setMode({ kind: 'create' })}>
-            Add position
-          </button>{' '}
-          <button type="button" className="secondary small" disabled={!hasEntries} onClick={exportJson}>
-            Export JSON
-          </button>{' '}
-          <button
-            type="button"
-            className="secondary small"
-            disabled={importing || entries === null}
-            onClick={() => fileInput.current?.click()}
-          >
-            {importing ? 'Importing…' : 'Import JSON'}
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(ev) => {
-              const file = ev.target.files?.[0]
-              ev.target.value = ''
-              if (file) void importJson(file)
-            }}
-          />
-        </p>
-      )}
+      {mode.kind === 'list' && entries === null && !error && <p>Loading…</p>}
 
       {mode.kind === 'list' && transfer && (
-        <p className={transfer.kind === 'error' ? 'error' : undefined}>
-          {transfer.text}{' '}
-          <button type="button" className="secondary small" onClick={() => setTransfer(null)}>
-            Dismiss
-          </button>
-        </p>
+        <div className="wh-transfer">
+          <p className={transfer.kind === 'error' ? 'error' : undefined}>
+            {transfer.text}{' '}
+            <button type="button" className="secondary small" onClick={() => setTransfer(null)}>
+              Dismiss
+            </button>
+          </p>
+          {transfer.notes && transfer.notes.length > 0 && (
+            <details className="wh-transfer-notes">
+              <summary>
+                {transfer.notes.length} note{transfer.notes.length === 1 ? '' : 's'} from reading the CV
+              </summary>
+              <ul>
+                {transfer.notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
       )}
 
       {error && (
@@ -322,9 +403,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
         </p>
       )}
 
-      {mode.kind === 'create' && (
-        <WorkHistoryForm onSubmit={create} onCancel={() => setMode({ kind: 'list' })} />
-      )}
       {mode.kind === 'edit' && (
         <WorkHistoryForm
           key={mode.entry.id}
@@ -335,7 +413,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       )}
 
       {mode.kind === 'list' && entries?.length === 0 && (
-        <p>No positions yet. Add your first one above.</p>
+        <ImportDropzone busy={importing} onFile={(file) => void (isPdf(file) ? importCv(file) : importJson(file))} />
       )}
       {mode.kind === 'list' && entries && model && (
         <div className="wh-view" ref={viewRef}>
@@ -369,6 +447,8 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
           <div style={{ height: spacer }} aria-hidden />
         </div>
       )}
+
+      {mode.kind === 'list' && <AddPositionComposer onSubmit={create} />}
     </>
   )
 }

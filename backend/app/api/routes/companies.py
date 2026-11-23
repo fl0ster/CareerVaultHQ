@@ -171,14 +171,15 @@ def list_company_tags() -> list[str]:
     return list(Company.TAGS)
 
 
-APPLICATION_OUTCOMES = ("APPLIED", "INTERVIEW", "REJECTED", "OFFER")
+APPLICATION_OUTCOMES = ("APPLIED", "INTERVIEW", "REJECTED", "OFFER", "DECLINED")
 """Buckets of ``GET /application-stats``, from least to most decisive."""
 
 
 def _outcome(keys: set[str]) -> str | None:
-    """The bucket of an application that went through the states ``keys``: ``OFFER`` if it
-    got one, else ``REJECTED`` if rejected, else ``INTERVIEW`` if interviewed, else
-    ``APPLIED`` if applied; ``None`` (not counted) otherwise, e.g. only shortlisted."""
+    """The bucket of an application that went through the states ``keys``: ``DECLINED`` if
+    the candidate turned its offer down, else ``OFFER`` if it got one (accepted or not), else
+    ``REJECTED`` if rejected, else ``INTERVIEW`` if interviewed, else ``APPLIED`` if applied;
+    ``None`` (not counted) otherwise, e.g. only shortlisted."""
     for key in reversed(APPLICATION_OUTCOMES):
         if key in keys:
             return key

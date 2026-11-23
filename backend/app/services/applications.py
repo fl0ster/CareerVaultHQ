@@ -56,7 +56,12 @@ OFFER_STATUS = "OFFER"
 ACCEPTED_STATUS = "ACCEPTED"
 """The offer was accepted. Only recorded by ``accept_offer`` (which also adds the position to
 the work history), never as a plain state change."""
-FINAL_STATUSES = frozenset({OFFER_STATUS, ACCEPTED_STATUS, REJECTED_STATUS, CLOSED_STATUS})
+DECLINED_STATUS = "DECLINED"
+"""The candidate turned the offer down. Only recorded by ``decline_offer``, never as a plain
+state change."""
+OFFER_DECISIONS = frozenset({ACCEPTED_STATUS, DECLINED_STATUS})
+"""Answers to an offer: only recorded by ``accept_offer`` / ``decline_offer``."""
+FINAL_STATUSES = frozenset({OFFER_STATUS, ACCEPTED_STATUS, DECLINED_STATUS, REJECTED_STATUS, CLOSED_STATUS})
 """Terminal states: once one is current, no further state can be added (removing it reopens
 the application)."""
 
@@ -86,9 +91,13 @@ def reject_initial_only(key: str) -> None:
         raise EventRejected(f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid")
 
 
-def reject_accepted(key: str) -> None:
-    if key.upper() == ACCEPTED_STATUS:
+def reject_offer_decision(key: str) -> None:
+    """``ACCEPTED`` / ``DECLINED`` are only set by accepting / declining the offer."""
+    key = key.upper()
+    if key == ACCEPTED_STATUS:
         raise EventRejected(f"{ACCEPTED_STATUS} is only set by accepting the offer", "invalid")
+    if key == DECLINED_STATUS:
+        raise EventRejected(f"{DECLINED_STATUS} is only set by declining the offer", "invalid")
 
 
 def reject_if_final(application: Application) -> None:
@@ -148,7 +157,7 @@ def record_event(
     ``app.api.routes.applications``); ``EventRejected`` when they forbid it. Recording
     ``INTERVIEW`` holds the first planned round instead of adding one. Not committed."""
     reject_initial_only(status_key)
-    reject_accepted(status_key)
+    reject_offer_decision(status_key)
     reject_if_final(application)
     key = status_key.upper()
     if key == APPLIED_STATUS:
@@ -204,9 +213,7 @@ def accept_offer(session: Session, application: Application, start_date: date | 
     application.start_date = start
 
     accepted = status_by_key(session, ACCEPTED_STATUS)
-    # Now, but never before the offer (which may have been dated ahead), so it is current.
-    when = max(datetime.now(UTC), _naive(current.occurred_at).replace(tzinfo=UTC) + timedelta(minutes=1))
-    application.events.append(ApplicationEvent(status=accepted, occurred_at=when))
+    application.events.append(ApplicationEvent(status=accepted, occurred_at=_after(current)))
     parsed = application.job_parse_result
     entry = WorkHistoryEntry(
         date_start=start,
@@ -220,6 +227,25 @@ def accept_offer(session: Session, application: Application, start_date: date | 
     session.flush()
     session.expire(application, ["events"])
     return entry
+
+
+def decline_offer(session: Session, application: Application, note: str = "") -> ApplicationEvent:
+    """Decline the application's offer: record ``DECLINED`` (final) with ``note``.
+    ``EventRejected`` (``conflict``) unless the current state is ``OFFER``. Not committed."""
+    current = application.current_event
+    if current is None or current.status.key != OFFER_STATUS:
+        raise EventRejected(f"only an application in {OFFER_STATUS} can be declined")
+    event = ApplicationEvent(status=status_by_key(session, DECLINED_STATUS), note=note, occurred_at=_after(current))
+    application.events.append(event)
+    session.flush()
+    session.expire(application, ["events"])
+    return event
+
+
+def _after(offer: ApplicationEvent) -> datetime:
+    """When an answer to ``offer`` is recorded: now, but never before the offer (which may
+    have been dated ahead), so the answer becomes the current state."""
+    return max(datetime.now(UTC), _naive(offer.occurred_at).replace(tzinfo=UTC) + timedelta(minutes=1))
 
 
 def seeded_role(parsed: JobParseResult) -> str:

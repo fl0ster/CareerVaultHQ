@@ -65,6 +65,10 @@ app/
   tasks/cv/        CV tailored to one parsed job (worker job generate_cv): history.py builds the
                    coherent timeline from relevance-scored roles, render.py fills cv_template.tex,
                    generate.py orchestrates the OpenRouter calls and the pdflatex compile
+  tasks/cv_import/ CV PDF import preview (worker job import_cv, POST /api/cv-import): pypdf text +
+                   link annotations -> one structured chat extraction -> validated candidate
+                   details + work history in the shapes PUT /api/candidate-details and
+                   POST /api/work-history/json accept; nothing is saved
   tasks/gmail/     Gmail rejection monitor (worker job check_rejection_mails, scheduled by
                    scheduler/gmail.py): Jev is_rejection -> chat extraction of company/role ->
                    unique match against open applications -> REJECTED event (source "gmail")

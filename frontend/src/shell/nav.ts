@@ -1,10 +1,12 @@
 import {
+  Building2,
   BriefcaseBusiness,
   CalendarClock,
   Coins,
   Trophy,
   FileText,
   Inbox,
+  LayoutDashboard,
   type LucideIcon,
   Mail,
   Rss,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react'
 
 export type PageId =
+  | 'dashboard'
   | 'interviews'
   | 'offers'
   | 'applications'
@@ -24,6 +27,7 @@ export type PageId =
   | 'generated-cv'
   | 'gmail'
   | 'cost'
+  | 'companies'
 
 export type NavItem = {
   id: PageId
@@ -65,6 +69,11 @@ export const SETTINGS: NavGroup = {
       description: 'The job boards that get scraped, how often each one runs and how relevant its jobs turn out.',
     },
     {
+      id: 'companies',
+      label: 'Companies',
+      icon: Building2,
+    },
+    {
       id: 'generated-cv',
       label: 'Generated CVs',
       icon: FileText,
@@ -99,18 +108,26 @@ export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me
 export const NAV_SECTIONS: NavNode[][] = [
   [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
   [
-    { id: 'offers', label: 'Offers', icon: Trophy },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
-    { id: 'applications', label: 'Applications', icon: Send },
     { id: 'jobs', label: 'Jobs', icon: Inbox },
+    { id: 'applications', label: 'Applications', icon: Send },
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
+    { id: 'offers', label: 'Offers', icon: Trophy },
   ],
 ]
 
-const NODES: NavNode[] = [PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
+/** The home page, opened by clicking the profile card at the top of the menu. */
+export const DASHBOARD_PAGE: NavItem = {
+  id: 'dashboard',
+  label: 'Dashboard',
+  icon: LayoutDashboard,
+  description: 'Your job search at a glance.',
+}
+
+const NODES: NavNode[] = [DASHBOARD_PAGE, PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 
-export const DEFAULT_PAGE: PageId = 'applications'
+export const DEFAULT_PAGE: PageId = 'dashboard'
 
 /** The page's menu entry and, for sub-pages, the group it belongs to. */
 export function findPage(id: PageId): { group: NavGroup | null; item: NavItem } {

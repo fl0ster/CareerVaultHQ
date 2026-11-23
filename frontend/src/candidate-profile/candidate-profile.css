@@ -82,6 +82,12 @@
   gap: 12px;
 }
 
+.cd-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
 .cd-fieldset {
   display: flex;
   flex-direction: column;
