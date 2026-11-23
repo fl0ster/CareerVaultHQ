@@ -926,3 +926,12 @@
     width: auto;
   }
 }
+
+/* The next funnel step, not reached yet: a faint, fading glimpse that cannot be clicked. */
+.nav-foreshadow {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+  -webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 20%, transparent 100%);
+}

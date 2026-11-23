@@ -159,9 +159,24 @@ export default function Sidebar({
           <Fragment key={i}>
             {i > 0 && <hr className="nav-divider" />}
             <ul className="nav-list">
-              {section.map((node) => {
+              {section.map((node, j) => {
                 if (!isGroup(node)) {
-                  if (hiddenPages.includes(node.id) && node.id !== active) return null
+                  const isHidden = (n: (typeof section)[number]) =>
+                    !isGroup(n) && hiddenPages.includes(n.id) && n.id !== active
+                  if (isHidden(node)) {
+                    // Foreshadow the next funnel step: the first hidden entry right after a shown one peeks through.
+                    const prev = section[j - 1]
+                    if (!prev || isHidden(prev)) return null
+                    const Icon = node.icon
+                    return (
+                      <li key={node.id} aria-hidden="true">
+                        <span className="nav-item nav-foreshadow" title={collapsed ? node.label : undefined}>
+                          <Icon className="nav-icon" size={19} strokeWidth={1.8} />
+                          <span className="nav-label">{node.label}</span>
+                        </span>
+                      </li>
+                    )
+                  }
                   return (
                     <li key={node.id}>
                       <PageLink

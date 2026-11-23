@@ -108,10 +108,10 @@ export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me
 export const NAV_SECTIONS: NavNode[][] = [
   [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
   [
-    { id: 'offers', label: 'Offers', icon: Trophy },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
-    { id: 'applications', label: 'Applications', icon: Send },
     { id: 'jobs', label: 'Jobs', icon: Inbox },
+    { id: 'applications', label: 'Applications', icon: Send },
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
+    { id: 'offers', label: 'Offers', icon: Trophy },
   ],
 ]
 
