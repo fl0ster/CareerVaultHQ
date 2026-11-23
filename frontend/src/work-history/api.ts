@@ -68,7 +68,6 @@ export const workHistoryApi = {
       body: JSON.stringify(input),
     }).then((r) => parse<WorkHistoryEntry>(r)),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
-  exportJson: () => fetch(`${API}/json`).then((r) => parse<WorkHistoryExport[]>(r)),
   importJson: (items: WorkHistoryExport[], replace: boolean) =>
     fetch(`${API}/json?replace=${replace}`, {
       method: 'POST',

@@ -655,3 +655,39 @@
     flex-wrap: wrap;
   }
 }
+
+/* Empty state: import a work history JSON file */
+.wh-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 40px 24px;
+  border: 2px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+
+  strong { color: var(--text-h); }
+
+  &:hover,
+  &:focus-visible,
+  &.over {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    outline: none;
+  }
+
+  &.busy { cursor: progress; opacity: 0.7; }
+}
+
+.wh-dropzone-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.wh-dropzone-hint {
+  font-size: 0.85em;
+}
