@@ -9,6 +9,7 @@ import SourcesPage from './sources/SourcesPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
+import CompaniesPage from './companies/CompaniesPage.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
 import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
@@ -149,6 +150,8 @@ function App() {
         return <GmailMonitorPage />
       case 'cost':
         return <CostPage />
+      case 'companies':
+        return <CompaniesPage />
     }
   }
   const item = findPage(page).item

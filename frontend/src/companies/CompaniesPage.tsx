@@ -73,7 +73,6 @@ export default function CompaniesPage() {
 
   return (
     <>
-      <h1 className="title">Companies</h1>
       <p>
         {total === null ? 'Loading…' : `${companies.length} of ${total} companies.`}{' '}
         <button type="button" className="secondary small" onClick={refresh} disabled={loading}>
