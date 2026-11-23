@@ -70,7 +70,6 @@ export const SETTINGS: NavGroup = {
       id: 'companies',
       label: 'Companies',
       icon: Building2,
-      description: 'Every company collected from scraped jobs; search by name or any spelling seen on a job page.',
     },
     {
       id: 'generated-cv',

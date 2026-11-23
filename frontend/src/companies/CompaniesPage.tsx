@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { listCompanies, type Company } from './api.ts'
 import CompanyDialog from './CompanyDialog.tsx'
 import { CompanyTagBadge } from './CompanyTag.tsx'
+import { useStuck } from '../shell/useStuck.ts'
+import '../applications/applications.css'
 import './tags.css'
 import './companies.css'
 
 const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 300
 
-/** What the list should show: the search text and a counter bumped by Refresh. */
+/** What the list should show: the search text and a counter bumped on every new search.
+ * The page remounts each time its tab is opened, so the list is always reloaded then. */
 type Request = { q: string; n: number }
 
 export default function CompaniesPage() {
@@ -22,6 +25,9 @@ export default function CompaniesPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
+  // The search bar sticks under the top bar; once stuck it gets the top bar's translucent look.
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  const stuck = useStuck(toolbarRef, true)
 
   const search = request.q
   const loading = loadedFor !== request.n || loadingMore
@@ -33,8 +39,6 @@ export default function CompaniesPage() {
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(handle)
   }, [query])
-
-  const refresh = () => setRequest((prev) => ({ ...prev, n: prev.n + 1 }))
 
   // First page for the current request; a newer request aborts the previous fetch.
   useEffect(() => {
@@ -73,21 +77,16 @@ export default function CompaniesPage() {
 
   return (
     <>
-      <p>
-        {total === null ? 'Loading…' : `${companies.length} of ${total} companies.`}{' '}
-        <button type="button" className="secondary small" onClick={refresh} disabled={loading}>
-          Refresh
-        </button>
-      </p>
-
-      <input
-        type="search"
-        className="company-search"
-        placeholder="Search by name or alias…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search companies"
-      />
+      <div ref={toolbarRef} className={stuck ? 'app-toolbar stuck' : 'app-toolbar'}>
+        <input
+          type="search"
+          className="company-search"
+          placeholder="Search by name or alias…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search companies"
+        />
+      </div>
 
       {error && <p className="error">{error}</p>}
 
