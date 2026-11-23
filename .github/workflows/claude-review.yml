@@ -2,7 +2,12 @@ name: Claude Review
 
 on:
   pull_request:
-    types: [opened, ready_for_review]
+    branches: [dev]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
