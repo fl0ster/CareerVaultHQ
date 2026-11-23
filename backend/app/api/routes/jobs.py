@@ -37,6 +37,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 from rq import Queue
@@ -500,6 +501,41 @@ def add_manual_job(
     session.commit()
     enqueue_parse_jobs(session, [pending], queue)
     return ManualJobStatus(job_id=job.id, status=pending.status, error=pending.error)
+
+
+class ManualJobImportIn(BaseModel):
+    link: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+class ManualJobImport(BaseModel):
+    title: str
+    company: str
+    description: str
+    source: str | None
+    """Name of the scraper whose parsers were used; ``None`` when the generic parser was."""
+
+
+@router.post("/manual/import", response_model=ManualJobImport)
+def import_manual_job(payload: ManualJobImportIn) -> ManualJobImport:
+    """Fetch the page at ``link`` and parse it into form fields for the "add job" composer.
+    Stores nothing: the user reviews the fields and submits ``POST /api/jobs/manual``.
+
+    The link is user-supplied, so it is fetched with ``fetch_public_html``: public
+    addresses only (every redirect hop included) and a capped body size."""
+    from app.tasks.scrape import safe_fetch
+    from app.tasks.scrape.description import import_job
+
+    try:
+        job = import_job(payload.link, safe_fetch.fetch_public_html)
+    except safe_fetch.UnsafeURLError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except safe_fetch.FetchError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not fetch the page: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not fetch the page: {exc}") from exc
+    if not (job.title or job.description):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "nothing could be parsed from the page")
+    return ManualJobImport(title=job.title, company=job.company, description=job.description, source=job.source)
 
 
 @router.get("/manual/{job_id}", response_model=ManualJobStatus)
