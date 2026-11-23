@@ -20,6 +20,8 @@ services:
       LATEX_ROOT: /data/latex
       # Generated CVs (app.tasks.cv); same volume as the worker's.
       CV_ROOT: /data/cv
+      # Uploaded CV PDFs for import (app.tasks.cv_import); same volume as the worker's.
+      CV_IMPORT_UPLOAD_ROOT: /data/cv_import
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
@@ -42,6 +44,7 @@ services:
       LATEX_ROOT: /data/latex
       LATEX_TIMEOUT: "300"
       CV_ROOT: /data/cv
+      CV_IMPORT_UPLOAD_ROOT: /data/cv_import
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
     volumes:
       - careervaulthq-data:/data
