@@ -1,46 +1,11 @@
 import { type FormEvent, useState } from 'react'
 import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
+import { type Draft, draftError, toDraft, toInput } from './draft.ts'
 
 type Props = {
   initial?: WorkHistoryEntry
   onSubmit: (input: WorkHistoryInput) => Promise<void>
   onCancel: () => void
-}
-
-type Draft = {
-  date_start: string
-  date_end: string
-  current: boolean
-  employer: string
-  role: string
-  location: string
-  tech: string
-  context: string
-}
-
-function toDraft(entry?: WorkHistoryEntry): Draft {
-  return {
-    date_start: entry?.date_start ?? '',
-    date_end: entry?.date_end ?? '',
-    current: entry ? entry.date_end === null : false,
-    employer: entry?.employer ?? '',
-    role: entry?.role ?? '',
-    location: entry?.location ?? '',
-    tech: entry?.tech.join(', ') ?? '',
-    context: entry?.context ?? '',
-  }
-}
-
-function toInput(d: Draft): WorkHistoryInput {
-  return {
-    date_start: d.date_start,
-    date_end: d.current || !d.date_end ? null : d.date_end,
-    employer: d.employer.trim(),
-    role: d.role.trim(),
-    location: d.location.trim() || null,
-    tech: d.tech.split(/[,\n]/).map((t) => t.trim()).filter(Boolean),
-    context: d.context.trim() || null,
-  }
 }
 
 export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) {
@@ -53,8 +18,9 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft.current && draft.date_end && draft.date_end < draft.date_start) {
-      setError('End date must not be earlier than start date.')
+    const invalid = draftError(draft)
+    if (invalid) {
+      setError(invalid)
       return
     }
     setSaving(true)

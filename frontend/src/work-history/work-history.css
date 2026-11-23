@@ -608,3 +608,50 @@
 @media (max-width: 600px) {
   .wh-tl-hint { display: none; }
 }
+
+/* Add-position composer: reuses the `.add-job` compose window from jobs.css */
+.add-position.open,
+.add-position .add-job-panel {
+  height: min(600px, calc(100vh - 96px));
+}
+
+.add-position-dates {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 16px;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  input[type='date'] {
+    border-bottom: 0;
+    padding: 10px 8px;
+  }
+
+  input[type='date']:disabled {
+    opacity: 0.45;
+  }
+}
+
+.add-position-current {
+  margin-left: auto;
+  padding-right: 16px;
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .add-position-dates {
+    flex-wrap: wrap;
+  }
+}
