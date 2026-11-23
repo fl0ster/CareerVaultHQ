@@ -118,6 +118,53 @@ function EntryCard({
   )
 }
 
+function JsonDropzone({ busy, onFile }: { busy: boolean; onFile: (file: File) => void }) {
+  const input = useRef<HTMLInputElement>(null)
+  const [over, setOver] = useState(false)
+  return (
+    <div
+      className={`wh-dropzone${over ? ' over' : ''}${busy ? ' busy' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-disabled={busy}
+      onClick={() => !busy && input.current?.click()}
+      onKeyDown={(e) => {
+        if (busy || (e.key !== 'Enter' && e.key !== ' ')) return
+        e.preventDefault()
+        input.current?.click()
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (!busy) setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        const file = e.dataTransfer.files[0]
+        if (file && !busy) onFile(file)
+      }}
+    >
+      <strong>{busy ? 'Importing…' : 'No positions yet'}</strong>
+      <span>
+        Drop a work history JSON file here, or <span className="wh-dropzone-link">pick one from disk</span>.
+      </span>
+      <span className="wh-dropzone-hint">Or add your first position by hand with the + button.</span>
+      <input
+        ref={input}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(ev) => {
+          const file = ev.target.files?.[0]
+          ev.target.value = ''
+          if (file) onFile(file)
+        }}
+      />
+    </div>
+  )
+}
+
 type Mode = { kind: 'list' } | { kind: 'edit'; entry: WorkHistoryEntry }
 
 type PageProps = {
@@ -131,7 +178,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
   const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [importing, setImporting] = useState(false)
-  const fileInput = useRef<HTMLInputElement>(null)
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
   const [flashId, setFlashId] = useState<number | null>(null)
   const viewRef = useRef<HTMLDivElement>(null)
@@ -219,26 +265,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
     }
   }
 
-  const hasEntries = !!entries && entries.length > 0
-
-  const describe = (e: unknown) => String(e instanceof Error ? e.message : e)
-
-  const exportJson = async () => {
-    setTransfer(null)
-    try {
-      const items = await workHistoryApi.exportJson()
-      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `work-history-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (e) {
-      setTransfer({ kind: 'error', text: `Could not export work history: ${describe(e)}` })
-    }
-  }
-
   const importJson = async (file: File) => {
     setTransfer(null)
     let items: unknown
@@ -252,22 +278,16 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of positions.` })
       return
     }
-    const replace = hasEntries
-      ? window.confirm(
-          `Replace the existing ${entries.length} position${entries.length === 1 ? '' : 's'} with the imported ones?\n\n` +
-            'OK = replace, Cancel = keep them and add the imported positions.',
-        )
-      : false
     setImporting(true)
     try {
-      const created = await workHistoryApi.importJson(items as WorkHistoryExport[], replace)
+      const created = await workHistoryApi.importJson(items as WorkHistoryExport[], false)
       await load()
       setTransfer({
         kind: 'ok',
         text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.`,
       })
     } catch (e) {
-      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${describe(e)}` })
+      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
     } finally {
       setImporting(false)
     }
@@ -275,33 +295,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   return (
     <>
-      {mode.kind === 'list' && (
-        <p>
-          {entries === null ? 'Loading…' : `${entries.length} position${entries.length === 1 ? '' : 's'}.`}{' '}
-          <button type="button" className="secondary small" disabled={!hasEntries} onClick={exportJson}>
-            Export JSON
-          </button>{' '}
-          <button
-            type="button"
-            className="secondary small"
-            disabled={importing || entries === null}
-            onClick={() => fileInput.current?.click()}
-          >
-            {importing ? 'Importing…' : 'Import JSON'}
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(ev) => {
-              const file = ev.target.files?.[0]
-              ev.target.value = ''
-              if (file) void importJson(file)
-            }}
-          />
-        </p>
-      )}
+      {mode.kind === 'list' && entries === null && !error && <p>Loading…</p>}
 
       {mode.kind === 'list' && transfer && (
         <p className={transfer.kind === 'error' ? 'error' : undefined}>
@@ -329,7 +323,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       )}
 
       {mode.kind === 'list' && entries?.length === 0 && (
-        <p>No positions yet. Add your first one with the + button.</p>
+        <JsonDropzone busy={importing} onFile={(file) => void importJson(file)} />
       )}
       {mode.kind === 'list' && entries && model && (
         <div className="wh-view" ref={viewRef}>
