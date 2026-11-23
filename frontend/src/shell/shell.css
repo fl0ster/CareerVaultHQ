@@ -73,15 +73,43 @@
   color: var(--text);
   transition:
     border-color var(--t-fast) ease,
+    box-shadow var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out),
     padding var(--t-med) var(--ease-out),
     min-height var(--t-med) var(--ease-out);
 
-  &.active {
+  &:hover:not(.active) {
     border-color: var(--accent-border);
+    transform: translateY(-1px);
+  }
+  /* On the dashboard the card is the current page: accent outline and ringed avatar. */
+  &.active {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md), 0 0 0 3px var(--accent-bg);
   }
   &.active .profile-avatar {
     box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
   }
+  &:has(.profile-card-link:focus-visible) {
+    box-shadow: var(--shadow-md), var(--focus-ring);
+  }
+}
+
+/* The whole card links to the dashboard; the cog sits above it. */
+.profile-card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+.profile-avatar,
+.profile-text {
+  pointer-events: none;
 }
 
 .profile-avatar {
@@ -157,6 +185,7 @@
 /* Cog in the top-right corner: the only way into About me from the card. */
 .profile-settings {
   position: absolute;
+  z-index: 1;
   top: 10px;
   right: 10px;
   display: grid;

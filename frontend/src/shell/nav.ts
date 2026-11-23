@@ -6,6 +6,7 @@ import {
   Trophy,
   FileText,
   Inbox,
+  LayoutDashboard,
   type LucideIcon,
   Mail,
   Rss,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 
 export type PageId =
+  | 'dashboard'
   | 'interviews'
   | 'offers'
   | 'applications'
@@ -113,11 +115,19 @@ export const NAV_SECTIONS: NavNode[][] = [
   ],
 ]
 
-const NODES: NavNode[] = [PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
+/** The home page, opened by clicking the profile card at the top of the menu. */
+export const DASHBOARD_PAGE: NavItem = {
+  id: 'dashboard',
+  label: 'Dashboard',
+  icon: LayoutDashboard,
+  description: 'Your job search at a glance.',
+}
+
+const NODES: NavNode[] = [DASHBOARD_PAGE, PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 
-export const DEFAULT_PAGE: PageId = 'applications'
+export const DEFAULT_PAGE: PageId = 'dashboard'
 
 /** The page's menu entry and, for sub-pages, the group it belongs to. */
 export function findPage(id: PageId): { group: NavGroup | null; item: NavItem } {
