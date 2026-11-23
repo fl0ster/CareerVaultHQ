@@ -10,7 +10,7 @@ const POLL_MS = 2000
 export type CvImportResult = {
   /** Ready for `PUT /api/candidate-details` (photo and consent text are blank). */
   candidate_details: CandidateDetailsInput
-  /** Ready for `POST /api/work-history/json`; newest first. */
+  /** Positions, education and certificates, ready for `POST /api/work-history/json`; newest first. */
   work_history: WorkHistoryExport[]
   skills: string[]
   summary: string | null
@@ -67,7 +67,7 @@ export async function parseCv(file: File, cancelled: () => boolean = () => false
 }
 
 type TextKey = 'first_name' | 'last_name' | 'email' | 'phone' | 'website' | 'github' | 'linkedin' | 'location'
-type ListKey = 'education' | 'certifications' | 'languages'
+type ListKey = 'languages'
 
 const TEXT_FIELDS: readonly TextKey[] = [
   'first_name',
@@ -79,7 +79,7 @@ const TEXT_FIELDS: readonly TextKey[] = [
   'linkedin',
   'location',
 ]
-const LIST_FIELDS: readonly ListKey[] = ['education', 'certifications', 'languages']
+const LIST_FIELDS: readonly ListKey[] = ['languages']
 
 const LABELS: Record<TextKey | ListKey, string> = {
   first_name: 'first name',
@@ -90,8 +90,6 @@ const LABELS: Record<TextKey | ListKey, string> = {
   github: 'GitHub',
   linkedin: 'LinkedIn',
   location: 'location',
-  education: 'education',
-  certifications: 'certifications',
   languages: 'languages',
 }
 

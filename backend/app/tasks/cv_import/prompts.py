@@ -31,10 +31,16 @@ Rules:
     each as a short name (e.g. "Python", "PostgreSQL", "AWS Lambda").
   - "context": the position's description and achievements, as in the CV (keep bullet
     points as separate lines starting with "- ").
-- education: degree (with the field of study), institution, dates in the same "YYYY-MM" /
-  "YYYY" format, and "note" for anything else stated (thesis, grade, specialisation).
+- education: one entry per degree or study programme: "degree" (with the field of study),
+  "institution", dates in the same "YYYY-MM" / "YYYY" format ("date_end" is "present" while
+  still studying and "" when not stated), and "note" for anything else stated (thesis,
+  grade, specialisation).
 - skills: skills listed outside any position (e.g. a "Skills" or "Technologies" section).
-- certifications: one string per certificate or course, with issuer and year when stated.
+- certifications: one entry per certificate, licence or course: "name" (without the issuer
+  or year), "issuer" (the organisation that issued it, "" when not stated), "date_start"
+  (the issue date, or the start of a course that ran over a period) and "date_end" (only
+  for a course or programme with a stated period; "" for a certificate issued on a single
+  date), in the same "YYYY-MM" / "YYYY" format.
 - languages: spoken languages with the level as written ("C1", "native", "fluent").
 - summary: the CV's profile / about / summary paragraph, verbatim; "" when absent.
 
@@ -87,7 +93,10 @@ CV_IMPORT_SCHEMA: dict[str, Any] = _object(
         "items": _object(degree=_STRING, institution=_STRING, date_start=_STRING, date_end=_STRING, note=_STRING),
     },
     skills=_STRINGS,
-    certifications=_STRINGS,
+    certifications={
+        "type": "array",
+        "items": _object(name=_STRING, issuer=_STRING, date_start=_STRING, date_end=_STRING),
+    },
     languages={"type": "array", "items": _object(language=_STRING, level=_STRING)},
 )
 

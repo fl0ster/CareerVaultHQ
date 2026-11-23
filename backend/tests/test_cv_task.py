@@ -149,6 +149,20 @@ def _seed(engine, *, details=True, history=True) -> int:
                         tech=["PHP"],
                         context="Legacy shop. Nothing relevant, left because of complaints.",
                     ),
+                    models.WorkHistoryEntry(
+                        kind="education",
+                        date_start=date(2008, 10, 1),
+                        date_end=date(2011, 6, 1),
+                        employer="Warsaw University",
+                        role="BSc Computer Science",
+                        context="Thesis on compilers",
+                    ),
+                    models.WorkHistoryEntry(
+                        kind="certificate",
+                        date_start=date(2023, 3, 1),
+                        employer="Amazon",
+                        role="AWS Developer",
+                    ),
                 ]
             )
         if details:
@@ -210,6 +224,12 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
         assert "{Senior Mobile Engineer}{Zartis}{May 2025 -- May 2026}" in tex
         assert "{Additional Experience}{Various Companies}{Jan 2012 -- Dec 2013}" in tex
         assert "\\cvitem{English}{{\\color{muted}C1}}" in tex
+        # education and certificates come from the career timeline, never as roles
+        assert "\\begin{cvsectionblock}{Education \\& Certifications}" in tex
+        assert "\\textbf{BSc Computer Science} \\hfill {\\color{muted}\\small Oct 2008 -- Jun 2011}" in tex
+        assert "Warsaw University" in tex and "Thesis on compilers" in tex
+        assert "\\item AWS Developer — Amazon (Mar 2023)" in tex
+        assert {r["employer"] for r in pipeline["relevance"]} == set(RELEVANCE)
         assert "Nothing relevant" not in tex
         assert (task_engine.cv_root / str(cv_id) / "pipeline.json").is_file()
         # 3 decisions at 0.0001 + 9 chat calls at 0.0002

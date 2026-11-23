@@ -46,6 +46,11 @@ def test_generate_requires_work_history_and_name(client, db_session):
     assert res.status_code == 400
     assert "work history" in res.json()["detail"]
 
+    # education alone is not a work history
+    db_session.add(WorkHistoryEntry(kind="education", date_start=date(2015, 1, 1), employer="Uni", role="BSc", tech=[]))
+    db_session.commit()
+    assert "work history" in client.post(f"{BASE}/generate", json={"job_id": job.id}).json()["detail"]
+
     db_session.add(WorkHistoryEntry(date_start=date(2020, 1, 1), employer="Acme", role="Dev", tech=[]))
     db_session.commit()
     res = client.post(f"{BASE}/generate", json={"job_id": job.id})

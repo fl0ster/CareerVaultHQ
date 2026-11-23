@@ -11,6 +11,16 @@ import { formatDay } from '../applications/api.ts'
 import { candidateDetailsApi } from '../candidate-profile/api.ts'
 import { candidateDetailsStore } from '../candidate-profile/store.ts'
 import { isPdf, mergeDetails, parseCv } from './cvImport.ts'
+import { countLabel, entryTitle, isPoint, KIND_ORDER, KINDS } from './kinds.ts'
+
+/** "3 positions, 1 education entry and 2 certificates". */
+function importedSummary(entries: { kind?: WorkHistoryEntry['kind'] }[]): string {
+  const parts = KIND_ORDER.map((kind) => [kind, entries.filter((e) => (e.kind ?? 'job') === kind).length] as const)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => countLabel(count, kind))
+  if (parts.length === 0) return 'nothing'
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
 
 /** How often the list is reloaded while an entry is being filled in from its application. */
 const PREFILL_POLL_MS = 3000
@@ -44,18 +54,25 @@ function EntryCard({
 }) {
   const filling = entry.prefill_state === 'queued'
   const hasDetails = !!entry.context || entry.application_id != null
+  const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
+  const point = isPoint(entry)
   return (
     <li
       ref={cardRef}
       data-id={entry.id}
-      className={`wh-item${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}${flash ? ' flash' : ''}`}
+      className={`wh-item kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}${flash ? ' flash' : ''}`}
       onAnimationEnd={(e) => {
         if (e.animationName === 'wh-flash') onFlashEnd()
       }}
     >
       <div className="wh-head">
         <div className="wh-main">
-          <strong>{entry.role}</strong> at {entry.employer}
+          <span className="wh-kind-badge" title={kindLabel}>
+            <Icon size={13} aria-hidden="true" />
+            {kindLabel}
+          </span>
+          <strong>{entry.role}</strong>
+          {entry.employer && (entry.kind === 'certificate' ? ` · ${entry.employer}` : ` at ${entry.employer}`)}
           {entry.pending && (
             <span
               className="badge wh-pending"
@@ -70,6 +87,8 @@ function EntryCard({
                 Starts {formatDay(entry.date_start)}
                 {entry.date_end ? ` – ${formatMonth(entry.date_end)}` : ''}
               </span>
+            ) : point ? (
+              <span>Issued {formatMonth(entry.date_start)}</span>
             ) : (
               <>
                 <span>
@@ -150,14 +169,15 @@ function ImportDropzone({ busy, onFile }: { busy: string | null; onFile: (file: 
     >
       <strong role={busy ? 'status' : undefined}>
         {busy && <span className="spinner" aria-hidden="true" />}
-        {busy ?? 'No positions yet'}
+        {busy ?? 'Your career timeline is empty'}
       </strong>
       <span>
         Drop your CV (a PDF) or a work history JSON file here, or{' '}
         <span className="wh-dropzone-link">pick one from disk</span>.
       </span>
       <span className="wh-dropzone-hint">
-        A CV also fills in the blank fields of About me. Or add your first position by hand with the + button.
+        A CV adds your positions, education and certificates, and fills in the blank fields of About me. Or add
+        them by hand with the + button.
       </span>
       <input
         ref={input}
@@ -229,7 +249,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
         setEntries(items)
         setError(null)
       },
-      (e) => setError(`Could not load work history: ${String(e instanceof Error ? e.message : e)}`),
+      (e) => setError(`Could not load your career: ${String(e instanceof Error ? e.message : e)}`),
     )
 
   useEffect(() => {
@@ -271,7 +291,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   const remove = async (entry: WorkHistoryEntry) => {
     const note = entry.application_id != null ? '\n\nThe application stays accepted.' : ''
-    if (!window.confirm(`Delete "${entry.role} at ${entry.employer}"?${note}`)) return
+    if (!window.confirm(`Delete "${entryTitle(entry)}"?${note}`)) return
     try {
       await workHistoryApi.remove(entry.id)
       await load()
@@ -290,7 +310,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       return
     }
     if (!Array.isArray(items) || items.length === 0) {
-      setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of positions.` })
+      setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of entries.` })
       return
     }
     setImporting('Importing…')
@@ -299,7 +319,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       await load()
       setTransfer({
         kind: 'ok',
-        text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.`,
+        text: `Imported ${importedSummary(created)} from ${file.name}.`,
       })
     } catch (e) {
       setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
@@ -308,14 +328,18 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
     }
   }
 
-  /** Parses a CV PDF, imports its positions and fills the blank About me fields. */
+  /** Parses a CV PDF, imports its positions, education and certificates and fills the blank About me fields. */
   const importCv = async (file: File) => {
     setTransfer(null)
     setImporting('Reading your CV… this can take a minute')
     try {
       const cv = await parseCv(file, () => left.current)
       if (cv.work_history.length === 0) {
-        setTransfer({ kind: 'error', text: `No positions were found in ${file.name}.`, notes: cv.warnings })
+        setTransfer({
+          kind: 'error',
+          text: `No positions, education or certificates were found in ${file.name}.`,
+          notes: cv.warnings,
+        })
         return
       }
       setImporting('Importing…')
@@ -334,7 +358,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       }
       setTransfer({
         kind: 'ok',
-        text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.${filledText}`,
+        text: `Imported ${importedSummary(created)} from ${file.name}.${filledText}`,
         notes,
       })
     } catch (e) {

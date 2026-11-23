@@ -87,8 +87,9 @@ def test_json_shape(client):
     items = client.get(f"{BASE}/json").json()
     assert isinstance(items, list) and len(items) == 2
     assert list(items[0].keys()) == [
-        "date_start", "date_end", "employer", "role", "location", "tech", "context",
+        "kind", "date_start", "date_end", "employer", "role", "location", "tech", "context",
     ]  # fmt: skip
+    assert items[0]["kind"] == "job"
     assert items[0]["date_start"] == "Jan 2024"
     assert items[0]["date_end"] is None
     assert items[0]["employer"] == "Acme Corp"
@@ -123,7 +124,7 @@ def test_import_json_round_trips_export(client):
     assert created[0]["tech"] == ["python", "sql"]
 
     exported = client.get(f"{BASE}/json").json()
-    assert exported == _import_payload()
+    assert exported == _import_payload(kind="job")  # an import without ``kind`` is a job
 
     # Export output can be imported again unchanged (appends).
     res = client.post(f"{BASE}/json", json=exported)
@@ -156,3 +157,67 @@ def test_import_json_rejects_bad_date_without_writing(client):
 
 def test_import_json_rejects_empty(client):
     assert client.post(f"{BASE}/json", json=[]).status_code == 422
+
+
+# --- education and certificates -------------------------------------------------------
+
+EDUCATION = {
+    "kind": "education",
+    "date_start": "2012-10-01",
+    "date_end": "2015-06-01",
+    "employer": "Warsaw University of Technology",
+    "role": "B.Sc. Computer Science",
+    "context": "Thesis: distributed caches",
+}
+CERTIFICATE = {"kind": "certificate", "date_start": "2021-03-01", "date_end": None, "role": "AWS Solutions Architect"}
+
+
+def test_entries_default_to_job(client):
+    assert client.post(BASE, json=ENTRY).json()["kind"] == "job"
+
+
+def test_create_education_and_certificates(client):
+    education = client.post(BASE, json=EDUCATION)
+    assert education.status_code == 201, education.text
+    assert education.json()["kind"] == "education"
+
+    # a certificate without an end date is a single point in time; the issuer may be blank
+    point = client.post(BASE, json=CERTIFICATE)
+    assert point.status_code == 201, point.text
+    assert point.json()["employer"] == "" and point.json()["date_end"] is None
+
+    course = client.post(BASE, json={**CERTIFICATE, "employer": "Coursera", "date_end": "2021-06-01"})
+    assert course.status_code == 201
+
+    kinds = [e["kind"] for e in client.get(BASE).json()]
+    assert sorted(kinds) == ["certificate", "certificate", "education"]
+
+
+def test_employer_is_required_for_jobs_only(client):
+    assert client.post(BASE, json={**ENTRY, "employer": "  "}).status_code == 422
+    assert client.post(BASE, json={**EDUCATION, "employer": ""}).status_code == 201
+    assert client.post(BASE, json={**ENTRY, "kind": "hobby"}).status_code == 422
+
+
+def test_update_switches_kind(client):
+    entry_id = client.post(BASE, json=CERTIFICATE).json()["id"]
+    # a certificate without an issuer cannot become a job without an employer
+    assert client.patch(f"{BASE}/{entry_id}", json={"kind": "job"}).status_code == 422
+
+    body = client.patch(f"{BASE}/{entry_id}", json={"kind": "job", "employer": "Amazon"}).json()
+    assert body["kind"] == "job" and body["employer"] == "Amazon"
+    body = client.patch(f"{BASE}/{entry_id}", json={"kind": None}).json()  # null keeps the kind
+    assert body["kind"] == "job"
+
+
+def test_import_export_round_trips_kinds(client):
+    payload = [
+        {**_import_payload()[0], "kind": "job"},
+        {"kind": "education", "date_start": "Oct 2012", "date_end": "Jun 2015", "employer": "Uni", "role": "B.Sc."},
+        {"kind": "certificate", "date_start": "Mar 2021", "date_end": None, "employer": "", "role": "CKA"},
+    ]
+    assert client.post(f"{BASE}/json", json=payload).status_code == 201
+    exported = client.get(f"{BASE}/json").json()
+    assert [(e["kind"], e["role"]) for e in exported] == [("certificate", "CKA"), ("job", "Dev"), ("education", "B.Sc.")]
+    assert client.post(f"{BASE}/json?replace=true", json=exported).status_code == 201
+    assert client.get(f"{BASE}/json").json() == exported

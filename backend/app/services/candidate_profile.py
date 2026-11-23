@@ -61,10 +61,11 @@ def _month(value: date | None) -> str | None:
 
 def _work_history_payload(session: Session) -> list[dict]:
     """The work history in the shape of ``GET /api/work-history/json``, newest first. Pending
-    positions (starting in the future) are left out until they start."""
+    positions (starting in the future) are left out until they start, and so are education
+    and certificates (the profile describes the work experience)."""
     entries = session.scalars(
         select(WorkHistoryEntry)
-        .where(WorkHistoryEntry.date_start <= date.today())
+        .where(WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB, WorkHistoryEntry.date_start <= date.today())
         .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
     ).all()
     return [

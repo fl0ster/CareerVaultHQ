@@ -99,14 +99,20 @@ def test_finished_import_returns_the_result(client, sync_queue, worker_env, cv_i
     assert status["error"] is None
     result = status["result"]
     assert result["candidate_details"]["linkedin"] == "linkedin.com/in/jane-doe"
-    assert [e["employer"] for e in result["work_history"]] == ["Acme Corp", "Globex"]
+    assert [(e["kind"], e["employer"]) for e in result["work_history"]] == [
+        ("certificate", "Amazon"),
+        ("job", "Acme Corp"),
+        ("certificate", ""),
+        ("job", "Globex"),
+        ("education", "Warsaw University of Technology"),
+    ]
     assert not list(cv_import_root.glob("*/cv.pdf"))  # the worker removed the upload
 
     # The result is accepted as-is by the endpoints that save it.
     assert client.put("/api/candidate-details", json=result["candidate_details"]).status_code == 200
     saved = client.post("/api/work-history/json", json=result["work_history"])
     assert saved.status_code in (200, 201)
-    assert len(client.get("/api/work-history").json()) == 2
+    assert len(client.get("/api/work-history").json()) == 5
 
 
 def test_failed_import_reports_the_reason(client, sync_queue, worker_env):

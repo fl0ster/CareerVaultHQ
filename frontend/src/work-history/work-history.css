@@ -14,6 +14,84 @@
   .tone-warn { --tone-bg: var(--warn-bg); --tone-fg: var(--warn-fg); }
 }
 
+/* Kinds of career events: each has a colour of its own (positions rotate through tones). */
+.kind-job { --kind-bg: var(--accent-bg); --kind-fg: var(--accent); }
+.kind-education { --kind-bg: var(--lavender-bg); --kind-fg: var(--lavender-fg); }
+.kind-certificate { --kind-bg: var(--peach-bg); --kind-fg: var(--peach-fg); }
+
+.wh-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 999px;
+  background: var(--kind-bg);
+  color: var(--kind-fg);
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+/* Job / Education / Certificate switch of the forms */
+.wh-kind-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+
+  label {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 6px !important;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 13px !important;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.12s, color 0.12s;
+
+    &:hover { color: var(--text-h); }
+
+    &.checked {
+      background: var(--kind-bg);
+      color: var(--kind-fg);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--kind-fg) 30%, transparent);
+    }
+
+    &:has(input:focus-visible) {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+  }
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* Inside the compose window: a full-width row under the header. */
+  &.compact {
+    display: flex;
+    align-self: stretch;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 6px 10px;
+
+    label { flex: 1; justify-content: center; padding: 5px 8px; }
+  }
+}
+
 .wh-item {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
@@ -476,6 +554,109 @@
   &.dim {
     opacity: 0.45;
   }
+
+  /* Education: hatched, so it reads as study time rather than a position. */
+  &.kind-education {
+    background:
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 7px,
+        color-mix(in srgb, var(--tone-fg) 12%, transparent) 7px 9px
+      ),
+      var(--tone-bg);
+  }
+
+  /* A certificate with a duration (a course): a slimmer, dotted-edged bar. */
+  &.kind-certificate {
+    border-style: dotted;
+    border-left-style: solid;
+    border-radius: 999px 6px 6px 999px;
+  }
+}
+
+/* A certificate without a duration: a diamond on its date, with the name beside it. */
+.wh-tl-mark {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: var(--tone-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 0.15s;
+
+  .wh-tl-pos-label {
+    position: static;
+    height: auto;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--canvas) 80%, transparent);
+  }
+
+  &:hover,
+  &:focus-visible {
+    outline: none;
+    z-index: 2;
+
+    .wh-tl-mark-gem { box-shadow: 0 0 0 3px var(--accent-border), var(--shadow-md); }
+  }
+
+  &.selected {
+    z-index: 3;
+
+    .wh-tl-mark-gem { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--tone-fg); }
+  }
+
+  &.dim {
+    opacity: 0.45;
+  }
+}
+
+.wh-tl-mark-gem {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--tone-fg);
+  color: var(--surface);
+  transform: rotate(45deg);
+  transition: box-shadow 0.15s;
+
+  svg { transform: rotate(-45deg); }
+}
+
+/* Kind key in the timeline header. */
+.wh-tl-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  i {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--kind-bg);
+    color: var(--kind-fg);
+  }
+
+  &.kind-education i {
+    background:
+      repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--kind-fg) 18%, transparent) 3px 4px),
+      var(--kind-bg);
+  }
+
+  &.kind-certificate i {
+    border-radius: 50%;
+  }
 }
 
 /* Sticky so the label stays visible while a long bar is partly scrolled off-screen. */
@@ -500,6 +681,11 @@
 
   strong {
     font-size: 13px;
+
+    svg {
+      margin-right: 4px;
+      vertical-align: -1px;
+    }
   }
 
   small {
@@ -525,6 +711,8 @@
   &.start { background: var(--success-strong); }
   &.end { background: var(--danger-solid); }
   &.switch { background: linear-gradient(90deg, var(--danger-solid) 50%, var(--success-strong) 50%); }
+  &.point { background: var(--peach-fg); border-radius: 3px; }
+  &.mixed { background: linear-gradient(90deg, var(--peach-fg) 50%, var(--success-strong) 50%); }
 
   &.active,
   &:hover,
@@ -598,7 +786,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wh-tl-pos,
+  .wh-tl-mark,
+  .wh-tl-mark-gem,
   .wh-tl-event,
+  .wh-kind-switch label,
   .wh-item {
     transition: none;
     animation: none;
