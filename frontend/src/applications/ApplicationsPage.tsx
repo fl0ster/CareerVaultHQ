@@ -21,7 +21,7 @@ import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
-import { AcceptOfferButton } from './AcceptOffer.tsx'
+import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import Confetti from './Confetti.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import type { EvaluatedJobDetail } from '../jobs/api.ts'
@@ -218,6 +218,12 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
     window.location.hash = pageHref('work-history', updated.work_history_id)
   }
 
+  /** An offer was declined from a list row: it leaves the offers. */
+  const declinedFromList = (updated: Application) => {
+    setApplications((prev) => prev?.filter((a) => a.id !== updated.id) ?? prev)
+    notifyApplicationsChanged()
+  }
+
   /** An offer was accepted from the open application, which stays on screen. */
   const acceptedInView = (updated: Application) => {
     setCelebrations((n) => n + 1)
@@ -352,8 +358,11 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
                   }}
                 >
                   {stage === 'offers' && a.status?.key === OFFER_STATUS ? (
-                    // Every row here is an offer: the one thing left to do is accept it.
-                    <AcceptOfferButton application={a} onAccepted={acceptedFromList} onError={setError} />
+                    // Every row here is an offer: the one thing left to do is answer it.
+                    <>
+                      <DeclineOfferButton application={a} onDeclined={declinedFromList} />
+                      <AcceptOfferButton application={a} onAccepted={acceptedFromList} onError={setError} />
+                    </>
                   ) : (
                     <StatusBadge
                       status={a.status}

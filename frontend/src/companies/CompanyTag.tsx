@@ -61,7 +61,9 @@ export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) 
     <span className="company-app-stats">
       {shown.map((o) => (
         <span key={o.key} className={`company-app-stat ${o.key.toLowerCase()}`} title={`${o.label}: ${stats[o.key]}`}>
-          <span aria-hidden="true">{o.icon}</span>
+          <span className="company-app-stat-icon" aria-hidden="true">
+            {o.icon}
+          </span>
           {stats[o.key]}
         </span>
       ))}

@@ -54,6 +54,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* A declined offer: the offer trophy, greyed out and struck through. */
+.company-app-stat.declined .company-app-stat-icon {
+  position: relative;
+  filter: grayscale(1);
+  opacity: 0.75;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    top: 50%;
+    border-top: 1.5px solid var(--danger-fg);
+    transform: rotate(-35deg);
+  }
+}
+
 /* Company name in the middle part of the tag pill */
 .company-tag-name {
   padding: 0 8px 0 5px;

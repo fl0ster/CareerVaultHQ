@@ -11,7 +11,7 @@
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
   ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
   to/from later (``422``), though its note and date can be edited. No state can be added
-  while the current one is ``OFFER``, ``ACCEPTED``, ``REJECTED`` or ``CLOSED`` (``409``) until
+  while the current one is ``OFFER``, ``ACCEPTED``, ``DECLINED``, ``REJECTED`` or ``CLOSED`` (``409``) until
   that state is removed.
   ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
 * Interview rounds: every ``INTERVIEW`` event is a round. ``PATCH /api/applications/{id}``
@@ -29,6 +29,10 @@
   either). The entry is pending until it starts and is filled in from the application by
   ``app.tasks.work_history.prefill``. ``ACCEPTED`` cannot be added or switched to/from any
   other way (``422``); removing it deletes that work-history entry again.
+* ``POST /api/applications/{id}/decline`` with ``{"note": "..."}`` (optional) declines the
+  offer of an application in ``OFFER`` (``409`` otherwise): it records the final state
+  ``DECLINED``. Like ``ACCEPTED`` it cannot be added or switched to/from any other way
+  (``422``); removing it reopens the offer.
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
@@ -71,14 +75,15 @@ from app.services.applications import (
     INTERVIEW_STATUS,
     EventRejected,
     accept_offer,
+    decline_offer,
     ensure_statuses,
     held_at,
     held_rounds,
     plan_parsed_rounds,
     record_event,
-    reject_accepted,
     reject_if_final,
     reject_initial_only,
+    reject_offer_decision,
     reject_out_of_order,
     set_interview_rounds,
     set_job_decision,
@@ -212,6 +217,11 @@ class AcceptOffer(BaseModel):
     """Start of the position; the application's ``start_date`` when omitted."""
 
 
+class DeclineOffer(BaseModel):
+    note: str = ""
+    """Why the offer was declined (the note of the ``DECLINED`` state)."""
+
+
 def _to_utc(value: datetime | None) -> datetime | None:
     """SQLite drops the offset, so every stored timestamp is UTC; naive input is UTC."""
     if value is None:
@@ -274,10 +284,10 @@ def _status_or_422(session: Session, key: str) -> ApplicationStatus:
 
 
 def _reject_fixed_status(key: str) -> None:
-    """``SHORTLISTED`` and ``ACCEPTED`` cannot be switched to or from."""
+    """``SHORTLISTED``, ``ACCEPTED`` and ``DECLINED`` cannot be switched to or from."""
     try:
         reject_initial_only(key)
-        reject_accepted(key)
+        reject_offer_decision(key)
     except EventRejected as exc:
         raise _http_error(exc) from exc
 
@@ -560,6 +570,24 @@ def accept_application_offer(
         raise _http_error(exc) from exc
     session.commit()
     enqueue_prefill(session, queue, entry)
+    return _reload_out(session, application_id, request, queue)
+
+
+@router.post("/{application_id}/decline", response_model=ApplicationOut)
+def decline_application_offer(
+    application_id: int,
+    payload: DeclineOffer,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> ApplicationOut:
+    """Decline the offer: record the final ``DECLINED`` state (see the module docstring)."""
+    application = _get_or_404(session, application_id)
+    try:
+        decline_offer(session, application, payload.note)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
+    session.commit()
     return _reload_out(session, application_id, request, queue)
 
 
