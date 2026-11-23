@@ -1,4 +1,5 @@
 import {
+  Building2,
   BriefcaseBusiness,
   CalendarClock,
   Coins,
@@ -24,6 +25,7 @@ export type PageId =
   | 'generated-cv'
   | 'gmail'
   | 'cost'
+  | 'companies'
 
 export type NavItem = {
   id: PageId
@@ -63,6 +65,11 @@ export const SETTINGS: NavGroup = {
       title: 'Scrape sources',
       icon: Rss,
       description: 'The job boards that get scraped, how often each one runs and how relevant its jobs turn out.',
+    },
+    {
+      id: 'companies',
+      label: 'Companies',
+      icon: Building2,
     },
     {
       id: 'generated-cv',
