@@ -926,12 +926,3 @@
     width: auto;
   }
 }
-
-/* The next funnel step, not reached yet: a faint, fading glimpse that cannot be clicked. */
-.nav-foreshadow {
-  opacity: 0.5;
-  pointer-events: none;
-  cursor: default;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 45%, transparent 85%);
-  mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 0.55) 45%, transparent 85%);
-}
