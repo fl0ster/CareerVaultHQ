@@ -1,6 +1,317 @@
-/* Widget grid; filled in as widgets are added. */
+/* Dashboard: a grid of widget cards. Wide widgets span two columns where there is room. */
 .dashboard {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
+  align-items: start;
+}
+
+.dashboard-error {
+  color: var(--danger-fg);
+}
+
+/* Widget frame */
+.widget {
+  min-width: 0;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.widget--wide {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .widget--wide {
+    grid-column: auto;
+  }
+}
+
+.widget--skeleton {
+  min-height: 160px;
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.widget--skeleton.widget--stats {
+  grid-column: 1 / -1;
+  min-height: 96px;
+}
+
+.widget-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-h);
+  }
+}
+
+.widget-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+  }
+}
+
+.widget-muted {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.widget-headline {
+  margin: 0 0 12px;
+  color: var(--text);
+
+  strong {
+    font-size: 22px;
+    color: var(--text-h);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.widget-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* Stat tiles: full-width row of headline numbers */
+.stat-tiles {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+a.stat-tile:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-md);
+}
+
+a.stat-tile:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.stat-value {
+  font-family: var(--heading);
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.stat-hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+/* Funnel: one row per stage — label, bar, count, conversion from the stage above */
+.funnel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr max-content 3.5em;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+}
+
+.funnel-row {
+  display: contents;
+}
+
+.funnel-label {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.funnel-track {
+  display: flex;
+  justify-content: center;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.funnel-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.4s var(--ease-out);
+}
+
+.funnel-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnel-step {
+  font-size: 12px;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Weekly activity: column per week, value shown on hover/focus */
+.weekly {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+}
+
+.weekly-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  outline: none;
+  border-radius: 4px;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--hover-tint);
+  }
+  &:hover .weekly-tip,
+  &:focus-visible .weekly-tip {
+    visibility: visible;
+  }
+}
+
+.weekly-tip {
+  visibility: hidden;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-plot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 96px;
+  border-bottom: 1px solid var(--border);
+}
+
+.weekly-bar {
+  width: 60%;
+  max-width: 22px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+
+.weekly-bar--empty {
+  height: 0;
+}
+
+.weekly-x {
+  min-height: 1.4em;
+  font-size: 11px;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Upcoming interviews */
+.upcoming {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upcoming-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  margin: 0 -8px;
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--hover-tint);
+  }
+}
+
+.upcoming-date {
+  display: flex;
+  flex-direction: column;
+  min-width: 6.5em;
+  font-size: 13px;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.upcoming-what {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.upcoming-company {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
 }

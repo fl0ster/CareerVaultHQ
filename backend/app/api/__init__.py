@@ -8,6 +8,7 @@ from app.api.routes import (
     companies,
     cv,
     cv_import,
+    dashboard,
     gmail_monitor,
     health,
     jobs,
@@ -38,3 +39,4 @@ api_router.include_router(cleanup.router, prefix="/cleanup", tags=["cleanup"])
 api_router.include_router(applications.router, prefix="/applications", tags=["applications"])
 api_router.include_router(gmail_monitor.router, prefix="/gmail-monitor", tags=["gmail-monitor"])
 api_router.include_router(nav.router, prefix="/nav", tags=["nav"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
