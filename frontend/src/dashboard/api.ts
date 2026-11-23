@@ -1,4 +1,18 @@
-export type FunnelStage = { key: string; label: string; count: number }
+/** `stage`: the search continues from it; the others are where flows end. */
+export type FlowKind = 'stage' | 'drop' | 'rejected' | 'pending' | 'accepted'
+
+export type FlowNode = {
+  id: string
+  label: string
+  /** 0 = scored jobs; each stage one column further right. */
+  column: number
+  kind: FlowKind
+}
+
+export type FlowLink = { source: string; target: string; value: number }
+
+/** Sankey graph of the search, from scored jobs to answered offers. */
+export type Flow = { nodes: FlowNode[]; links: FlowLink[] }
 
 export type WeekCount = {
   /** Monday of the week, `YYYY-MM-DD`. */
@@ -19,8 +33,7 @@ export type UpcomingRound = {
 
 /** See `GET /api/dashboard/stats`. */
 export type DashboardStats = {
-  /** Widest first: scored jobs, relevant ones, applications, then stages reached. */
-  funnel: FunnelStage[]
+  flow: Flow
   jobs_inbox: number
   /** Applications whose current state is not final. */
   active: number

@@ -6,22 +6,23 @@ from tests.test_jobs_api import seed_evaluated
 URL = "/api/dashboard/stats"
 
 
-def funnel(stats):
-    return {stage["key"]: stage["count"] for stage in stats["funnel"]}
+def links(stats):
+    return {(link["source"], link["target"]): link["value"] for link in stats["flow"]["links"]}
+
+
+def inflow(stats):
+    """``{node id: what flows into it}``, the root counting what flows out."""
+    totals: dict[str, int] = {}
+    for (source, target), value in links(stats).items():
+        totals[target] = totals.get(target, 0) + value
+        if source == "scored":
+            totals["scored"] = totals.get("scored", 0) + value
+    return totals
 
 
 def test_empty_database(client):
     stats = client.get(URL).json()
-    assert set(funnel(stats).values()) == {0}
-    assert [s["key"] for s in stats["funnel"]] == [
-        "SCORED",
-        "RELEVANT",
-        "SHORTLISTED",
-        "APPLIED",
-        "INTERVIEW",
-        "OFFER",
-        "ACCEPTED",
-    ]
+    assert stats["flow"] == {"nodes": [], "links": []}
     assert (stats["jobs_inbox"], stats["active"], stats["applied"], stats["responded"]) == (0, 0, 0, 0)
     assert len(stats["weekly_applied"]) == 8
     assert all(w["count"] == 0 for w in stats["weekly_applied"])
@@ -31,8 +32,15 @@ def test_empty_database(client):
 def test_scored_jobs_use_the_newest_evaluation(client, db_session):
     seed_evaluated(db_session, 10)  # nine scored, three at or above the 0.6 threshold
     stats = client.get(URL).json()
-    assert (funnel(stats)["SCORED"], funnel(stats)["RELEVANT"]) == (9, 3)
+    assert links(stats) == {("scored", "relevant"): 3, ("scored", "scored:drop"): 6, ("relevant", "relevant:waiting"): 3}
     assert stats["jobs_inbox"] == 3
+    nodes = {n["id"]: (n["column"], n["kind"]) for n in stats["flow"]["nodes"]}
+    assert nodes == {
+        "scored": (0, "stage"),
+        "relevant": (1, "stage"),
+        "relevant:waiting": (2, "pending"),
+        "scored:drop": (1, "drop"),
+    }
 
 
 def test_funnel_counts_stages_reached(client, db_session):
@@ -52,15 +60,22 @@ def test_funnel_counts_stages_reached(client, db_session):
     assert client.post(f"{BASE}/{offer}/accept", json={"start_date": "2027-01-01"}).status_code == 200
 
     stats = client.get(URL).json()
-    assert funnel(stats) == {
-        "SCORED": 5,
-        "RELEVANT": 5,
-        "SHORTLISTED": 5,
-        "APPLIED": 4,
-        "INTERVIEW": 2,
-        "OFFER": 1,
-        "ACCEPTED": 1,
+    assert links(stats) == {
+        ("scored", "relevant"): 5,
+        ("relevant", "shortlisted"): 5,
+        ("shortlisted", "applied"): 4,
+        ("shortlisted", "shortlisted:waiting"): 1,
+        ("applied", "interview"): 2,
+        ("applied", "applied:waiting"): 1,
+        ("applied", "applied:rejected"): 1,
+        ("interview", "offer"): 1,
+        ("interview", "interview:waiting"): 1,
+        ("offer", "offer:accepted"): 1,
     }
+    # Every node passes on what reaches it.
+    totals = inflow(stats)
+    for node in ("relevant", "shortlisted", "applied", "interview"):
+        assert sum(v for (s, _), v in links(stats).items() if s == node) == totals[node]
     # Shortlisted, applied and interviewing are still open.
     assert (stats["active"], stats["interviews"], stats["offers"]) == (3, 1, 0)
     assert (stats["applied"], stats["responded"]) == (4, 3)
