@@ -18,7 +18,9 @@ function useUserTech(): Set<string> {
       .list()
       .then((entries) => {
         if (cancelled) return
-        setKeys(new Set(entries.flatMap((e) => e.tech).map(techKey).filter(Boolean)))
+        // Positions that have not started yet are not experience (yet).
+        const started = entries.filter((e) => !e.pending)
+        setKeys(new Set(started.flatMap((e) => e.tech).map(techKey).filter(Boolean)))
       })
       .catch(() => {
         /* the highlight is optional */

@@ -1,13 +1,16 @@
 """CRUD for the user's work history.
 
 Entries are returned newest first (by ``date_start``); a ``null`` ``date_end`` marks a
-current position. ``tech`` is a free list of technology names.
+current position. ``tech`` is a free list of technology names. An entry starting in the
+future is ``pending``: it is left out of CVs and the candidate profile until it starts.
+Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
+``application_id`` and the progress of filling them in from it (``prefill_state``).
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -147,6 +150,12 @@ class WorkHistoryOut(BaseModel):
     location: str | None
     tech: list[str]
     context: str | None
+    application_id: int | None = None
+    """The application whose accepted offer created the entry."""
+    pending: bool = False
+    """The position starts in the future (see the module docstring)."""
+    prefill_state: Literal["queued", "done", "failed"] | None = None
+    """Filling the entry in from its application with the LLM; ``None`` for manual entries."""
     created_at: datetime
     updated_at: datetime
 

@@ -1,9 +1,9 @@
 import {
+  BriefcaseBusiness,
   CalendarClock,
   Coins,
   Trophy,
   FileText,
-  History,
   Inbox,
   type LucideIcon,
   Mail,
@@ -55,11 +55,34 @@ export const SETTINGS: NavGroup = {
   id: 'settings',
   label: 'Settings',
   icon: Settings,
+  // Each tab opens with its description as a one-line introduction (see SettingsHeader).
   items: [
-    { id: 'sources', label: 'Sources', title: 'Scrape sources', icon: Rss, hideHeader: true },
-    { id: 'generated-cv', label: 'Generated CVs', icon: FileText, hideHeader: true },
-    { id: 'gmail', label: 'Gmail monitor', title: 'Gmail rejection monitor', icon: Mail, hideHeader: true },
-    { id: 'cost', label: 'Cost', icon: Coins, hideHeader: true },
+    {
+      id: 'sources',
+      label: 'Sources',
+      title: 'Scrape sources',
+      icon: Rss,
+      description: 'The job boards that get scraped, how often each one runs and how relevant its jobs turn out.',
+    },
+    {
+      id: 'generated-cv',
+      label: 'Generated CVs',
+      icon: FileText,
+      description: 'Every CV tailored to a job, and how far each one got through generation.',
+    },
+    {
+      id: 'gmail',
+      label: 'Gmail monitor',
+      title: 'Gmail rejection monitor',
+      icon: Mail,
+      description: 'Watches a Gmail inbox for rejection e-mails and marks the matching applications as rejected.',
+    },
+    {
+      id: 'cost',
+      label: 'Cost',
+      icon: Coins,
+      description: 'What the AI model calls have cost, broken down by period, source, model and kind.',
+    },
   ],
 }
 
@@ -69,41 +92,21 @@ export const SETTINGS_PAGE_IDS: PageId[] = SETTINGS_PAGES.map((i) => i.id)
 
 export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
-/** Menu sections, separated by a line: my profile, then the everyday pages. Settings sits apart at the bottom. */
+/** About me is opened from the profile card at the top of the menu, not from a menu entry. */
+export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me', icon: UserRound, hideHeader: true }
+
+/** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
+  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
   [
-    {
-      id: 'jobs',
-      label: 'Jobs',
-      icon: Inbox,
-      hideHeader: true,
-    },
-      {
-      id: 'applications',
-      label: 'Applications',
-      icon: Send,
-      hideHeader: true,
-    },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock, hideHeader: true },
-    { id: 'offers', label: 'Offers', icon: Trophy, hideHeader: true },
+    { id: 'offers', label: 'Offers', icon: Trophy },
+    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
+    { id: 'applications', label: 'Applications', icon: Send },
+    { id: 'jobs', label: 'Jobs', icon: Inbox },
   ],
-  [
-      {
-      id: 'work-history',
-      label: 'Career',
-      icon: History,
-      hideHeader: true,
-    },
-      {
-      id: 'candidate-profile',
-      label: 'About me',
-      icon: UserRound,
-      hideHeader: true,
-    },
-  ]
 ]
 
-const NODES: NavNode[] = [...NAV_SECTIONS.flat(), SETTINGS]
+const NODES: NavNode[] = [PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 

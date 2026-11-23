@@ -9,7 +9,7 @@ import SourcesPage from './sources/SourcesPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
-import SettingsNav from './shell/SettingsNav.tsx'
+import SettingsHeader from './shell/SettingsHeader.tsx'
 import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
 import {
@@ -140,7 +140,7 @@ function App() {
       case 'candidate-profile':
         return <CandidateProfilePage />
       case 'work-history':
-        return <WorkHistoryPage />
+        return <WorkHistoryPage focusId={detailOf('work-history')} />
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':
@@ -152,6 +152,7 @@ function App() {
     }
   }
   const item = findPage(page).item
+  const onSettings = isSettingsPage(page)
 
   return (
     <div className={`shell${rail === 'collapsed' ? ' rail' : ''}`}>
@@ -185,16 +186,25 @@ function App() {
           {/* Only the current page is mounted. The key remounts it on every page change, so
               each entry loads fresh; list <-> detail stays within one mount. State that has to
               outlive a page (running jobs) lives in module-level stores (shell/store.ts). */}
-          <section key={page} aria-labelledby={`page-${page}`}>
-            <div className="view">
-              <header className={item.hideHeader ? 'sr-only' : 'page-header'}>
-                <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
-                {item.description && <p>{item.description}</p>}
-              </header>
-              {isSettingsPage(page) && <SettingsNav active={page} onNavigate={navigate} />}
+          {/* Settings keeps its heading and tabs mounted across its pages, so the tab underline slides. */}
+          {onSettings && <SettingsHeader active={page} onNavigate={navigate} />}
+          {onSettings ? (
+            <section key={page} className="settings-panel" aria-label={item.title ?? item.label}>
+              {item.description && <p className="settings-intro">{item.description}</p>}
               {renderPage(page)}
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section key={page} aria-labelledby={`page-${page}`}>
+              <div className="view">
+                {/* An open detail (application, job) has its own title, so the page heading steps aside. */}
+                <header className={item.hideHeader || route.detail !== null ? 'sr-only' : 'page-header'}>
+                  <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
+                  {item.description && <p>{item.description}</p>}
+                </header>
+                {renderPage(page)}
+              </div>
+            </section>
+          )}
         </main>
       </div>
     </div>

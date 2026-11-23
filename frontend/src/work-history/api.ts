@@ -9,11 +9,20 @@ export type WorkHistoryEntry = {
   location: string | null
   tech: string[]
   context: string | null
+  /** The application whose accepted offer created the entry. */
+  application_id: number | null
+  /** Starts in the future: left out of CVs and the candidate profile until then. */
+  pending: boolean
+  /** Filling the entry in from its application with the LLM; null for entries added by hand. */
+  prefill_state: 'queued' | 'done' | 'failed' | null
   created_at: string
   updated_at: string
 }
 
-export type WorkHistoryInput = Omit<WorkHistoryEntry, 'id' | 'created_at' | 'updated_at'>
+export type WorkHistoryInput = Omit<
+  WorkHistoryEntry,
+  'id' | 'application_id' | 'pending' | 'prefill_state' | 'created_at' | 'updated_at'
+>
 
 /** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
 export type WorkHistoryExport = {

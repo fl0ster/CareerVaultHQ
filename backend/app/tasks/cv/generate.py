@@ -89,8 +89,12 @@ def job_description_text(parsed: JobParseResult) -> str:
 
 
 def load_roles(session: Session, today: date | None = None) -> list[Role]:
+    """The work history as ``Role``s, newest first; pending positions (starting after
+    ``today``) are left out."""
     entries = session.scalars(
-        select(WorkHistoryEntry).order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
+        select(WorkHistoryEntry)
+        .where(WorkHistoryEntry.date_start <= (today or date.today()))
+        .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
     ).all()
     return [
         Role.from_dates(

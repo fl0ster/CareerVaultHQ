@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from app.models import (
     ApplicationStatus,
     JobDecision,
     JobParseResult,
+    WorkHistoryEntry,
 )
 
 
@@ -51,7 +52,11 @@ APPLIED_STATUS = "APPLIED"
 REJECTED_STATUS = "REJECTED"
 CLOSED_STATUS = "CLOSED"
 """The recruitment was paused, closed or cancelled through no fault of the candidate."""
-FINAL_STATUSES = frozenset({"OFFER", REJECTED_STATUS, CLOSED_STATUS})
+OFFER_STATUS = "OFFER"
+ACCEPTED_STATUS = "ACCEPTED"
+"""The offer was accepted. Only recorded by ``accept_offer`` (which also adds the position to
+the work history), never as a plain state change."""
+FINAL_STATUSES = frozenset({OFFER_STATUS, ACCEPTED_STATUS, REJECTED_STATUS, CLOSED_STATUS})
 """Terminal states: once one is current, no further state can be added (removing it reopens
 the application)."""
 
@@ -79,6 +84,11 @@ def status_by_key(session: Session, key: str) -> ApplicationStatus:
 def reject_initial_only(key: str) -> None:
     if key.upper() == INITIAL_ONLY_STATUS:
         raise EventRejected(f"{INITIAL_ONLY_STATUS} is only set when the application is created", "invalid")
+
+
+def reject_accepted(key: str) -> None:
+    if key.upper() == ACCEPTED_STATUS:
+        raise EventRejected(f"{ACCEPTED_STATUS} is only set by accepting the offer", "invalid")
 
 
 def reject_if_final(application: Application) -> None:
@@ -138,6 +148,7 @@ def record_event(
     ``app.api.routes.applications``); ``EventRejected`` when they forbid it. Recording
     ``INTERVIEW`` holds the first planned round instead of adding one. Not committed."""
     reject_initial_only(status_key)
+    reject_accepted(status_key)
     reject_if_final(application)
     key = status_key.upper()
     if key == APPLIED_STATUS:
@@ -173,6 +184,66 @@ def record_event(
     session.flush()
     session.expire(application, ["events"])
     return event
+
+
+def accept_offer(session: Session, application: Application, start_date: date | None = None) -> WorkHistoryEntry:
+    """Accept the application's offer: record ``ACCEPTED`` and add the position to the work
+    history, starting on ``start_date`` (or the application's stored ``start_date``, which is
+    updated to the one used), seeded with the job's title, company and technologies and
+    marked ``PREFILL_QUEUED`` for ``app.tasks.work_history.prefill``. ``EventRejected``
+    unless the current state is ``OFFER`` (``conflict``) or when no start date is known
+    (``invalid``). Not committed."""
+    current = application.current_event
+    if current is None or current.status.key != OFFER_STATUS:
+        raise EventRejected(f"only an application in {OFFER_STATUS} can be accepted")
+    if application.work_entry is not None:
+        raise EventRejected("the offer was already added to the work history")
+    start = start_date or application.start_date
+    if start is None:
+        raise EventRejected("a start date is required to accept the offer", "invalid")
+    application.start_date = start
+
+    accepted = status_by_key(session, ACCEPTED_STATUS)
+    # Now, but never before the offer (which may have been dated ahead), so it is current.
+    when = max(datetime.now(UTC), _naive(current.occurred_at).replace(tzinfo=UTC) + timedelta(minutes=1))
+    application.events.append(ApplicationEvent(status=accepted, occurred_at=when))
+    parsed = application.job_parse_result
+    entry = WorkHistoryEntry(
+        date_start=start,
+        employer=(parsed.company.name if parsed.company is not None else "") or "Unknown employer",
+        role=seeded_role(parsed),
+        tech=seeded_tech(parsed),
+        application=application,
+        prefill_state=WorkHistoryEntry.PREFILL_QUEUED,
+    )
+    session.add(entry)
+    session.flush()
+    session.expire(application, ["events"])
+    return entry
+
+
+def seeded_role(parsed: JobParseResult) -> str:
+    """The role a work-history entry created from ``parsed`` starts with: the job title."""
+    return (parsed.title or "").strip()[:256] or "Unknown role"
+
+
+def seeded_tech(parsed: JobParseResult) -> list[str]:
+    """Technology names extracted from the job description, de-duplicated, in order."""
+    names: list[str] = []
+    for item in parsed.technologies or []:
+        name = str(item.get("name") or "").strip() if isinstance(item, dict) else ""
+        if name and name.casefold() not in {n.casefold() for n in names}:
+            names.append(name)
+    return names
+
+
+def undo_accept(session: Session, application: Application) -> None:
+    """Drop the work-history entry created by accepting the offer (when its ``ACCEPTED``
+    state is removed). Not committed."""
+    entry = application.work_entry
+    if entry is not None:
+        application.work_entry = None
+        session.delete(entry)
 
 
 def _naive(moment: datetime) -> datetime:

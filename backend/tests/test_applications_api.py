@@ -45,7 +45,7 @@ def _cv_jobs(fake_queue):
 
 def test_statuses_are_seeded_and_extensible(client):
     keys = [s["key"] for s in client.get(f"{BASE}/statuses").json()]
-    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED", "CLOSED"]
+    assert keys == ["SHORTLISTED", "APPLIED", "INTERVIEW", "OFFER", "REJECTED", "CLOSED", "ACCEPTED"]
 
     res = client.post(f"{BASE}/statuses", json={"key": "ghosted"})
     assert res.status_code == 201

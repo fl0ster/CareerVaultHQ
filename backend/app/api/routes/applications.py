@@ -11,7 +11,8 @@
   ``PATCH``/``DELETE /api/applications/{id}/events/{event_id}`` edit or remove one.
   ``SHORTLISTED`` is only recorded at creation: it cannot be added, removed or switched
   to/from later (``422``), though its note and date can be edited. No state can be added
-  while the current one is ``OFFER``, ``REJECTED`` or ``CLOSED`` (``409``) until that state is removed.
+  while the current one is ``OFFER``, ``ACCEPTED``, ``REJECTED`` or ``CLOSED`` (``409``) until
+  that state is removed.
   ``APPLIED`` can be recorded once, only while the current state is ``SHORTLISTED`` (``409``).
 * Interview rounds: every ``INTERVIEW`` event is a round. ``PATCH /api/applications/{id}``
   with ``{"interview_rounds": 5}`` plans the rounds not held yet as *planned* events
@@ -21,6 +22,13 @@
   Deleting a planned round drops it; deleting a held one makes it planned again. Planned
   rounds stay (not held) while the application is ``OFFER``/``REJECTED``/``CLOSED`` but cannot be held
   then (``409``).
+* ``POST /api/applications/{id}/accept`` with ``{"start_date": "2026-01-05"}`` accepts the
+  offer of an application in ``OFFER`` (``409`` otherwise): it records ``ACCEPTED`` and adds
+  the position to the work history (``work_history_id``) starting on that date, or on the
+  application's ``start_date`` (set with ``PATCH``) when none is sent (``422`` without
+  either). The entry is pending until it starts and is filled in from the application by
+  ``app.tasks.work_history.prefill``. ``ACCEPTED`` cannot be added or switched to/from any
+  other way (``422``); removing it deletes that work-history entry again.
 * ``POST /api/applications/{id}/cv`` generates the CV again.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
@@ -28,7 +36,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -58,24 +66,29 @@ from app.models import (
 )
 from app.queue import get_queue
 from app.services.applications import (
+    ACCEPTED_STATUS,
     APPLIED_STATUS,
     INTERVIEW_STATUS,
     EventRejected,
+    accept_offer,
     ensure_statuses,
     held_at,
     held_rounds,
     plan_parsed_rounds,
     record_event,
+    reject_accepted,
     reject_if_final,
     reject_initial_only,
     reject_out_of_order,
     set_interview_rounds,
     set_job_decision,
     status_by_key,
+    undo_accept,
 )
 from app.services.candidate_profile import current_profile_ids
 from app.services.evaluations import newest_evaluations
 from app.services.relevance import relevance
+from app.tasks.work_history import enqueue_prefill
 
 router = APIRouter()
 
@@ -164,6 +177,10 @@ class ApplicationOut(BaseModel):
     """The job's *newest* score (a re-score replaces the one the application was created
     from); ``None`` when the job has none left."""
     cv: GeneratedCvOut | None
+    start_date: date | None = None
+    """Agreed start date of the offered position, if known."""
+    work_history_id: int | None = None
+    """The work-history entry created by accepting the offer."""
 
 
 class ApplicationPage(BaseModel):
@@ -186,6 +203,13 @@ class ApplicationUpdate(BaseModel):
     notes: str | None = None
     interview_rounds: int | None = Field(default=None, ge=0, le=MAX_INTERVIEW_ROUNDS)
     """Number of interview rounds, held + planned (``0`` drops the planned ones)."""
+    start_date: date | None = None
+    """Only applied when sent; ``null`` clears it."""
+
+
+class AcceptOffer(BaseModel):
+    start_date: date | None = None
+    """Start of the position; the application's ``start_date`` when omitted."""
 
 
 def _to_utc(value: datetime | None) -> datetime | None:
@@ -226,6 +250,7 @@ def _query():
         joinedload(Application.job_parse_result).joinedload(JobParseResult.company),
         joinedload(Application.generated_cv),
         selectinload(Application.events).joinedload(ApplicationEvent.status),
+        selectinload(Application.work_entry),
     )
 
 
@@ -248,9 +273,11 @@ def _status_or_422(session: Session, key: str) -> ApplicationStatus:
         raise _http_error(exc) from exc
 
 
-def _reject_initial_only(key: str) -> None:
+def _reject_fixed_status(key: str) -> None:
+    """``SHORTLISTED`` and ``ACCEPTED`` cannot be switched to or from."""
     try:
         reject_initial_only(key)
+        reject_accepted(key)
     except EventRejected as exc:
         raise _http_error(exc) from exc
 
@@ -345,6 +372,8 @@ def _to_out(
         ),
         evaluation=scores.get(application.id),
         cv=cv,
+        start_date=application.start_date,
+        work_history_id=application.work_entry.id if application.work_entry is not None else None,
     )
 
 
@@ -489,11 +518,13 @@ def update_application(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Replace the application's notes and/or its number of interview rounds (``422`` when
-    fewer than the rounds already held)."""
+    """Replace the application's notes, its start date and/or its number of interview
+    rounds (``422`` when fewer than the rounds already held)."""
     application = _get_or_404(session, application_id)
     if payload.notes is not None:
         application.notes = payload.notes
+    if "start_date" in payload.model_fields_set:
+        application.start_date = payload.start_date
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:
@@ -510,6 +541,26 @@ def delete_application(application_id: int, session: Annotated[Session, Depends(
     session.delete(_get_or_404(session, application_id))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{application_id}/accept", response_model=ApplicationOut)
+def accept_application_offer(
+    application_id: int,
+    payload: AcceptOffer,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> ApplicationOut:
+    """Accept the offer: record ``ACCEPTED``, add the position to the work history and queue
+    filling it in from the application (see the module docstring)."""
+    application = _get_or_404(session, application_id)
+    try:
+        entry = accept_offer(session, application, payload.start_date)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
+    session.commit()
+    enqueue_prefill(session, queue, entry)
+    return _reload_out(session, application_id, request, queue)
 
 
 @router.post("/{application_id}/cv", response_model=ApplicationOut)
@@ -581,8 +632,8 @@ def update_event(
     if payload.status is not None and payload.status.upper() != event.status.key:
         if event.planned:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "a planned round is always INTERVIEW")
-        _reject_initial_only(event.status.key)
-        _reject_initial_only(payload.status)
+        _reject_fixed_status(event.status.key)
+        _reject_fixed_status(payload.status)
         if payload.status.upper() == APPLIED_STATUS and any(e.status.key == APPLIED_STATUS for e in application.events):
             raise HTTPException(status.HTTP_409_CONFLICT, "application is already APPLIED")
         event.status = _status_or_422(session, payload.status)
@@ -617,13 +668,21 @@ def delete_event(
     session: Annotated[Session, Depends(get_session)],
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
-    """Remove a state; a held interview round becomes a planned one again instead."""
+    """Remove a state; a held interview round becomes a planned one again instead. Removing
+    ``ACCEPTED`` also deletes the work-history entry accepting the offer created."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
-    _reject_initial_only(event.status.key)
+    try:
+        reject_initial_only(event.status.key)
+    except EventRejected as exc:
+        raise _http_error(exc) from exc
     if event.status.key == INTERVIEW_STATUS and not event.planned:
         event.planned = True
     else:
+        if event.status.key == ACCEPTED_STATUS and not any(
+            e.status.key == ACCEPTED_STATUS for e in application.history if e is not event
+        ):
+            undo_accept(session, application)
         session.delete(event)
     session.commit()
     return _reload_out(session, application_id, request, queue)

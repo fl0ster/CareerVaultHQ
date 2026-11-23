@@ -21,10 +21,11 @@ import CompanyDialog from '../companies/CompanyDialog.tsx'
 import ApplicationView from './ApplicationView.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
+import { AcceptOfferButton } from './AcceptOffer.tsx'
 import Confetti from './Confetti.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import type { EvaluatedJobDetail } from '../jobs/api.ts'
-import type { Crumb } from '../shell/nav.ts'
+import { type Crumb, pageHref } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStuck } from '../shell/useStuck.ts'
 
@@ -209,6 +210,20 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
     notifyApplicationsChanged()
   }
 
+  /** An offer was accepted from a list row: it leaves the offers, and the page moves on to
+   * the position it became in My Career. */
+  const acceptedFromList = (updated: Application) => {
+    setApplications((prev) => prev?.filter((a) => a.id !== updated.id) ?? prev)
+    notifyApplicationsChanged()
+    window.location.hash = pageHref('work-history', updated.work_history_id)
+  }
+
+  /** An offer was accepted from the open application, which stays on screen. */
+  const acceptedInView = (updated: Application) => {
+    setCelebrations((n) => n + 1)
+    replace(updated)
+  }
+
   const removed = (id: number) => {
     setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
     notifyApplicationsChanged()
@@ -231,6 +246,7 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
             application={selected}
             statuses={statuses}
             onChange={replace}
+            onAccepted={acceptedInView}
             onDelete={removed}
             onOpenCompany={setCompanyId}
             onBack={onBack}
@@ -335,19 +351,24 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
                     e.preventDefault()
                   }}
                 >
-                  <StatusBadge
-                    status={a.status}
-                    auto={isAutoEvent(currentEvent(a))}
-                    nextRound={nextRoundLabel(a)}
-                    roundTitle={currentEvent(a)?.title}
-                    statuses={statuses}
-                    onSelect={(key) =>
-                      applicationsApi
-                        .addEvent(a.id, { status: key })
-                        .then(replace)
-                        .catch((e) => setError(`Could not change status: ${describeError(e)}`))
-                    }
-                  />
+                  {stage === 'offers' && a.status?.key === OFFER_STATUS ? (
+                    // Every row here is an offer: the one thing left to do is accept it.
+                    <AcceptOfferButton application={a} onAccepted={acceptedFromList} onError={setError} />
+                  ) : (
+                    <StatusBadge
+                      status={a.status}
+                      auto={isAutoEvent(currentEvent(a))}
+                      nextRound={nextRoundLabel(a)}
+                      roundTitle={currentEvent(a)?.title}
+                      statuses={statuses}
+                      onSelect={(key) =>
+                        applicationsApi
+                          .addEvent(a.id, { status: key })
+                          .then(replace)
+                          .catch((e) => setError(`Could not change status: ${describeError(e)}`))
+                      }
+                    />
+                  )}
                 </div>
               </button>
             </li>

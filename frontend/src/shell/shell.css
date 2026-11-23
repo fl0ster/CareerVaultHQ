@@ -46,37 +46,168 @@
   scrollbar-width: thin;
 }
 
-.sidebar-brand {
+.sidebar-head {
   display: flex;
   align-items: center;
-  gap: 11px;
-  height: 48px;
-  padding: 0 4px 0 3px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 14px;
 }
 
-.brand-mark {
+/* Profile card: raised above the menu; its cog opens About me. */
+.profile-card {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 96px;
+  padding: 14px 12px 14px 12px;
+  box-sizing: border-box;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--accent-bg) 0%, transparent 60%),
+    var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  transition:
+    border-color var(--t-fast) ease,
+    padding var(--t-med) var(--ease-out),
+    min-height var(--t-med) var(--ease-out);
+
+  &.active {
+    border-color: var(--accent-border);
+  }
+  &.active .profile-avatar {
+    box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  }
+}
+
+.profile-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: var(--stage);
-  box-shadow: var(--shadow-sm);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: var(--heading);
+  font-size: 19px;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border);
+  transition:
+    box-shadow var(--t-fast) ease,
+    width var(--t-med) var(--ease-out),
+    height var(--t-med) var(--ease-out);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }
 
-.brand-name {
+.profile-text {
   flex: 1;
   min-width: 0;
+  display: grid;
+  gap: 3px;
+  /* Clear of the cog in the corner. */
+  padding-right: 26px;
+  transition: opacity var(--t-fast) ease;
+}
+
+.profile-hello {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.profile-name {
+  display: grid;
   font-family: var(--heading);
   font-variation-settings: 'SOFT' 100, 'WONK' 1;
   font-size: 19px;
   font-weight: 560;
+  line-height: 1.12;
   letter-spacing: -0.01em;
   color: var(--text-h);
-  white-space: nowrap;
-  transition: opacity var(--t-fast) ease;
+
+  span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Surname in italic for a bit of character. */
+  span + span {
+    font-style: italic;
+    font-weight: 480;
+  }
+}
+
+.profile-card.loading .profile-name {
+  min-height: 2.24em;
+}
+
+/* Cog in the top-right corner: the only way into About me from the card. */
+.profile-settings {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  transition:
+    background var(--t-fast) ease,
+    color var(--t-fast) ease,
+    transform var(--t-fast) var(--ease-out),
+    top var(--t-med) var(--ease-out),
+    right var(--t-med) var(--ease-out),
+    width var(--t-med) var(--ease-out),
+    height var(--t-med) var(--ease-out);
+
+  svg {
+    transition: transform var(--t-med) var(--ease-out);
+  }
+  &:hover,
+  &.active {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  &:hover svg {
+    transform: rotate(45deg);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* Until the personal details are filled out. */
+.profile-alert {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--danger-fg);
+  color: var(--surface);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .sidebar-close {
@@ -179,9 +310,6 @@
 .nav-parent {
   &:hover:not(:disabled) {
     background: var(--hover-tint);
-  }
-  &:active:not(:disabled) {
-    transform: none;
   }
 }
 
@@ -300,11 +428,43 @@
 
 /* Collapsed to an icon rail */
 .shell.rail .sidebar {
-  .brand-name,
+  .profile-text,
   .nav-label,
   .nav-chevron {
     opacity: 0;
     pointer-events: none;
+  }
+  .profile-card {
+    min-height: 52px;
+    padding: 5px;
+    gap: 0;
+  }
+  .profile-text {
+    overflow: hidden;
+    padding-right: 0;
+  }
+  /* A small badge over the card's corner. */
+  .profile-settings {
+    top: -5px;
+    right: -5px;
+    width: 22px;
+    height: 22px;
+    box-shadow: 0 0 0 2px var(--sidebar);
+
+    svg {
+      width: 13px;
+      height: 13px;
+    }
+  }
+  .profile-alert {
+    width: 12px;
+    height: 12px;
+    font-size: 8.5px;
+  }
+  .profile-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
   }
   .nav-item {
     padding: 0 14px;
@@ -397,7 +557,6 @@
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: rise-in var(--t-med) var(--ease-out);
 }
 
 /* Links back up the trail while a detail view is open. */
@@ -435,22 +594,121 @@
 
 /* ---------------- Content ---------------- */
 
-/* Tabs between the settings pages; scrolls sideways when it doesn't fit. */
-.settings-nav {
+/* Settings: a heading over a row of underlined tabs, like the page tabs of the Play Console. */
+.settings-header {
+  margin-bottom: 22px;
+
+  h1 {
+    margin-bottom: 14px;
+  }
+}
+
+.settings-tabs {
+  position: relative;
   display: flex;
-  width: fit-content;
-  max-width: 100%;
-  box-sizing: border-box;
+  gap: 28px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* The hairline under the row; the underline of the current tab sits on top of it. */
+  box-shadow: inset 0 -1px 0 var(--border);
 
-  .tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    flex: none;
-    white-space: nowrap;
+  &::-webkit-scrollbar {
+    display: none;
   }
+  /* Tabs scrolled out of view fade at the edge they are hiding behind. */
+  &.fade-start {
+    mask-image: linear-gradient(to right, transparent, #000 32px);
+  }
+  &.fade-end {
+    mask-image: linear-gradient(to left, transparent, #000 32px);
+  }
+  &.fade-start.fade-end {
+    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  }
+}
+
+.settings-tab {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 4px;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--t-fast) ease;
+
+  svg {
+    flex: none;
+    opacity: 0.85;
+    transition:
+      opacity var(--t-fast) ease,
+      transform var(--t-med) var(--ease-spring);
+  }
+
+  /* Hover hint: a soft underline where the current-tab underline would land. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--border-strong);
+    transform: scaleX(0);
+    transition: transform var(--t-med) var(--ease-out);
+  }
+
+  &:hover {
+    color: var(--text-h);
+  }
+  &:hover svg {
+    opacity: 1;
+  }
+  &:not(.active):hover::after {
+    transform: scaleX(1);
+  }
+  &.active {
+    color: var(--accent);
+  }
+  &.active svg {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset var(--focus-ring);
+  }
+}
+
+.settings-tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  pointer-events: none;
+
+  &.ready {
+    transition:
+      transform var(--t-slow) var(--ease-spring),
+      width var(--t-med) var(--ease-out);
+  }
+}
+
+.settings-panel {
+  animation: rise-in var(--t-med) var(--ease-out);
+}
+
+.settings-intro {
+  max-width: 76ch;
+  margin-bottom: 18px;
+  color: var(--text);
 }
 
 .content {
@@ -459,11 +717,6 @@
   margin: 0 auto;
   padding: 28px 36px 72px;
   box-sizing: border-box;
-}
-
-/* Shown again on every navigation: the animation restarts when [hidden] is removed. */
-.view {
-  animation: rise-in var(--t-med) var(--ease-out);
 }
 
 .page-header {
@@ -516,11 +769,42 @@
 
   /* The rail only applies to wide screens. */
   .shell.rail .sidebar {
-    .brand-name,
+    .profile-text,
     .nav-label,
     .nav-chevron {
       opacity: 1;
       pointer-events: auto;
+    }
+    .profile-card {
+      min-height: 96px;
+      padding: 14px 12px;
+      gap: 13px;
+    }
+    .profile-text {
+      overflow: visible;
+      padding-right: 26px;
+    }
+    .profile-settings {
+      top: 10px;
+      right: 10px;
+      width: 30px;
+      height: 30px;
+      box-shadow: none;
+
+      svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+    .profile-alert {
+      width: 15px;
+      height: 15px;
+      font-size: 10.5px;
+    }
+    .profile-avatar {
+      width: 52px;
+      height: 52px;
+      font-size: 19px;
     }
     .nav-sub-item {
       padding: 0 12px;
@@ -581,6 +865,13 @@
 
   .content {
     padding: 22px 16px 56px;
+  }
+
+  .settings-tabs {
+    gap: 20px;
+    margin-inline: -16px;
+    padding-inline: 16px;
+    scroll-padding-inline: 16px;
   }
 
   h1 {

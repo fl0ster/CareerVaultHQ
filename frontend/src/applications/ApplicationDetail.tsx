@@ -11,12 +11,15 @@ import {
   type EventUpdate,
   type PlannedRound,
   isFinalStatus,
+  ACCEPTED_STATUS,
   APPLIED_STATUS,
   INITIAL_ONLY_STATUS,
   INTERVIEW_STATUS,
   MAX_INTERVIEW_ROUNDS,
+  OFFER_STATUS,
   pickableStatuses,
   applicationsApi,
+  formatDay,
   formatDuration,
   fromLocalInput,
   heldRounds,
@@ -29,11 +32,15 @@ import {
 } from './api.ts'
 import InterviewProgress from './InterviewProgress.tsx'
 import StatusBadge from './StatusBadge.tsx'
+import { AcceptOfferButton } from './AcceptOffer.tsx'
+import { pageHref } from '../shell/nav.ts'
 
 type Props = {
   application: Application
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
+  /** The offer was accepted (the application is now `ACCEPTED`). */
+  onAccepted: (application: Application) => void
   onDelete: (id: number) => void
   /** Opens the generation breakdown of the attached CV. */
   onShowPipeline?: (cv: GeneratedCv) => void
@@ -139,7 +146,9 @@ function EventRow({
   const [duration, setDuration] = useState(event.duration_minutes)
   const [when, setWhen] = useState(toLocalInput(event.occurred_at))
   const { busy, error, run } = useAction()
+  // SHORTLISTED is fixed for good; ACCEPTED can only be removed (undoing the acceptance).
   const locked = event.status.key === INITIAL_ONLY_STATUS
+  const statusLocked = locked || event.status.key === ACCEPTED_STATUS
   const isRound = status === INTERVIEW_STATUS
   const min = earliestFor(application, status, event.id)
   const dateError = when !== toLocalInput(event.occurred_at) ? tooEarly(when, min) : null
@@ -159,7 +168,7 @@ function EventRow({
     const dateChanged = when !== toLocalInput(event.occurred_at)
     const updated = await run(() =>
       applicationsApi.updateEvent(application.id, event.id, {
-        ...(locked ? {} : { status }),
+        ...(statusLocked ? {} : { status }),
         note,
         title,
         duration_minutes: duration,
@@ -177,7 +186,9 @@ function EventRow({
   const remove = async () => {
     const question = isHeldRound
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`
-      : `Remove the "${event.status.label}" state?`
+      : event.status.key === ACCEPTED_STATUS
+        ? `Undo accepting the offer? The application goes back to "Offer" and the position it added to My Career is deleted.`
+        : `Remove the "${event.status.label}" state?`
     if (!window.confirm(question)) return
     const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))
     if (updated) onChange(updated)
@@ -187,7 +198,7 @@ function EventRow({
     return (
       <li className="app-event editing">
         <div className="app-form-row">
-          {locked ? (
+          {statusLocked ? (
             <StatusBadge status={event.status} auto={isAutoEvent(event)} />
           ) : (
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -498,7 +509,62 @@ function AddEventForm({
   )
 }
 
-export default function ApplicationDetail({ application, statuses, onChange, onDelete, onShowPipeline }: Props) {
+/** The offer stage: the agreed start date (saved when changed) and accepting the offer. */
+function OfferBox({
+  application,
+  onChange,
+  onAccepted,
+}: {
+  application: Application
+  onChange: (application: Application) => void
+  onAccepted: (application: Application) => void
+}) {
+  const [startDate, setStartDate] = useState(application.start_date ?? '')
+  const { busy, error, run } = useAction()
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+
+  const saveStartDate = async () => {
+    if (startDate === (application.start_date ?? '')) return
+    const updated = await run(() => applicationsApi.setStartDate(application.id, startDate || null))
+    if (updated) onChange(updated)
+  }
+
+  return (
+    <div className="app-offer-box">
+      <label className="app-offer-start">
+        <span>Start date</span>
+        <input
+          type="date"
+          value={startDate}
+          disabled={busy}
+          onChange={(e) => setStartDate(e.target.value)}
+          onBlur={() => void saveStartDate()}
+        />
+      </label>
+      <AcceptOfferButton
+        // The date on screen, even while it is still being saved.
+        application={{ ...application, start_date: startDate || null }}
+        label="Accept offer"
+        onAccepted={onAccepted}
+        onError={setAcceptError}
+      />
+      <p className="muted app-offer-hint">
+        Accepting moves the position to My Career{startDate ? '' : ' (you will be asked for the start date)'}.
+        Remove the offer state instead to record more steps.
+      </p>
+      {(error || acceptError) && <p className="error">{error ?? acceptError}</p>}
+    </div>
+  )
+}
+
+export default function ApplicationDetail({
+  application,
+  statuses,
+  onChange,
+  onAccepted,
+  onDelete,
+  onShowPipeline,
+}: Props) {
   const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
   const cvAction = useAction()
   const deleteAction = useAction()
@@ -626,7 +692,25 @@ export default function ApplicationDetail({ application, statuses, onChange, onD
             ))}
           </ol>
         )}
-        {isFinalStatus(application.status) ? (
+        {application.status?.key === OFFER_STATUS ? (
+          <OfferBox
+            key={application.start_date ?? ''}
+            application={application}
+            onChange={onChange}
+            onAccepted={onAccepted}
+          />
+        ) : application.status?.key === ACCEPTED_STATUS ? (
+          <p className="app-accepted">
+            <span>
+              Offer accepted{application.start_date ? `, starting ${formatDay(application.start_date)}` : ''}.
+            </span>
+            {application.work_history_id != null ? (
+              <a href={pageHref('work-history', application.work_history_id)}>View in My Career</a>
+            ) : (
+              <span className="muted">Its My Career entry was deleted.</span>
+            )}
+          </p>
+        ) : isFinalStatus(application.status) ? (
           <p className="muted">{application.status?.label} is final — remove that state to record new ones.</p>
         ) : (
           <AddEventForm application={application} statuses={statuses} onChange={onChange} />

@@ -1,6 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
-import Magpie from '../mascot/Magpie.tsx'
+import ProfileCard from './ProfileCard.tsx'
 import {
   NAV_SECTIONS,
   type NavGroup,
@@ -11,6 +11,7 @@ import {
   findPage,
   isGroup,
   isSettingsPage,
+  PROFILE_PAGE,
 } from './nav.ts'
 import type { Theme } from './useTheme.ts'
 
@@ -111,16 +112,22 @@ export default function Sidebar({
     if (activeGroup && !open.includes(activeGroup)) setOpen([...open, activeGroup])
   }
 
+  // Which entries are in the menu: one appearing or leaving moves the entries below it.
+  const shownKey = hiddenPages.filter((id) => id !== active).join()
+
   const toggle = (id: GroupId) => setOpen((o) => (o.includes(id) ? o.filter((g) => g !== id) : [...o, id]))
 
   // Slide the highlight to the current page, or to its group while that group is closed.
-  // The observer keeps it in place while groups open and close.
+  // The observer keeps it in place while groups open and close; entries appearing or leaving
+  // (e.g. Applications once there is one) do not resize the nav, so they re-run this instead.
   useLayoutEffect(() => {
     const nav = navRef.current
     const indicator = indicatorRef.current
     if (!nav || !indicator) return
     const place = () => {
       const item = nav.querySelector<HTMLElement>('[data-indicator]')
+      // About me is opened from the profile card's cog, outside the menu: no entry to highlight.
+      indicator.hidden = !item
       if (!item) return
       indicator.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
       indicator.style.width = `${item.offsetWidth}px`
@@ -131,15 +138,12 @@ export default function Sidebar({
     observer.observe(nav)
     nav.querySelectorAll('.nav-sub').forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [active, collapsed, open])
+  }, [active, collapsed, open, shownKey])
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
-      <div className="sidebar-brand">
-        <span className="brand-mark">
-          <Magpie head size={34} />
-        </span>
-        <span className="brand-name">CareerVault HQ</span>
+      <div className="sidebar-head">
+        <ProfileCard active={active === PROFILE_PAGE.id} collapsed={collapsed} onNavigate={onNavigate} />
         <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
           <X size={18} />
         </button>

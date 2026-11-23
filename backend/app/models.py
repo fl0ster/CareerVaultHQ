@@ -281,8 +281,28 @@ class WorkHistoryEntry(Base):
     """Technologies used in the role, stored as a JSON array of strings."""
     context: Mapped[str | None] = mapped_column(Text)
     """Free-form, potentially long description of the role."""
+    application_id: Mapped[int | None] = mapped_column(
+        ForeignKey("applications.id", ondelete="SET NULL"), unique=True, index=True
+    )
+    """The application whose accepted offer created the entry (``None`` for entries added by
+    hand, or once that application is deleted)."""
+    prefill_state: Mapped[str | None] = mapped_column(String(16))
+    """Progress of filling the entry in from its application with the LLM: ``PREFILL_QUEUED``,
+    ``PREFILL_DONE`` or ``PREFILL_FAILED``; ``None`` for entries added by hand."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    PREFILL_QUEUED = "queued"
+    PREFILL_DONE = "done"
+    PREFILL_FAILED = "failed"
+
+    application: Mapped[Application | None] = relationship(back_populates="work_entry")
+
+    @property
+    def pending(self) -> bool:
+        """The position has not started yet (it starts in the future). Pending positions are
+        left out of CVs and the candidate profile until their start date."""
+        return self.date_start > date.today()
 
 
 class CandidateProfile(Base):
@@ -425,6 +445,8 @@ class CandidateDetails(Base):
     github: Mapped[str] = mapped_column(String(512), default="")
     linkedin: Mapped[str] = mapped_column(String(512), default="")
     location: Mapped[str] = mapped_column(String(256), default="")
+    photo: Mapped[str] = mapped_column(Text, default="")
+    """Profile picture as a ``data:image/...;base64,`` URL (scaled down in the browser); blank = none."""
     education: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"degree", "institution", "date_start", "date_end", "note"}, ...]``; dates are free
     text (``Oct 2012``) because they are printed verbatim."""
@@ -489,6 +511,7 @@ class ApplicationStatus(Base):
         ("OFFER", "Offer", ""),
         ("REJECTED", "Rejected", ""),
         ("CLOSED", "Closed", ""),
+        ("ACCEPTED", "Accepted", ""),
     )
     """``(key, label, next_key)`` triples created on first use, in display order; an empty
     ``next_key`` means the state has no default successor."""
@@ -524,12 +547,17 @@ class Application(Base):
     generated_cv_id: Mapped[int | None] = mapped_column(ForeignKey("generated_cvs.id", ondelete="SET NULL"), index=True)
     """The CV generated for this application (the latest one when regenerated)."""
     notes: Mapped[str] = mapped_column(Text, default="")
+    start_date: Mapped[date | None] = mapped_column(Date)
+    """Agreed start date of the offered position, if known; accepting the offer uses it as
+    the start of the work-history entry it creates."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()
     job_evaluation: Mapped[JobEvaluation | None] = relationship()
     generated_cv: Mapped[GeneratedCV | None] = relationship()
+    work_entry: Mapped[WorkHistoryEntry | None] = relationship(back_populates="application", passive_deletes=True)
+    """The work-history entry created when the offer was accepted."""
     events: Mapped[list[ApplicationEvent]] = relationship(
         back_populates="application",
         cascade="all, delete-orphan",
