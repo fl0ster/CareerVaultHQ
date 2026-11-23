@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from tests.test_applications_api import BASE, seed_cv_inputs, seed_evaluation
 from tests.test_jobs_api import seed_evaluated
@@ -105,3 +105,54 @@ def test_upcoming_lists_scheduled_rounds(client, db_session):
         "round": 3,
         "scheduled_at": None,
     }
+
+
+def test_flow_splits_every_way_an_application_can_stop(client, db_session):
+    seed_cv_inputs(client, db_session)
+
+    def application(i, *states):
+        app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, i).id}).json()["id"]
+        for key in states:
+            assert client.post(f"{BASE}/{app_id}/events", json={"status": key}).status_code == 201
+        return app_id
+
+    application(0, "CLOSED")
+    application(1, "APPLIED", "CLOSED")
+    application(2, "APPLIED", "INTERVIEW", "REJECTED")
+    application(3, "APPLIED", "INTERVIEW", "CLOSED")
+    declined = application(4, "APPLIED", "INTERVIEW", "OFFER")
+    assert client.post(f"{BASE}/{declined}/decline", json={"note": "no"}).status_code == 200
+
+    stats = client.get(URL).json()
+    assert links(stats) == {
+        ("scored", "relevant"): 5,
+        ("relevant", "shortlisted"): 5,
+        ("shortlisted", "applied"): 4,
+        ("shortlisted", "shortlisted:closed"): 1,
+        ("applied", "interview"): 3,
+        ("applied", "applied:closed"): 1,
+        ("interview", "offer"): 1,
+        ("interview", "interview:rejected"): 1,
+        ("interview", "interview:closed"): 1,
+        ("offer", "offer:declined"): 1,
+    }
+    assert (stats["applied"], stats["responded"], stats["active"]) == (4, 3, 0)
+
+
+def test_weekly_applied_buckets_by_first_applied_date(client, db_session):
+    seed_cv_inputs(client, db_session)
+    now = datetime.now(UTC)
+    for i, days_ago in enumerate((0, 7, 7, 14, 70)):  # the last one is outside the 8 weeks
+        app = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, i).id}).json()
+        app_id = app["id"]
+        # Applying cannot be dated before shortlisting, so shortlist well before.
+        shortlisted = {"occurred_at": (now - timedelta(days=100)).isoformat()}
+        assert client.patch(f"{BASE}/{app_id}/events/{app['events'][0]['id']}", json=shortlisted).status_code == 200
+        when = (now - timedelta(days=days_ago)).isoformat()
+        assert client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED", "occurred_at": when}).status_code == 201
+
+    weeks = client.get(URL).json()["weekly_applied"]
+    assert [w["count"] for w in weeks] == [0, 0, 0, 0, 0, 1, 2, 1]
+    starts = [date.fromisoformat(w["week_start"]) for w in weeks]
+    assert all(s.weekday() == 0 for s in starts)
+    assert starts[-1] == now.date() - timedelta(days=now.weekday())
