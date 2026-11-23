@@ -8,6 +8,9 @@ import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import ApplicationSteps from './ApplicationSteps.tsx'
 import { formatDay } from '../applications/api.ts'
+import { candidateDetailsApi } from '../candidate-profile/api.ts'
+import { candidateDetailsStore } from '../candidate-profile/store.ts'
+import { isPdf, mergeDetails, parseCv } from './cvImport.ts'
 
 /** How often the list is reloaded while an entry is being filled in from its application. */
 const PREFILL_POLL_MS = 3000
@@ -118,7 +121,7 @@ function EntryCard({
   )
 }
 
-function JsonDropzone({ busy, onFile }: { busy: boolean; onFile: (file: File) => void }) {
+function ImportDropzone({ busy, onFile }: { busy: string | null; onFile: (file: File) => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
   return (
@@ -126,7 +129,7 @@ function JsonDropzone({ busy, onFile }: { busy: boolean; onFile: (file: File) =>
       className={`wh-dropzone${over ? ' over' : ''}${busy ? ' busy' : ''}`}
       role="button"
       tabIndex={0}
-      aria-disabled={busy}
+      aria-disabled={!!busy}
       onClick={() => !busy && input.current?.click()}
       onKeyDown={(e) => {
         if (busy || (e.key !== 'Enter' && e.key !== ' ')) return
@@ -145,15 +148,21 @@ function JsonDropzone({ busy, onFile }: { busy: boolean; onFile: (file: File) =>
         if (file && !busy) onFile(file)
       }}
     >
-      <strong>{busy ? 'Importing…' : 'No positions yet'}</strong>
+      <strong role={busy ? 'status' : undefined}>
+        {busy && <span className="spinner" aria-hidden="true" />}
+        {busy ?? 'No positions yet'}
+      </strong>
       <span>
-        Drop a work history JSON file here, or <span className="wh-dropzone-link">pick one from disk</span>.
+        Drop your CV (a PDF) or a work history JSON file here, or{' '}
+        <span className="wh-dropzone-link">pick one from disk</span>.
       </span>
-      <span className="wh-dropzone-hint">Or add your first position by hand with the + button.</span>
+      <span className="wh-dropzone-hint">
+        A CV also fills in the blank fields of About me. Or add your first position by hand with the + button.
+      </span>
       <input
         ref={input}
         type="file"
-        accept="application/json,.json"
+        accept="application/pdf,.pdf,application/json,.json"
         hidden
         onChange={(ev) => {
           const file = ev.target.files?.[0]
@@ -176,8 +185,10 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>({ kind: 'list' })
-  const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
-  const [importing, setImporting] = useState(false)
+  const [transfer, setTransfer] = useState<{ kind: 'ok' | 'error'; text: string; notes?: string[] } | null>(null)
+  /** What the dropzone is busy with (`null` when idle). */
+  const [importing, setImporting] = useState<string | null>(null)
+  const left = useRef(false)
   const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
   const [flashId, setFlashId] = useState<number | null>(null)
   const viewRef = useRef<HTMLDivElement>(null)
@@ -223,6 +234,10 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   useEffect(() => {
     load()
+    left.current = false
+    return () => {
+      left.current = true
+    }
   }, [])
 
   // Keep reloading while an entry is being filled in from its application in the background.
@@ -278,7 +293,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       setTransfer({ kind: 'error', text: `${file.name} must contain a non-empty JSON array of positions.` })
       return
     }
-    setImporting(true)
+    setImporting('Importing…')
     try {
       const created = await workHistoryApi.importJson(items as WorkHistoryExport[], false)
       await load()
@@ -289,7 +304,44 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
     } catch (e) {
       setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
     } finally {
-      setImporting(false)
+      setImporting(null)
+    }
+  }
+
+  /** Parses a CV PDF, imports its positions and fills the blank About me fields. */
+  const importCv = async (file: File) => {
+    setTransfer(null)
+    setImporting('Reading your CV… this can take a minute')
+    try {
+      const cv = await parseCv(file, () => left.current)
+      if (cv.work_history.length === 0) {
+        setTransfer({ kind: 'error', text: `No positions were found in ${file.name}.`, notes: cv.warnings })
+        return
+      }
+      setImporting('Importing…')
+      const created = await workHistoryApi.importJson(cv.work_history, false)
+      await load()
+      const notes = [...cv.warnings]
+      let filledText = ''
+      try {
+        const { details, filled } = mergeDetails(await candidateDetailsApi.get(), cv.candidate_details)
+        if (filled.length > 0) {
+          candidateDetailsStore.set(await candidateDetailsApi.save(details))
+          filledText = ` Filled in About me: ${filled.join(', ')}.`
+        }
+      } catch (e) {
+        notes.unshift(`About me was not updated: ${String(e instanceof Error ? e.message : e)}`)
+      }
+      setTransfer({
+        kind: 'ok',
+        text: `Imported ${created.length} position${created.length === 1 ? '' : 's'} from ${file.name}.${filledText}`,
+        notes,
+      })
+    } catch (e) {
+      if (left.current) return
+      setTransfer({ kind: 'error', text: `Could not import ${file.name}: ${String(e instanceof Error ? e.message : e)}` })
+    } finally {
+      if (!left.current) setImporting(null)
     }
   }
 
@@ -298,12 +350,26 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       {mode.kind === 'list' && entries === null && !error && <p>Loading…</p>}
 
       {mode.kind === 'list' && transfer && (
-        <p className={transfer.kind === 'error' ? 'error' : undefined}>
-          {transfer.text}{' '}
-          <button type="button" className="secondary small" onClick={() => setTransfer(null)}>
-            Dismiss
-          </button>
-        </p>
+        <div className="wh-transfer">
+          <p className={transfer.kind === 'error' ? 'error' : undefined}>
+            {transfer.text}{' '}
+            <button type="button" className="secondary small" onClick={() => setTransfer(null)}>
+              Dismiss
+            </button>
+          </p>
+          {transfer.notes && transfer.notes.length > 0 && (
+            <details className="wh-transfer-notes">
+              <summary>
+                {transfer.notes.length} note{transfer.notes.length === 1 ? '' : 's'} from reading the CV
+              </summary>
+              <ul>
+                {transfer.notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
       )}
 
       {error && (
@@ -323,7 +389,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       )}
 
       {mode.kind === 'list' && entries?.length === 0 && (
-        <JsonDropzone busy={importing} onFile={(file) => void importJson(file)} />
+        <ImportDropzone busy={importing} onFile={(file) => void (isPdf(file) ? importCv(file) : importJson(file))} />
       )}
       {mode.kind === 'list' && entries && model && (
         <div className="wh-view" ref={viewRef}>

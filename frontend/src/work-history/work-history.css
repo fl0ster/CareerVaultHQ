@@ -656,7 +656,7 @@
   }
 }
 
-/* Empty state: import a work history JSON file */
+/* Empty state: import a CV (PDF) or a work history JSON file */
 .wh-dropzone {
   display: flex;
   flex-direction: column;
@@ -681,6 +681,8 @@
   }
 
   &.busy { cursor: progress; opacity: 0.7; }
+
+  .spinner { display: inline-block; margin-right: 6px; vertical-align: -2px; }
 }
 
 .wh-dropzone-link {
@@ -690,4 +692,23 @@
 
 .wh-dropzone-hint {
   font-size: 0.85em;
+}
+
+/* Result of an import, with the notes from reading a CV */
+.wh-transfer {
+  margin-bottom: 12px;
+
+  p { margin-bottom: 4px; }
+}
+
+.wh-transfer-notes {
+  font-size: 0.9em;
+  color: var(--text);
+
+  summary { cursor: pointer; }
+
+  ul {
+    margin: 6px 0 0;
+    padding-left: 20px;
+  }
 }
