@@ -10,6 +10,7 @@ import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
+import DashboardPage from './dashboard/DashboardPage.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
 import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
@@ -122,6 +123,8 @@ function App() {
   /** Only the page on screen is created; entering a page mounts it, so it always loads fresh. */
   const renderPage = (id: PageId): ReactNode => {
     switch (id) {
+      case 'dashboard':
+        return <DashboardPage />
       case 'interviews':
         return applicationList('interviews', 'interviews', onInterviewCrumbs)
       case 'offers':

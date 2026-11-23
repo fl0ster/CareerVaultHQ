@@ -1,11 +1,14 @@
 import { useEffect } from 'react'
 import { Settings, UserRound } from 'lucide-react'
 import { candidateDetailsStore, isProfileComplete, loadCandidateDetails } from '../candidate-profile/store.ts'
-import { type PageId, PROFILE_PAGE, pageHref } from './nav.ts'
+import { DASHBOARD_PAGE, type PageId, PROFILE_PAGE, pageHref } from './nav.ts'
 import { useStore } from './store.ts'
 
 type Props = {
-  active: boolean
+  /** The dashboard is on screen: the card itself is the current page. */
+  dashboardActive: boolean
+  /** About me is on screen: the cog is the current page. */
+  profileActive: boolean
   collapsed: boolean
   onNavigate: (id: PageId) => void
 }
@@ -13,11 +16,11 @@ type Props = {
 const initials = (first: string, last: string) => `${first.trim().charAt(0)}${last.trim().charAt(0)}`.toUpperCase()
 
 /**
- * The card at the top of the side menu: the user's picture and name. The card itself does
- * nothing; the cog in its corner opens About me, and carries an exclamation mark until the
- * required details are saved.
+ * The card at the top of the side menu: the user's picture and name. Clicking the card opens
+ * the dashboard; the cog in its corner opens About me, and carries an exclamation mark until
+ * the required details are saved.
  */
-export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
+export default function ProfileCard({ dashboardActive, profileActive, collapsed, onNavigate }: Props) {
   const details = useStore(candidateDetailsStore)
 
   useEffect(() => {
@@ -33,9 +36,20 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
 
   return (
     <div
-      className={`profile-card${active ? ' active' : ''}${loading ? ' loading' : ''}`}
-      title={collapsed ? name : undefined}
+      className={`profile-card${dashboardActive ? ' active' : ''}${loading ? ' loading' : ''}`}
+      title={collapsed ? `${DASHBOARD_PAGE.label}: ${name}` : undefined}
     >
+      {/* Covers the whole card, under the cog: the card is the way to the dashboard. */}
+      <a
+        href={pageHref(DASHBOARD_PAGE.id)}
+        className="profile-card-link"
+        aria-current={dashboardActive ? 'page' : undefined}
+        aria-label={DASHBOARD_PAGE.label}
+        onClick={(e) => {
+          e.preventDefault()
+          onNavigate(DASHBOARD_PAGE.id)
+        }}
+      />
       <span className="profile-avatar" aria-hidden="true">
         {details?.photo ? (
           <img src={details.photo} alt="" />
@@ -60,8 +74,8 @@ export default function ProfileCard({ active, collapsed, onNavigate }: Props) {
       </span>
       <a
         href={pageHref(PROFILE_PAGE.id)}
-        className={`profile-settings${active ? ' active' : ''}`}
-        aria-current={active ? 'page' : undefined}
+        className={`profile-settings${profileActive ? ' active' : ''}`}
+        aria-current={profileActive ? 'page' : undefined}
         aria-label={settingsLabel}
         title={settingsLabel}
         onClick={(e) => {
