@@ -4,6 +4,7 @@ import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, w
 import { type Bar, formatDuration, layout, todayIndex } from './timeline-model.ts'
 import { useScrollPointer } from './useScrollPointer.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
+import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import ApplicationSteps from './ApplicationSteps.tsx'
 import { formatDay } from '../applications/api.ts'
@@ -117,7 +118,7 @@ function EntryCard({
   )
 }
 
-type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; entry: WorkHistoryEntry }
+type Mode = { kind: 'list' } | { kind: 'edit'; entry: WorkHistoryEntry }
 
 type PageProps = {
   /** Id of an entry to scroll to and open (from the URL, e.g. right after accepting an offer). */
@@ -198,7 +199,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
 
   const create = async (input: WorkHistoryInput) => {
     await workHistoryApi.create(input)
-    setMode({ kind: 'list' })
     await load()
   }
 
@@ -278,9 +278,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       {mode.kind === 'list' && (
         <p>
           {entries === null ? 'Loading…' : `${entries.length} position${entries.length === 1 ? '' : 's'}.`}{' '}
-          <button type="button" className="small" onClick={() => setMode({ kind: 'create' })}>
-            Add position
-          </button>{' '}
           <button type="button" className="secondary small" disabled={!hasEntries} onClick={exportJson}>
             Export JSON
           </button>{' '}
@@ -322,9 +319,6 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
         </p>
       )}
 
-      {mode.kind === 'create' && (
-        <WorkHistoryForm onSubmit={create} onCancel={() => setMode({ kind: 'list' })} />
-      )}
       {mode.kind === 'edit' && (
         <WorkHistoryForm
           key={mode.entry.id}
@@ -335,7 +329,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
       )}
 
       {mode.kind === 'list' && entries?.length === 0 && (
-        <p>No positions yet. Add your first one above.</p>
+        <p>No positions yet. Add your first one with the + button.</p>
       )}
       {mode.kind === 'list' && entries && model && (
         <div className="wh-view" ref={viewRef}>
@@ -369,6 +363,8 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
           <div style={{ height: spacer }} aria-hidden />
         </div>
       )}
+
+      {mode.kind === 'list' && <AddPositionComposer onSubmit={create} />}
     </>
   )
 }
