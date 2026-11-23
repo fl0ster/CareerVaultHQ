@@ -30,9 +30,9 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 from pypdf import PageObject, PdfReader
 
-from app.api.routes.candidate_details import CandidateDetailsIn, EducationEntry, LanguageEntry
-from app.api.routes.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.config import Settings
+from app.schemas.candidate_details import CandidateDetailsIn, EducationEntry, LanguageEntry
+from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.services.openrouter import OpenRouterService
 from app.tasks.cv_import.prompts import CV_IMPORT_PROMPT, CV_IMPORT_SYSTEM, RESPONSE_FORMAT
 

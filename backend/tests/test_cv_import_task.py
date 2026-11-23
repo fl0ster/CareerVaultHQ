@@ -1,15 +1,18 @@
 """CV import pipeline: PDF text/link extraction, the LLM call and the validation of its reply."""
 
 import json
+import subprocess
+import sys
+from pathlib import Path
 
 import httpx
 import pytest
 from sqlalchemy import select
 
 import app.tasks.cv_import as cv_import_task
-from app.api.routes.candidate_details import CandidateDetailsIn
 from app.config import Settings
 from app.models import OpenRouterCall
+from app.schemas.candidate_details import CandidateDetailsIn
 from app.services.openrouter import REDACTED, OpenRouterService
 from app.tasks.cv_import import import_cv
 from app.tasks.cv_import.extract import CvImportError, build_result, extract_cv, extract_pdf
@@ -272,3 +275,13 @@ def test_import_cv_job_deletes_the_upload_on_failure(chat, cv_file, settings, mo
 
     assert chat["requests"] == []
     assert not path.exists()
+
+
+def test_worker_can_resolve_the_job_function():
+    """The worker imports the job by name in a fresh process, before any router is loaded.
+    A tasks -> app.api import would close a cycle (the routers import the tasks back) that
+    RQ reports only as "Invalid attribute name: import_cv"."""
+    code = "from rq.utils import import_attribute; import_attribute('app.tasks.cv_import.import_cv')"
+    backend = Path(__file__).resolve().parents[1]
+    done = subprocess.run([sys.executable, "-c", code], cwd=backend, capture_output=True, text=True)
+    assert done.returncode == 0, done.stderr
