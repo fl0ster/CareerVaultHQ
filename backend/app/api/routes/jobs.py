@@ -36,7 +36,9 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
 from rq import Queue
@@ -500,6 +502,37 @@ def add_manual_job(
     session.commit()
     enqueue_parse_jobs(session, [pending], queue)
     return ManualJobStatus(job_id=job.id, status=pending.status, error=pending.error)
+
+
+class ManualJobImportIn(BaseModel):
+    link: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+class ManualJobImport(BaseModel):
+    title: str
+    company: str
+    description: str
+    source: str | None
+    """Name of the scraper whose parsers were used; ``None`` when the generic parser was."""
+
+
+@router.post("/manual/import", response_model=ManualJobImport)
+def import_manual_job(payload: ManualJobImportIn) -> ManualJobImport:
+    """Fetch the page at ``link`` and parse it into form fields for the "add job" composer.
+    Stores nothing: the user reviews the fields and submits ``POST /api/jobs/manual``."""
+    from app.tasks.scrape.description import import_job
+    from app.tasks.scrape.scrape import fetch_html
+
+    parsed = urlparse(payload.link)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "link must be an http(s) URL")
+    try:
+        job = import_job(payload.link, fetch_html)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not fetch the page: {exc}") from exc
+    if not (job.title or job.description):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "nothing could be parsed from the page")
+    return ManualJobImport(title=job.title, company=job.company, description=job.description, source=job.source)
 
 
 @router.get("/manual/{job_id}", response_model=ManualJobStatus)

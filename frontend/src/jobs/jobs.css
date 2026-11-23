@@ -679,6 +679,34 @@
   }
 }
 
+/* Link row: the input keeps the shared underline, the Import button sits at its end. */
+.add-job-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border-bottom: 0;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 12px;
+    white-space: nowrap;
+  }
+}
+
+.add-job-note {
+  margin: 0 16px 8px;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
 .add-job.open .add-job-panel {
   opacity: 1;
   transition: opacity 0.2s ease 0.14s;
