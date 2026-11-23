@@ -24,6 +24,10 @@
   grid-column: span 2;
 }
 
+.widget--full {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 640px) {
   .widget--wide {
     grid-column: auto;
@@ -34,6 +38,11 @@
   min-height: 160px;
   background: var(--surface-2);
   box-shadow: none;
+}
+
+.widget--skeleton.widget--flow {
+  grid-column: 1 / -1;
+  min-height: 320px;
 }
 
 .widget--skeleton.widget--stats {
@@ -149,55 +158,107 @@ a.stat-tile:focus-visible {
   opacity: 0.8;
 }
 
-/* Funnel: one row per stage — label, bar, count, conversion from the stage above */
-.funnel {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: max-content 1fr max-content 3.5em;
-  column-gap: 12px;
-  row-gap: 6px;
-  align-items: center;
+/* Flow (Sankey): node colour = where the flow ends; every node also has a text label */
+.dashboard {
+  --sankey-stage: var(--accent);
+  --sankey-accepted: var(--success-solid);
+  --sankey-pending: var(--info-solid);
+  --sankey-rejected: var(--danger-solid);
+  --sankey-drop: #737d83;
 }
 
-.funnel-row {
-  display: contents;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .dashboard {
+    --sankey-drop: #5d686e;
+  }
 }
 
-.funnel-label {
-  font-size: 13px;
-  color: var(--text-h);
+:root[data-theme='dark'] .dashboard {
+  --sankey-drop: #5d686e;
 }
 
-.funnel-track {
-  display: flex;
-  justify-content: center;
-  height: 22px;
-  border-radius: 4px;
-  background: var(--surface-2);
+.sankey {
+  position: relative;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
 }
 
-.funnel-bar {
-  height: 100%;
-  border-radius: 4px;
-  background: var(--accent);
-  transition: width 0.4s var(--ease-out);
+.sankey--stage {
+  --c: var(--sankey-stage);
+}
+.sankey--accepted {
+  --c: var(--sankey-accepted);
+}
+.sankey--pending {
+  --c: var(--sankey-pending);
+}
+.sankey--rejected {
+  --c: var(--sankey-rejected);
+}
+.sankey--drop {
+  --c: var(--sankey-drop);
 }
 
-.funnel-count {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-h);
-  text-align: right;
+.sankey-node {
+  fill: var(--c);
+}
+
+.sankey-link {
+  fill: var(--c);
+  fill-opacity: 0.32;
+  transition: fill-opacity 0.15s;
+
+  &:hover {
+    fill-opacity: 0.55;
+  }
+}
+
+.sankey-link.is-dim,
+.sankey-nodes .is-dim {
+  opacity: 0.35;
+}
+
+.sankey-label {
+  font-size: 12px;
+  fill: var(--text-h);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.sankey-label-value {
+  fill: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
-.funnel-step {
+.sankey-tip {
+  position: absolute;
+  z-index: 1;
+  transform: translate(12px, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-md);
   font-size: 12px;
   color: var(--text);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+
+  strong {
+    color: var(--text-h);
+    font-weight: 600;
+  }
 }
 
 /* Weekly activity: column per week, value shown on hover/focus */

@@ -10,7 +10,7 @@ export default function WeeklyActivityWidget({ weeks }: { weeks: WeekCount[] }) 
   const total = weeks.reduce((sum, w) => sum + w.count, 0)
   const thisWeek = weeks[weeks.length - 1]?.count ?? 0
   return (
-    <Widget title="Applications sent">
+    <Widget title="Applications sent" span={2}>
       <p className="widget-headline">
         <strong>{thisWeek}</strong> this week{' '}
         <span className="widget-muted">
