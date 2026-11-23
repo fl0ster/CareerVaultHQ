@@ -89,13 +89,9 @@ def job_description_text(parsed: JobParseResult) -> str:
 
 
 def load_roles(session: Session, today: date | None = None) -> list[Role]:
-    """The work history as ``Role``s, newest first; pending positions (starting after
-    ``today``) are left out."""
-    entries = session.scalars(
-        select(WorkHistoryEntry)
-        .where(WorkHistoryEntry.date_start <= (today or date.today()))
-        .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
-    ).all()
+    """The positions of the work history as ``Role``s, newest first; pending positions
+    (starting after ``today``), education and certificates are left out."""
+    entries = _started(session, WorkHistoryEntry.KIND_JOB, today)
     return [
         Role.from_dates(
             employer=e.employer,
@@ -112,6 +108,46 @@ def load_roles(session: Session, today: date | None = None) -> list[Role]:
     ]
 
 
+def _started(session: Session, kind: str, today: date | None) -> Sequence[WorkHistoryEntry]:
+    """Timeline entries of ``kind`` that started by ``today``, newest first."""
+    return session.scalars(
+        select(WorkHistoryEntry)
+        .where(WorkHistoryEntry.kind == kind, WorkHistoryEntry.date_start <= (today or date.today()))
+        .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
+    ).all()
+
+
+def _cv_month(value: date) -> str:
+    return value.strftime("%b %Y")
+
+
+def certificate_line(entry: WorkHistoryEntry) -> str:
+    """``AWS Solutions Architect — Amazon (Mar 2021)``; a certificate with a duration shows
+    its range (``Jan 2020 – Jun 2020``)."""
+    when = _cv_month(entry.date_start)
+    if entry.date_end is not None and entry.date_end != entry.date_start:
+        when = f"{when} – {_cv_month(entry.date_end)}"
+    head = " — ".join(part for part in (entry.role, entry.employer) if part)
+    return f"{head} ({when})"
+
+
+def load_education(session: Session, today: date | None = None) -> dict[str, list]:
+    """The ``education`` / ``certifications`` blocks of the CV details, built from the
+    education and certificate entries of the career timeline that started by ``today``."""
+    education = [
+        {
+            "degree": e.role,
+            "institution": e.employer,
+            "date_start": _cv_month(e.date_start),
+            "date_end": _cv_month(e.date_end) if e.date_end else "present",
+            "note": e.context or "",
+        }
+        for e in _started(session, WorkHistoryEntry.KIND_EDUCATION, today)
+    ]
+    certifications = [certificate_line(e) for e in _started(session, WorkHistoryEntry.KIND_CERTIFICATE, today)]
+    return {"education": education, "certifications": certifications}
+
+
 def load_details(session: Session) -> CandidateDetails | None:
     return session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()).limit(1))
 
@@ -126,8 +162,6 @@ def details_dict(details: CandidateDetails) -> dict[str, Any]:
         "github": details.github,
         "linkedin": details.linkedin,
         "location": details.location,
-        "education": list(details.education or []),
-        "certifications": list(details.certifications or []),
         "languages": list(details.languages or []),
         "consent_text": details.consent_text,
     }
@@ -551,7 +585,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     # 5. typesetting
     tex = render_cv(
         template=load_template(),
-        details=details_dict(details),
+        details=details_dict(details) | load_education(session, today),
         headline_role=headline_role,
         core_technologies=core_technologies,
         summary=summary,

@@ -60,7 +60,10 @@ def reply(**overrides):
             }
         ],
         "skills": ["Python", "Go", "Kubernetes", "Terraform"],
-        "certifications": [],
+        "certifications": [
+            {"name": "AWS Solutions Architect", "issuer": "Amazon", "date_start": "2022-04", "date_end": ""},
+            {"name": "Kubernetes bootcamp", "issuer": "", "date_start": "2019-09", "date_end": "2019-12"},
+        ],
         "languages": [{"language": "Polish", "level": "native"}, {"language": "English", "level": "C1"}],
     }
     data.update(overrides)
@@ -164,22 +167,29 @@ def test_extract_cv_returns_importable_data(chat, cv_file, settings):
     assert details.phone == "+48 600 700 800"
     assert details.github == "github.com/janedoe"
     assert details.linkedin == "linkedin.com/in/jane-doe"  # backfilled from the link annotation
-    assert [(e.degree, e.date_start, e.date_end) for e in details.education] == [
-        ("MSc Computer Science", "2013", "Jun 2018")
-    ]
     assert [(lang.language, lang.level) for lang in details.languages] == [("Polish", "native"), ("English", "C1")]
     CandidateDetailsIn.model_validate(details.model_dump())
 
-    acme, globex = result.work_history  # newest first
-    assert (acme.employer, acme.date_start, acme.date_end) == ("Acme Corp", "Mar 2021", None)
-    assert (globex.employer, globex.date_start, globex.date_end) == ("Globex", "Jan 2018", "Feb 2021")
+    # positions, education and certificates form one timeline, newest first
+    timeline = [(e.kind, e.role, e.employer, e.date_start, e.date_end) for e in result.work_history]
+    assert timeline == [
+        ("certificate", "AWS Solutions Architect", "Amazon", "Apr 2022", None),  # a single point in time
+        ("job", "Senior Backend Engineer", "Acme Corp", "Mar 2021", None),
+        ("certificate", "Kubernetes bootcamp", "", "Sep 2019", "Dec 2019"),  # a course with a duration
+        ("job", "Software Developer", "Globex", "Jan 2018", "Feb 2021"),
+        ("education", "MSc Computer Science", "Warsaw University of Technology", "Jan 2013", "Jun 2018"),
+    ]
+    _, acme, _, globex, _ = result.work_history
     assert globex.tech == ["Django", "Celery", "Redis"]
     assert acme.context == "- Built payment services\n- Led the migration to AWS Lambda"
     for entry in result.work_history:
         entry.to_create()
 
     assert result.skills == ["Python", "Go", "Kubernetes", "Terraform"]
-    assert result.warnings == ["Software Developer at Globex: only the year is stated, so January was assumed"]
+    assert result.warnings == [
+        "Software Developer at Globex: only the year is stated, so January was assumed",
+        "education MSc Computer Science at Warsaw University of Technology: only the year is stated, so January was assumed",
+    ]
     assert result.source.characters > 0 and result.source.pages == 1
 
 
@@ -226,7 +236,7 @@ def test_bad_work_entries_are_skipped_with_warnings(cv_file):
         {"employer": "Umbrella", "role": "Consultant", "date_start": "May 2017", "date_end": ""},
         "not an object",
     ]
-    result = build_result(reply(work_history=entries), pdf)
+    result = build_result(reply(work_history=entries, education=[], certifications=[]), pdf)
 
     assert [(e.employer, e.date_start, e.date_end) for e in result.work_history] == [
         ("Hooli", "Jan 2019", "May 2020"),
@@ -240,9 +250,45 @@ def test_bad_work_entries_are_skipped_with_warnings(cv_file):
     ]
 
 
+def test_education_and_certificate_dates(cv_file):
+    pdf = pdf_text(cv_file())
+    education = [
+        {"degree": "PhD", "institution": "MIT", "date_start": "2020-10", "date_end": "present", "note": "AI"},
+        {"degree": "", "institution": "High School No. 1", "date_start": "", "date_end": "2011", "note": ""},
+        {"degree": "BSc", "institution": "Uni", "date_start": "2016-10", "date_end": "", "note": ""},
+        {"degree": "Course", "institution": "", "date_start": "", "date_end": "", "note": ""},
+        {"degree": "", "institution": "", "date_start": "2010", "date_end": "", "note": ""},
+    ]
+    certifications = [
+        {"name": "CKA", "issuer": "CNCF", "date_start": "", "date_end": "2023-05"},
+        {"name": "Scrum Master", "issuer": "", "date_start": "", "date_end": ""},
+        "Google Cloud Professional Architect (2021)",
+        "Toastmasters",
+        {"name": "CKA", "issuer": "CNCF", "date_start": "2023-05", "date_end": ""},
+    ]
+    result = build_result(reply(work_history=[], education=education, certifications=certifications), pdf)
+
+    timeline = [(e.kind, e.role, e.employer, e.date_start, e.date_end, e.context) for e in result.work_history]
+    assert timeline == [
+        ("certificate", "CKA", "CNCF", "May 2023", None, None),  # issue date given as the end; duplicate dropped
+        ("certificate", "Google Cloud Professional Architect (2021)", "", "Jan 2021", None, None),
+        ("education", "PhD", "MIT", "Oct 2020", None, "AI"),  # still studying
+        ("education", "BSc", "Uni", "Oct 2016", None, None),
+        ("education", "High School No. 1", "", "Jan 2011", "Jan 2011", None),  # only the graduation year
+    ]
+    assert "skipped certificate Scrum Master: no date could be read, add it by hand" in result.warnings
+    assert "skipped certificate Toastmasters: no date could be read, add it by hand" in result.warnings
+    assert "skipped education Course: no date could be read, add it by hand" in result.warnings
+    assert "education BSc at Uni: no end date is stated, so it is treated as ongoing" in result.warnings
+    assert not any("PhD" in warning for warning in result.warnings)
+
+
 def test_garbage_reply_shapes_do_not_crash(cv_file):
     pdf = pdf_text(cv_file())
-    result = build_result({"first_name": 42, "work_history": "none", "education": [None], "languages": {}}, pdf)
+    result = build_result(
+        {"first_name": 42, "work_history": "none", "education": [None], "certifications": [1, None], "languages": {}},
+        pdf,
+    )
     assert result.candidate_details.first_name == ""
     assert result.work_history == []
     assert "no work history was found" in result.warnings
@@ -260,7 +306,10 @@ def test_import_cv_job_returns_json_and_deletes_the_upload(chat, cv_file, settin
     data = import_cv(str(path))
 
     assert data["candidate_details"]["first_name"] == "Jane"
-    assert data["work_history"][0]["date_start"] == "Mar 2021"
+    assert [(e["kind"], e["date_start"]) for e in data["work_history"]][:2] == [
+        ("certificate", "Apr 2022"),
+        ("job", "Mar 2021"),
+    ]
     json.dumps(data)
     assert not path.exists()
     assert not path.parent.exists()

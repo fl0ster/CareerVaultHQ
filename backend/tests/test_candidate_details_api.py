@@ -9,11 +9,6 @@ DETAILS = {
     "github": "github.com/jane",
     "linkedin": "",
     "location": "Kraków",
-    "education": [
-        {"degree": "B.Sc.", "institution": "Uni", "date_start": "2012", "date_end": "2015"},
-        {"degree": " ", "institution": "", "date_start": "", "date_end": "", "note": ""},
-    ],
-    "certifications": ["AWS", " ", "GCP "],
     "languages": [{"language": "Polish", "level": "Native"}, {"language": "", "level": "B2"}],
     "consent_text": "I consent.",
 }
@@ -30,16 +25,8 @@ def test_put_creates_then_replaces_the_single_row(client):
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["first_name"] == "Jane"
-    assert body["education"] == [
-        {
-            "degree": "B.Sc.",
-            "institution": "Uni",
-            "date_start": "2012",
-            "date_end": "2015",
-            "note": "",
-        }
-    ]
-    assert body["certifications"] == ["AWS", "GCP"]
+    # education and certifications are career timeline entries now (work history)
+    assert "education" not in body and "certifications" not in body
     assert body["languages"] == [{"language": "Polish", "level": "Native"}]
     assert client.get(BASE).json() == body
 
@@ -47,7 +34,7 @@ def test_put_creates_then_replaces_the_single_row(client):
     assert again["id"] == body["id"]
     assert again["first_name"] == "Janet"
     assert again["email"] == ""
-    assert again["education"] == []
+    assert again["languages"] == []
 
 
 def test_put_validates_lengths(client):

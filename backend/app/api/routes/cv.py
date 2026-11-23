@@ -192,7 +192,11 @@ def _file_or_409(settings: Settings, cv: GeneratedCV, path: str | None) -> Path:
 def check_cv_inputs(session: Session) -> None:
     """``400`` unless the inputs every CV needs (work history with a position that has
     started, candidate name) exist."""
-    started = select(func.count()).select_from(WorkHistoryEntry).where(WorkHistoryEntry.date_start <= date.today())
+    started = (
+        select(func.count())
+        .select_from(WorkHistoryEntry)
+        .where(WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB, WorkHistoryEntry.date_start <= date.today())
+    )
     if session.scalar(started) == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "missing work history: add at least one position first")
     details = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()))

@@ -18,8 +18,9 @@ function useUserTech(): Set<string> {
       .list()
       .then((entries) => {
         if (cancelled) return
-        // Positions that have not started yet are not experience (yet).
-        const started = entries.filter((e) => !e.pending)
+        // Positions that have not started yet are not experience (yet); education and
+        // certificates are not positions.
+        const started = entries.filter((e) => e.kind === 'job' && !e.pending)
         setKeys(new Set(started.flatMap((e) => e.tech).map(techKey).filter(Boolean)))
       })
       .catch(() => {

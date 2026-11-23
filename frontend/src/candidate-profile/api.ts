@@ -34,14 +34,6 @@ export const candidateProfileApi = {
 
 const DETAILS_API = '/api/candidate-details'
 
-export type EducationEntry = {
-  degree: string
-  institution: string
-  date_start: string
-  date_end: string
-  note: string
-}
-
 export type LanguageEntry = {
   language: string
   level: string
@@ -58,8 +50,6 @@ export type CandidateDetailsInput = {
   location: string
   /** Profile picture as an image `data:` URL; empty when none is set. */
   photo: string
-  education: EducationEntry[]
-  certifications: string[]
   languages: LanguageEntry[]
   consent_text: string
 }

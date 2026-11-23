@@ -11,7 +11,9 @@ Pipeline:
 3. Lenient post-processing: every section is validated on its own, dropping (with a
    warning) what does not fit instead of failing the import. Contact details must occur in
    the CV (anti-hallucination) and missing ones are backfilled from the text and links.
-   Work history dates are normalised to the ``Jan 2020`` format of the JSON import.
+   Positions, education and certificates become one career timeline (``kind`` = ``job``,
+   ``education``, ``certificate``) with dates normalised to the ``Jan 2020`` format of the
+   JSON import.
 
 The result uses the request shapes of ``PUT /api/candidate-details``
 (``CandidateDetailsIn``) and ``POST /api/work-history/json`` (``WorkHistoryImport``).
@@ -31,7 +33,7 @@ from pydantic import BaseModel, Field, ValidationError
 from pypdf import PageObject, PdfReader
 
 from app.config import Settings
-from app.schemas.candidate_details import CandidateDetailsIn, EducationEntry, LanguageEntry
+from app.schemas.candidate_details import CandidateDetailsIn, LanguageEntry
 from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.services.openrouter import OpenRouterService
 from app.tasks.cv_import.prompts import CV_IMPORT_PROMPT, CV_IMPORT_SYSTEM, RESPONSE_FORMAT
@@ -74,7 +76,8 @@ class CvImportResult(BaseModel):
     candidate_details: CandidateDetailsIn
     """Ready for ``PUT /api/candidate-details`` (``photo`` and ``consent_text`` are blank)."""
     work_history: list[WorkHistoryImport]
-    """Ready for ``POST /api/work-history/json``; newest first."""
+    """Positions, education and certificates, ready for ``POST /api/work-history/json``;
+    newest first."""
     skills: list[str]
     """Skills listed outside any position (no field stores them yet)."""
     summary: str | None
@@ -218,17 +221,6 @@ def _month(value: str) -> tuple[date | None, bool]:
     return date(year, month, 1), False
 
 
-def _education_date(value: Any) -> str:
-    """Free-text education date, normalised to ``Oct 2012`` / ``2012`` when recognised."""
-    text = _str(value, 64)
-    if not text or text.lower() in CURRENT_MARKERS:
-        return text
-    parsed, year_only = _month(text)
-    if parsed is None:
-        return text
-    return str(parsed.year) if year_only else parsed.strftime(MONTH_FORMAT)
-
-
 # --------------------------------------------------------------------------- grounding
 
 
@@ -312,45 +304,66 @@ def _contacts(data: dict[str, Any], pdf: PdfText, warnings: list[str]) -> dict[s
 # --------------------------------------------------------------------------- sections
 
 
-def _work_entry(item: dict[str, Any], warnings: list[str]) -> tuple[date, WorkHistoryImport] | None:
-    employer = _str(item.get("employer"), 256)
-    role = _str(item.get("role"), 256)
-    label = " at ".join(part for part in (role, employer) if part) or "an untitled position"
-    if not employer or not role:
-        warnings.append(f"skipped {label}: the employer or the role is missing")
-        return None
+Dated = tuple[date, WorkHistoryImport]
+"""A timeline entry with its start date, for sorting."""
 
+
+def _dates(item: dict[str, Any], kind: str, label: str, warnings: list[str]) -> tuple[date, date | None] | None:
+    """``(start, end)`` of a timeline entry, or ``None`` (with a warning) when no start date
+    can be read. A missing end means a current position / ongoing education, and a
+    certificate without a duration; an education or certificate stating only its end
+    (graduation, issue date) starts there."""
     start_text = _str(item.get("date_start"))
-    start, start_year_only = _month(start_text)
-    if start is None:
-        warnings.append(f"skipped {label}: no start date could be read ({start_text!r})")
-        return None
-
     end_text = _str(item.get("date_end"))
+    start, start_year_only = _month(start_text)
     end: date | None = None
     end_year_only = False
     if end_text.lower() in CURRENT_MARKERS:
         pass
-    elif not end_text:
-        warnings.append(f"{label}: no end date is stated, so it is treated as a current position")
-    else:
+    elif end_text:
         end, end_year_only = _month(end_text)
         if end is None:
-            warnings.append(f"{label}: the end date {end_text!r} could not be read, so it is treated as current")
+            ongoing = "a single date" if kind == "certificate" else "ongoing"
+            warnings.append(f"{label}: the end date {end_text!r} could not be read, so it is treated as {ongoing}")
+    elif kind == "job":
+        warnings.append(f"{label}: no end date is stated, so it is treated as a current position")
+
+    if start is None and kind != "job" and end is not None:
+        start, start_year_only = end, end_year_only
+        if kind == "education":
+            warnings.append(f"{label}: only the end date is stated, so it is shown as a single month")
+        else:
+            end = None
+    if start is None:
+        if kind == "job":
+            warnings.append(f"skipped {label}: no start date could be read ({start_text!r})")
+        else:
+            warnings.append(f"skipped {label}: no date could be read, add it by hand")
+        return None
+    if kind == "education" and end is None and not end_text:
+        warnings.append(f"{label}: no end date is stated, so it is treated as ongoing")
     if start_year_only or end_year_only:
         warnings.append(f"{label}: only the year is stated, so January was assumed")
     if end is not None and end < start:
         warnings.append(f"{label}: the end date was before the start date, so they were swapped")
         start, end = end, start
+    return start, end
 
+
+def _entry(
+    kind: str, item: dict[str, Any], title: str, organisation: str, label: str, warnings: list[str], **fields: Any
+) -> Dated | None:
+    dates = _dates(item, kind, label, warnings)
+    if dates is None:
+        return None
+    start, end = dates
     entry = WorkHistoryImport(
+        kind=kind,
         date_start=start.strftime(MONTH_FORMAT),
         date_end=end.strftime(MONTH_FORMAT) if end else None,
-        employer=employer,
-        role=role,
-        location=_str(item.get("location"), 256) or None,
-        tech=_clean_tech(_strs(item.get("tech"))),
-        context=_str(item.get("context"), multiline=True) or None,
+        employer=organisation,
+        role=title,
+        **fields,
     )
     try:
         entry.to_create()  # exactly what POST /work-history/json will run
@@ -360,27 +373,81 @@ def _work_entry(item: dict[str, Any], warnings: list[str]) -> tuple[date, WorkHi
     return start, entry
 
 
-def _work_history(data: dict[str, Any], warnings: list[str]) -> list[WorkHistoryImport]:
-    entries = [entry for item in _dicts(data.get("work_history")) if (entry := _work_entry(item, warnings))]
-    entries.sort(key=lambda pair: pair[0], reverse=True)
-    if not entries:
+def _work_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:
+    employer = _str(item.get("employer"), 256)
+    role = _str(item.get("role"), 256)
+    label = " at ".join(part for part in (role, employer) if part) or "an untitled position"
+    if not employer or not role:
+        warnings.append(f"skipped {label}: the employer or the role is missing")
+        return None
+    return _entry(
+        "job",
+        item,
+        role,
+        employer,
+        label,
+        warnings,
+        location=_str(item.get("location"), 256) or None,
+        tech=_clean_tech(_strs(item.get("tech"))),
+        context=_str(item.get("context"), multiline=True) or None,
+    )
+
+
+def _education_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:
+    degree = _str(item.get("degree"), 256)
+    institution = _str(item.get("institution"), 256)
+    if not (degree or institution):
+        return None
+    label = " at ".join(part for part in (degree, institution) if part)
+    # the title is required; a CV naming only the school still gets an entry
+    title, organisation = (degree, institution) if degree else (institution, "")
+    note = _str(item.get("note"), multiline=True) or None
+    return _entry("education", item, title, organisation, f"education {label}", warnings, context=note)
+
+
+_YEAR_IN_TEXT = re.compile(r"\b(19|20)\d{2}\b")
+
+
+def _certificate_entry(item: dict[str, Any] | str, warnings: list[str]) -> Dated | None:
+    if isinstance(item, str):
+        # models without structured output may still answer with plain strings
+        year = _YEAR_IN_TEXT.search(item)
+        item = {"name": item, "issuer": "", "date_start": year.group(0) if year else "", "date_end": ""}
+    name = _str(item.get("name"), 256)
+    if not name:
+        return None
+    issuer = _str(item.get("issuer"), 256)
+    label = f"certificate {name}" + (f" ({issuer})" if issuer else "")
+    return _entry("certificate", item, name, issuer, label, warnings)
+
+
+def _timeline(data: dict[str, Any], warnings: list[str]) -> list[WorkHistoryImport]:
+    """Positions, education and certificates as one timeline, newest first."""
+    jobs = [entry for item in _dicts(data.get("work_history")) if (entry := _work_entry(item, warnings))]
+    if not jobs:
         warnings.append("no work history was found")
+    education = [entry for item in _dicts(data.get("education")) if (entry := _education_entry(item, warnings))]
+    raw_certificates = data.get("certifications")
+    certificates = [
+        entry
+        for item in (raw_certificates if isinstance(raw_certificates, list) else [])
+        if isinstance(item, dict | str) and (entry := _certificate_entry(item, warnings))
+    ]
+    entries = _dedupe([*jobs, *education, *certificates])
+    entries.sort(key=lambda pair: pair[0], reverse=True)
     return [entry for _, entry in entries]
 
 
-def _education(data: dict[str, Any]) -> list[EducationEntry]:
-    entries = []
-    for item in _dicts(data.get("education")):
-        entry = EducationEntry(
-            degree=_str(item.get("degree"), 256),
-            institution=_str(item.get("institution"), 256),
-            date_start=_education_date(item.get("date_start")),
-            date_end=_education_date(item.get("date_end")),
-            note=_str(item.get("note"), 1024),
-        )
-        if entry.degree or entry.institution:
-            entries.append(entry)
-    return entries
+def _dedupe(entries: list[Dated]) -> list[Dated]:
+    """Drop repeated entries (same kind, title, organisation and start)."""
+    seen: set[tuple[str, str, str, str]] = set()
+    out: list[Dated] = []
+    for start, entry in entries:
+        key = (entry.kind, entry.role.lower(), entry.employer.lower(), entry.date_start)
+        if key not in seen:
+            seen.add(key)
+            out.append((start, entry))
+    return out
 
 
 def _languages(data: dict[str, Any]) -> list[LanguageEntry]:
@@ -394,15 +461,10 @@ def _languages(data: dict[str, Any]) -> list[LanguageEntry]:
 def build_result(data: dict[str, Any], pdf: PdfText) -> CvImportResult:
     """Validated result from the model's JSON ``data`` (see the module docstring)."""
     warnings = list(pdf.warnings)
-    details = CandidateDetailsIn(
-        **_contacts(data, pdf, warnings),
-        education=_education(data),
-        certifications=list(dict.fromkeys(_strs(data.get("certifications")))),
-        languages=_languages(data),
-    )
+    details = CandidateDetailsIn(**_contacts(data, pdf, warnings), languages=_languages(data))
     return CvImportResult(
         candidate_details=details,
-        work_history=_work_history(data, warnings),
+        work_history=_timeline(data, warnings),
         skills=_clean_tech(_strs(data.get("skills"))),
         summary=_str(data.get("summary"), multiline=True) or None,
         warnings=warnings,

@@ -1,8 +1,10 @@
-"""CRUD for the user's work history.
+"""CRUD for the user's career timeline ("My Career"): positions, education and certificates.
 
-Entries are returned newest first (by ``date_start``); a ``null`` ``date_end`` marks a
-current position. ``tech`` is a free list of technology names. An entry starting in the
-future is ``pending``: it is left out of CVs and the candidate profile until it starts.
+Every entry has a ``kind`` (``job``, ``education`` or ``certificate``). Entries are
+returned newest first (by ``date_start``); a ``null`` ``date_end`` marks a current position
+or ongoing education, and a certificate that is a single point in time. ``tech`` is a free
+list of technology names. An entry starting in the future is ``pending``: it is left out
+of CVs and the candidate profile until it starts.
 Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
 """
@@ -20,11 +22,13 @@ from sqlalchemy.orm import Session
 from app.db import get_session
 from app.models import WorkHistoryEntry
 from app.schemas.work_history import (
+    EntryKind,
     WorkHistoryCreate,
     WorkHistoryExport,
     WorkHistoryImport,
     WorkHistoryUpdate,
     _check_dates,
+    _check_employer,
     _format_month,
 )
 
@@ -35,6 +39,7 @@ class WorkHistoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    kind: EntryKind
     date_start: date
     date_end: date | None
     employer: str
@@ -77,9 +82,10 @@ def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[Work
 @router.get("/json", response_model=list[WorkHistoryExport])
 def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryExport]:
     """Work history as a bare JSON array with exactly the keys
-    ``date_start, date_end, employer, role, location, tech, context``."""
+    ``kind, date_start, date_end, employer, role, location, tech, context``."""
     return [
         WorkHistoryExport(
+            kind=e.kind,
             date_start=_format_month(e.date_start),
             date_end=_format_month(e.date_end),
             employer=e.employer,
@@ -143,11 +149,16 @@ def update_entry(
     """Update the given fields only. Send ``"date_end": null`` to mark a position current."""
     entry = _get_or_404(session, entry_id)
     changes = payload.model_dump(exclude_unset=True)
+    if changes.get("kind", "") is None:
+        del changes["kind"]
+    if "employer" in changes:
+        changes["employer"] = (changes["employer"] or "").strip()
 
     new_start = changes.get("date_start", entry.date_start)
     new_end = changes.get("date_end", entry.date_end)
     try:
         _check_dates(new_start, new_end)
+        _check_employer(changes.get("kind", entry.kind), changes.get("employer", entry.employer))
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
