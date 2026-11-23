@@ -101,6 +101,7 @@ ENV HOST=0.0.0.0 \
     LATEX_UPLOAD_ROOT=/data/static/uploads/latex \
     LATEX_JOBS_ROOT=/data/static/jobs/latex \
     CV_ROOT=/data/cv \
+    CV_IMPORT_UPLOAD_ROOT=/data/cv_import \
     OPENROUTER_CHAT_MODEL=openai/gpt-4o-mini \
     OPENROUTER_DECISION_MODEL=typesafe/jev-1.14
 
