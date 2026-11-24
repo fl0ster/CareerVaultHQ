@@ -140,7 +140,6 @@
   align-items: center;
   gap: 6px 8px;
 
-  .wh-kind-badge,
   .wh-pending {
     margin: 0;
   }
