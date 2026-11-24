@@ -11,7 +11,9 @@ to the source. After each source its row's health bookkeeping (``last_run_at``,
 ``consecutive_failures``, ...) is updated and committed, so a long multi-source run loses
 nothing when a later source crashes the worker. Parsing details out of the HTML is a separate
 step: for every inserted job a ``PendingJobParseRun`` row is created and
-``app.tasks.parse.parse_job`` is enqueued on the same queue once the run has been committed.
+``app.tasks.parse.parse_job`` is enqueued on the same queue as soon as that source's jobs
+have been committed, so parsing (and the evaluation each parse enqueues) starts while the
+remaining sources are still being scraped.
 The returned summary is stored as the RQ job result.
 """
 
@@ -253,6 +255,7 @@ def scrape(source: str | None = None) -> dict[str, Any]:
         results: list[dict[str, Any]] = []
         jobs: list[dict[str, Any]] = []
         pending: list[PendingJobParseRun] = []
+        parse_ids: list[str] = []
         duplicates = 0
         seen_offers: set[OfferKey] = set()
         try:
@@ -275,6 +278,9 @@ def scrape(source: str | None = None) -> dict[str, Any]:
                 pending.extend(row_pending)
                 duplicates += row_duplicates
                 session.commit()  # per-source durability on long runs
+                # Only enqueue once the jobs and their pending rows are durable, so the parse
+                # worker can never pick up an id that does not exist yet.
+                parse_ids.extend(enqueue_parse_jobs(session, row_pending))
 
             new = len(pending)
             failed = [r["source"] for r in results if not r["ok"]]
@@ -293,10 +299,6 @@ def scrape(source: str | None = None) -> dict[str, Any]:
             raise
         run.finished_at = datetime.now(UTC)
         session.commit()
-
-        # Only enqueue once the jobs and their pending rows are durable, so the parse
-        # worker can never pick up an id that does not exist yet.
-        parse_ids = enqueue_parse_jobs(session, pending)
 
         log.info(
             "Scrape run %d: %d scraped, %d new, %d duplicates, failed sources: %s",

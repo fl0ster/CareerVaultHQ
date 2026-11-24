@@ -102,7 +102,9 @@ function JobRow({
             <RelevanceMeter
               relevance={job.evaluation.relevance}
               outdated={job.evaluation.outdated}
-              rescore={{ jobId: job.id, onRescored }}
+              explanation={job.evaluation.explanation}
+              jobId={job.id}
+              onRescored={onRescored}
             />
             <span className="job-title" style={{ marginLeft: '10px' }}>
               {job.title ?? job.link}

@@ -66,7 +66,7 @@ class GmailMonitorScheduler:
         now = now or datetime.now(UTC)
         with self.sessions() as session:
             row = get_monitor_settings(session)
-            if not row.enabled or not is_configured(row):
+            if not row.enabled or not is_configured(session, row):
                 return "disabled"
             next_at = aware(row.next_run_at)
             if next_at is not None and now < next_at:

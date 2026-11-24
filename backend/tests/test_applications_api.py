@@ -206,7 +206,10 @@ def test_company_application_stats(client, db_session):
             client.post(f"{BASE}/{app_id}/events", json={"status": key})
 
     stats = client.get("/api/companies/application-stats").json()
-    assert stats == {
+    # The seeded work history adds its employer with the positions held there.
+    career = {company: counts for company, counts in stats.items() if counts == {"CAREER": 1}}
+    assert len(career) == 1
+    assert {company: counts for company, counts in stats.items() if company not in career} == {
         str(company_ids[0]): {"APPLIED": 1},
         str(company_ids[1]): {"INTERVIEW": 1},
         str(company_ids[2]): {"REJECTED": 1},
@@ -372,6 +375,17 @@ def test_listing_is_newest_first_regardless_of_state(client, db_session):
 
     body = client.get(BASE).json()
     assert [a["id"] for a in body["items"]] == ids[::-1]
+
+
+def test_create_application_queues_enrichment(client, db_session, fake_queue):
+    """Interview steps and technologies are only extracted once the job is shortlisted."""
+    seed_cv_inputs(client, db_session)
+    evaluation = seed_evaluation(db_session)
+
+    assert client.post(BASE, json={"job_evaluation_id": evaluation.id}).status_code == 201
+
+    enrich = [j for j in fake_queue.jobs if j.func_name == "app.tasks.parse.enrich.enrich_job"]
+    assert [j.args for j in enrich] == [(evaluation.job_parse_result_id,)]
 
 
 def test_parsed_interview_steps_become_planned_rounds(client, db_session):

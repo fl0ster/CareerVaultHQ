@@ -12,8 +12,8 @@ import {
   findPage,
   isGroup,
   isSettingsPage,
-  PROFILE_PAGE,
 } from './nav.ts'
+import type { Setup } from './useSetup.ts'
 import type { Theme } from './useTheme.ts'
 
 type Badges = Partial<Record<PageId, { count: number; title: string }>>
@@ -26,6 +26,8 @@ type Props = {
   badges: Badges
   /** Pages left out of the menu (e.g. Interviews while there are none). */
   hiddenPages?: PageId[]
+  /** Unfinished first-run setup: the profile card shows its progress in place of the greeting. */
+  setup: Setup | null
   collapsed: boolean
   onToggleCollapsed: () => void
   mobileOpen: boolean
@@ -90,6 +92,7 @@ export default function Sidebar({
   onOpenSettings,
   badges,
   hiddenPages = [],
+  setup,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -127,7 +130,7 @@ export default function Sidebar({
     if (!nav || !indicator) return
     const place = () => {
       const item = nav.querySelector<HTMLElement>('[data-indicator]')
-      // Dashboard and About me are opened from the profile card, outside the menu: no entry to highlight.
+      // The dashboard is opened from the profile card, outside the menu: no entry to highlight.
       indicator.hidden = !item
       if (!item) return
       indicator.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
@@ -146,8 +149,10 @@ export default function Sidebar({
       <div className="sidebar-head">
         <ProfileCard
           dashboardActive={active === DASHBOARD_PAGE.id}
-          profileActive={active === PROFILE_PAGE.id}
-          collapsed={collapsed} onNavigate={onNavigate} />
+          collapsed={collapsed}
+          setup={setup}
+          onNavigate={onNavigate}
+        />
         <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
           <X size={18} />
         </button>

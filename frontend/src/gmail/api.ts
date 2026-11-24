@@ -21,6 +21,7 @@ export type MonitorSettings = {
   enabled: boolean
   /** The monitored address and the web app URL are both set. */
   configured: boolean
+  /** The monitored account: the e-mail in the personal details (blank when none is set). */
   email: string
   script_url: string
   /** Last characters of the shared secret embedded in the script. */
@@ -41,7 +42,7 @@ export type MonitorSettings = {
 }
 
 export type MonitorSettingsUpdate = Partial<
-  Pick<MonitorSettings, 'enabled' | 'email' | 'script_url' | 'label' | 'interview_label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
+  Pick<MonitorSettings, 'enabled' | 'script_url' | 'label' | 'interview_label' | 'interval_seconds' | 'lookback_days' | 'threshold'>
 >
 
 export type ConnectionTest = {

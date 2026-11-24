@@ -1,13 +1,18 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { WORK_HISTORY_CHANGED } from '../work-history/api.ts'
 
-/** Outcome buckets, in display order; see ``GET /api/companies/application-stats``. */
+/** Outcome buckets and the positions held at the company (``CAREER``), in display order; see
+ * ``GET /api/companies/application-stats``. */
 export const OUTCOMES = [
   { key: 'APPLIED', label: 'Applied', icon: '✉' },
   { key: 'INTERVIEW', label: 'Interview', icon: '💬' },
+  // Tinted to a muted ghost colour (see tags.css).
+  { key: 'GHOSTED', label: 'Ghosted', icon: '👻' },
   { key: 'REJECTED', label: 'Rejected', icon: '✕' },
   { key: 'OFFER', label: 'Offer', icon: '🏆' },
   // Shown as a greyed, struck-through trophy (see tags.css).
   { key: 'DECLINED', label: 'Declined offer', icon: '🏆' },
+  { key: 'CAREER', label: 'Positions in your career', icon: '💼' },
 ] as const
 
 export type CompanyStats = Partial<Record<(typeof OUTCOMES)[number]['key'], number>>
@@ -34,6 +39,11 @@ export function refreshCompanyApplicationStats() {
       // Stats are a hint only; keep the previous ones.
     })
 }
+
+// Adding, changing or removing a career entry changes the CAREER counts.
+window.addEventListener(WORK_HISTORY_CHANGED, () => {
+  if (loaded) refreshCompanyApplicationStats()
+})
 
 function subscribe(listener: () => void) {
   listeners.add(listener)

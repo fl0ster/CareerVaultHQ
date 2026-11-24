@@ -18,6 +18,10 @@
   --tag-bg: var(--accent-bg);
   --tag-fg: var(--accent);
 }
+.tag-ghosted {
+  --tag-bg: color-mix(in srgb, #8b7fb8 18%, transparent);
+  --tag-fg: #8b7fb8;
+}
 .tag-avoid {
   --tag-bg: var(--danger-bg);
   --tag-fg: var(--danger-fg);
@@ -52,6 +56,16 @@
   align-items: center;
   gap: 2px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Ghosted (never heard back): a small, faded ghost in muted violet. */
+.company-app-stat.ghosted {
+  color: #8b7fb8;
+
+  .company-app-stat-icon {
+    font-size: 10px;
+    opacity: 0.8;
+  }
 }
 
 /* A declined offer: the offer trophy, greyed out and struck through. */

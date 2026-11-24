@@ -376,3 +376,129 @@ a.stat-tile:focus-visible {
   font-weight: 600;
   color: var(--text-h);
 }
+
+/* First-run checklist, shown instead of the widgets until the app is set up */
+.onboarding {
+  max-width: 640px;
+  padding: 24px 24px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.onboarding-head {
+  margin-bottom: 18px;
+
+  h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    font-weight: 650;
+    color: var(--text-h);
+  }
+  p {
+    margin: 0;
+    color: var(--text);
+  }
+}
+
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.onboarding-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-h);
+  text-decoration: none;
+  transition:
+    background-color var(--t-fast) ease,
+    border-color var(--t-fast) ease;
+}
+
+a.onboarding-step {
+  &:hover {
+    color: var(--text-h);
+    background: var(--hover-tint);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.onboarding-step.next {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.onboarding-check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.onboarding-step.next .onboarding-check {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.onboarding-step.done .onboarding-check {
+  border-color: var(--success-solid);
+  background: var(--success-solid);
+  color: var(--on-strong);
+  animation: pop-in var(--t-med) var(--ease-spring);
+}
+
+.onboarding-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.onboarding-label {
+  font-weight: 650;
+}
+
+.onboarding-step.done .onboarding-label {
+  color: var(--text);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.onboarding-desc {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.onboarding-go {
+  flex: none;
+  color: var(--text);
+}

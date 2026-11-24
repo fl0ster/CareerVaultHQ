@@ -1,5 +1,13 @@
 const API = '/api/work-history'
 
+/** Fired after entries are added, changed or removed here, so the menu's setup progress and the career marks on company pills follow. */
+export const WORK_HISTORY_CHANGED = 'work-history:changed'
+
+function notifyChanged<T>(value: T): T {
+  window.dispatchEvent(new Event(WORK_HISTORY_CHANGED))
+  return value
+}
+
 /** Kind of career event: a position, an education entry or a certificate. */
 export type EntryKind = 'job' | 'education' | 'certificate'
 
@@ -24,11 +32,15 @@ export type WorkHistoryEntry = {
   prefill_state: 'queued' | 'done' | 'failed' | null
   created_at: string
   updated_at: string
+  /** The known company a position's employer matches (null for education and certificates). */
+  company_id: number | null
+  /** That company's tag. */
+  company_tag: string | null
 }
 
 export type WorkHistoryInput = Omit<
   WorkHistoryEntry,
-  'id' | 'application_id' | 'pending' | 'prefill_state' | 'created_at' | 'updated_at'
+  'id' | 'application_id' | 'pending' | 'prefill_state' | 'created_at' | 'updated_at' | 'company_id' | 'company_tag'
 >
 
 /** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
@@ -69,18 +81,27 @@ export const workHistoryApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
-    }).then((r) => parse<WorkHistoryEntry>(r)),
+    })
+      .then((r) => parse<WorkHistoryEntry>(r))
+      .then(notifyChanged),
   update: (id: number, input: WorkHistoryInput) =>
     fetch(`${API}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
-    }).then((r) => parse<WorkHistoryEntry>(r)),
-  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
+    })
+      .then((r) => parse<WorkHistoryEntry>(r))
+      .then(notifyChanged),
+  remove: (id: number) =>
+    fetch(`${API}/${id}`, { method: 'DELETE' })
+      .then((r) => parse<void>(r))
+      .then(notifyChanged),
   importJson: (items: WorkHistoryExport[], replace: boolean) =>
     fetch(`${API}/json?replace=${replace}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(items),
-    }).then((r) => parse<WorkHistoryEntry[]>(r)),
+    })
+      .then((r) => parse<WorkHistoryEntry[]>(r))
+      .then(notifyChanged),
 }

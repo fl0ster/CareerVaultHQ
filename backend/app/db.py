@@ -71,6 +71,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "candidate_details": {
         "photo": "TEXT NOT NULL DEFAULT ''",
     },
+    "job_evaluations": {
+        "explanation": "TEXT",
+    },
     "gmail_monitor_settings": {
         "interview_label": "VARCHAR(128) NOT NULL DEFAULT 'interview-steps-registered'",
     },
@@ -92,9 +95,11 @@ def _missing_columns(engine: Engine) -> list[str]:
 
 DROPPED_COLUMNS: dict[str, list[str]] = {
     "candidate_details": ["education", "certifications"],
+    "gmail_monitor_settings": ["email"],
 }
 """Columns no longer in the models; dropped from existing databases with ``ALTER TABLE``.
-Education and certifications moved to ``work_history`` (``kind``)."""
+Education and certifications moved to ``work_history`` (``kind``); the Gmail monitor uses
+the e-mail of the personal details."""
 
 
 def _obsolete_columns(engine: Engine) -> list[str]:

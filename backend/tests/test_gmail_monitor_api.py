@@ -17,9 +17,14 @@ BASE = "/api/gmail-monitor"
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
 
+def _set_details_email(client, email="me@gmail.com"):
+    res = client.put("/api/candidate-details", json={"first_name": "Me", "email": email})
+    assert res.status_code == 200, res.text
+
+
 def _configure(client, **extra):
+    _set_details_email(client)
     body = {
-        "email": "me@gmail.com",
         "script_url": "https://script.google.com/macros/s/abc/exec",
         **extra,
     }
@@ -38,17 +43,18 @@ def test_settings_defaults_and_update(client):
     assert body["interview_label"] == "interview-steps-registered"
     assert body["threshold"] == 0.9 and body["interval_seconds"] == 1800
     assert body["secret_hint"].startswith("…") and "secret" not in body
+    assert body["email"] == ""
 
     body = _configure(client, label="cv/rejected", interview_label="cv/interviews", threshold=0.95, enabled=True)
     assert body["interview_label"] == "cv/interviews"
     assert body["configured"] is True and body["enabled"] is True
+    assert body["email"] == "me@gmail.com"
     assert body["label"] == "cv/rejected" and body["threshold"] == 0.95
 
 
 @pytest.mark.parametrize(
     "payload",
     [
-        {"email": "not-an-address"},
         {"script_url": "http://insecure.example"},
         {"script_url": "https://evil.example/macros/s/abc/exec"},
         {"script_url": "https://script.google.com.evil.example/macros/s/abc/exec"},
@@ -73,6 +79,17 @@ def test_apps_script_embeds_secret_and_rotation_changes_it(client, db_session):
     second = client.get(f"{BASE}/apps-script").text
     assert second != first and "__CAREERVAULT_SECRET__" not in second
     assert second.split("const SECRET = '")[1].split("'")[0].endswith(hint.lstrip("…"))
+
+
+def test_email_comes_from_personal_details(client):
+    url = "https://script.google.com/macros/s/abc/exec"
+    body = client.patch(f"{BASE}/settings", json={"script_url": url, "email": "ignored@gmail.com"}).json()
+    assert body["email"] == "" and body["configured"] is False
+    assert client.post(f"{BASE}/run").status_code == 400
+
+    _set_details_email(client, "  Me@Gmail.com ")
+    body = client.get(f"{BASE}/settings").json()
+    assert body["email"] == "Me@Gmail.com" and body["configured"] is True
 
 
 def test_interval_change_resets_schedule(client, db_session):
@@ -192,11 +209,15 @@ def test_scheduler_disabled_or_unconfigured(scheduler, engine):
 
 
 def test_scheduler_enqueues_when_due_and_plans_next(scheduler, engine):
+    from app.models import CandidateDetails
+
     sched, queue = scheduler
+    with session_factory(engine)() as session:
+        session.add(CandidateDetails(email="me@gmail.com"))
+        session.commit()
     _set(
         engine,
         enabled=True,
-        email="me@gmail.com",
         script_url="https://script.google.com/macros/s/abc_DEF-1/exec",
         interval_seconds=600,
     )

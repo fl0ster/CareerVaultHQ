@@ -211,7 +211,7 @@ class Company(Base):
 
     __tablename__ = "companies"
 
-    TAGS = ("favourite", "interested", "avoid")
+    TAGS = ("favourite", "interested", "ghosted", "avoid")
     """Allowed values of ``tag``, in the order the UI cycles through them."""
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -387,6 +387,9 @@ class JobEvaluation(Base):
         ForeignKey("openrouter_calls.id", ondelete="SET NULL"), index=True
     )
     """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer, model)."""
+    explanation: Mapped[str | None] = mapped_column(Text)
+    """Short LLM-written reason for the score (matching and missing experience), generated on
+    request (``POST /api/jobs/{job_id}/explanation``) and kept with this (job, profile) pair."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()
@@ -647,7 +650,9 @@ class GmailMonitorSettings(Base):
     created on first use by ``app.services.gmail_monitor.get_monitor_settings``.
 
     The monitored mailbox is reached through a Google Apps Script web app the user deploys
-    in that account (``script_url``); every request carries ``secret``."""
+    in that account (``script_url``); every request carries ``secret``. The account is the
+    e-mail in the personal details (``CandidateDetails.email``, see
+    ``app.services.gmail_monitor.monitored_email``); the script must report the same one."""
 
     __tablename__ = "gmail_monitor_settings"
 
@@ -659,8 +664,6 @@ class GmailMonitorSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    email: Mapped[str] = mapped_column(String(320), default="")
-    """Address of the monitored account; the script must report the same one."""
     script_url: Mapped[str] = mapped_column(String(1024), default="")
     """``https://script.google.com/macros/s/.../exec`` of the deployed web app."""
     secret: Mapped[str] = mapped_column(String(128), nullable=False)

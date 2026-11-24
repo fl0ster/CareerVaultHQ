@@ -1,7 +1,8 @@
 """Counts behind the badges in the app's menu.
 
 ``GET /api/nav/counts`` returns, in one cheap request, how many jobs wait in the Jobs inbox
-and how many applications there are in total and in the interview / offer stages. The
+how many applications there are in total and in the interview / offer stages, and how
+many entries the work history holds (the onboarding checklist needs at least one). The
 frontend polls it, so the badges follow changes made by background tasks (scrapes,
 evaluations, the Gmail monitor) as well as those made in the UI.
 """
@@ -12,11 +13,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.routes.jobs import inbox_count
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.models import WorkHistoryEntry
 from app.services.applications import application_count, current_stage_counts
 
 router = APIRouter()
@@ -33,6 +36,8 @@ class NavCounts(BaseModel):
     """Applications whose current state is ``INTERVIEW``."""
     offers: int
     """Applications whose current state is ``OFFER``."""
+    work_history: int
+    """Entries in the work history (positions, education, certificates)."""
 
 
 @router.get("/counts", response_model=NavCounts)
@@ -46,4 +51,5 @@ def nav_counts(
         applications=application_count(session),
         interviews=stages.get(INTERVIEW_STATUS, 0),
         offers=stages.get(OFFER_STATUS, 0),
+        work_history=session.scalar(select(func.count()).select_from(WorkHistoryEntry)) or 0,
     )

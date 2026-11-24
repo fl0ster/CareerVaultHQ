@@ -28,8 +28,9 @@ from app.models import (
     Job,
     JobParseResult,
     ScrapeSource,
+    WorkHistoryEntry,
 )
-from app.services.companies import normalize_company_name
+from app.services.companies import normalize_company_name, resolve_career_companies
 
 router = APIRouter()
 
@@ -171,14 +172,19 @@ def list_company_tags() -> list[str]:
     return list(Company.TAGS)
 
 
-APPLICATION_OUTCOMES = ("APPLIED", "INTERVIEW", "REJECTED", "OFFER", "DECLINED")
+APPLICATION_OUTCOMES = ("APPLIED", "INTERVIEW", "GHOSTED", "REJECTED", "OFFER", "DECLINED")
 """Buckets of ``GET /application-stats``, from least to most decisive."""
+
+CAREER = "CAREER"
+"""Bucket of ``GET /application-stats`` counting the positions held at the company (the
+work history), next to the application outcomes."""
 
 
 def _outcome(keys: set[str]) -> str | None:
     """The bucket of an application that went through the states ``keys``: ``DECLINED`` if
     the candidate turned its offer down, else ``OFFER`` if it got one (accepted or not), else
-    ``REJECTED`` if rejected, else ``INTERVIEW`` if interviewed, else ``APPLIED`` if applied;
+    ``REJECTED`` if rejected, else ``GHOSTED`` if ghosted (never heard back), else
+    ``INTERVIEW`` if interviewed, else ``APPLIED`` if applied;
     ``None`` (not counted) otherwise, e.g. only shortlisted."""
     for key in reversed(APPLICATION_OUTCOMES):
         if key in keys:
@@ -189,8 +195,9 @@ def _outcome(keys: set[str]) -> str | None:
 @router.get("/application-stats", response_model=dict[int, dict[str, int]])
 def application_stats(session: Annotated[Session, Depends(get_session)]) -> dict[int, dict[str, int]]:
     """``{company_id: {outcome: count}}`` over every application to a resolved company,
-    each counted once in its most decisive outcome (see ``_outcome``). Zero counts and
-    companies without counted applications are left out."""
+    each counted once in its most decisive outcome (see ``_outcome``), plus ``CAREER``: the
+    positions in the work history at the company. Zero counts and companies without any
+    are left out."""
     rows = session.execute(
         select(JobParseResult.company_id, Application.id, ApplicationStatus.key)
         .join(Application, Application.job_parse_result_id == JobParseResult.id)
@@ -207,6 +214,15 @@ def application_stats(session: Annotated[Session, Depends(get_session)]) -> dict
         if outcome is not None:
             counts = stats.setdefault(company_id, {})
             counts[outcome] = counts.get(outcome, 0) + 1
+    # Only the columns the resolution reads (not the long context / tech of each entry).
+    positions = session.execute(
+        select(WorkHistoryEntry.id, WorkHistoryEntry.kind, WorkHistoryEntry.employer).where(
+            WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB
+        )
+    ).all()
+    for company in resolve_career_companies(session, positions).values():
+        counts = stats.setdefault(company.id, {})
+        counts[CAREER] = counts.get(CAREER, 0) + 1
     return stats
 
 
