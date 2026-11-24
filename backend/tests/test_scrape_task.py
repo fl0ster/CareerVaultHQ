@@ -282,3 +282,32 @@ def test_same_offer_within_one_run_is_deduplicated(task_engine, fake_sources, pa
     pages["https://www.skillshot.pl/jobs/1-gdansk"] = ("Python Developer", "Acme Sp. z o.o.")
     second = scrape_task.scrape("skillshot")
     assert (second["new"], second["duplicates"]) == (1, 0)
+
+
+def test_parse_tasks_are_enqueued_per_source(task_engine, parse_queue, monkeypatch):
+    """A source's parse tasks are queued as soon as its jobs are committed, before the next
+    source is scraped, so parsing and evaluating start without waiting for the whole run."""
+    queued_before: dict[str, int] = {}
+
+    def stub(key: str) -> types.ModuleType:
+        mod = types.ModuleType(f"app.tasks.scrape.sources.{key}")
+        mod.NAME, mod.URL = key.title(), f"https://{key}.example"
+
+        def fetch_jobs():
+            queued_before[key] = len(parse_queue.jobs)
+            return [{"link": f"https://{key}.example/1"}]
+
+        mod.fetch_jobs = fetch_jobs
+        mod.parse_title = mod.parse_company = mod.parse_description = lambda html: ""
+        return mod
+
+    monkeypatch.setattr("app.tasks.scrape.sources.get_available_sources", lambda: ["alpha", "beta"])
+    for key in ("alpha", "beta"):
+        monkeypatch.setitem(sys.modules, f"app.tasks.scrape.sources.{key}", stub(key))
+    monkeypatch.setattr(scrape_task, "fetch_page", lambda url: "<html></html>")
+
+    result = scrape_task.scrape(None)
+
+    assert queued_before == {"alpha": 0, "beta": 1}
+    assert len(result["parse_jobs"]) == 2
+    assert [j.id for j in parse_queue.jobs] == result["parse_jobs"]

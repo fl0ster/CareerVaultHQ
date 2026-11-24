@@ -12,8 +12,9 @@ rounds stated in the description are extracted by an LLM pipeline (``extract_int
 into ``job_parse_results.interview_steps`` and the technologies it names by
 ``extract_technologies`` into ``job_parse_results.technologies``; an OpenRouter failure only
 leaves them unset. Finally
-``app.tasks.evaluate.evaluate_parse_results`` is enqueued for the parsed job so it gets
-scored against the current candidate profile.
+``app.tasks.evaluate.evaluate_parse_results`` is enqueued at the front of the queue for the
+parsed job, so it gets scored against the current candidate profile right after its parse
+rather than after every other queued parse task.
 """
 
 from __future__ import annotations
@@ -408,8 +409,11 @@ def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[Jo
 
 def enqueue_evaluation(result: JobParseResult) -> str | None:
     """Enqueue ``evaluate_parse_results([result.id])`` (``result`` must be committed) and return the
-    RQ job id. Failing to reach Redis is logged, not raised: the parse itself succeeded
-    and a later ``evaluate_pending_jobs()`` run picks the job up anyway."""
+    RQ job id. The job goes to the *front* of the queue, so the worker scores this job right
+    after parsing it instead of behind every other parse task a scrape run has queued: a
+    scraped job reaches the evaluations list as soon as possible. Failing to reach Redis is
+    logged, not raised: the parse itself succeeded and a later ``evaluate_pending_jobs()``
+    run picks the job up anyway."""
     settings = get_settings()
     try:
         rq_job = get_queue().enqueue(
@@ -421,6 +425,7 @@ def enqueue_evaluation(result: JobParseResult) -> str | None:
             failure_ttl=settings.job_result_ttl,
             meta={"job_parse_result_id": result.id, "job_id": result.job_id},
             description=f"evaluate job {result.job_id}",
+            at_front=True,
         )
     except Exception:
         log.exception("Could not enqueue evaluation of job %d", result.job_id)

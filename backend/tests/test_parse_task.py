@@ -174,6 +174,15 @@ def test_parse_job_enqueues_evaluation_of_the_parsed_job(task_engine, evaluate_q
     assert queued[0].meta == {"job_parse_result_id": parsed.id, "job_id": result["job_id"]}
 
 
+def test_evaluation_runs_right_after_its_parse(task_engine, evaluate_queue):
+    """The evaluation jumps ahead of parse tasks already waiting in the queue."""
+    waiting = evaluate_queue.enqueue(print, "another parse task")
+
+    result = parse_task.parse_job(_make_pending(task_engine))
+
+    assert [j.id for j in evaluate_queue.jobs] == [result["evaluate_job"], waiting.id]
+
+
 def test_parse_job_survives_queue_outage(task_engine, monkeypatch):
     def boom():
         raise ConnectionError("redis down")
