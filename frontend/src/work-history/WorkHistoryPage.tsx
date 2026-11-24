@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import './work-history.css'
 import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, workHistoryApi } from './api.ts'
 import { type Bar, formatDuration, layout, todayIndex } from './timeline-model.ts'
@@ -225,6 +225,20 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
     order,
     model?.byId ?? emptyById,
   )
+
+  // Publish the sticky page heading's height so the timeline can stick just below it.
+  const hasView = mode.kind === 'list' && !!model
+  useLayoutEffect(() => {
+    const view = viewRef.current
+    const host = view?.closest('.view')
+    const head = host?.querySelector<HTMLElement>(':scope > .page-header')
+    if (!view || !head) return
+    const update = () => view.style.setProperty('--wh-head-h', `${head.offsetHeight}px`)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(head)
+    return () => ro.disconnect()
+  }, [hasView])
 
   const toggle = (id: number, force?: boolean) =>
     setExpanded((prev) => {

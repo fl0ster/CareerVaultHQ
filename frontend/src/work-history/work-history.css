@@ -96,7 +96,7 @@
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   border-left: 4px solid var(--tone-fg, var(--border));
-  scroll-margin-top: calc(var(--topbar-h) + var(--wh-tl-h, 0px) + 8px);
+  scroll-margin-top: calc(var(--topbar-h) + var(--wh-head-h, 0px) + var(--wh-tl-h, 0px) + 8px);
   transition: background-color 0.15s;
 
   &.active {
@@ -328,9 +328,9 @@
 /* Timeline */
 .wh-tl {
   position: sticky;
-  top: var(--topbar-h);
+  top: calc(var(--topbar-h) + var(--wh-head-h, 0px));
   z-index: 10;
-  margin: 8px 0 16px;
+  margin: 0 0 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -901,5 +901,31 @@
   ul {
     margin: 6px 0 0;
     padding-left: 20px;
+  }
+}
+
+/* My Career: the page heading stays put under the top bar, the timeline under it; only the entries scroll. */
+.view:has(.wh-view) > .page-header {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 11;
+  margin-bottom: 0;
+  padding: 8px 0 22px;
+  background: var(--canvas);
+}
+
+/* The content's top padding moves into the sticky heading, so the heading sits flush under the top bar
+   from the start and doesn't shift at all when the page scrolls. */
+.content:has(.wh-view) {
+  padding-top: 0;
+
+  .view > .page-header {
+    padding-top: 28px;
+  }
+}
+
+@media (max-width: 900px) {
+  .content:has(.wh-view) .view > .page-header {
+    padding-top: 22px;
   }
 }
