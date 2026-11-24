@@ -274,6 +274,12 @@
   .relevance-tip-error {
     color: var(--tip-danger);
   }
+
+  /* A failed explanation: clicking the popup itself retries it. */
+  &.retry {
+    pointer-events: auto;
+    cursor: pointer;
+  }
 }
 
 @keyframes relevance-tip-in {

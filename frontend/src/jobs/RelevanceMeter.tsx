@@ -79,6 +79,7 @@ export default function RelevanceMeter({
   const [tip, setTip] = useState<Tip | null>(null)
   const tipId = useId()
   const wrapperRef = useRef<HTMLSpanElement>(null)
+  const tipRef = useRef<HTMLSpanElement>(null)
   const controllerRef = useRef<AbortController | null>(null)
   useEffect(() => () => controllerRef.current?.abort(), [])
 
@@ -90,7 +91,9 @@ export default function RelevanceMeter({
     if (!tipOpen) return
     const close = () => setTip(null)
     const onPointerDown = (e: PointerEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) close()
+      // The popup is portalled out of the wrapper, so it is checked on its own.
+      const target = e.target as Node
+      if (!wrapperRef.current?.contains(target) && !tipRef.current?.contains(target)) close()
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -177,6 +180,9 @@ export default function RelevanceMeter({
   const position = (el: HTMLElement) =>
     tipPosition(el.getBoundingClientRect(), explainMode ? TIP_WIDTH_WIDE : TIP_WIDTH)
 
+  /** The explanation failed: "Click to try again" is shown, on the meter and the popup. */
+  const retryable = explainMode && !running && error !== null && !explained
+
   // A span rather than a <button>: the meter can sit inside a clickable row (itself a
   // button, e.g. on the Applications tab), so the click must not reach the row.
   const activate = (e: SyntheticEvent<HTMLElement>) => {
@@ -186,9 +192,10 @@ export default function RelevanceMeter({
       rescore()
       return
     }
-    // A second click on a pinned explanation closes it.
+    // On a pinned popup a click retries a failed explanation, and otherwise closes it.
     if (tip?.pinned) {
-      setTip(null)
+      if (retryable) explain()
+      else setTip(null)
       return
     }
     setTip({ style: position(e.currentTarget), pinned: true })
@@ -245,6 +252,7 @@ export default function RelevanceMeter({
   const tipClasses = ['relevance-tip']
   if (explainMode) tipClasses.push('wide')
   if (error && !explained) tipClasses.push('failed')
+  if (retryable) tipClasses.push('retry')
   const busy = running && rescoreMode
 
   return (
@@ -277,11 +285,24 @@ export default function RelevanceMeter({
       {tip &&
         createPortal(
           <span
+            ref={tipRef}
             className={tipClasses.join(' ')}
             role="tooltip"
             id={tipId}
             style={tip.style}
             aria-live={explainMode ? 'polite' : undefined}
+            // Only a failed explanation's popup takes clicks (`.retry`): it retries. Keep the
+            // focus on the meter so its blur does not close the popup, and stop the click
+            // here: React bubbles it through the portal to the meter's own handler.
+            onMouseDown={retryable ? (e) => e.preventDefault() : undefined}
+            onClick={
+              retryable
+                ? (e) => {
+                    e.stopPropagation()
+                    explain()
+                  }
+                : undefined
+            }
           >
             {tipContent}
           </span>,
