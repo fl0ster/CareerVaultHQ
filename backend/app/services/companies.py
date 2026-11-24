@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -152,7 +154,19 @@ def resolve_company(
     return CompanyMatch(company, kind, score, created)
 
 
-def resolve_career_companies(session: Session, entries: list[WorkHistoryEntry]) -> dict[int, Company]:
+class CareerEntry(Protocol):
+    """What ``resolve_career_companies`` reads of a work history entry: a ``WorkHistoryEntry``
+    or a row selecting just these columns."""
+
+    @property
+    def id(self) -> int: ...
+    @property
+    def kind(self) -> str: ...
+    @property
+    def employer(self) -> str: ...
+
+
+def resolve_career_companies(session: Session, entries: Iterable[CareerEntry]) -> dict[int, Company]:
     """``{entry_id: company}`` for the positions among ``entries``, resolving each employer
     with ``resolve_company``: an employer seen only in the career becomes a company too, so it
     can be tagged like any other. New companies and aliases are committed."""

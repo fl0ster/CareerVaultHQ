@@ -213,8 +213,13 @@ def application_stats(session: Annotated[Session, Depends(get_session)]) -> dict
         if outcome is not None:
             counts = stats.setdefault(company_id, {})
             counts[outcome] = counts.get(outcome, 0) + 1
-    entries = list(session.scalars(select(WorkHistoryEntry)).all())
-    for company in resolve_career_companies(session, entries).values():
+    # Only the columns the resolution reads (not the long context / tech of each entry).
+    positions = session.execute(
+        select(WorkHistoryEntry.id, WorkHistoryEntry.kind, WorkHistoryEntry.employer).where(
+            WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB
+        )
+    ).all()
+    for company in resolve_career_companies(session, positions).values():
         counts = stats.setdefault(company.id, {})
         counts[CAREER] = counts.get(CAREER, 0) + 1
     return stats
