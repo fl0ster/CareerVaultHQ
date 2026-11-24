@@ -162,6 +162,7 @@ function App() {
   }
   const item = findPage(page).item
   const onSettings = isSettingsPage(page)
+  const onboarding = page === 'dashboard' && !!setup && !setup.complete
 
   return (
     <div className={`shell${rail === 'collapsed' ? ' rail' : ''}`}>
@@ -206,8 +207,9 @@ function App() {
           ) : (
             <section key={page} aria-labelledby={`page-${page}`}>
               <div className="view">
-                {/* An open detail (application, job) has its own title, so the page heading steps aside. */}
-                <header className={route.detail !== null ? 'sr-only' : 'page-header'}>
+                {/* An open detail (application, job) has its own title, so the page heading steps aside;
+                    so does the dashboard while it shows the setup checklist. */}
+                <header className={route.detail !== null || onboarding ? 'sr-only' : 'page-header'}>
                   <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
                   {item.description && <p>{item.description}</p>}
                 </header>

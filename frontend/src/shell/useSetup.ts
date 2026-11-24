@@ -21,8 +21,8 @@ export type Setup = {
 }
 
 /**
- * The first-run checklist: personal details filled in and at least one entry in the work
- * history. Until both are there the dashboard shows the checklist and the menu its progress.
+ * The first-run checklist: at least one entry in the work history and the personal details
+ * filled in. Until both are there the dashboard shows the checklist and the menu its progress.
  *
  * `undefined` while the details or the counts are still loading, `null` when the details could
  * not be loaded (the app then behaves as if set up rather than nag on a guess).
@@ -50,18 +50,18 @@ export function useSetup(counts: NavCounts | null): Setup | null | undefined {
       page: null,
     },
     {
-      id: 'details',
-      label: 'Fill in your details',
-      description: 'Your name and contact details, printed on every generated CV.',
-      done: isProfileComplete(details),
-      page: 'candidate-profile',
-    },
-    {
       id: 'career',
       label: 'Fill out your career',
       description: 'Add your positions, education and certificates, or import them from an existing CV.',
       done: counts.work_history > 0,
       page: 'work-history',
+    },
+    {
+      id: 'details',
+      label: 'Fill in your details',
+      description: 'Your name and contact details, printed on every generated CV.',
+      done: isProfileComplete(details),
+      page: 'candidate-profile',
     },
   ]
   const done = steps.filter((s) => s.done).length
