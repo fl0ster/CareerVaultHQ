@@ -24,10 +24,11 @@ export type Setup = {
  * The first-run checklist: at least one entry in the work history and the personal details
  * filled in. Until both are there the dashboard shows the checklist and the menu its progress.
  *
- * `undefined` while the details or the counts are still loading, `null` when the details could
- * not be loaded (the app then behaves as if set up rather than nag on a guess).
+ * `undefined` while the details or the counts are still loading, `null` when either could not
+ * be loaded (the app then behaves as if set up rather than nag on a guess, and the dashboard
+ * shows its widgets). `countsFailed`: the latest nav counts request failed.
  */
-export function useSetup(counts: NavCounts | null): Setup | null | undefined {
+export function useSetup(counts: NavCounts | null, countsFailed: boolean): Setup | null | undefined {
   const details = useStore(candidateDetailsStore)
   const [failed, setFailed] = useState(false)
 
@@ -38,7 +39,7 @@ export function useSetup(counts: NavCounts | null): Setup | null | undefined {
     )
   }, [])
 
-  if (failed && details === undefined) return null
+  if ((failed && details === undefined) || (countsFailed && counts === null)) return null
   if (details === undefined || counts === null) return undefined
 
   const steps: SetupStep[] = [

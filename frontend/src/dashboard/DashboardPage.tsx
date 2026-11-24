@@ -28,7 +28,7 @@ export default function DashboardPage({ setup }: Props) {
   const { stats, error } = useDashboardStats()
   if (setup && !setup.complete) return <Onboarding setup={setup} />
   if (!stats || setup === undefined) {
-    return error && setup !== undefined ? (
+    return error ? (
       <p className="dashboard-error" role="alert">
         Could not load the dashboard: {error}
       </p>

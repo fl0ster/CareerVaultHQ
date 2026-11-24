@@ -45,10 +45,10 @@ function App() {
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
-  const counts = useNavCounts(page)
+  const { counts, failed: countsFailed } = useNavCounts(page)
   const jobsInbox = counts?.jobs_inbox ?? 0
   // First-run checklist: the dashboard shows it and the menu its progress until it is done.
-  const setup = useSetup(counts)
+  const setup = useSetup(counts, countsFailed)
   // Applications / Interviews / Offers only appear in the menu while they have applications.
   const hiddenPages: PageId[] = [
     ...(counts?.applications ? [] : (['applications'] as const)),

@@ -12,11 +12,15 @@ const POLL_INTERVAL = 15_000
  * The menu badge counts. Only the page on screen is mounted, so the shell keeps these up
  * to date by itself: right away when something here changes jobs, applications or the work
  * history, when the worker finishes a job (scrapes, scoring and the Gmail monitor run there),
- * when the window comes back into view, when `refreshKey` changes (pass the current page), and otherwise
- * every few seconds while the tab is visible.
+ * when the window comes back into view, when `refreshKey` changes (pass the current page), and
+ * otherwise every few seconds while the tab is visible.
+ *
+ * `counts` is null until a request succeeds; `failed` tells whether the latest request failed,
+ * so callers can stop waiting for counts that may not come.
  */
-export function useNavCounts(refreshKey: unknown): NavCounts | null {
+export function useNavCounts(refreshKey: unknown): { counts: NavCounts | null; failed: boolean } {
   const [counts, setCounts] = useState<NavCounts | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let timer: number | undefined
@@ -31,7 +35,8 @@ export function useNavCounts(refreshKey: unknown): NavCounts | null {
       controller = current
       navApi
         .counts(current.signal)
-        .then((next) =>
+        .then((next) => {
+          setFailed(false)
           // Keep the same object while nothing changed, so dependants do not re-run.
           setCounts((prev) =>
             prev &&
@@ -42,10 +47,11 @@ export function useNavCounts(refreshKey: unknown): NavCounts | null {
             prev.work_history === next.work_history
               ? prev
               : next,
-          ),
-        )
+          )
+        })
         .catch(() => {
-          /* keep the last counts; the next refresh tries again */
+          // Keep the last counts; the next refresh tries again.
+          if (!current.signal.aborted) setFailed(true)
         })
     }
     const onVisible = () => {
@@ -64,5 +70,5 @@ export function useNavCounts(refreshKey: unknown): NavCounts | null {
     }
   }, [refreshKey])
 
-  return counts
+  return { counts, failed }
 }
