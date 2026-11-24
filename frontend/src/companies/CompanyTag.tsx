@@ -1,5 +1,5 @@
 import { BriefcaseBusiness } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import CompanyLink from '../applications/CompanyLink.tsx'
 import { PickerPill } from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
@@ -83,28 +83,22 @@ export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) 
       <span className="visually-hidden">{careerText}</span>
     </span>
   ) : null
-  const sep = <span className="app-status-sep" aria-hidden="true" />
-  const extra =
+  const nameEl =
     name != null ? (
-      <>
-        <span className="company-tag-name" title={name}>
-          {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
-        </span>
-        {careerEl}
-        {statsEl && (
-          <>
-            {sep}
-            {statsEl}
-          </>
-        )}
-      </>
-    ) : careerEl || statsEl ? (
-      <>
-        {careerEl}
-        {careerEl && statsEl && sep}
-        {statsEl}
-      </>
+      <span className="company-tag-name" title={name}>
+        {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
+      </span>
     ) : null
+  // The parts right of the tag icon, each after a divider (PickerPill draws the first one).
+  const parts = [nameEl, careerEl, statsEl].filter((p) => p != null)
+  const extra = parts.length
+    ? parts.map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="app-status-sep" aria-hidden="true" />}
+          {part}
+        </Fragment>
+      ))
+    : null
   const tagTitle = info ? info.label : 'No tag'
 
   return (

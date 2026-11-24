@@ -91,21 +91,13 @@
   white-space: nowrap;
 }
 
-/* Career mark: a briefcase after the company name when the candidate worked (or works) there */
+/* Career mark: a briefcase part after the company name when the candidate worked (or works) there */
 .company-career {
   display: inline-flex;
   align-items: center;
-  padding: 0 8px 0 0;
-
-  .app-status-sep + & {
-    padding-left: 5px;
-  }
+  padding: 0 8px 0 5px;
 
   &.current svg {
     stroke-width: 2.75;
   }
-}
-
-.company-tag-name:has(+ .company-career) {
-  padding-right: 4px;
 }
