@@ -1,5 +1,13 @@
 const API = '/api/work-history'
 
+/** Fired after entries are added or removed here, so the menu's setup progress follows. */
+export const WORK_HISTORY_CHANGED = 'work-history:changed'
+
+function notifyChanged<T>(value: T): T {
+  window.dispatchEvent(new Event(WORK_HISTORY_CHANGED))
+  return value
+}
+
 /** Kind of career event: a position, an education entry or a certificate. */
 export type EntryKind = 'job' | 'education' | 'certificate'
 
@@ -69,18 +77,25 @@ export const workHistoryApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
-    }).then((r) => parse<WorkHistoryEntry>(r)),
+    })
+      .then((r) => parse<WorkHistoryEntry>(r))
+      .then(notifyChanged),
   update: (id: number, input: WorkHistoryInput) =>
     fetch(`${API}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     }).then((r) => parse<WorkHistoryEntry>(r)),
-  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
+  remove: (id: number) =>
+    fetch(`${API}/${id}`, { method: 'DELETE' })
+      .then((r) => parse<void>(r))
+      .then(notifyChanged),
   importJson: (items: WorkHistoryExport[], replace: boolean) =>
     fetch(`${API}/json?replace=${replace}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(items),
-    }).then((r) => parse<WorkHistoryEntry[]>(r)),
+    })
+      .then((r) => parse<WorkHistoryEntry[]>(r))
+      .then(notifyChanged),
 }

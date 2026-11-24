@@ -277,6 +277,69 @@
   padding-top: 12px;
 }
 
+/* Progress bar of the first-run setup (menu tile and dashboard checklist). */
+.setup-bar {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--hover-tint);
+  appearance: none;
+
+  &::-webkit-progress-bar {
+    background: var(--hover-tint);
+    border-radius: 999px;
+  }
+  &::-webkit-progress-value {
+    background: var(--accent);
+    border-radius: 999px;
+    transition: inline-size var(--t-slow) var(--ease-out);
+  }
+  &::-moz-progress-bar {
+    background: var(--accent);
+    border-radius: 999px;
+  }
+}
+
+/* Complete Setup: a tile above Settings until the setup checklist is done */
+.nav-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--t-fast) ease;
+
+  &:hover {
+    color: var(--text-h);
+    background: var(--hover-tint);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+  .nav-icon {
+    color: var(--accent);
+  }
+}
+
+.nav-setup-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+}
+
 /* Groups (My profile): the parent toggles its sub-pages */
 .nav-parent {
   &:hover:not(:disabled) {
@@ -420,6 +483,9 @@
   }
   .nav-item {
     padding: 0 14px;
+  }
+  .nav-setup {
+    padding: 10px 13px;
   }
   .nav-sub-item {
     padding: 0 15px;

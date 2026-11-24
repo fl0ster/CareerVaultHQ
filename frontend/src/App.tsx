@@ -25,6 +25,7 @@ import {
   routeFromHash,
 } from './shell/nav.ts'
 import { useNavCounts } from './shell/useNavCounts.ts'
+import { useSetup } from './shell/useSetup.ts'
 import { useStoredState } from './shell/useStoredState.ts'
 import { useTheme } from './shell/useTheme.ts'
 
@@ -46,6 +47,8 @@ function App() {
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const counts = useNavCounts(page)
   const jobsInbox = counts?.jobs_inbox ?? 0
+  // First-run checklist: the dashboard shows it and the menu its progress until it is done.
+  const setup = useSetup(counts)
   // Applications / Interviews / Offers only appear in the menu while they have applications.
   const hiddenPages: PageId[] = [
     ...(counts?.applications ? [] : (['applications'] as const)),
@@ -124,7 +127,7 @@ function App() {
   const renderPage = (id: PageId): ReactNode => {
     switch (id) {
       case 'dashboard':
-        return <DashboardPage />
+        return <DashboardPage setup={setup} />
       case 'interviews':
         return applicationList('interviews', 'interviews', onInterviewCrumbs)
       case 'offers':
@@ -172,6 +175,7 @@ function App() {
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
         }}
         hiddenPages={hiddenPages}
+        setup={setup && !setup.complete ? setup : null}
         collapsed={rail === 'collapsed'}
         onToggleCollapsed={() => setRail(rail === 'collapsed' ? 'expanded' : 'collapsed')}
         mobileOpen={menuOpen}

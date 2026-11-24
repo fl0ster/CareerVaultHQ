@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import './dashboard.css'
 import type { DashboardStats } from './api.ts'
+import type { Setup } from '../shell/useSetup.ts'
+import Onboarding from './Onboarding.tsx'
 import { useDashboardStats } from './useDashboardStats.ts'
 import SankeyWidget from './widgets/SankeyWidget.tsx'
 import StatTilesWidget from './widgets/StatTilesWidget.tsx'
@@ -16,11 +18,17 @@ const WIDGETS: { id: string; Component: ComponentType<{ stats: DashboardStats }>
   { id: 'upcoming', Component: ({ stats }) => <UpcomingInterviewsWidget rounds={stats.upcoming} /> },
 ]
 
-/** The home page: widgets summarising the job search. */
-export default function DashboardPage() {
+type Props = {
+  /** First-run checklist (see `useSetup`): shown instead of the widgets until it is complete. */
+  setup: Setup | null | undefined
+}
+
+/** The home page: widgets summarising the job search, or the setup checklist on a fresh install. */
+export default function DashboardPage({ setup }: Props) {
   const { stats, error } = useDashboardStats()
-  if (!stats) {
-    return error ? (
+  if (setup && !setup.complete) return <Onboarding setup={setup} />
+  if (!stats || setup === undefined) {
+    return error && setup !== undefined ? (
       <p className="dashboard-error" role="alert">
         Could not load the dashboard: {error}
       </p>

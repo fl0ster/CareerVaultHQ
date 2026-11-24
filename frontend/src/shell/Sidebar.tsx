@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
+import { ChevronDown, ListChecks, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
 import ProfileCard from './ProfileCard.tsx'
 import {
   DASHBOARD_PAGE,
@@ -12,7 +12,9 @@ import {
   findPage,
   isGroup,
   isSettingsPage,
+  pageHref,
 } from './nav.ts'
+import type { Setup } from './useSetup.ts'
 import type { Theme } from './useTheme.ts'
 
 type Badges = Partial<Record<PageId, { count: number; title: string }>>
@@ -25,6 +27,8 @@ type Props = {
   badges: Badges
   /** Pages left out of the menu (e.g. Interviews while there are none). */
   hiddenPages?: PageId[]
+  /** Unfinished first-run setup: a tile with its progress leads to the checklist on the dashboard. */
+  setup: Setup | null
   collapsed: boolean
   onToggleCollapsed: () => void
   mobileOpen: boolean
@@ -89,6 +93,7 @@ export default function Sidebar({
   onOpenSettings,
   badges,
   hiddenPages = [],
+  setup,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -218,6 +223,30 @@ export default function Sidebar({
         ))}
 
         <ul className="nav-list nav-bottom">
+          {setup && (
+            <li>
+              <a
+                href={pageHref(DASHBOARD_PAGE.id)}
+                className="nav-setup"
+                title={collapsed ? `Complete Setup: ${setup.done} of ${setup.steps.length} done` : undefined}
+                onClick={(e) => {
+                  e.preventDefault()
+                  onNavigate(DASHBOARD_PAGE.id)
+                }}
+              >
+                <span className="nav-setup-row">
+                  <ListChecks className="nav-icon" size={19} strokeWidth={1.8} aria-hidden="true" />
+                  <span className="nav-label">Complete Setup</span>
+                </span>
+                <progress
+                  className="setup-bar"
+                  value={setup.done}
+                  max={setup.steps.length}
+                  aria-label={`${setup.done} of ${setup.steps.length} setup steps done`}
+                />
+              </a>
+            </li>
+          )}
           <li>
             <a
               href={`#/${SETTINGS_PAGE_IDS[0]}`}
