@@ -913,3 +913,19 @@
   padding: 8px 0 14px;
   background: var(--canvas);
 }
+
+/* The content's top padding moves into the sticky heading, so the heading sits flush under the top bar
+   from the start and doesn't shift at all when the page scrolls. */
+.content:has(.wh-view) {
+  padding-top: 0;
+
+  .view > .page-header {
+    padding-top: 28px;
+  }
+}
+
+@media (max-width: 900px) {
+  .content:has(.wh-view) .view > .page-header {
+    padding-top: 22px;
+  }
+}
