@@ -206,7 +206,10 @@ def test_company_application_stats(client, db_session):
             client.post(f"{BASE}/{app_id}/events", json={"status": key})
 
     stats = client.get("/api/companies/application-stats").json()
-    assert stats == {
+    # The seeded work history adds its employer with the positions held there.
+    career = {company: counts for company, counts in stats.items() if counts == {"CAREER": 1}}
+    assert len(career) == 1
+    assert {company: counts for company, counts in stats.items() if company not in career} == {
         str(company_ids[0]): {"APPLIED": 1},
         str(company_ids[1]): {"INTERVIEW": 1},
         str(company_ids[2]): {"REJECTED": 1},

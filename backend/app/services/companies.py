@@ -29,7 +29,7 @@ from difflib import SequenceMatcher
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Company, CompanyAlias, ScrapeSource
+from app.models import Company, CompanyAlias, ScrapeSource, WorkHistoryEntry
 
 FUZZY_THRESHOLD = 0.85
 """Minimum ``similarity`` (0-1) for a fuzzy match to be accepted."""
@@ -150,3 +150,28 @@ def resolve_company(
     )
     session.flush()
     return CompanyMatch(company, kind, score, created)
+
+
+def resolve_career_companies(session: Session, entries: list[WorkHistoryEntry]) -> dict[int, Company]:
+    """``{entry_id: company}`` for the positions among ``entries``, resolving each employer
+    with ``resolve_company``: an employer seen only in the career becomes a company too, so it
+    can be tagged like any other. New companies and aliases are committed."""
+    by_name: dict[str, Company | None] = {}
+    matched: dict[int, Company] = {}
+    added = False
+    for entry in entries:
+        if entry.kind != WorkHistoryEntry.KIND_JOB:
+            continue
+        key = normalize_company_name(entry.employer or "")
+        if not key:
+            continue
+        if key not in by_name:
+            match = resolve_company(session, entry.employer)
+            by_name[key] = match.company if match else None
+            # Anything but a known alias adds rows (an alias, maybe a company).
+            added = added or (match is not None and match.match_kind != MATCH_ALIAS)
+        if (company := by_name[key]) is not None:
+            matched[entry.id] = company
+    if added:
+        session.commit()
+    return matched

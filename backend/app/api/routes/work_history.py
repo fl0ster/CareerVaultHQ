@@ -8,8 +8,7 @@ of CVs and the candidate profile until it starts.
 Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
 A position's employer is resolved to its company (created when it is not known yet, like a
-company scraped from a job page): ``company_id`` and ``company_tag`` name it, and
-``GET /companies`` lists every company in the career.
+company scraped from a job page): ``company_id`` and ``company_tag`` name it.
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
-from app.models import Company, WorkHistoryEntry
+from app.models import WorkHistoryEntry
 from app.schemas.work_history import (
     EntryKind,
     WorkHistoryCreate,
@@ -34,7 +33,7 @@ from app.schemas.work_history import (
     _check_employer,
     _format_month,
 )
-from app.services.companies import MATCH_ALIAS, normalize_company_name, resolve_company
+from app.services.companies import resolve_career_companies
 
 router = APIRouter()
 
@@ -66,41 +65,9 @@ class WorkHistoryOut(BaseModel):
     """That company's tag."""
 
 
-class CareerCompany(BaseModel):
-    current: bool
-    """The candidate works there now (an ongoing position that has started)."""
-    roles: list[str]
-    """Roles held there, most recent first."""
-
-
-def _match_companies(session: Session, entries: list[WorkHistoryEntry]) -> dict[int, Company]:
-    """``{entry_id: company}`` for the positions, resolving each employer with
-    ``resolve_company``: an employer seen only in the career becomes a company too, so it can
-    be tagged like any other. New companies and aliases are committed."""
-    by_name: dict[str, Company | None] = {}
-    matched: dict[int, Company] = {}
-    added = False
-    for entry in entries:
-        if entry.kind != WorkHistoryEntry.KIND_JOB:
-            continue
-        key = normalize_company_name(entry.employer or "")
-        if not key:
-            continue
-        if key not in by_name:
-            match = resolve_company(session, entry.employer)
-            by_name[key] = match.company if match else None
-            # Anything but a known alias adds rows (an alias, maybe a company).
-            added = added or (match is not None and match.match_kind != MATCH_ALIAS)
-        if (company := by_name[key]) is not None:
-            matched[entry.id] = company
-    if added:
-        session.commit()
-    return matched
-
-
 def _out(session: Session, entries: list[WorkHistoryEntry]) -> list[WorkHistoryOut]:
     """The entries as returned by the API, with their matched company."""
-    companies = _match_companies(session, entries)
+    companies = resolve_career_companies(session, entries)
     out = []
     for entry in entries:
         item = WorkHistoryOut.model_validate(entry)
@@ -130,21 +97,6 @@ def _all_entries(session: Session) -> list[WorkHistoryEntry]:
 def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryOut]:
     """All work history entries, most recent position first."""
     return _out(session, _all_entries(session))
-
-
-@router.get("/companies", response_model=dict[int, CareerCompany])
-def career_companies(session: Annotated[Session, Depends(get_session)]) -> dict[int, CareerCompany]:
-    """``{company_id: {current, roles}}`` of every known company the candidate held a
-    position at (pending positions excluded)."""
-    entries = {e.id: e for e in _all_entries(session) if not e.pending}
-    result: dict[int, CareerCompany] = {}
-    for entry_id, company in _match_companies(session, list(entries.values())).items():
-        entry = entries[entry_id]
-        item = result.setdefault(company.id, CareerCompany(current=False, roles=[]))
-        item.current = item.current or entry.date_end is None
-        if entry.role not in item.roles:
-            item.roles.append(entry.role)
-    return result
 
 
 @router.get("/json", response_model=list[WorkHistoryExport])

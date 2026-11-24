@@ -254,16 +254,22 @@ def test_positions_are_matched_to_known_companies(client, db_session):
     client.patch(f"/api/companies/{new['company_id']}", json={"tag": "avoid"})
     assert client.get(f"{BASE}/{new['id']}").json()["company_tag"] == "avoid"
 
-    assert client.get(f"{BASE}/companies").json() == {
-        str(acme.id): {"current": True, "roles": ["Lead", "Backend Developer"]},
-        str(new["company_id"]): {"current": False, "roles": ["Backend Developer"]},
-    }
+    # Positions are counted in the company stats, next to the application outcomes.
+    stats = client.get("/api/companies/application-stats").json()
+    assert stats[str(acme.id)] == {"CAREER": 2}
+    assert stats[str(new["company_id"])] == {"CAREER": 1}
 
 
-def test_pending_positions_are_not_career_companies(client, db_session):
+def test_career_stats_follow_the_work_history(client, db_session):
     from app.services.companies import resolve_company
 
-    resolve_company(db_session, "Acme Corp")
+    # A company known from a job page, without any career entry yet.
+    google = resolve_company(db_session, "Google").company
     db_session.commit()
-    client.post(BASE, json={**ENTRY, "date_start": "2999-01-01", "date_end": None})
-    assert client.get(f"{BASE}/companies").json() == {}
+    assert str(google.id) not in client.get("/api/companies/application-stats").json()
+
+    entry = client.post(BASE, json={**ENTRY, "employer": "Google"}).json()
+    assert client.get("/api/companies/application-stats").json()[str(google.id)] == {"CAREER": 1}
+
+    client.delete(f"{BASE}/{entry['id']}")
+    assert str(google.id) not in client.get("/api/companies/application-stats").json()
