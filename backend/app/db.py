@@ -71,6 +71,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "candidate_details": {
         "photo": "TEXT NOT NULL DEFAULT ''",
     },
+    "job_evaluations": {
+        "explanation": "TEXT",
+    },
     "gmail_monitor_settings": {
         "interview_label": "VARCHAR(128) NOT NULL DEFAULT 'interview-steps-registered'",
     },

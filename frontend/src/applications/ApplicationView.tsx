@@ -64,7 +64,9 @@ export default function ApplicationView({
                 <RelevanceMeter
                   relevance={evaluation.relevance}
                   outdated={evaluation.outdated}
-                  rescore={onRescored && { jobId: job.id, onRescored }}
+                  explanation={evaluation.explanation}
+                  jobId={job.id}
+                  onRescored={onRescored}
                 />
               )}
               <h2 id={`application-${application.id}`}>{job.title ?? 'Untitled job'}</h2>

@@ -70,7 +70,14 @@ export type Application = {
     source: string
   }
   /** The job's newest score; `outdated` when made against an earlier work history. */
-  evaluation: { id: number; candidate_profile_id: number; relevance: number; outdated: boolean } | null
+  evaluation: {
+    id: number
+    candidate_profile_id: number
+    relevance: number
+    outdated: boolean
+    /** Stored explanation of the score, once generated (`jobsApi.explain`). */
+    explanation: string | null
+  } | null
   cv: GeneratedCv | null
   /** Agreed start date of the offered position (`YYYY-MM-DD`), if known. */
   start_date: string | null

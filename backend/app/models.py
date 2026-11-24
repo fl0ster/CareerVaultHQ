@@ -387,6 +387,9 @@ class JobEvaluation(Base):
         ForeignKey("openrouter_calls.id", ondelete="SET NULL"), index=True
     )
     """The ``openrouter_calls`` row that produced the score (prompt, cost, raw answer, model)."""
+    explanation: Mapped[str | None] = mapped_column(Text)
+    """Short LLM-written reason for the score (matching and missing experience), generated on
+    request (``POST /api/jobs/{job_id}/explanation``) and kept with this (job, profile) pair."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     job_parse_result: Mapped[JobParseResult] = relationship()
