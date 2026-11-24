@@ -1,8 +1,10 @@
+import { BriefcaseBusiness } from 'lucide-react'
 import { useState } from 'react'
 import CompanyLink from '../applications/CompanyLink.tsx'
 import { PickerPill } from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
 import { OUTCOMES, useCompanyApplicationStats } from './applicationStats.ts'
+import { useCareerCompany } from './careerCompanies.ts'
 import { COMPANY_TAGS, nextTag, setCompanyTag, tagInfo, useCompanyTag } from './tags.ts'
 import './tags.css'
 
@@ -37,13 +39,16 @@ const OPTIONS = [...COMPANY_TAGS.map((t) => t.key), NONE].map((key) => ({
   label: pill(key),
 }))
 
-/** The company's tag pill. With `name`, the pill reads: tag icon | company name | stats. Clicking the tag cycles the tag (none → each tag → none); its right part
- * counts the applications to the company by outcome, when there are any. Safe to use inside
- * another button. Renders nothing without a company id. */
+/** The company's tag pill. With `name`, the pill reads: tag icon | company name | career mark |
+ * stats. Clicking the tag cycles the tag (none → each tag → none); the career mark (a briefcase)
+ * shows when the candidate worked or works there; the right part counts the applications to the
+ * company by outcome, when there are any. Safe to use inside another button. Renders nothing
+ * without a company id. */
 export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) {
   const current = useCompanyTag(companyId, tag)
   const [error, setError] = useState<string | null>(null)
   const stats = useCompanyApplicationStats(companyId)
+  const career = useCareerCompany(companyId)
   if (companyId == null) return null
 
   const info = tagInfo(current)
@@ -69,22 +74,37 @@ export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) 
       ))}
     </span>
   ) : null
+  const careerText = career
+    ? `${career.current ? 'Your current employer' : 'You worked here'}: ${career.roles.join(', ')}`
+    : ''
+  const careerEl = career ? (
+    <span className={`company-career${career.current ? ' current' : ''}`} title={careerText}>
+      <BriefcaseBusiness size={12} aria-hidden="true" />
+      <span className="visually-hidden">{careerText}</span>
+    </span>
+  ) : null
+  const sep = <span className="app-status-sep" aria-hidden="true" />
   const extra =
     name != null ? (
       <>
         <span className="company-tag-name" title={name}>
           {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
         </span>
+        {careerEl}
         {statsEl && (
           <>
-            <span className="app-status-sep" aria-hidden="true" />
+            {sep}
             {statsEl}
           </>
         )}
       </>
-    ) : (
-      statsEl
-    )
+    ) : careerEl || statsEl ? (
+      <>
+        {careerEl}
+        {careerEl && statsEl && sep}
+        {statsEl}
+      </>
+    ) : null
   const tagTitle = info ? info.label : 'No tag'
 
   return (

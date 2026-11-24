@@ -8,7 +8,8 @@ import { type Bar, type EventKind, formatDuration, monthLabel, type TimelineMode
  * Horizontal, scrollable timeline of the career: positions, education and certificates, each
  * kind in its own band of lanes and style (education hatched, certificates as thin bars or,
  * without a duration, diamond markers). It sticks below the top bar while the page scrolls; a
- * pointer line marks the point in time the list underneath is scrolled to. Above the lanes is
+ * pointer line marks the point in time the list underneath is scrolled to; with an entry's
+ * details open, that entry is selected and centered instead. Above the lanes is
  * an event row (start / end markers, merged when they fall on the same boundary), behind
  * them are shaded career gaps and a "today" line, and below is the year/month axis.
  */
@@ -47,12 +48,15 @@ export default function WorkHistoryTimeline({
   today,
   activeId,
   pointer,
+  focusId = null,
   onSelect,
 }: {
   model: TimelineModel
   today: number
   activeId: number | null
   pointer: number | null
+  /** Entry to center horizontally (the one whose details are open). */
+  focusId?: number | null
   onSelect: (id: number) => void
 }) {
   const { bars, byId, events, gaps, covered, counts, rangeStart, rangeEnd, lanes } = model
@@ -102,6 +106,19 @@ export default function WorkHistoryTimeline({
     const el = scroller.current
     if (el) el.scrollLeft = el.scrollWidth
   }, [])
+
+  // Center the focused entry; the first time without animation (the page just opened on it).
+  const centered = useRef(false)
+  useLayoutEffect(() => {
+    const el = scroller.current
+    const bar = focusId != null ? byId.get(focusId) : undefined
+    if (!el || !bar) return
+    const mid = bar.point ? bar.start + 0.5 : (bar.start + bar.end) / 2
+    el.scrollTo({ left: x(mid) - el.clientWidth / 2, behavior: centered.current ? 'smooth' : 'auto' })
+    centered.current = true
+    // Only when the focus moves; zooming keeps the user's view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId])
 
   // Keep the pointer horizontally in view as the page scrolls (but not while dragging).
   const followRef = useRef<() => void>(() => {})
@@ -421,7 +438,7 @@ export default function WorkHistoryTimeline({
       </div>
 
       <p className="wh-tl-hint">
-        Click an entry to jump to it · Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · ← → to step through entries
+        Click an entry to open it · Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · ← → to step through entries
       </p>
     </section>
   )

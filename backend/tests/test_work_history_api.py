@@ -221,3 +221,40 @@ def test_import_export_round_trips_kinds(client):
     assert [(e["kind"], e["role"]) for e in exported] == [("certificate", "CKA"), ("job", "Dev"), ("education", "B.Sc.")]
     assert client.post(f"{BASE}/json?replace=true", json=exported).status_code == 201
     assert client.get(f"{BASE}/json").json() == exported
+
+
+def test_positions_are_matched_to_known_companies(client, db_session):
+    from app.services.companies import resolve_company
+
+    acme = resolve_company(db_session, "Acme Corp").company
+    acme.tag = "favourite"
+    db_session.commit()
+
+    job = client.post(BASE, json=ENTRY).json()
+    assert (job["company_id"], job["company_tag"]) == (acme.id, "favourite")
+    unknown = client.post(BASE, json={**ENTRY, "employer": "Nowhere Ltd"}).json()
+    assert (unknown["company_id"], unknown["company_tag"]) == (None, None)
+    school = client.post(BASE, json={**ENTRY, "kind": "education", "role": "MSc"}).json()
+    assert school["company_id"] is None  # only positions are matched
+    current = client.post(BASE, json={**ENTRY, "role": "Lead", "date_start": "2023-07-01", "date_end": None}).json()
+
+    listed = {i["id"]: i for i in client.get(BASE).json()}
+    assert listed[job["id"]]["company_id"] == acme.id
+    assert listed[unknown["id"]]["company_id"] is None
+    assert client.get(f"{BASE}/{current['id']}").json()["company_id"] == acme.id
+
+    # Matching never creates a company for an employer seen only in the career.
+    assert client.get("/api/companies").json()["total"] == 1
+
+    assert client.get(f"{BASE}/companies").json() == {
+        str(acme.id): {"current": True, "roles": ["Lead", "Backend Developer"]}
+    }
+
+
+def test_pending_positions_are_not_career_companies(client, db_session):
+    from app.services.companies import resolve_company
+
+    resolve_company(db_session, "Acme Corp")
+    db_session.commit()
+    client.post(BASE, json={**ENTRY, "date_start": "2999-01-01", "date_end": None})
+    assert client.get(f"{BASE}/companies").json() == {}
