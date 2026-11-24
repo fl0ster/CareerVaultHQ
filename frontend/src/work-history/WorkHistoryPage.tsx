@@ -58,12 +58,13 @@ function EntryCard({
         onOpen()
       }}
     >
+      {entry.kind !== 'job' && (
+        <span className="wh-kind-strip" title={kindLabel} aria-label={kindLabel}>
+          <Icon size={11} aria-hidden="true" />
+        </span>
+      )}
       <div className="wh-main">
         <div className="wh-title">
-          <span className="wh-kind-badge" title={kindLabel}>
-            <Icon size={13} aria-hidden="true" />
-            {kindLabel}
-          </span>
           <strong>{entry.role}</strong>
           <Organisation entry={entry} onOpenCompany={onOpenCompany} />
           {entry.pending && (
