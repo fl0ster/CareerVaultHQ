@@ -43,6 +43,7 @@ from app.services.gmail_monitor import (
     client_for,
     get_monitor_settings,
     is_configured,
+    monitored_email,
     new_secret,
     same_address,
 )
@@ -55,6 +56,8 @@ class MonitorSettingsOut(BaseModel):
     configured: bool
     """``email`` and ``script_url`` are both set."""
     email: str
+    """The monitored account: the e-mail in the personal details (blank when none is set);
+    edited there, not here."""
     script_url: str
     secret_hint: str
     """Last characters of the shared secret, to tell whether the deployed script is current."""
@@ -75,7 +78,6 @@ class MonitorSettingsOut(BaseModel):
 
 class MonitorSettingsUpdate(BaseModel):
     enabled: bool | None = None
-    email: str | None = Field(default=None, max_length=320)
     script_url: str | None = Field(default=None, max_length=1024)
     label: str | None = Field(default=None, pattern=LABEL_PATTERN)
     """Letters, digits, spaces and ``_ . / -`` only (what the Apps Script accepts)."""
@@ -84,17 +86,10 @@ class MonitorSettingsUpdate(BaseModel):
     lookback_days: int | None = Field(default=None, ge=1, le=MAX_LOOKBACK_DAYS)
     threshold: float | None = Field(default=None, ge=0.5, le=1.0)
 
-    @field_validator("email", "script_url", "label", "interview_label")
+    @field_validator("script_url", "label", "interview_label")
     @classmethod
     def _strip(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
-
-    @field_validator("email")
-    @classmethod
-    def _email(cls, value: str | None) -> str | None:
-        if value and "@" not in value:
-            raise ValueError("not an e-mail address")
-        return value
 
     @field_validator("script_url")
     @classmethod
@@ -156,11 +151,11 @@ class ProcessedMailOut(BaseModel):
     mails whose check is to be retried)."""
 
 
-def _settings_out(row: GmailMonitorSettings) -> MonitorSettingsOut:
+def _settings_out(session: Session, row: GmailMonitorSettings) -> MonitorSettingsOut:
     return MonitorSettingsOut(
         enabled=row.enabled,
-        configured=is_configured(row),
-        email=row.email or "",
+        configured=is_configured(session, row),
+        email=monitored_email(session),
         script_url=row.script_url or "",
         secret_hint=f"…{row.secret[-4:]}" if row.secret else "",
         label=row.label,
@@ -201,7 +196,7 @@ def _job_info(job: Job) -> MonitorJobInfo:
 
 @router.get("/settings", response_model=MonitorSettingsOut)
 def read_settings(session: Annotated[Session, Depends(get_session)]) -> MonitorSettingsOut:
-    return _settings_out(get_monitor_settings(session))
+    return _settings_out(session, get_monitor_settings(session))
 
 
 @router.patch("/settings", response_model=MonitorSettingsOut)
@@ -217,7 +212,7 @@ def update_settings(payload: MonitorSettingsUpdate, session: Annotated[Session, 
     for name, value in changes.items():
         setattr(row, name, value)
     session.commit()
-    return _settings_out(row)
+    return _settings_out(session, row)
 
 
 @router.post("/settings/rotate-secret", response_model=MonitorSettingsOut)
@@ -226,7 +221,7 @@ def rotate_secret(session: Annotated[Session, Depends(get_session)]) -> MonitorS
     row = get_monitor_settings(session)
     row.secret = new_secret()
     session.commit()
-    return _settings_out(row)
+    return _settings_out(session, row)
 
 
 @router.get("/apps-script")
@@ -243,16 +238,19 @@ def apps_script(session: Annotated[Session, Depends(get_session)]) -> Response:
 @router.post("/test", response_model=TestResult)
 def test_connection(session: Annotated[Session, Depends(get_session)]) -> TestResult:
     """Call the deployed script; ``ok`` only when it answers and runs as the configured
-    account."""
+    account (the personal details e-mail)."""
     row = get_monitor_settings(session)
     try:
         email = client_for(row).ping()
     except AppsScriptError as exc:
         return TestResult(ok=False, error=str(exc))
-    matches = bool(row.email) and same_address(email, row.email)
+    expected = monitored_email(session)
+    matches = bool(expected) and same_address(email, expected)
     error = None
     if not matches:
-        error = f"the script runs as {email or 'an unknown account'}, not {row.email or 'the configured address (none set)'}"
+        error = (
+            f"the script runs as {email or 'an unknown account'}, not {expected or 'the personal details e-mail (none set)'}"
+        )
     return TestResult(ok=matches, email=email, matches_configured=matches, error=error)
 
 
@@ -264,10 +262,10 @@ def run_now(
 ) -> MonitorJobInfo:
     """Queue a check now (also when the monitor is disabled); ``400`` when not configured."""
     row = get_monitor_settings(session)
-    if not is_configured(row):
+    if not is_configured(session, row):
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "set the monitored e-mail and the Apps Script web app URL first",
+            "set the e-mail in the personal details and the Apps Script web app URL first",
         )
     return _job_info(enqueue_gmail_check(queue, settings, scheduled=False))
 

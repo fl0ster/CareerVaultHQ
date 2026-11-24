@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import secrets
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.integrations.gmail import AppsScriptClient
-from app.models import GmailMonitorSettings
+from app.models import CandidateDetails, GmailMonitorSettings
 
 SETTINGS_ID = 1
 MAX_MESSAGES_PER_RUN = 30
@@ -25,7 +26,6 @@ def get_monitor_settings(session: Session) -> GmailMonitorSettings:
         row = GmailMonitorSettings(
             id=SETTINGS_ID,
             enabled=False,
-            email="",
             script_url="",
             secret=new_secret(),
             label=GmailMonitorSettings.DEFAULT_LABEL,
@@ -39,8 +39,15 @@ def get_monitor_settings(session: Session) -> GmailMonitorSettings:
     return row
 
 
-def is_configured(row: GmailMonitorSettings) -> bool:
-    return bool(row.script_url and row.email and row.secret)
+def monitored_email(session: Session) -> str:
+    """The monitored Gmail address: the e-mail in the personal details (the one printed on
+    the CV); blank when none is set."""
+    email = session.scalar(select(CandidateDetails.email).order_by(CandidateDetails.id.desc()).limit(1))
+    return (email or "").strip()
+
+
+def is_configured(session: Session, row: GmailMonitorSettings) -> bool:
+    return bool(row.script_url and row.secret and monitored_email(session))
 
 
 def client_for(row: GmailMonitorSettings) -> AppsScriptClient:

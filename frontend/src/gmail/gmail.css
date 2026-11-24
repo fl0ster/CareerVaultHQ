@@ -41,6 +41,44 @@
   color: var(--text-h);
 }
 
+/* The monitored address comes from the personal details: shown read-only, or a warning when missing. */
+.gmail-address {
+  padding: 6px 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.gmail-missing {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 6px;
+}
+
+.gmail-link {
+  width: auto;
+  padding: 0;
+  font: inherit;
+  text-align: inherit;
+  border-radius: 0;
+  color: var(--accent);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--accent-hover);
+  }
+}
+
+.gmail-missing .gmail-link {
+  color: inherit;
+  font-weight: 600;
+}
+
 .gmail-toolbar {
   display: flex;
   flex-wrap: wrap;

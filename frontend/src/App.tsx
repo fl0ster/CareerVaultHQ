@@ -153,7 +153,7 @@ function App() {
       case 'generated-cv':
         return <GeneratedCvPage />
       case 'gmail':
-        return <GmailMonitorPage />
+        return <GmailMonitorPage onOpenDetails={() => navigate('candidate-profile')} />
       case 'cost':
         return <CostPage />
       case 'companies':
