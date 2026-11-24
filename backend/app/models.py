@@ -211,7 +211,7 @@ class Company(Base):
 
     __tablename__ = "companies"
 
-    TAGS = ("favourite", "interested", "avoid")
+    TAGS = ("favourite", "interested", "ghosted", "avoid")
     """Allowed values of ``tag``, in the order the UI cycles through them."""
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

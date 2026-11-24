@@ -133,7 +133,7 @@ def test_update_company_tag(client, db_session):
     ids = seed(db_session)
     url = f"/api/companies/{ids['techland']}"
 
-    assert client.get("/api/companies/tags").json() == ["favourite", "interested", "avoid"]
+    assert client.get("/api/companies/tags").json() == ["favourite", "interested", "ghosted", "avoid"]
     assert client.get(url).json()["tag"] is None
 
     client.patch(url, json={"notes": "keep me"})
