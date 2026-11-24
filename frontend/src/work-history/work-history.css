@@ -19,6 +19,20 @@
 .kind-education { --kind-bg: var(--lavender-bg); --kind-fg: var(--lavender-fg); }
 .kind-certificate { --kind-bg: var(--peach-bg); --kind-fg: var(--peach-fg); }
 
+/* Thin stripe with the kind's icon on education and certificate rows (like applied jobs). */
+.wh-kind-strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  background: var(--kind-bg);
+  color: var(--kind-fg);
+}
+
 .wh-kind-badge {
   display: inline-flex;
   align-items: center;
@@ -97,8 +111,13 @@
   border-bottom: 1px solid var(--border);
   border-left: 4px solid var(--tone-fg, var(--border));
   scroll-margin-top: calc(var(--topbar-h) + var(--wh-head-h, 0px) + var(--wh-tl-h, 0px) + 8px);
+  position: relative;
   cursor: pointer;
   transition: background-color 0.15s;
+
+  &:has(.wh-kind-strip) {
+    padding-left: 32px;
+  }
 
   &.active {
     background: color-mix(in srgb, var(--tone-fg, var(--accent)) 6%, transparent);
@@ -121,7 +140,6 @@
   align-items: center;
   gap: 6px 8px;
 
-  .wh-kind-badge,
   .wh-pending {
     margin: 0;
   }
@@ -152,6 +170,21 @@
   margin-top: 4px;
   font-size: 13px;
   color: var(--text);
+}
+
+/* In a list row the meta sits on the title line, after the title. */
+.wh-title .wh-meta {
+  margin: 0 0 0 4px;
+}
+
+.wh-org-line {
+  display: flex;
+  margin-top: 4px;
+  min-width: 0;
+
+  &:empty {
+    display: none;
+  }
 }
 
 /* Details of one entry, under the timeline */
