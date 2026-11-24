@@ -13,6 +13,7 @@ import {
   isGroup,
   isSettingsPage,
 } from './nav.ts'
+import type { Setup } from './useSetup.ts'
 import type { Theme } from './useTheme.ts'
 
 type Badges = Partial<Record<PageId, { count: number; title: string }>>
@@ -25,6 +26,8 @@ type Props = {
   badges: Badges
   /** Pages left out of the menu (e.g. Interviews while there are none). */
   hiddenPages?: PageId[]
+  /** Unfinished first-run setup: the profile card shows its progress in place of the greeting. */
+  setup: Setup | null
   collapsed: boolean
   onToggleCollapsed: () => void
   mobileOpen: boolean
@@ -89,6 +92,7 @@ export default function Sidebar({
   onOpenSettings,
   badges,
   hiddenPages = [],
+  setup,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -146,6 +150,7 @@ export default function Sidebar({
         <ProfileCard
           dashboardActive={active === DASHBOARD_PAGE.id}
           collapsed={collapsed}
+          setup={setup}
           onNavigate={onNavigate}
         />
         <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">

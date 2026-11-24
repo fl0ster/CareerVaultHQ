@@ -7,7 +7,13 @@ URL = "/api/nav/counts"
 
 
 def test_counts_are_zero_on_an_empty_database(client):
-    assert client.get(URL).json() == {"jobs_inbox": 0, "applications": 0, "interviews": 0, "offers": 0}
+    assert client.get(URL).json() == {
+        "jobs_inbox": 0,
+        "applications": 0,
+        "interviews": 0,
+        "offers": 0,
+        "work_history": 0,
+    }
 
 
 def test_jobs_inbox_count_matches_the_inbox(client, db_session):
@@ -62,3 +68,13 @@ def test_stage_counts_use_the_latest_held_event(client, db_session):
     # Same answer as the ORM's notion of the current state.
     keys = [client.get(f"{BASE}/{i}").json()["status"]["key"] for i in (planned, backdated)]
     assert keys == ["REJECTED", "INTERVIEW"]
+
+
+def test_work_history_count(client):
+    entry = {"kind": "job", "date_start": "2020-01-01", "employer": "Acme", "role": "Engineer", "tech": []}
+    created = client.post("/api/work-history", json=entry)
+    assert created.status_code == 201, created.text
+    assert client.get(URL).json()["work_history"] == 1
+
+    client.delete(f"/api/work-history/{created.json()['id']}")
+    assert client.get(URL).json()["work_history"] == 0
