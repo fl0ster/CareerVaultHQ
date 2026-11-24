@@ -257,6 +257,23 @@
   &.failed strong {
     color: var(--tip-danger);
   }
+
+  /* A current score's popup: the score, then its LLM-written explanation. */
+  &.wide {
+    width: 320px; /* TIP_WIDTH_WIDE in RelevanceMeter.tsx */
+    gap: 4px;
+  }
+  .relevance-tip-explanation {
+    color: var(--tip-strong);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .relevance-tip-loading {
+    font-style: italic;
+  }
+  .relevance-tip-error {
+    color: var(--tip-danger);
+  }
 }
 
 @keyframes relevance-tip-in {

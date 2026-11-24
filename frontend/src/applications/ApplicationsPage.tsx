@@ -331,7 +331,8 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
                     <RelevanceMeter
                       relevance={a.evaluation.relevance}
                       outdated={a.evaluation.outdated}
-                      rescore={{ jobId: a.job.id, onRescored: rescored }}
+                      jobId={a.job.id}
+                      onRescored={rescored}
                     />
                   )}
                   <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
