@@ -647,7 +647,9 @@ class GmailMonitorSettings(Base):
     created on first use by ``app.services.gmail_monitor.get_monitor_settings``.
 
     The monitored mailbox is reached through a Google Apps Script web app the user deploys
-    in that account (``script_url``); every request carries ``secret``."""
+    in that account (``script_url``); every request carries ``secret``. The account is the
+    e-mail in the personal details (``CandidateDetails.email``, see
+    ``app.services.gmail_monitor.monitored_email``); the script must report the same one."""
 
     __tablename__ = "gmail_monitor_settings"
 
@@ -659,8 +661,6 @@ class GmailMonitorSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    email: Mapped[str] = mapped_column(String(320), default="")
-    """Address of the monitored account; the script must report the same one."""
     script_url: Mapped[str] = mapped_column(String(1024), default="")
     """``https://script.google.com/macros/s/.../exec`` of the deployed web app."""
     secret: Mapped[str] = mapped_column(String(128), nullable=False)

@@ -499,7 +499,7 @@ def _interview() -> ModuleType:
 
 
 class NotConfigured(RuntimeError):
-    """The monitored address or the web app URL is missing."""
+    """The personal details e-mail (the monitored address) or the web app URL is missing."""
 
 
 def check_rejection_mails() -> dict[str, Any]:
@@ -510,8 +510,8 @@ def check_rejection_mails() -> dict[str, Any]:
         settings = get_monitor_settings(session)
         started = datetime.now(UTC)
         try:
-            if not is_configured(settings):
-                raise NotConfigured("set the monitored e-mail and the Apps Script web app URL")
+            if not is_configured(session, settings):
+                raise NotConfigured("set the e-mail in the personal details and the Apps Script web app URL")
             summary = run_check(session, client_for(settings), OpenRouterService(session), settings)
         except Exception as exc:
             session.rollback()

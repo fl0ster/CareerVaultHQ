@@ -148,8 +148,8 @@ function SetupInstructions({ settings, onRotate }: { settings: MonitorSettings; 
         </li>
         <li>Authorize the requested Gmail access when Google asks (Advanced → Go to project, for an unverified script).</li>
         <li>
-          Copy the <strong>Web app URL</strong> (ending in <code>/exec</code>) into the field above, enter the
-          account's address, and press <strong>Test connection</strong>.
+          Copy the <strong>Web app URL</strong> (ending in <code>/exec</code>) into the field above and press{' '}
+          <strong>Test connection</strong>. The script must run as the e-mail in your personal details.
         </li>
         <li>Turn the monitor on, or use <strong>Run now</strong> to check once.</li>
       </ol>
@@ -333,7 +333,36 @@ function useMonitorJob(onFinished: () => void) {
   return { job, setJob, running: !!job && !done }
 }
 
-export default function GmailMonitorPage() {
+/** The monitored address, read from the personal details (where it is also printed on the CV). */
+function MonitoredAddress({ email, onOpenDetails }: { email: string; onOpenDetails: () => void }) {
+  return (
+    <div className="gmail-field">
+      <span className="gmail-field-label">Monitored Gmail address</span>
+      {email ? (
+        <>
+          <span className="gmail-address">{email}</span>
+          <span className="muted">
+            The e-mail from your{' '}
+            <button type="button" className="gmail-link" onClick={onOpenDetails}>
+              personal details
+            </button>
+            .
+          </span>
+        </>
+      ) : (
+        <div className="gmail-missing" role="alert">
+          <strong>No e-mail in your personal details.</strong> The monitor checks the Gmail account whose address is
+          in your personal details (the one on your CV).{' '}
+          <button type="button" className="gmail-link" onClick={onOpenDetails}>
+            Add it in Personal details
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function GmailMonitorPage({ onOpenDetails }: { onOpenDetails: () => void }) {
   const [settings, setSettings] = useState<MonitorSettings | null>(null)
   const [mails, setMails] = useState<ProcessedMail[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -417,14 +446,7 @@ export default function GmailMonitorPage() {
       <section className="gmail-section">
         <h2>Connection</h2>
         <div className="gmail-grid">
-          <Field
-            label="Monitored Gmail address"
-            type="email"
-            value={settings.email}
-            placeholder="you@gmail.com"
-            toPatch={(t) => (t.trim() && !t.includes('@') ? 'Enter an e-mail address' : { email: t.trim() })}
-            onSave={save}
-          />
+          <MonitoredAddress email={settings.email} onOpenDetails={onOpenDetails} />
           <Field
             label="Apps Script web app URL"
             type="url"
@@ -463,7 +485,12 @@ export default function GmailMonitorPage() {
           />
           <span>
             Check automatically every {Math.round(settings.interval_seconds / 60)} min
-            {!settings.configured && <span className="muted"> (set the address and URL first)</span>}
+            {!settings.configured && (
+              <span className="muted">
+                {' '}
+                ({settings.email ? 'set the web app URL first' : 'add your e-mail in the personal details first'})
+              </span>
+            )}
           </span>
         </label>
         <div className="gmail-grid">
