@@ -176,7 +176,7 @@ function ImportDropzone({ busy, onFile }: { busy: string | null; onFile: (file: 
         <span className="wh-dropzone-link">pick one from disk</span>.
       </span>
       <span className="wh-dropzone-hint">
-        A CV adds your positions, education and certificates, and fills in the blank fields of About me. Or add
+        A CV adds your positions, education and certificates, and fills in the blank fields of your personal details. Or add
         them by hand with the + button.
       </span>
       <input
@@ -328,7 +328,7 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
     }
   }
 
-  /** Parses a CV PDF, imports its positions, education and certificates and fills the blank About me fields. */
+  /** Parses a CV PDF, imports its positions, education and certificates and fills the blank personal details fields. */
   const importCv = async (file: File) => {
     setTransfer(null)
     setImporting('Reading your CV… this can take a minute')
@@ -351,10 +351,10 @@ export default function WorkHistoryPage({ focusId = null }: PageProps) {
         const { details, filled } = mergeDetails(await candidateDetailsApi.get(), cv.candidate_details)
         if (filled.length > 0) {
           candidateDetailsStore.set(await candidateDetailsApi.save(details))
-          filledText = ` Filled in About me: ${filled.join(', ')}.`
+          filledText = ` Filled in personal details: ${filled.join(', ')}.`
         }
       } catch (e) {
-        notes.unshift(`About me was not updated: ${String(e instanceof Error ? e.message : e)}`)
+        notes.unshift(`Personal details were not updated: ${String(e instanceof Error ? e.message : e)}`)
       }
       setTransfer({
         kind: 'ok',

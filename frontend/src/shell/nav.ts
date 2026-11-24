@@ -37,8 +37,6 @@ export type NavItem = {
   title?: string
   /** Shown under the heading, for pages that have no introduction of their own. */
   description?: string
-  /** No visible heading: the page speaks for itself (the heading stays for screen readers). */
-  hideHeader?: boolean
 }
 
 /** A set of related pages: My profile opens in the menu, Settings switches with tabs inside the page. */
@@ -61,6 +59,8 @@ export const SETTINGS: NavGroup = {
   icon: Settings,
   // Each tab opens with its description as a one-line introduction (see SettingsHeader).
   items: [
+    // The form has its own heading and status line, so the tab needs no introduction.
+    { id: 'candidate-profile', label: 'Personal details', icon: UserRound },
     {
       id: 'sources',
       label: 'Sources',
@@ -101,9 +101,6 @@ export const SETTINGS_PAGE_IDS: PageId[] = SETTINGS_PAGES.map((i) => i.id)
 
 export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
-/** About me is opened from the profile card at the top of the menu, not from a menu entry. */
-export const PROFILE_PAGE: NavItem = { id: 'candidate-profile', label: 'About me', icon: UserRound, hideHeader: true }
-
 /** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
   [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
@@ -123,7 +120,7 @@ export const DASHBOARD_PAGE: NavItem = {
   description: 'Your job search at a glance.',
 }
 
-const NODES: NavNode[] = [DASHBOARD_PAGE, PROFILE_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
+const NODES: NavNode[] = [DASHBOARD_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 
