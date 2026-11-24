@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react'
 import { type Company, updateCompany } from './api.ts'
 
-export type CompanyTag = 'favourite' | 'interested' | 'avoid'
+export type CompanyTag = 'favourite' | 'interested' | 'ghosted' | 'avoid'
 
 /** The tags a company can have, in the order a click cycles through them (then back to none).
  * Keep in sync with ``Company.TAGS`` in the backend. */
 export const COMPANY_TAGS: { key: CompanyTag; label: string; icon: string }[] = [
   { key: 'favourite', label: 'Favourite', icon: '★' },
   { key: 'interested', label: 'Interested', icon: '●' },
+  { key: 'ghosted', label: 'Ghosted', icon: '👻' },
   { key: 'avoid', label: 'Avoid', icon: '⊘' },
 ]
 
