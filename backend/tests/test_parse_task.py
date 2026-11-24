@@ -7,7 +7,6 @@ from sqlalchemy import func, select
 
 from app import models
 from app.db import init_db, session_factory
-from app.services.openrouter import OpenRouterError, OpenRouterNotConfigured
 from app.tasks.scrape.sources import skillshot
 from tests.conftest import ensure_source
 
@@ -302,62 +301,15 @@ def _parsed(engine, pending_id):
         return session.scalar(select(models.JobParseResult).where(models.JobParseResult.job_id == job_id))
 
 
-def test_parse_job_stores_interview_steps(task_engine, extracted_steps):
-    extracted_steps["steps"] = [
-        parse_task.InterviewStep(1, "HR call", 30),
-        parse_task.InterviewStep(2, "Technical interview"),
-    ]
+def test_parse_job_does_not_run_llm_extractions(task_engine, extracted_steps):
+    """Interview steps and technologies are only extracted once the job is shortlisted
+    (``app.tasks.parse.enrich``), so the evaluation is not held up by them."""
     pending_id = _make_pending(task_engine)
 
     result = parse_task.parse_job(pending_id)
 
-    assert result["interview_steps"] == 2
-    assert extracted_steps["texts"] == ["Unity Dev\ndla\nACME\nWe need\nUnity"]
-    assert _parsed(task_engine, pending_id).interview_steps == [
-        {"number": 1, "title": "HR call", "duration_minutes": 30},
-        {"number": 2, "title": "Technical interview", "duration_minutes": None},
-    ]
-    assert parse_task.parse_job(pending_id)["interview_steps"] == 2
-
-
-def test_parse_job_without_interview_steps_stores_empty_list(task_engine):
-    pending_id = _make_pending(task_engine)
-    assert parse_task.parse_job(pending_id)["interview_steps"] == 0
-    assert _parsed(task_engine, pending_id).interview_steps == []
-
-
-@pytest.mark.parametrize(
-    "error",
-    [OpenRouterNotConfigured("no key"), OpenRouterError("boom", status_code=500)],
-)
-def test_interview_step_failure_does_not_fail_the_parse(task_engine, extracted_steps, error):
-    extracted_steps["error"] = error
-    pending_id = _make_pending(task_engine)
-
-    result = parse_task.parse_job(pending_id)
-
-    assert result["interview_steps"] is None
-    assert result["title"] == "Unity Dev"
-    assert _parsed(task_engine, pending_id).interview_steps is None
-    with session_factory(task_engine)() as session:
-        assert session.get(models.PendingJobParseRun, pending_id).status == "COMPLETED"
-
-
-def test_parse_job_stores_technologies(task_engine, extracted_technologies):
-    extracted_technologies["technologies"] = [{"name": "Unity", "key": "unity"}]
-    pending_id = _make_pending(task_engine)
-
-    assert parse_task.parse_job(pending_id)["technologies"] == 1
-    assert _parsed(task_engine, pending_id).technologies == [{"name": "Unity", "key": "unity"}]
-    assert parse_task.parse_job(pending_id)["technologies"] == 1
-
-
-def test_technology_failure_does_not_fail_the_parse(task_engine, extracted_technologies):
-    extracted_technologies["error"] = OpenRouterError("boom", status_code=500)
-    pending_id = _make_pending(task_engine)
-
-    result = parse_task.parse_job(pending_id)
-
-    assert result["technologies"] is None
-    assert result["title"] == "Unity Dev"
-    assert _parsed(task_engine, pending_id).technologies is None
+    assert "interview_steps" not in result and "technologies" not in result
+    assert extracted_steps["texts"] == []
+    parsed = _parsed(task_engine, pending_id)
+    assert parsed.interview_steps is None
+    assert parsed.technologies is None

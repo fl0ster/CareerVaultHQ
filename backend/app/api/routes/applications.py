@@ -2,9 +2,11 @@
 
 * ``POST /api/applications`` with ``{"job_evaluation_id": ...}`` creates the application
   (``409`` when the job already has one), records its initial state (``SHORTLISTED`` unless
-  ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job. The
+  ``status`` says otherwise, ``null`` for none) and queues a tailored CV for the job and its
+  LLM enrichment (``app.tasks.parse.enrich``: interview rounds and technologies). The
   interview rounds parsed from the job description (``job_parse_results.interview_steps``)
-  become its planned rounds.
+  become its planned rounds: right away when already known, otherwise once the enrichment
+  finds them.
 * ``GET /api/applications`` lists them newest first (``?status=INTERVIEW`` filters by
   current state, ``?q=acme`` by job title or company name); ``GET``/``PATCH``/``DELETE /api/applications/{id}`` work on one.
 * ``POST /api/applications/{id}/events`` records a state change with its own note;
@@ -93,6 +95,7 @@ from app.services.applications import (
 from app.services.candidate_profile import current_profile_ids
 from app.services.evaluations import newest_evaluations
 from app.services.relevance import relevance
+from app.tasks.parse.enrich import enqueue_enrichment
 from app.tasks.work_history import enqueue_prefill
 
 router = APIRouter()
@@ -463,6 +466,9 @@ def create_application(
     set_job_decision(session, evaluation.job_parse_result_id, JobDecision.ACCEPTED)
     session.commit()
 
+    # The costlier LLM extractions (interview rounds, technologies) only run for a
+    # shortlisted job; the task plans the rounds on this application when it finds them.
+    enqueue_enrichment(queue, settings, evaluation.job_parse_result)
     cv = enqueue_cv(session, queue, settings, evaluation.job_parse_result)
     application.generated_cv_id = cv.id
     session.commit()

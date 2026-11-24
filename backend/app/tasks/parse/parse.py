@@ -7,14 +7,15 @@ field in ``FIELDS`` (currently ``title``, ``company`` and ``description``). ``ti
 ``description`` are stored verbatim in ``job_parse_results``; the raw ``company`` string is
 never stored there but resolved through ``app.services.companies.resolve_company`` to a
 canonical ``companies`` row whose id is written to ``job_parse_results.company_id``. The
-pending row is then marked ``COMPLETED`` with the time the parse happened. The interview
-rounds stated in the description are extracted by an LLM pipeline (``extract_interview_steps``)
-into ``job_parse_results.interview_steps`` and the technologies it names by
-``extract_technologies`` into ``job_parse_results.technologies``; an OpenRouter failure only
-leaves them unset. Finally
+pending row is then marked ``COMPLETED`` with the time the parse happened. Finally
 ``app.tasks.evaluate.evaluate_parse_results`` is enqueued at the front of the queue for the
 parsed job, so it gets scored against the current candidate profile right after its parse
 rather than after every other queued parse task.
+
+The LLM extractions defined here (``extract_interview_steps`` into
+``job_parse_results.interview_steps``, ``extract_technologies`` into
+``job_parse_results.technologies``) are not part of the parse: they only run once the job
+is shortlisted, in ``app.tasks.parse.enrich.enrich_job``.
 """
 
 from __future__ import annotations
@@ -447,8 +448,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": <id of the canonical companies row, or None>,
             "company_match": "<alias | exact | fuzzy | new, or None>",
             "description_chars": <length of the extracted description>,
-            "interview_steps": <number of interview rounds found, None if not extracted>,
-            "technologies": <number of technologies found, None if not extracted>,
             "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
 
@@ -479,8 +478,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
                 "company_id": company.id if company else None,
                 "company_match": None,
                 "description_chars": len(result.description or "") if result else 0,
-                "interview_steps": len(result.interview_steps) if result and result.interview_steps is not None else None,
-                "technologies": len(result.technologies) if result and result.technologies is not None else None,
                 "evaluate_job": None,
             }
 
@@ -500,9 +497,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
         pending.status = PendingJobParseRun.STATUS_COMPLETED
         pending.error = None
         pending.parsed_at = datetime.now(UTC)
-        session.commit()
-        steps = store_interview_steps(session, result)
-        technologies = store_technologies(session, result)
         session.commit()
         evaluate_job_id = enqueue_evaluation(result)
 
@@ -526,7 +520,5 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": company.id if company else None,
             "company_match": match.match_kind if match else None,
             "description_chars": len(values["description"]),
-            "interview_steps": len(steps) if steps is not None else None,
-            "technologies": len(technologies) if technologies is not None else None,
             "evaluate_job": evaluate_job_id,
         }
