@@ -1,0 +1,205 @@
+# LLM configuration: which provider and model answers every LLM task, with which
+# parameters. This is the only place models and sampling parameters are set; the code names
+# a task (e.g. ``task="cv.summary"``) and never hard-codes them. See docs/llm.md.
+#
+# Changes are picked up on the next call (the file is re-read when it changes). To tune it
+# in Docker without rebuilding the image, copy it to the data volume and set
+# LLM_CONFIG_PATH=/data/llm.toml.
+#
+# Two kinds of task:
+#   chat     - free text / JSON from a chat-completions model. Any provider type.
+#   decision - calibrated probabilities ("is this a rejection? P=0.93") from a probability
+#              model. Only providers implementing DecisionProvider: today ``openrouter``
+#              (Jev Decisions API).
+# Chat and decision tasks pick their providers independently, so chat can run on your own
+# model while decisions keep using OpenRouter.
+
+# --- Providers -----------------------------------------------------------------------------
+# Secrets never go in this file: ``api_key_env`` names the env var holding the key.
+
+[providers.openrouter]
+type = "openrouter"                    # chat completions + Jev decisions
+base_url = "https://openrouter.ai/api/v1"
+decisions_url = "https://openrouter.ai/api/alpha/decisions"
+api_key_env = "OPENROUTER_API_KEY"     # required
+timeout = 120                          # seconds per request
+site_url = ""                          # optional HTTP-Referer attribution header
+site_name = "CareerVaultHQ"            # optional X-Title attribution header
+
+# Your own model: any server with an OpenAI-compatible /chat/completions endpoint (Ollama,
+# LM Studio, vLLM, llama.cpp server, OpenAI, ...). Chat tasks only. Uncomment, then point
+# [defaults.chat] (or single tasks) at it.
+#
+# [providers.local]
+# type = "openai_compatible"
+# base_url = "http://192.168.1.20:11434/v1"   # Ollama; LM Studio: http://<host>:1234/v1
+# api_key_env = "LOCAL_LLM_API_KEY"            # optional; unset/empty = no Authorization header
+# timeout = 300                                # local models are slower; CV generation makes dozens of calls
+
+# --- Defaults ------------------------------------------------------------------------------
+# Every task of a kind uses these unless its [tasks."..."] entry overrides them. Optional
+# here too: temperature, max_tokens, extra (a table merged into the request body).
+
+[defaults.chat]
+provider = "openrouter"                # set to "local" to run every chat task on your own model
+model = "openai/gpt-4o-mini"
+
+[defaults.decision]
+provider = "openrouter"
+model = "typesafe/jev-1.14"
+
+# --- Tasks ---------------------------------------------------------------------------------
+# One entry per LLM task in the code. ``kind`` and ``description`` are required context;
+# provider / model / temperature / max_tokens / extra override the defaults above.
+# Temperature 0 = deterministic extraction; 0.2-0.3 = light rewording.
+
+# Candidate profile ---------------------------------------------------------------------------
+
+[tasks."candidate_profile.create"]
+kind = "chat"
+description = """
+Writes the candidate profile (skills, seniority, technologies) from the whole work history
+(app/services/candidate_profile.py). Runs once per work-history change; every job
+evaluation is judged against this text, so a stronger model pays off here.
+Uses the provider's default temperature."""
+
+# Job scoring ---------------------------------------------------------------------------------
+
+[tasks."evaluate.match"]
+kind = "decision"
+description = """
+P(job is a good match for the candidate profile) for every scraped job
+(app/tasks/evaluate/evaluate.py). Stored as job_evaluations.match_probability and compared
+with RELEVANT_JOB_THRESHOLD. Highest-volume task: dozens of calls per scrape."""
+
+[tasks."job.score_explanation"]
+kind = "chat"
+description = """
+2-3 sentence explanation of a job's match score, on the user's click
+(app/services/score_explanation.py). max_tokens caps the ~60-word answer; low temperature
+keeps it grounded in the profile and the posting."""
+temperature = 0.2
+max_tokens = 200
+
+# Job parsing / enrichment --------------------------------------------------------------------
+
+[tasks."parse.technologies"]
+kind = "chat"
+description = """
+Lists the technologies named in a job description, each with a verbatim evidence quote that
+is checked against the text (app/tasks/parse/parse.py). Precision over recall: temperature 0."""
+temperature = 0
+
+[tasks."interview_steps.presence"]
+kind = "decision"
+description = """
+P(text describes the recruitment process). Gate before extracting interview steps from a job
+description or a recruiter e-mail (app/tasks/parse/parse.py, app/tasks/gmail/interview_steps.py).
+Below INTERVIEW_STEPS_THRESHOLD nothing else is called."""
+
+[tasks."interview_steps.extract"]
+kind = "chat"
+description = """
+Extracts the ordered interview stages (title, duration) as JSON from the same text
+(app/tasks/parse/parse.py). Pure extraction: temperature 0."""
+temperature = 0
+
+[tasks."interview_steps.faithful"]
+kind = "decision"
+description = """
+P(extracted interview steps are faithful to the text). Hallucination check after
+interview_steps.extract; below the threshold the extraction is discarded."""
+
+# Gmail monitoring ----------------------------------------------------------------------------
+
+[tasks."gmail.rejection"]
+kind = "decision"
+description = """
+P(e-mail is a final rejection of a job application) for every monitored mail
+(app/tasks/gmail/rejections.py). Sent private: the mail is not stored in openrouter_calls."""
+
+[tasks."gmail.company_role"]
+kind = "chat"
+description = """
+Reads the hiring company and the role from a rejection or interview e-mail as JSON, to match
+it to an application (app/tasks/gmail/rejections.py). Pure extraction: temperature 0."""
+temperature = 0
+
+# Work history / CV import --------------------------------------------------------------------
+
+[tasks."work_history.prefill"]
+kind = "chat"
+description = """
+Fills a new work-history entry (role, location, technologies, context) from an accepted
+offer's job description, steps and notes (app/tasks/work_history/prefill.py). JSON
+extraction: temperature 0."""
+temperature = 0
+
+[tasks."cv_import.extract"]
+kind = "chat"
+description = """
+Extracts the work history and candidate details from an uploaded CV PDF's text
+(app/tasks/cv_import/extract.py). Sends a strict json_schema response_format, so the model
+and server must support structured outputs (OpenAI, Ollama >= 0.5, LM Studio, vLLM,
+llama.cpp do). Long input (up to CV_IMPORT_MAX_CHARS): needs a large context window.
+Temperature 0."""
+temperature = 0
+
+# CV generation (app/tasks/cv/generate.py) ----------------------------------------------------
+# One generation makes ~2 calls per past role plus 4 headline calls, CV_MAX_WORKERS at a
+# time. On a local server that handles one request at a time, lower CV_MAX_WORKERS.
+
+[tasks."cv.relevance"]
+kind = "decision"
+description = """
+Step 1: P(past role is relevant experience for the target job), one call per work-history
+entry. Drives which roles are listed in full (CV_HIGH_RELEVANCE / CV_IRRELEVANT_RELEVANCE)."""
+
+[tasks."cv.context"]
+kind = "chat"
+description = """
+Step 3: rewrites a main role's description (max 3 sentences) for the target job. Slightly
+higher temperature for natural wording; the prompt forbids inventing facts."""
+temperature = 0.3
+
+[tasks."cv.tech"]
+kind = "chat"
+description = "Step 3: reorders / filters a main role's technologies for the target job."
+temperature = 0.3
+
+[tasks."cv.early"]
+kind = "chat"
+description = "Step 3: condenses an early (non-main) role to a single sentence."
+temperature = 0.3
+
+[tasks."cv.categories"]
+kind = "chat"
+description = "Step 4: groups the candidate's technologies into skill categories (JSON)."
+temperature = 0.2
+
+[tasks."cv.summary"]
+kind = "chat"
+description = "Step 4: the CV's profile summary, tailored to the job. Low temperature keeps it factual."
+temperature = 0.2
+
+[tasks."cv.role"]
+kind = "chat"
+description = "Step 4: the headline role / job title shown under the candidate's name."
+temperature = 0.2
+
+[tasks."cv.core_tech"]
+kind = "chat"
+description = "Step 4: the handful of core technologies shown in the CV header."
+temperature = 0.2
+
+# HTTP API ------------------------------------------------------------------------------------
+
+[tasks."api.chat"]
+kind = "chat"
+description = """
+POST /api/openrouter/chat (ad-hoc calls). Request fields model / temperature / max_tokens
+override these values."""
+
+[tasks."api.decide"]
+kind = "decision"
+description = "POST /api/openrouter/decide (ad-hoc calls). The request's model overrides this one."

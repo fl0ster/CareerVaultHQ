@@ -50,6 +50,8 @@ log = logging.getLogger(__name__)
 
 SOURCE = "tasks.evaluate"
 """``openrouter_calls.source`` label for calls made by this task."""
+TASK = "evaluate.match"
+"""``llm.toml`` task: model and parameters of the match decision."""
 
 MAX_PARSE_AGE = timedelta(days=7)
 """Parse results older than this are not evaluated: the listing is probably gone and the
@@ -134,7 +136,7 @@ def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, 
 
 def evaluate_one(service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult) -> JobEvaluation:
     """Ask OpenRouter about one job and return the (unsaved) ``JobEvaluation``."""
-    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE)
+    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, task=TASK, source=SOURCE)
     return JobEvaluation(
         job_parse_result_id=parsed.id,
         candidate_profile_id=profile.id,

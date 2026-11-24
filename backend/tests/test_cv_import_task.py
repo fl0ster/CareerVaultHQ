@@ -153,7 +153,7 @@ def test_pdf_with_an_empty_user_password_is_read(cv_file):
 
 
 def test_extract_cv_returns_importable_data(chat, cv_file, settings):
-    result = extract_cv(chat["service"], pdf_text(cv_file()), settings)
+    result = extract_cv(chat["service"], pdf_text(cv_file()))
 
     [request] = chat["requests"]
     assert request["temperature"] == 0
@@ -194,7 +194,7 @@ def test_extract_cv_returns_importable_data(chat, cv_file, settings):
 
 
 def test_private_cv_text_is_not_stored(chat, cv_file, settings, db_session):
-    extract_cv(chat["service"], pdf_text(cv_file()), settings)
+    extract_cv(chat["service"], pdf_text(cv_file()))
     call = db_session.scalar(select(OpenRouterCall))
     assert call.source == "tasks.cv_import"
     assert call.input["redacted"] is True
@@ -203,13 +203,13 @@ def test_private_cv_text_is_not_stored(chat, cv_file, settings, db_session):
 
 def test_fenced_or_wrapped_json_is_accepted(chat, cv_file, settings):
     chat["reply"] = "Here you go:\n```json\n" + json.dumps(reply()) + "\n```"
-    assert extract_cv(chat["service"], pdf_text(cv_file()), settings).candidate_details.first_name == "Jane"
+    assert extract_cv(chat["service"], pdf_text(cv_file())).candidate_details.first_name == "Jane"
 
 
 def test_non_json_reply_fails(chat, cv_file, settings):
     chat["reply"] = "Sorry, I cannot help with that."
     with pytest.raises(CvImportError, match="JSON"):
-        extract_cv(chat["service"], pdf_text(cv_file()), settings)
+        extract_cv(chat["service"], pdf_text(cv_file()))
 
 
 def test_contacts_not_in_the_cv_are_dropped(cv_file):

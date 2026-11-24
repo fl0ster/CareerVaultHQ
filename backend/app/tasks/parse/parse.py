@@ -82,6 +82,10 @@ class InterviewStepsResult:
 
 
 INTERVIEW_STEPS_SOURCE = "tasks.parse.interview_steps"
+# ``llm.toml`` tasks of the three interview-steps calls.
+PRESENCE_TASK = "interview_steps.presence"
+EXTRACTION_TASK = "interview_steps.extract"
+FAITHFUL_TASK = "interview_steps.faithful"
 INTERVIEW_STEPS_THRESHOLD = 0.5
 """Minimum Jev probability for both the presence and the faithfulness check."""
 MAX_STEP_TITLE = 128
@@ -192,6 +196,7 @@ def extract_interview_steps(
     present = service.decide(
         state={"job_description": text},
         questions=PRESENCE_QUESTIONS,
+        task=PRESENCE_TASK,
         source=source,
         private=private,
     ).noul(PRESENCE_QUESTION)
@@ -201,7 +206,7 @@ def extract_interview_steps(
     reply = service.chat(
         EXTRACTION_PROMPT.format(text=text),
         system=EXTRACTION_SYSTEM,
-        temperature=0,
+        task=EXTRACTION_TASK,
         source=source,
         private=private,
     ).text
@@ -217,6 +222,7 @@ def extract_interview_steps(
             ],
         },
         questions=FAITHFUL_QUESTIONS,
+        task=FAITHFUL_TASK,
         source=source,
         private=private,
     ).noul(FAITHFUL_QUESTION)
@@ -227,6 +233,8 @@ def extract_interview_steps(
 
 
 TECHNOLOGIES_SOURCE = "tasks.parse.technologies"
+TECHNOLOGIES_TASK = "parse.technologies"
+"""``llm.toml`` task of the technologies extraction."""
 MAX_TECHNOLOGIES = 40
 MAX_TECHNOLOGY_NAME = 64
 
@@ -312,7 +320,7 @@ def extract_technologies(service: OpenRouterService, text: str | None) -> list[d
     reply = service.chat(
         TECHNOLOGIES_PROMPT.format(text=text),
         system=EXTRACTION_SYSTEM,
-        temperature=0,
+        task=TECHNOLOGIES_TASK,
         source=TECHNOLOGIES_SOURCE,
     ).text
     return _technologies_from_reply(reply, text)

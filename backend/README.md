@@ -75,9 +75,12 @@ app/
   integrations/gmail/  Apps Script web app (apps_script.gs, pasted into the monitored Google
                    account) and its HTTP client; setup instructions live in Settings > Gmail monitor
   services/
-    openrouter.py  OpenRouter client (chat completions + Jev decisions); logs every call to
-                   the openrouter_calls table. Routes/tasks use OpenRouterService directly;
-                   /api/openrouter/* exposes it over HTTP
+    openrouter.py  LLM client (chat completions + Jev decisions); logs every call to the
+                   openrouter_calls table. Routes/tasks use OpenRouterService directly, naming
+                   an llm.toml task; /api/openrouter/* exposes it over HTTP
+    llm/           pluggable providers (OpenRouter, any OpenAI-compatible server for chat) and
+                   the loader of app/llm.toml, the one file setting the provider, model and
+                   parameters of every LLM task (see docs/llm.md)
     companies.py   resolves the scraped company name to a canonical companies row
                    (normalise -> alias lookup -> canonical lookup -> fuzzy match -> create)
     sources.py     syncs scrape_sources rows with the plugin modules, records per-source run

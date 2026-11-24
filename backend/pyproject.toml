@@ -40,6 +40,8 @@ build-backend = "setuptools.build_meta"
 include = ["app*"]
 
 [tool.setuptools.package-data]
+# Default LLM providers / models / parameters per task, read by app.services.llm.config.
+"app" = ["llm.toml"]
 # The CV LaTeX template is read at runtime by app.tasks.cv.render.
 "app.tasks.cv" = ["*.tex"]
 # The Apps Script source handed to the user by GET /api/gmail-monitor/apps-script.

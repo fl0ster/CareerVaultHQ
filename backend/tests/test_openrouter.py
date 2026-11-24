@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.config import Settings
 from app.main import app
 from app.models import OpenRouterCall
+from app.services.llm.config import parse_llm_config
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -16,6 +17,38 @@ from app.services.openrouter import (
 )
 
 BASE = "/api/openrouter"
+DECISIONS_URL = "https://openrouter.test/api/alpha/decisions"
+
+
+def llm_config(**chat_defaults):
+    """OpenRouter provider + an ``openai_compatible`` ``local`` one; tasks ``t.chat`` (with
+    a temperature), ``t.decide``, ``api.chat`` and ``api.decide``. ``chat_defaults`` update
+    ``[defaults.chat]`` (e.g. ``provider="local"``)."""
+    return parse_llm_config(
+        {
+            "providers": {
+                "openrouter": {
+                    "type": "openrouter",
+                    "base_url": "https://openrouter.test/api/v1",
+                    "decisions_url": DECISIONS_URL,
+                    "api_key_env": "OPENROUTER_API_KEY",
+                    "site_url": "http://x",
+                    "site_name": "CV",
+                },
+                "local": {"type": "openai_compatible", "base_url": "http://llm.local:11434/v1/"},
+            },
+            "defaults": {
+                "chat": {"provider": "openrouter", "model": "default/chat", **chat_defaults},
+                "decision": {"provider": "openrouter", "model": "typesafe/jev-default"},
+            },
+            "tasks": {
+                "t.chat": {"kind": "chat", "temperature": 0.2},
+                "t.decide": {"kind": "decision"},
+                "api.chat": {"kind": "chat"},
+                "api.decide": {"kind": "decision"},
+            },
+        }
+    )
 
 
 def _completion(content, *, model="test/model", cost=0.0042, gen_id="gen-1"):
@@ -48,7 +81,7 @@ NOUL_QUESTIONS = {
 
 @pytest.fixture
 def settings():
-    return Settings(openrouter_api_key="sk-test", cors_origins=[], openrouter_site_url="http://x")
+    return Settings(openrouter_api_key="sk-test", local_llm_api_key="", cors_origins=[])
 
 
 @pytest.fixture
@@ -66,8 +99,10 @@ def _transport(handler, requests_seen):
 
 @pytest.fixture
 def service_factory(db_session, settings, requests_seen):
-    def make(handler):
-        return OpenRouterService(db_session, settings, transport=_transport(handler, requests_seen))
+    def make(handler, config=None):
+        return OpenRouterService(
+            db_session, settings, llm_config=config or llm_config(), transport=_transport(handler, requests_seen)
+        )
 
     return make
 
@@ -78,14 +113,15 @@ def service_factory(db_session, settings, requests_seen):
 def test_chat_returns_text_and_records_call(service_factory, db_session, requests_seen):
     service = service_factory(lambda req: httpx.Response(200, json=_completion("hello there")))
 
-    result = service.chat("hi", system="be brief", source="tests.chat", model="foo/bar")
+    result = service.chat("hi", system="be brief", task="t.chat", source="tests.chat", model="foo/bar")
 
     assert result.text == "hello there"
     assert result.usage.cost == pytest.approx(0.0042)
     req = requests_seen[0]
-    assert req.url.path.endswith("/chat/completions")
+    assert str(req.url) == "https://openrouter.test/api/v1/chat/completions"
     assert req.headers["Authorization"] == "Bearer sk-test"
     assert req.headers["HTTP-Referer"] == "http://x"
+    assert req.headers["X-Title"] == "CV"
     body = json.loads(req.content)
     assert body["model"] == "foo/bar"
     assert body["usage"] == {"include": True}
@@ -107,10 +143,113 @@ def test_chat_returns_text_and_records_call(service_factory, db_session, request
     assert call.latency_ms is not None
 
 
-def test_chat_uses_default_model_from_settings(service_factory, requests_seen, settings):
+def test_chat_uses_task_config(service_factory, requests_seen):
+    service = service_factory(
+        lambda req: httpx.Response(200, json=_completion("x")),
+        llm_config(max_tokens=50, extra={"top_p": 0.9}),
+    )
+    service.chat("hi", task="t.chat", source="t")
+    body = json.loads(requests_seen[0].content)
+    assert body["model"] == "default/chat"  # from [defaults.chat]
+    assert body["temperature"] == 0.2  # from the task
+    assert body["max_tokens"] == 50 and body["top_p"] == 0.9  # defaults the task does not override
+
+
+def test_chat_arguments_override_task_config(service_factory, requests_seen):
     service = service_factory(lambda req: httpx.Response(200, json=_completion("x")))
-    service.chat("hi", source="t")
-    assert json.loads(requests_seen[0].content)["model"] == settings.openrouter_chat_model
+    service.chat("hi", task="t.chat", source="t", model="m/x", temperature=0, max_tokens=7, extra={"seed": 1})
+    body = json.loads(requests_seen[0].content)
+    assert (body["model"], body["temperature"], body["max_tokens"], body["seed"]) == ("m/x", 0, 7, 1)
+
+
+def test_unknown_task_fails_before_any_request(service_factory, requests_seen, db_session):
+    from app.services.llm.errors import LlmConfigError
+
+    service = service_factory(lambda req: httpx.Response(200, json=_completion("x")))
+    with pytest.raises(LlmConfigError, match="nope"):
+        service.chat("hi", task="nope", source="t")
+    with pytest.raises(LlmConfigError, match="decision task"):
+        service.chat("hi", task="t.decide", source="t")
+    assert requests_seen == []
+    assert db_session.scalars(select(OpenRouterCall)).first() is None
+
+
+def _local_chat_config():
+    return llm_config(provider="local", model="llama3.1:8b")
+
+
+def test_chat_on_openai_compatible_provider(service_factory, requests_seen, db_session):
+    """Own model for chat: plain OpenAI body to the local server, no key, no OpenRouter
+    extras, and no cost reported."""
+    service = service_factory(
+        lambda req: httpx.Response(
+            200,
+            json={
+                "model": "llama3.1:8b",
+                "choices": [{"message": {"content": "local hi"}}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+            },
+        ),
+        _local_chat_config(),
+    )
+    result = service.chat("hi", task="t.chat", source="t")
+
+    assert result.text == "local hi"
+    req = requests_seen[0]
+    assert str(req.url) == "http://llm.local:11434/v1/chat/completions"
+    assert "Authorization" not in req.headers
+    assert "HTTP-Referer" not in req.headers and "X-Title" not in req.headers
+    body = json.loads(req.content)
+    assert body == {"model": "llama3.1:8b", "messages": [{"role": "user", "content": "hi"}], "temperature": 0.2}
+    call = db_session.get(OpenRouterCall, result.call_id)
+    assert call.status == "ok" and call.cost is None and call.total_tokens == 5
+
+
+def test_openai_compatible_provider_sends_optional_key(db_session, requests_seen):
+    service = OpenRouterService(
+        db_session,
+        Settings(openrouter_api_key="", local_llm_api_key="sk-local", cors_origins=[]),
+        llm_config=parse_llm_config(
+            {
+                "providers": {
+                    "openrouter": {"type": "openrouter", "base_url": "https://o", "decisions_url": "https://o/d"},
+                    "local": {"type": "openai_compatible", "base_url": "http://l/v1", "api_key_env": "LOCAL_LLM_API_KEY"},
+                },
+                "defaults": {
+                    "chat": {"provider": "local", "model": "m"},
+                    "decision": {"provider": "openrouter", "model": "j"},
+                },
+                "tasks": {"t.chat": {"kind": "chat"}},
+            }
+        ),
+        transport=_transport(lambda req: httpx.Response(200, json=_completion("x")), requests_seen),
+    )
+    service.chat("hi", task="t.chat", source="t")
+    assert requests_seen[0].headers["Authorization"] == "Bearer sk-local"
+
+
+def test_local_chat_keeps_decisions_on_openrouter(service_factory, requests_seen):
+    """The partial setup: chat on the own model, Jev decisions still on OpenRouter."""
+
+    def handler(req):
+        if str(req.url) == DECISIONS_URL:
+            return httpx.Response(200, json=_decision({"is_match": {"type": "noul", "noul": 0.6}}))
+        return httpx.Response(200, json=_completion("local"))
+
+    service = service_factory(handler, _local_chat_config())
+    service.chat("hi", task="t.chat", source="t")
+    decision = service.decide(state="x", questions=NOUL_QUESTIONS, task="t.decide", source="t")
+
+    assert decision.noul("is_match") == pytest.approx(0.6)
+    assert [str(r.url) for r in requests_seen] == ["http://llm.local:11434/v1/chat/completions", DECISIONS_URL]
+    assert requests_seen[1].headers["Authorization"] == "Bearer sk-test"
+
+
+def test_chat_without_content_marks_call_failed(service_factory, db_session):
+    service = service_factory(lambda req: httpx.Response(200, json={"id": "x", "choices": []}))
+    with pytest.raises(OpenRouterError, match="no choices"):
+        service.chat("hi", task="t.chat", source="t")
+    assert db_session.scalars(select(OpenRouterCall)).one().status == "failed"
 
 
 def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_seen, settings):
@@ -137,7 +276,7 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
         "urgency": {"type": "score", "criteria": ["low", "high"]},
     }
 
-    result = service.decide(state=state, questions=questions, source="tests.decide")
+    result = service.decide(state=state, questions=questions, task="t.decide", source="tests.decide")
 
     assert result.noul("is_match") == pytest.approx(0.82)
     assert result.choice("team") == "backend"
@@ -145,11 +284,11 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
     assert result.answers["is_match"] == {"type": "noul", "noul": 0.82}
 
     req = requests_seen[0]
-    assert str(req.url) == settings.openrouter_decisions_url
+    assert str(req.url) == DECISIONS_URL
     assert req.headers["Authorization"] == "Bearer sk-test"
     body = json.loads(req.content)
     assert body == {
-        "model": settings.openrouter_decision_model,
+        "model": "typesafe/jev-default",
         "state": state,
         "questions": questions,
     }
@@ -171,6 +310,7 @@ def test_decide_model_override_and_extra(service_factory, requests_seen):
     service.decide(
         state="text",
         questions=NOUL_QUESTIONS,
+        task="t.decide",
         source="t",
         model="typesafe/jev-1.14",
         extra={"session_id": "abc"},
@@ -182,7 +322,7 @@ def test_decide_model_override_and_extra(service_factory, requests_seen):
 
 def test_decide_answer_type_mismatch_and_missing(service_factory):
     service = service_factory(lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "refusal"}})))
-    result = service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
+    result = service.decide(state="x", questions=NOUL_QUESTIONS, task="t.decide", source="t")
     with pytest.raises(OpenRouterError, match="expected a 'noul' answer"):
         result.noul("is_match")
     with pytest.raises(OpenRouterError, match="no answer"):
@@ -192,7 +332,7 @@ def test_decide_answer_type_mismatch_and_missing(service_factory):
 def test_decide_without_answers_marks_call_failed(service_factory, db_session):
     service = service_factory(lambda req: httpx.Response(200, json={"id": "x", "usage": {}}))
     with pytest.raises(OpenRouterError, match="no answers"):
-        service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
+        service.decide(state="x", questions=NOUL_QUESTIONS, task="t.decide", source="t")
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
 
@@ -200,13 +340,13 @@ def test_decide_without_answers_marks_call_failed(service_factory, db_session):
 def test_decide_requires_questions(service_factory):
     service = service_factory(lambda req: httpx.Response(200, json={}))
     with pytest.raises(ValueError):
-        service.decide(state="x", questions={}, source="t")
+        service.decide(state="x", questions={}, task="t.decide", source="t")
 
 
 def test_http_error_is_recorded(service_factory, db_session):
     service = service_factory(lambda req: httpx.Response(402, json={"error": {"message": "Insufficient credits"}}))
     with pytest.raises(OpenRouterError, match="402") as exc_info:
-        service.chat("hi", source="t")
+        service.chat("hi", task="t.chat", source="t")
     assert exc_info.value.status_code == 402
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
@@ -220,15 +360,15 @@ def test_transport_error_is_recorded(service_factory, db_session):
 
     service = service_factory(boom)
     with pytest.raises(OpenRouterError, match="no network"):
-        service.chat("hi", source="t")
+        service.chat("hi", task="t.chat", source="t")
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
 
 
 def test_missing_api_key(db_session):
-    service = OpenRouterService(db_session, Settings(openrouter_api_key="", cors_origins=[]))
-    with pytest.raises(OpenRouterNotConfigured):
-        service.chat("hi", source="t")
+    service = OpenRouterService(db_session, Settings(openrouter_api_key="", cors_origins=[]), llm_config=llm_config())
+    with pytest.raises(OpenRouterNotConfigured, match="OPENROUTER_API_KEY"):
+        service.chat("hi", task="t.chat", source="t")
     assert db_session.scalars(select(OpenRouterCall)).first() is None
 
 
@@ -247,6 +387,7 @@ def api(client, engine, settings, requests_seen):
             yield OpenRouterService(
                 session,
                 settings,
+                llm_config=llm_config(),
                 transport=_transport(lambda r: state["handler"](r), requests_seen),
             )
 

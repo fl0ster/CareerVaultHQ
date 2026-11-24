@@ -31,7 +31,7 @@ from rq.job import Job
 
 from app.config import Settings, get_settings
 from app.queue import get_queue
-from app.tasks.cv_import import CvImportResult, import_cv
+from app.tasks.cv_import import CvImportResult, import_cv, import_timeout
 
 log = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def start_import(
             import_cv,
             str(path),
             job_id=uuid.uuid4().hex,
-            job_timeout=int(settings.openrouter_timeout) + 120,
+            job_timeout=import_timeout(settings),
             result_ttl=settings.job_result_ttl,
             failure_ttl=settings.job_result_ttl,
             meta={"kind": JOB_KIND, "filename": (file.filename or "")[:256] or None},

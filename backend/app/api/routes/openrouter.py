@@ -30,6 +30,9 @@ router = APIRouter()
 
 SOURCE_CHAT = "api.openrouter.chat"
 SOURCE_DECIDE = "api.openrouter.decide"
+# ``llm.toml`` tasks giving the defaults the request fields override.
+TASK_CHAT = "api.chat"
+TASK_DECIDE = "api.decide"
 
 
 class ChatMessage(BaseModel):
@@ -50,7 +53,7 @@ class _RequestBase(BaseModel):
     system: str | None = None
     messages: list[ChatMessage] | None = None
     model: str | None = None
-    """Overrides the default model from settings."""
+    """Overrides the model of the ``api.chat`` task in ``llm.toml``."""
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1)
     source: str | None = Field(default=None, max_length=128)
@@ -76,7 +79,7 @@ class DecideRequest(BaseModel):
     questions: dict[str, dict[str, Any]] = Field(min_length=1)
     """Name -> question, e.g. ``{"type": "noul", "instructions": ..., "criteria": {...}}``."""
     model: str | None = None
-    """Overrides ``OPENROUTER_DECISION_MODEL``."""
+    """Overrides the model of the ``api.decide`` task in ``llm.toml``."""
     extra: dict[str, Any] | None = None
     """Merged into the request body (``assets``, ``provider``, ``trace``, ...)."""
     source: str | None = Field(default=None, max_length=128)
@@ -194,7 +197,7 @@ def _http_error(exc: OpenRouterError) -> HTTPException:
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]) -> ChatResponse:
     try:
-        result = service.chat(source=payload.source or SOURCE_CHAT, **_kwargs(payload))
+        result = service.chat(task=TASK_CHAT, source=payload.source or SOURCE_CHAT, **_kwargs(payload))
     except OpenRouterError as exc:
         raise _http_error(exc) from exc
     return ChatResponse(
@@ -211,6 +214,7 @@ def decide(payload: DecideRequest, service: Annotated[OpenRouterService, Depends
         result = service.decide(
             state=payload.state,
             questions=payload.questions,
+            task=TASK_DECIDE,
             source=payload.source or SOURCE_DECIDE,
             model=payload.model,
             extra=payload.extra,

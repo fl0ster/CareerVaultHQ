@@ -21,6 +21,10 @@ services:
       # Generated CVs (app.tasks.cv); same volume as the worker's.
       CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Own OpenAI-compatible chat model (see docs/llm.md): key, if the server needs one ...
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      # ... and a tuned copy of app/llm.toml on the data volume (same on the worker).
+      # LLM_CONFIG_PATH: /data/llm.toml
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -43,6 +47,8 @@ services:
       LATEX_TIMEOUT: "300"
       CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      # LLM_CONFIG_PATH: /data/llm.toml
     volumes:
       - careervaulthq-data:/data
     depends_on:

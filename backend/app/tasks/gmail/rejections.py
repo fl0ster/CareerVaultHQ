@@ -73,6 +73,9 @@ log = logging.getLogger(__name__)
 
 SOURCE = "tasks.gmail_rejections"
 """``openrouter_calls.source`` label for calls made by this task."""
+REJECTION_TASK = "gmail.rejection"
+COMPANY_ROLE_TASK = "gmail.company_role"
+"""``llm.toml`` tasks of the rejection decision and the company/role extraction."""
 
 COMPANY_THRESHOLD = 0.85
 """Minimum company-name similarity (0-1) for an application to be a candidate."""
@@ -277,7 +280,9 @@ def _mail_state(message: GmailMessage) -> dict[str, Any]:
 
 
 def rejection_probability(service: OpenRouterService, message: GmailMessage) -> float:
-    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True)
+    decision = service.decide(
+        state=_mail_state(message), questions=QUESTIONS, task=REJECTION_TASK, source=SOURCE, private=True
+    )
     return decision.noul(QUESTION_NAME)
 
 
@@ -293,7 +298,7 @@ def extract_company_and_role(
     reply = service.chat(
         EXTRACTION_PROMPT.format(about=about, sender=message.sender, subject=message.subject, body=message.body),
         system=EXTRACTION_SYSTEM,
-        temperature=0,
+        task=COMPANY_ROLE_TASK,
         source=source,
         private=True,
     ).text

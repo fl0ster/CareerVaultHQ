@@ -5,7 +5,7 @@ Pipeline:
 1. ``extract_pdf``: the text layer (``pypdf``, plain content-stream order) plus the URIs of
    the link annotations, which often carry the LinkedIn / GitHub address behind a label.
    A PDF without a usable text layer (a scan) is rejected; there is no OCR.
-2. ``extract_cv``: one chat completion at ``temperature=0`` asking for a strict JSON schema
+2. ``extract_cv``: one chat completion (``llm.toml`` task ``cv_import.extract``) asking for a strict JSON schema
    (``prompts.RESPONSE_FORMAT``), sent with ``private=True`` so the CV is not stored in
    ``openrouter_calls``.
 3. Lenient post-processing: every section is validated on its own, dropping (with a
@@ -32,7 +32,6 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 from pypdf import PageObject, PdfReader
 
-from app.config import Settings
 from app.schemas.candidate_details import CandidateDetailsIn, LanguageEntry
 from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.services.openrouter import OpenRouterService
@@ -42,6 +41,8 @@ log = logging.getLogger(__name__)
 
 CV_IMPORT_SOURCE = "tasks.cv_import"
 """``source`` label of the OpenRouter call."""
+CV_IMPORT_TASK = "cv_import.extract"
+"""``llm.toml`` task: model and parameters of the extraction."""
 
 CURRENT_MARKERS = {"present", "current", "now", "today", "ongoing", "obecnie", "teraz", "nadal"}
 """``date_end`` values meaning the position is current."""
@@ -472,16 +473,15 @@ def build_result(data: dict[str, Any], pdf: PdfText) -> CvImportResult:
     )
 
 
-def extract_cv(service: OpenRouterService, pdf: PdfText, settings: Settings) -> CvImportResult:
+def extract_cv(service: OpenRouterService, pdf: PdfText) -> CvImportResult:
     """Ask the model for the CV's data and validate it. Raises ``CvImportError`` when the
     reply is not JSON; OpenRouter errors propagate."""
     links = "\n".join(f"- {link}" for link in pdf.links) or "(none)"
     reply = service.chat(
         CV_IMPORT_PROMPT.format(text=pdf.text, links=links),
         system=CV_IMPORT_SYSTEM,
-        model=settings.cv_import_model or None,
-        temperature=0,
         extra={"response_format": RESPONSE_FORMAT},
+        task=CV_IMPORT_TASK,
         source=CV_IMPORT_SOURCE,
         private=True,
     ).text

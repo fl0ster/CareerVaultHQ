@@ -68,6 +68,8 @@ log = logging.getLogger(__name__)
 
 SOURCE = "tasks.cv"
 """Prefix of the ``openrouter_calls.source`` labels used by this task."""
+TASK_PREFIX = "cv"
+"""Prefix of the ``llm.toml`` tasks of the pipeline steps (``cv.relevance``, ``cv.summary``, ...)."""
 
 TEX_NAME = "cv.tex"
 
@@ -188,7 +190,6 @@ class Llm:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
-        self.model = self.settings.cv_chat_model or None
         self.call_ids: list[int] = []
         """``openrouter_calls.id`` of every successful call, so the cost can be summed."""
         self._lock = threading.Lock()
@@ -226,16 +227,16 @@ class Llm:
         user: str,
         *,
         source: str,
-        temperature: float,
     ) -> str | None:
+        """``source`` names the step: the call is task ``cv.<source>`` in ``llm.toml``
+        and is recorded as ``tasks.cv.<source>``."""
         for attempt in range(1, self.ATTEMPTS + 1):
             try:
                 result = service.chat(
                     user,
                     system=system,
+                    task=f"{TASK_PREFIX}.{source}",
                     source=f"{SOURCE}.{source}",
-                    model=self.model,
-                    temperature=temperature,
                 )
             except OpenRouterNotConfigured:
                 raise
@@ -259,7 +260,9 @@ class Llm:
     ) -> dict[str, dict[str, Any]] | None:
         for attempt in range(1, self.ATTEMPTS + 1):
             try:
-                result = service.decide(state=state, questions=questions, source=f"{SOURCE}.{source}")
+                result = service.decide(
+                    state=state, questions=questions, task=f"{TASK_PREFIX}.{source}", source=f"{SOURCE}.{source}"
+                )
             except OpenRouterNotConfigured:
                 raise
             except OpenRouterError as exc:
@@ -328,7 +331,7 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
-        return lambda service: llm.chat(service, prompts.CONTEXT_SYSTEM_PROMPT, message, source="context", temperature=0.3)
+        return lambda service: llm.chat(service, prompts.CONTEXT_SYSTEM_PROMPT, message, source="context")
 
     def tech_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         subset = {k: entry.get(k) for k in ("tech", "context")}
@@ -336,7 +339,7 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
             f"JOB DESCRIPTION:\n{job_description}\n\n"
             f"TECHNOLOGY AND CONTEXT:\n{json.dumps(subset, indent=2, ensure_ascii=False)}"
         )
-        return lambda service: llm.chat(service, prompts.TECH_SYSTEM_PROMPT, message, source="tech", temperature=0.3)
+        return lambda service: llm.chat(service, prompts.TECH_SYSTEM_PROMPT, message, source="tech")
 
     results = llm.run_all([context_call(e) for e in entries] + [tech_call(e) for e in entries])
     contexts, techs = results[: len(entries)], results[len(entries) :]
@@ -363,7 +366,7 @@ def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, wa
 
     def call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "EARLIER POSITION")
-        return lambda service: llm.chat(service, prompts.EARLY_SYSTEM_PROMPT, message, source="early", temperature=0.3)
+        return lambda service: llm.chat(service, prompts.EARLY_SYSTEM_PROMPT, message, source="early")
 
     results = llm.run_all([call(e) for e in entries])
     condensed = []
@@ -410,7 +413,7 @@ def categorize_technologies(
     if not technologies:
         return []
     message = f"JOB DESCRIPTION:\n{job_description}\n\nTECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
-    reply = llm.chat(service, prompts.CATEGORIES_SYSTEM_PROMPT, message, source="categories", temperature=0.2)
+    reply = llm.chat(service, prompts.CATEGORIES_SYSTEM_PROMPT, message, source="categories")
     categories = _parse_categories(reply) if reply else None
     if categories is None:
         warnings.append("technologies could not be categorised; listed in one category")
@@ -445,7 +448,7 @@ def generate_summary(
     warnings: list[str],
 ) -> str:
     message = f"JOB DESCRIPTION:\n{job_description}\n\nWORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
-    reply = llm.chat(service, prompts.SUMMARY_SYSTEM_PROMPT, message, source="summary", temperature=0.2)
+    reply = llm.chat(service, prompts.SUMMARY_SYSTEM_PROMPT, message, source="summary")
     if not reply:
         warnings.append("summary could not be generated; left empty")
         return ""
@@ -466,7 +469,7 @@ def pick_headline_role(
     """Job-tailored, experience-consistent headline title; the latest role on failure."""
     fallback = str((history[0].get("role") if history else "") or "").strip()
     message = f"JOB DESCRIPTION:\n{job_description}\n\nWORK HISTORY:\n{json.dumps(history, ensure_ascii=False, indent=1)}"
-    reply = llm.chat(service, prompts.ROLE_SYSTEM_PROMPT, message, source="role", temperature=0.2)
+    reply = llm.chat(service, prompts.ROLE_SYSTEM_PROMPT, message, source="role")
     if not reply:
         warnings.append("headline role could not be picked; used the latest role")
         return fallback
@@ -489,7 +492,7 @@ def pick_core_technologies(
     if not technologies:
         return []
     message = f"JOB DESCRIPTION:\n{job_description}\n\nTECHNOLOGIES:\n{json.dumps(technologies, ensure_ascii=False)}"
-    reply = llm.chat(service, prompts.CORE_TECH_SYSTEM_PROMPT, message, source="core_tech", temperature=0.2)
+    reply = llm.chat(service, prompts.CORE_TECH_SYSTEM_PROMPT, message, source="core_tech")
     if not reply:
         warnings.append("core technologies could not be picked; used the first ones listed")
         return fallback

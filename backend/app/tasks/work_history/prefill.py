@@ -33,6 +33,8 @@ log = logging.getLogger(__name__)
 
 SOURCE = "tasks.work_history.prefill"
 """``openrouter_calls.source`` label of the chat call."""
+TASK = "work_history.prefill"
+"""``llm.toml`` task: model and parameters of the chat call."""
 PREFILL_TIMEOUT = 300
 """RQ ``job_timeout`` (seconds): a single chat call."""
 MAX_DESCRIPTION_CHARS = 20000
@@ -158,7 +160,7 @@ def prefill(session: Session, entry: WorkHistoryEntry, service: OpenRouterServic
         session.commit()
         return entry
     try:
-        reply = service.chat(build_prompt(application), system=SYSTEM, temperature=0, source=SOURCE).text
+        reply = service.chat(build_prompt(application), system=SYSTEM, task=TASK, source=SOURCE).text
     except OpenRouterError:
         log.exception("Could not prefill work-history entry %d", entry_id)
         state, data = WorkHistoryEntry.PREFILL_FAILED, None

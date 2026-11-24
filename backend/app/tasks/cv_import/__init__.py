@@ -13,14 +13,25 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import init_db, session_factory
+from app.services.llm.config import KIND_CHAT, get_llm_config
 from app.services.openrouter import OpenRouterService
-from app.tasks.cv_import.extract import CvImportError, CvImportResult, extract_cv, extract_pdf
+from app.tasks.cv_import.extract import CV_IMPORT_TASK, CvImportError, CvImportResult, extract_cv, extract_pdf
 
 log = logging.getLogger(__name__)
 
-__all__ = ["CvImportError", "CvImportResult", "import_cv"]
+__all__ = ["CvImportError", "CvImportResult", "import_cv", "import_timeout"]
+
+PDF_PARSE_SECONDS = 120
+"""Headroom over the LLM call for reading the PDF on the Pi."""
+
+
+def import_timeout(settings: Settings) -> int:
+    """RQ ``job_timeout`` (seconds) of ``import_cv``: the extraction provider's request
+    timeout plus the PDF parsing."""
+    provider = get_llm_config(settings.llm_config_path).resolve(CV_IMPORT_TASK, KIND_CHAT).provider
+    return int(provider.timeout) + PDF_PARSE_SECONDS
 
 
 def _remove_upload(path: Path) -> None:
@@ -45,7 +56,7 @@ def import_cv(path: str) -> dict[str, Any]:
         )
         init_db()
         with session_factory()() as session:
-            result = extract_cv(OpenRouterService(session, settings), pdf, settings)
+            result = extract_cv(OpenRouterService(session, settings), pdf)
     finally:
         _remove_upload(pdf_path)
     log.info("Imported CV: %d positions, %d warnings", len(result.work_history), len(result.warnings))

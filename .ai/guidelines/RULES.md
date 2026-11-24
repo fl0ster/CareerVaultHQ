@@ -10,7 +10,7 @@
 ## Architecture & Code Organization
 
 - **Thin Routers (`backend/app/api/routes/`):** Routes should only handle HTTP parsing, validation (Pydantic v2), dependency injection, and response serialization. Flag business logic or direct complex ORM queries placed inside route handlers instead of `services/` or `tasks/`.
-- **LLM Integration:** All LLM calls **must** go through `OpenRouterService` (which logs usage/costs to `openrouter_calls`). Flag any direct calls to OpenAI, Anthropic, `httpx`/`requests` to LLM endpoints, or bypassing of `OpenRouterService`.
+- **LLM Integration:** All LLM calls **must** go through `OpenRouterService` (which logs usage/costs to `openrouter_calls`) with a `task` key; new providers implement the `ChatProvider` / `DecisionProvider` protocols in `app/services/llm/providers.py`. Models and sampling parameters (`model`, `temperature`, `max_tokens`, ...) belong in `backend/app/llm.toml` only: flag them hard-coded at call sites, and flag a new task key without a `[tasks."..."]` entry (with `kind` and `description`). Flag any direct calls to OpenAI, Anthropic, `httpx`/`requests` to LLM endpoints, or bypassing of `OpenRouterService`.
 - **Scrape Sources (`backend/app/tasks/scrape/sources/`):** New job board plugins (`<key>.py`) must adhere to the contract defined in the package docstring and properly sync/mirror into the `scrape_sources` table.
 - **Frontend Structure (`frontend/src/<feature>/`):** Code should be organized by feature folder (containing its own `api.ts`, components, and CSS) using React 19 and strict TypeScript.
 

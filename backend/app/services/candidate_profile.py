@@ -23,6 +23,8 @@ log = logging.getLogger(__name__)
 
 SOURCE = "candidate_profile.create"
 """``openrouter_calls.source`` label for profile generation."""
+TASK = "candidate_profile.create"
+"""``llm.toml`` task: model and parameters of profile generation."""
 
 PROFILE_SYSTEM_PROMPT = (
     "You are an expert technical recruiter. You write candidate profiles based on the "
@@ -106,7 +108,7 @@ def current_profile(session: Session, ai_service: OpenRouterService) -> tuple[Ca
 
     log.info("Work history changed or no profile yet; generating a new candidate profile")
     prompt = PROFILE_PROMPT.format(work_history=json.dumps(work_history, indent=2))
-    result = ai_service.chat(prompt, system=PROFILE_SYSTEM_PROMPT, source=SOURCE)
+    result = ai_service.chat(prompt, system=PROFILE_SYSTEM_PROMPT, task=TASK, source=SOURCE)
     content = result.text.strip()
     if not content:
         raise OpenRouterError("empty response from OpenRouter")

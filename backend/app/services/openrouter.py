@@ -1,17 +1,20 @@
-"""OpenRouter client shared by the API routes and the background tasks.
+"""LLM client shared by the API routes and the background tasks.
 
-Two kinds of call are supported:
+Despite the name (kept so the many callers and the ``openrouter_calls`` table need not
+change), the provider behind each call is chosen in ``llm.toml`` (``app.services.llm``):
+OpenRouter, or any OpenAI-compatible server for chat tasks. Two kinds of call:
 
-* :meth:`OpenRouterService.chat` - plain chat completion (``/v1/chat/completions``) that
-  returns text.
-* :meth:`OpenRouterService.decide` - Jev Decisions API (``/alpha/decisions``): a ``state``
-  plus named typed questions (``noul``/``choice``/``score``/``box``) answered with
-  probabilities instead of free text. See https://openrouter.ai/docs/guides/community/jev.
+* :meth:`OpenRouterService.chat` - plain chat completion that returns text, answered by
+  the task's ``ChatProvider``.
+* :meth:`OpenRouterService.decide` - a probability ("decision") model: a ``state`` plus
+  named typed questions (``noul``/``choice``/``score``/``box``) answered with probabilities
+  instead of free text, by the task's ``DecisionProvider`` (OpenRouter's Jev Decisions
+  API, https://openrouter.ai/docs/guides/community/jev).
 
-Every request, successful or not, is persisted to ``openrouter_calls`` together with the
-caller's ``source`` label, the request body, the raw response and the cost reported by
-the API (``usage.cost``; chat requests ask for it via ``usage: {"include": true}``, the
-decisions endpoint always returns it).
+Every call names a ``task`` (its key in ``llm.toml``, which sets the provider, model and
+parameters) and a ``source`` (the audit label). Every request, successful or not, is
+persisted to ``openrouter_calls`` with the source, the request body, the raw response and
+the cost reported by the API (``usage.cost``; ``None`` for providers that report none).
 
 Usage from another route or task::
 
@@ -19,11 +22,12 @@ Usage from another route or task::
     from app.services.openrouter import OpenRouterService
 
     service = OpenRouterService(session)             # anywhere a Session is at hand
-    text = service.chat("Summarise this", source="tasks.parse").text
+    text = service.chat("Summarise this", task="parse.technologies", source="tasks.parse").text
 
     decision = service.decide(
         state={"candidate_profile": profile, "job_description": description},
         questions={"is_match": {"type": "noul", "instructions": "Is this a good match?"}},
+        task="evaluate.match",
         source="tasks.evaluate",
     )
     probability = decision.noul("is_match")
@@ -43,20 +47,23 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_session
 from app.models import OpenRouterCall
+from app.services.llm.config import KIND_CHAT, KIND_DECISION, Kind, LlmConfig, ResolvedTask, get_llm_config
+from app.services.llm.errors import LlmConfigError, OpenRouterError, OpenRouterNotConfigured
+from app.services.llm.providers import HttpRequest, Message, build_chat_provider, build_decision_provider
 
-Message = dict[str, Any]
-
-
-class OpenRouterError(Exception):
-    """Raised when OpenRouter cannot be called or returns an unusable response."""
-
-    def __init__(self, message: str, *, status_code: int | None = None) -> None:
-        super().__init__(message)
-        self.status_code = status_code
-
-
-class OpenRouterNotConfigured(OpenRouterError):
-    """``OPENROUTER_API_KEY`` is empty."""
+__all__ = [
+    "ChatResult",
+    "DecisionResult",
+    "LlmConfigError",
+    "Message",
+    "OpenRouterError",
+    "OpenRouterNotConfigured",
+    "OpenRouterService",
+    "Usage",
+    "build_messages",
+    "get_openrouter",
+    "redact_input",
+]
 
 
 @dataclass(slots=True)
@@ -69,7 +76,7 @@ class Usage:
     @classmethod
     def from_response(cls, body: dict[str, Any]) -> Usage:
         """Chat completions report ``prompt_tokens``/``completion_tokens``; the decisions
-        endpoint reports ``input_tokens``/``output_tokens``. Both carry ``cost``."""
+        endpoint reports ``input_tokens``/``output_tokens``. OpenRouter adds ``cost``."""
         usage = body.get("usage") or {}
         prompt = _as_int(usage.get("prompt_tokens", usage.get("input_tokens")))
         completion = _as_int(usage.get("completion_tokens", usage.get("output_tokens")))
@@ -148,10 +155,12 @@ def build_messages(prompt: str, system: str | None = None) -> list[Message]:
 
 
 class OpenRouterService:
-    """Thin synchronous wrapper around the OpenRouter chat completions endpoint.
+    """Synchronous LLM client: resolves a task in ``llm.toml``, lets the task's provider
+    build the request, sends it and records it.
 
-    ``session`` is used only to record calls; the caller owns its lifecycle. ``transport``
-    lets tests inject an ``httpx.MockTransport``.
+    ``session`` is used only to record calls; the caller owns its lifecycle. ``llm_config``
+    overrides the file at ``settings.llm_config_path``; ``transport`` lets tests inject an
+    ``httpx.MockTransport``.
     """
 
     def __init__(
@@ -159,11 +168,21 @@ class OpenRouterService:
         session: Session,
         settings: Settings | None = None,
         *,
+        llm_config: LlmConfig | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.session = session
         self.settings = settings or get_settings()
+        self._llm_config = llm_config
         self._transport = transport
+
+    @property
+    def llm_config(self) -> LlmConfig:
+        return self._llm_config or get_llm_config(self.settings.llm_config_path)
+
+    def resolve(self, task: str, kind: Kind) -> ResolvedTask:
+        """Provider, model and parameters ``llm.toml`` sets for ``task``."""
+        return self.llm_config.resolve(task, kind)
 
     # --- public API -------------------------------------------------------------------
 
@@ -171,6 +190,7 @@ class OpenRouterService:
         self,
         prompt: str | None = None,
         *,
+        task: str,
         source: str,
         messages: list[Message] | None = None,
         system: str | None = None,
@@ -180,28 +200,29 @@ class OpenRouterService:
         extra: dict[str, Any] | None = None,
         private: bool = False,
     ) -> ChatResult:
-        """Free-text chat completion. Pass either ``prompt`` (+ optional ``system``) or a
-        full ``messages`` list. With ``private`` the user/assistant message contents are not
-        stored in ``openrouter_calls.input`` (see ``redact_input``)."""
-        body = self._body(
-            model or self.settings.openrouter_chat_model,
+        """Free-text chat completion for ``task``. Pass either ``prompt`` (+ optional
+        ``system``) or a full ``messages`` list. ``model``/``temperature``/``max_tokens``
+        override the task's config and ``extra`` is merged over its ``extra``. With
+        ``private`` the user/assistant message contents are not stored in
+        ``openrouter_calls.input`` (see ``redact_input``)."""
+        resolved = self.resolve(task, KIND_CHAT)
+        provider = build_chat_provider(resolved.provider_name, resolved.provider, self.settings)
+        request = provider.chat_request(
+            model or resolved.model,
             self._messages(prompt, messages, system),
-            temperature=temperature,
-            max_tokens=max_tokens,
-            extra=extra,
+            temperature=temperature if temperature is not None else resolved.temperature,
+            max_tokens=max_tokens if max_tokens is not None else resolved.max_tokens,
+            extra={**resolved.extra, **(extra or {})},
         )
-        url = f"{self.settings.openrouter_base_url.rstrip('/')}/chat/completions"
-        raw, usage, call = self._call(
-            url,
-            body,
-            source=source,
-            kind=OpenRouterCall.KIND_CHAT,
-            result_key="choices",
-            private=private,
-        )
+        raw, usage, call = self._call(request, source=source, kind=OpenRouterCall.KIND_CHAT, private=private)
+        try:
+            text = provider.chat_text(raw)
+        except OpenRouterError as exc:
+            self._mark_failed(call, str(exc))
+            raise
         return ChatResult(
-            text=self._content(raw),
-            model=raw.get("model", body["model"]),
+            text=text,
+            model=raw.get("model", request.body["model"]),
             usage=usage,
             call_id=call.id,
             raw=raw,
@@ -212,41 +233,37 @@ class OpenRouterService:
         *,
         state: str | dict[str, Any] | list[Any],
         questions: dict[str, dict[str, Any]],
+        task: str,
         source: str,
         model: str | None = None,
         extra: dict[str, Any] | None = None,
         private: bool = False,
     ) -> DecisionResult:
-        """Jev Decisions API call. ``state`` is the content to judge (string, object or
-        array); ``questions`` maps a name of your choice to a question such as
+        """Probability-model call for ``task``. ``state`` is the content to judge (string,
+        object or array); ``questions`` maps a name of your choice to a question such as
         ``{"type": "noul", "instructions": "...", "criteria": {"true": "...", "false": "..."}}``.
         ``extra`` is merged into the request body (``assets``, ``provider``, ``trace``, ...).
         With ``private`` the ``state`` is not stored in ``openrouter_calls.input``.
         """
         if not questions:
             raise ValueError("at least one question is required")
-        body: dict[str, Any] = {
-            "model": model or self.settings.openrouter_decision_model,
-            "state": state,
-            "questions": questions,
-        }
-        if extra:
-            body.update(extra)
-        raw, usage, call = self._call(
-            self.settings.openrouter_decisions_url,
-            body,
-            source=source,
-            kind=OpenRouterCall.KIND_DECISION,
-            result_key="answers",
-            private=private,
+        resolved = self.resolve(task, KIND_DECISION)
+        provider = build_decision_provider(resolved.provider_name, resolved.provider, self.settings)
+        request = provider.decision_request(
+            model or resolved.model,
+            state,
+            questions,
+            extra={**resolved.extra, **(extra or {})},
         )
-        answers = raw.get("answers")
-        if not isinstance(answers, dict):
-            self._mark_failed(call, "response has no answers object")
-            raise OpenRouterError("response has no answers object")
+        raw, usage, call = self._call(request, source=source, kind=OpenRouterCall.KIND_DECISION, private=private)
+        try:
+            answers = provider.decision_answers(raw)
+        except OpenRouterError as exc:
+            self._mark_failed(call, str(exc))
+            raise
         return DecisionResult(
             answers=answers,
-            model=raw.get("model", body["model"]),
+            model=raw.get("model", request.body["model"]),
             usage=usage,
             call_id=call.id,
             raw=raw,
@@ -262,66 +279,17 @@ class OpenRouterService:
             raise ValueError("either prompt or messages is required")
         return build_messages(prompt, system)
 
-    @staticmethod
-    def _body(
-        model: str,
-        messages: list[Message],
-        *,
-        temperature: float | None,
-        max_tokens: int | None,
-        extra: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            # Ask OpenRouter to include the cost of the call in the response.
-            "usage": {"include": True},
-        }
-        if temperature is not None:
-            body["temperature"] = temperature
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if extra:
-            body.update(extra)
-        return body
-
-    @staticmethod
-    def _content(raw: dict[str, Any]) -> str:
-        try:
-            content = raw["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise OpenRouterError("response has no choices[0].message.content") from exc
-        if isinstance(content, list):  # multi-part content; keep the text parts
-            content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-        return content if isinstance(content, str) else str(content)
-
-    def _headers(self) -> dict[str, str]:
-        headers = {
-            "Authorization": f"Bearer {self.settings.openrouter_api_key}",
-            "Content-Type": "application/json",
-        }
-        if self.settings.openrouter_site_url:
-            headers["HTTP-Referer"] = self.settings.openrouter_site_url
-        if self.settings.openrouter_site_name:
-            headers["X-Title"] = self.settings.openrouter_site_name
-        return headers
-
     def _call(
         self,
-        url: str,
-        body: dict[str, Any],
+        request: HttpRequest,
         *,
         source: str,
         kind: str,
-        result_key: str,
         private: bool = False,
     ) -> tuple[dict[str, Any], Usage, OpenRouterCall]:
-        """POST ``body`` to ``url``, record the call and return the parsed JSON response.
-        ``result_key`` is the field a successful response must contain; with ``private``
-        the recorded input is ``redact_input(body)``."""
-        if not self.settings.openrouter_api_key:
-            raise OpenRouterNotConfigured("OPENROUTER_API_KEY is not set")
-
+        """POST ``request``, record the call and return the parsed JSON response. With
+        ``private`` the recorded input is ``redact_input(body)``."""
+        body = request.body
         call = OpenRouterCall(
             source=source,
             kind=kind,
@@ -333,11 +301,11 @@ class OpenRouterService:
 
         started = time.perf_counter()
         try:
-            with httpx.Client(timeout=self.settings.openrouter_timeout, transport=self._transport) as client:
-                response = client.post(url, json=body, headers=self._headers())
+            with httpx.Client(timeout=request.timeout, transport=self._transport) as client:
+                response = client.post(request.url, json=body, headers=request.headers)
         except httpx.HTTPError as exc:
             self._mark_failed(call, f"request failed: {exc}", started)
-            raise OpenRouterError(f"OpenRouter request failed: {exc}") from exc
+            raise OpenRouterError(f"LLM request failed: {exc}") from exc
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         try:
@@ -348,14 +316,14 @@ class OpenRouterService:
             detail = self._error_detail(raw, response.text)
             self._mark_failed(call, f"HTTP {response.status_code}: {detail}", started, raw)
             raise OpenRouterError(
-                f"OpenRouter returned HTTP {response.status_code}: {detail}",
+                f"LLM provider returned HTTP {response.status_code}: {detail}",
                 status_code=response.status_code,
             )
         # OpenRouter may answer 200 with an ``error`` object (e.g. provider failure).
-        if "error" in raw and result_key not in raw:
+        if "error" in raw and request.result_key not in raw:
             detail = self._error_detail(raw, response.text)
             self._mark_failed(call, detail, started, raw)
-            raise OpenRouterError(f"OpenRouter error: {detail}")
+            raise OpenRouterError(f"LLM provider error: {detail}")
 
         usage = Usage.from_response(raw)
         call.status = OpenRouterCall.STATUS_OK

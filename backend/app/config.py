@@ -52,9 +52,8 @@ class Settings(BaseSettings):
     # Where generated CVs are written (``<cv_root>/<generated_cv_id>/cv.{tex,pdf}``);
     # shared by API and worker.
     cv_root: Path = BACKEND_DIR / "static" / "cv"
-    # Chat model used to tailor the work history; empty = ``openrouter_chat_model``.
-    cv_chat_model: str = ""
-    # How many OpenRouter requests one generation keeps in flight at once.
+    # How many LLM requests one generation keeps in flight at once (lower it for a local
+    # model server that handles one request at a time).
     cv_max_workers: int = 4
     # Hard limit for one generation (RQ ``job_timeout``, seconds): dozens of LLM calls plus
     # pdflatex, which is slow on the Pi.
@@ -83,24 +82,16 @@ class Settings(BaseSettings):
     cv_import_max_chars: int = 60_000
     # Fewer non-whitespace characters than this means the PDF has no text layer (a scan).
     cv_import_min_text_chars: int = 200
-    # Chat model that extracts the data; empty = ``openrouter_chat_model``.
-    cv_import_model: str = ""
 
-    # --- OpenRouter (LLM calls) ---
-    # API key from https://openrouter.ai/keys. Calls fail with 503 when it is empty.
+    # --- LLM calls (app.services.openrouter / app.services.llm) ---
+    # Providers, models and parameters of every LLM task live in this TOML file (see
+    # docs/llm.md). Point it at a copy on the /data volume to tune it without rebuilding.
+    llm_config_path: Path = BACKEND_DIR / "app" / "llm.toml"
+    # API keys stay in the environment; llm.toml names them by env var (``api_key_env``).
+    # OpenRouter key from https://openrouter.ai/keys; calls fail with 503 when it is empty.
     openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Default model for free-text chat completions.
-    openrouter_chat_model: str = "openai/gpt-4o-mini"
-    # Jev Decisions API (https://openrouter.ai/docs/guides/community/jev): typed answers
-    # (probabilities) to questions about a ``state`` instead of free text.
-    openrouter_decisions_url: str = "https://openrouter.ai/api/alpha/decisions"
-    openrouter_decision_model: str = "typesafe/jev-1.14"
-    # Per-request HTTP timeout (seconds).
-    openrouter_timeout: float = 120.0
-    # Optional attribution headers shown on openrouter.ai rankings.
-    openrouter_site_url: str = ""
-    openrouter_site_name: str = "CareerVaultHQ"
+    # Optional key for a self-hosted / other OpenAI-compatible chat provider.
+    local_llm_api_key: str = ""
 
     # --- Job evaluation (app.tasks.evaluate / app.scheduler) ---
     # How often the scheduler enqueues a catch-up ``evaluate_pending_jobs`` run (seconds).
@@ -139,7 +130,13 @@ class Settings(BaseSettings):
         return value
 
     @field_validator(
-        "frontend_dist", "latex_upload_root", "latex_jobs_root", "cv_root", "cv_import_upload_root", mode="before"
+        "frontend_dist",
+        "latex_upload_root",
+        "latex_jobs_root",
+        "cv_root",
+        "cv_import_upload_root",
+        "llm_config_path",
+        mode="before",
     )
     @classmethod
     def _resolve_path(cls, value: object) -> object:
