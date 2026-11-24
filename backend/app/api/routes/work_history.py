@@ -7,8 +7,9 @@ list of technology names. An entry starting in the future is ``pending``: it is 
 of CVs and the candidate profile until it starts.
 Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
-A position's employer is matched (read-only) against the known companies: ``company_id`` and
-``company_tag`` name the match, and ``GET /companies`` lists every company in the career.
+A position's employer is resolved to its company (created when it is not known yet, like a
+company scraped from a job page): ``company_id`` and ``company_tag`` name it, and
+``GET /companies`` lists every company in the career.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ from app.schemas.work_history import (
     _check_employer,
     _format_month,
 )
-from app.services.companies import find_company, normalize_company_name
+from app.services.companies import MATCH_ALIAS, normalize_company_name, resolve_company
 
 router = APIRouter()
 
@@ -59,8 +60,8 @@ class WorkHistoryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     company_id: int | None = None
-    """The known company the position's employer matches (always ``None`` for education
-    and certificates)."""
+    """The company of the position's employer (always ``None`` for education and
+    certificates)."""
     company_tag: str | None = None
     """That company's tag."""
 
@@ -73,10 +74,12 @@ class CareerCompany(BaseModel):
 
 
 def _match_companies(session: Session, entries: list[WorkHistoryEntry]) -> dict[int, Company]:
-    """``{entry_id: company}`` for the positions whose employer matches a known company.
-    Read-only: no company is created for an employer seen only in the career."""
+    """``{entry_id: company}`` for the positions, resolving each employer with
+    ``resolve_company``: an employer seen only in the career becomes a company too, so it can
+    be tagged like any other. New companies and aliases are committed."""
     by_name: dict[str, Company | None] = {}
     matched: dict[int, Company] = {}
+    added = False
     for entry in entries:
         if entry.kind != WorkHistoryEntry.KIND_JOB:
             continue
@@ -84,9 +87,14 @@ def _match_companies(session: Session, entries: list[WorkHistoryEntry]) -> dict[
         if not key:
             continue
         if key not in by_name:
-            by_name[key] = find_company(session, entry.employer)
+            match = resolve_company(session, entry.employer)
+            by_name[key] = match.company if match else None
+            # Anything but a known alias adds rows (an alias, maybe a company).
+            added = added or (match is not None and match.match_kind != MATCH_ALIAS)
         if (company := by_name[key]) is not None:
             matched[entry.id] = company
+    if added:
+        session.commit()
     return matched
 
 

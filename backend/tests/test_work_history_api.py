@@ -232,22 +232,31 @@ def test_positions_are_matched_to_known_companies(client, db_session):
 
     job = client.post(BASE, json=ENTRY).json()
     assert (job["company_id"], job["company_tag"]) == (acme.id, "favourite")
-    unknown = client.post(BASE, json={**ENTRY, "employer": "Nowhere Ltd"}).json()
-    assert (unknown["company_id"], unknown["company_tag"]) == (None, None)
-    school = client.post(BASE, json={**ENTRY, "kind": "education", "role": "MSc"}).json()
-    assert school["company_id"] is None  # only positions are matched
+    # An employer seen only in the career becomes a company, so it can be tagged too.
+    new = client.post(
+        BASE, json={**ENTRY, "employer": "Nowhere Ltd", "date_start": "2010-01-01", "date_end": "2011-01-01"}
+    ).json()
+    assert new["company_id"] not in (None, acme.id)
+    assert new["company_tag"] is None
+    school = client.post(BASE, json={**ENTRY, "kind": "education", "employer": "MIT", "role": "MSc"}).json()
+    assert school["company_id"] is None  # only positions are companies
     current = client.post(BASE, json={**ENTRY, "role": "Lead", "date_start": "2023-07-01", "date_end": None}).json()
 
     listed = {i["id"]: i for i in client.get(BASE).json()}
     assert listed[job["id"]]["company_id"] == acme.id
-    assert listed[unknown["id"]]["company_id"] is None
+    assert listed[new["id"]]["company_id"] == new["company_id"]  # resolved again, not duplicated
     assert client.get(f"{BASE}/{current['id']}").json()["company_id"] == acme.id
 
-    # Matching never creates a company for an employer seen only in the career.
-    assert client.get("/api/companies").json()["total"] == 1
+    companies = client.get("/api/companies").json()
+    assert sorted(c["name"] for c in companies["items"]) == ["Acme Corp", "Nowhere Ltd"]
+
+    # Tagging the new company shows on its position.
+    client.patch(f"/api/companies/{new['company_id']}", json={"tag": "avoid"})
+    assert client.get(f"{BASE}/{new['id']}").json()["company_tag"] == "avoid"
 
     assert client.get(f"{BASE}/companies").json() == {
-        str(acme.id): {"current": True, "roles": ["Lead", "Backend Developer"]}
+        str(acme.id): {"current": True, "roles": ["Lead", "Backend Developer"]},
+        str(new["company_id"]): {"current": False, "roles": ["Backend Developer"]},
     }
 
 
