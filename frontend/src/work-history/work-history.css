@@ -173,6 +173,21 @@
   color: var(--text);
 }
 
+/* In a list row the meta sits on the title line, after the title. */
+.wh-title .wh-meta {
+  margin: 0 0 0 4px;
+}
+
+.wh-org-line {
+  display: flex;
+  margin-top: 4px;
+  min-width: 0;
+
+  &:empty {
+    display: none;
+  }
+}
+
 /* Details of one entry, under the timeline */
 .wh-detail {
   margin-top: 16px;

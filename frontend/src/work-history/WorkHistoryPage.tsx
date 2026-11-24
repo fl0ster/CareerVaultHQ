@@ -66,7 +66,6 @@ function EntryCard({
       <div className="wh-main">
         <div className="wh-title">
           <strong>{entry.role}</strong>
-          <Organisation entry={entry} onOpenCompany={onOpenCompany} />
           {entry.pending && (
             <span
               className="badge wh-pending"
@@ -75,11 +74,14 @@ function EntryCard({
               Pending
             </span>
           )}
+          <span className="wh-meta">
+            <EntryPeriod entry={entry} bar={bar} />
+            {entry.location && <span>{entry.location}</span>}
+            {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
+          </span>
         </div>
-        <div className="wh-meta">
-          <EntryPeriod entry={entry} bar={bar} />
-          {entry.location && <span>{entry.location}</span>}
-          {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
+        <div className="wh-org-line">
+          <Organisation entry={entry} onOpenCompany={onOpenCompany} />
         </div>
         <PrefillStatus entry={entry} />
       </div>
