@@ -273,3 +273,10 @@ def test_career_stats_follow_the_work_history(client, db_session):
 
     client.delete(f"{BASE}/{entry['id']}")
     assert str(google.id) not in client.get("/api/companies/application-stats").json()
+
+
+def test_application_stats_ghosted_bucket():
+    from app.api.routes.companies import _outcome
+
+    assert _outcome({"APPLIED", "GHOSTED"}) == "GHOSTED"
+    assert _outcome({"GHOSTED", "REJECTED"}) == "REJECTED"

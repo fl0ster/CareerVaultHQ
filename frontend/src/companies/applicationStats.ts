@@ -6,6 +6,8 @@ import { WORK_HISTORY_CHANGED } from '../work-history/api.ts'
 export const OUTCOMES = [
   { key: 'APPLIED', label: 'Applied', icon: '✉' },
   { key: 'INTERVIEW', label: 'Interview', icon: '💬' },
+  // Tinted to a muted ghost colour (see tags.css).
+  { key: 'GHOSTED', label: 'Ghosted', icon: '👻' },
   { key: 'REJECTED', label: 'Rejected', icon: '✕' },
   { key: 'OFFER', label: 'Offer', icon: '🏆' },
   // Shown as a greyed, struck-through trophy (see tags.css).
