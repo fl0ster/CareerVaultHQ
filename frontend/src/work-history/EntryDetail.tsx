@@ -13,15 +13,26 @@ function formatMonth(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
 }
 
-/** The organisation of an entry: a position's employer as the company pill (with the tag picker
- * when it matches a known company, a plain pill otherwise); an institution or issuer as text. */
-export function Organisation({ entry }: { entry: WorkHistoryEntry }) {
+/** The organisation of an entry: a position's employer as the company pill (tag picker, stats,
+ * and the name opens the company popup); an institution or issuer as text. */
+export function Organisation({
+  entry,
+  onOpenCompany,
+}: {
+  entry: WorkHistoryEntry
+  onOpenCompany: (companyId: number) => void
+}) {
   if (!entry.employer) return null
   if (entry.kind !== 'job') return <span className="wh-org">{entry.employer}</span>
   if (entry.company_id != null) {
     return (
       <span className="wh-org">
-        <CompanyTagBadge companyId={entry.company_id} tag={entry.company_tag} name={entry.employer} />
+        <CompanyTagBadge
+          companyId={entry.company_id}
+          tag={entry.company_tag}
+          name={entry.employer}
+          onOpenCompany={onOpenCompany}
+        />
       </span>
     )
   }
@@ -80,13 +91,14 @@ type Props = {
   newer: WorkHistoryEntry | null
   older: WorkHistoryEntry | null
   onOpen: (id: number) => void
+  onOpenCompany: (companyId: number) => void
   onBack: () => void
   onUpdate: (input: WorkHistoryInput) => Promise<void>
   onDelete: () => void
 }
 
 /** The details of one career entry, shown under the timeline in place of the list. */
-export default function EntryDetail({ entry, bar, newer, older, onOpen, onBack, onUpdate, onDelete }: Props) {
+export default function EntryDetail({ entry, bar, newer, older, onOpen, onOpenCompany, onBack, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
   const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
   const filling = entry.prefill_state === 'queued'
@@ -96,6 +108,7 @@ export default function EntryDetail({ entry, bar, newer, older, onOpen, onBack, 
     if (editing) return
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || editable(e.target)) return
+      if (document.querySelector('dialog[open]')) return // e.g. the company popup
       const to = e.key === 'ArrowLeft' ? older : e.key === 'ArrowRight' ? newer : null
       if (!to) return
       e.preventDefault()
@@ -161,7 +174,7 @@ export default function EntryDetail({ entry, bar, newer, older, onOpen, onBack, 
                   </span>
                 )}
                 <h2 id={`wh-entry-${entry.id}`}>{entry.role}</h2>
-                <Organisation entry={entry} />
+                <Organisation entry={entry} onOpenCompany={onOpenCompany} />
               </div>
               <div className="wh-detail-actions">
                 <button

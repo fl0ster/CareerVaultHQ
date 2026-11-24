@@ -8,6 +8,7 @@ import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import EntryDetail, { EntryPeriod, Organisation, PrefillStatus } from './EntryDetail.tsx'
 import type { Crumb } from '../shell/nav.ts'
+import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { candidateDetailsApi } from '../candidate-profile/api.ts'
 import { candidateDetailsStore } from '../candidate-profile/store.ts'
 import { isPdf, mergeDetails, parseCv } from './cvImport.ts'
@@ -32,12 +33,14 @@ function EntryCard({
   active,
   cardRef,
   onOpen,
+  onOpenCompany,
 }: {
   entry: WorkHistoryEntry
   bar: Bar | undefined
   active: boolean
   cardRef: (el: HTMLLIElement | null) => void
   onOpen: () => void
+  onOpenCompany: (companyId: number) => void
 }) {
   const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
   return (
@@ -62,7 +65,7 @@ function EntryCard({
             {kindLabel}
           </span>
           <strong>{entry.role}</strong>
-          <Organisation entry={entry} />
+          <Organisation entry={entry} onOpenCompany={onOpenCompany} />
           {entry.pending && (
             <span
               className="badge wh-pending"
@@ -152,6 +155,8 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
   /** What the dropzone is busy with (`null` when idle). */
   const [importing, setImporting] = useState<string | null>(null)
   const left = useRef(false)
+  /** Company shown in the company popup. */
+  const [companyId, setCompanyId] = useState<number | null>(null)
   const viewRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef(new Map<number, HTMLElement>())
 
@@ -387,6 +392,7 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
               newer={entries[openIndex - 1] ?? null}
               older={entries[openIndex + 1] ?? null}
               onOpen={onOpen}
+              onOpenCompany={setCompanyId}
               onBack={onBack}
               onUpdate={update(open.id)}
               onDelete={() => remove(open)}
@@ -405,6 +411,7 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
                       else cardRefs.current.delete(entry.id)
                     }}
                     onOpen={() => onOpen(entry.id)}
+                    onOpenCompany={setCompanyId}
                   />
                 ))}
               </ul>
@@ -415,6 +422,10 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
       )}
 
       {listMode && <AddPositionComposer onSubmit={create} />}
+
+      {companyId != null && (
+        <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
+      )}
     </>
   )
 }
