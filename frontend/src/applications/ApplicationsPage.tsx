@@ -104,6 +104,7 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
               candidate_profile_id: score.candidate_profile_id,
               relevance: score.relevance,
               outdated: score.outdated,
+              explanation: score.explanation,
             },
           }
         : a
@@ -331,6 +332,7 @@ export default function ApplicationsPage({ stage, detailId, version, onOpen, onB
                     <RelevanceMeter
                       relevance={a.evaluation.relevance}
                       outdated={a.evaluation.outdated}
+                      explanation={a.evaluation.explanation}
                       jobId={a.job.id}
                       onRescored={rescored}
                     />

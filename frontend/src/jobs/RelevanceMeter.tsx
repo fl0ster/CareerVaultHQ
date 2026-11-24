@@ -35,6 +35,9 @@ type Props = {
   jobId?: number
   /** Called with the job once it is scored against the latest profile. */
   onRescored?: (job: EvaluatedJobDetail) => void
+  /** The score's stored explanation, if one was generated already: shown on hover
+   * straight away, without asking the server. */
+  explanation?: string | null
 }
 
 /** Enqueue a re-score of `jobId` and poll the job until its score is current. */
@@ -62,7 +65,13 @@ type Explanation = { relevance: number; text: string }
  * the threshold and left of it below. No numbers; the exact value is in the tooltip.
  * An outdated score is drawn faded over a hatched track; clicking it re-scores the job.
  * Clicking a current score shows a short LLM-written explanation of it. */
-export default function RelevanceMeter({ relevance, outdated = false, jobId, onRescored }: Props) {
+export default function RelevanceMeter({
+  relevance,
+  outdated = false,
+  jobId,
+  onRescored,
+  explanation: storedExplanation = null,
+}: Props) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [explanation, setExplanation] = useState<Explanation | null>(null)
@@ -108,7 +117,11 @@ export default function RelevanceMeter({ relevance, outdated = false, jobId, onR
 
   const rescoreMode = outdated && jobId !== undefined && onRescored !== undefined
   const explainMode = !outdated && jobId !== undefined
-  const explained = explainMode && explanation?.relevance === relevance ? explanation.text : null
+  const explained = !explainMode
+    ? null
+    : explanation?.relevance === relevance
+      ? explanation.text
+      : storedExplanation
 
   const classes = ['relevance']
   if (above) classes.push('above')

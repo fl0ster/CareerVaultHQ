@@ -102,6 +102,7 @@ function JobRow({
             <RelevanceMeter
               relevance={job.evaluation.relevance}
               outdated={job.evaluation.outdated}
+              explanation={job.evaluation.explanation}
               jobId={job.id}
               onRescored={onRescored}
             />

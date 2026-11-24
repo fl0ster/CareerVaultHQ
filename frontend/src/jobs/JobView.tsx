@@ -167,6 +167,7 @@ export default function JobView({
                 <RelevanceMeter
                   relevance={evaluation.relevance}
                   outdated={evaluation.outdated}
+                  explanation={evaluation.explanation}
                   jobId={job.id}
                   onRescored={(fresh) => {
                     setDetail(fresh)

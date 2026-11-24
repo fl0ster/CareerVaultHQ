@@ -59,6 +59,12 @@ def test_explanation_is_generated_once_and_stored_with_the_evaluation(client, db
     assert client.post(f"/api/jobs/{first.job_id}/explanation").json() == data
     assert len(explainer["requests"]) == 1
 
+    # Delivered with the score, so a reloaded page shows it without asking again.
+    assert client.get(f"/api/jobs/{first.job_id}").json()["evaluation"]["explanation"] == data["explanation"]
+    items = {item["id"]: item for item in client.get("/api/jobs", params={"limit": 50}).json()["items"]}
+    assert items[first.job_id]["evaluation"]["explanation"] == data["explanation"]
+    assert all(item["evaluation"]["explanation"] is None for job_id, item in items.items() if job_id != first.job_id)
+
 
 def test_explanation_refused_for_outdated_or_unknown_jobs(client, db_session, explainer):
     _, last, _ = _seed_outdated(db_session)

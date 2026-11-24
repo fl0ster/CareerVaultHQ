@@ -19,6 +19,8 @@ export type JobEvaluation = {
   /** Scored against a profile built from an earlier work history; `jobsApi.rescore` scores
    * it against the latest one. */
   outdated: boolean
+  /** Stored explanation of the score, once generated (`jobsApi.explain`). */
+  explanation: string | null
   created_at: string
 }
 
