@@ -2,7 +2,7 @@ import { createStore } from '../shell/store.ts'
 import { type CandidateDetails, candidateDetailsApi } from './api.ts'
 
 /**
- * The saved candidate details, shared by the side menu's profile card and the About me form
+ * The saved candidate details, shared by the side menu's profile card and the personal details form
  * so a save shows up in the card straight away. `undefined` until loaded, `null` when nothing
  * was saved yet.
  */

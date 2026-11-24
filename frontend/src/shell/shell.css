@@ -53,7 +53,7 @@
   margin-bottom: 14px;
 }
 
-/* Profile card: raised above the menu; its cog opens About me. */
+/* Profile card: raised above the menu; it opens the dashboard. */
 .profile-card {
   position: relative;
   flex: 1;
@@ -143,8 +143,6 @@
   min-width: 0;
   display: grid;
   gap: 3px;
-  /* Clear of the cog in the corner. */
-  padding-right: 26px;
   transition: opacity var(--t-fast) ease;
 }
 
@@ -182,62 +180,6 @@
   min-height: 2.24em;
 }
 
-/* Cog in the top-right corner: the only way into About me from the card. */
-.profile-settings {
-  position: absolute;
-  z-index: 1;
-  top: 10px;
-  right: 10px;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent-bg);
-  color: var(--accent);
-  transition:
-    background var(--t-fast) ease,
-    color var(--t-fast) ease,
-    transform var(--t-fast) var(--ease-out),
-    top var(--t-med) var(--ease-out),
-    right var(--t-med) var(--ease-out),
-    width var(--t-med) var(--ease-out),
-    height var(--t-med) var(--ease-out);
-
-  svg {
-    transition: transform var(--t-med) var(--ease-out);
-  }
-  &:hover,
-  &.active {
-    background: var(--accent);
-    color: var(--on-accent);
-  }
-  &:hover svg {
-    transform: rotate(45deg);
-  }
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-}
-
-/* Until the personal details are filled out. */
-.profile-alert {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  display: grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--danger-fg);
-  color: var(--surface);
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 1;
-  box-shadow: 0 0 0 2px var(--surface);
-}
 
 .sidebar-close {
   display: none;
@@ -470,25 +412,6 @@
   }
   .profile-text {
     overflow: hidden;
-    padding-right: 0;
-  }
-  /* A small badge over the card's corner. */
-  .profile-settings {
-    top: -5px;
-    right: -5px;
-    width: 22px;
-    height: 22px;
-    box-shadow: 0 0 0 2px var(--sidebar);
-
-    svg {
-      width: 13px;
-      height: 13px;
-    }
-  }
-  .profile-alert {
-    width: 12px;
-    height: 12px;
-    font-size: 8.5px;
   }
   .profile-avatar {
     width: 40px;
@@ -811,24 +734,6 @@
     }
     .profile-text {
       overflow: visible;
-      padding-right: 26px;
-    }
-    .profile-settings {
-      top: 10px;
-      right: 10px;
-      width: 30px;
-      height: 30px;
-      box-shadow: none;
-
-      svg {
-        width: 16px;
-        height: 16px;
-      }
-    }
-    .profile-alert {
-      width: 15px;
-      height: 15px;
-      font-size: 10.5px;
     }
     .profile-avatar {
       width: 52px;
