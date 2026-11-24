@@ -44,6 +44,7 @@ function App() {
   const onInterviewCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, interviews: c })), [])
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
+  const onCareerCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, 'work-history': c })), [])
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const { counts, failed: countsFailed } = useNavCounts(page)
   const jobsInbox = counts?.jobs_inbox ?? 0
@@ -105,6 +106,9 @@ function App() {
   const openJob = useCallback((id: number) => {
     window.location.hash = pageHref('jobs', id)
   }, [])
+  const openCareerEntry = useCallback((id: number) => {
+    window.location.hash = pageHref('work-history', id)
+  }, [])
   const backTo = (id: PageId) => () => {
     window.location.hash = pageHref(id)
   }
@@ -147,7 +151,14 @@ function App() {
       case 'candidate-profile':
         return <CandidateProfilePage />
       case 'work-history':
-        return <WorkHistoryPage focusId={detailOf('work-history')} />
+        return (
+          <WorkHistoryPage
+            detailId={detailOf('work-history')}
+            onOpen={openCareerEntry}
+            onBack={backTo('work-history')}
+            onCrumbsChange={onCareerCrumbs}
+          />
+        )
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':

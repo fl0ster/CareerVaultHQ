@@ -221,3 +221,55 @@ def test_import_export_round_trips_kinds(client):
     assert [(e["kind"], e["role"]) for e in exported] == [("certificate", "CKA"), ("job", "Dev"), ("education", "B.Sc.")]
     assert client.post(f"{BASE}/json?replace=true", json=exported).status_code == 201
     assert client.get(f"{BASE}/json").json() == exported
+
+
+def test_positions_are_matched_to_known_companies(client, db_session):
+    from app.services.companies import resolve_company
+
+    acme = resolve_company(db_session, "Acme Corp").company
+    acme.tag = "favourite"
+    db_session.commit()
+
+    job = client.post(BASE, json=ENTRY).json()
+    assert (job["company_id"], job["company_tag"]) == (acme.id, "favourite")
+    # An employer seen only in the career becomes a company, so it can be tagged too.
+    new = client.post(
+        BASE, json={**ENTRY, "employer": "Nowhere Ltd", "date_start": "2010-01-01", "date_end": "2011-01-01"}
+    ).json()
+    assert new["company_id"] not in (None, acme.id)
+    assert new["company_tag"] is None
+    school = client.post(BASE, json={**ENTRY, "kind": "education", "employer": "MIT", "role": "MSc"}).json()
+    assert school["company_id"] is None  # only positions are companies
+    current = client.post(BASE, json={**ENTRY, "role": "Lead", "date_start": "2023-07-01", "date_end": None}).json()
+
+    listed = {i["id"]: i for i in client.get(BASE).json()}
+    assert listed[job["id"]]["company_id"] == acme.id
+    assert listed[new["id"]]["company_id"] == new["company_id"]  # resolved again, not duplicated
+    assert client.get(f"{BASE}/{current['id']}").json()["company_id"] == acme.id
+
+    companies = client.get("/api/companies").json()
+    assert sorted(c["name"] for c in companies["items"]) == ["Acme Corp", "Nowhere Ltd"]
+
+    # Tagging the new company shows on its position.
+    client.patch(f"/api/companies/{new['company_id']}", json={"tag": "avoid"})
+    assert client.get(f"{BASE}/{new['id']}").json()["company_tag"] == "avoid"
+
+    # Positions are counted in the company stats, next to the application outcomes.
+    stats = client.get("/api/companies/application-stats").json()
+    assert stats[str(acme.id)] == {"CAREER": 2}
+    assert stats[str(new["company_id"])] == {"CAREER": 1}
+
+
+def test_career_stats_follow_the_work_history(client, db_session):
+    from app.services.companies import resolve_company
+
+    # A company known from a job page, without any career entry yet.
+    google = resolve_company(db_session, "Google").company
+    db_session.commit()
+    assert str(google.id) not in client.get("/api/companies/application-stats").json()
+
+    entry = client.post(BASE, json={**ENTRY, "employer": "Google"}).json()
+    assert client.get("/api/companies/application-stats").json()[str(google.id)] == {"CAREER": 1}
+
+    client.delete(f"{BASE}/{entry['id']}")
+    assert str(google.id) not in client.get("/api/companies/application-stats").json()

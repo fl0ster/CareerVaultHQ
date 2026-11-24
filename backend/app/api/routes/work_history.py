@@ -7,6 +7,8 @@ list of technology names. An entry starting in the future is ``pending``: it is 
 of CVs and the candidate profile until it starts.
 Entries created by accepting an offer (``POST /api/applications/{id}/accept``) carry that
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
+A position's employer is resolved to its company (created when it is not known yet, like a
+company scraped from a job page): ``company_id`` and ``company_tag`` name it.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from app.schemas.work_history import (
     _check_employer,
     _format_month,
 )
+from app.services.companies import resolve_career_companies
 
 router = APIRouter()
 
@@ -55,6 +58,23 @@ class WorkHistoryOut(BaseModel):
     """Filling the entry in from its application with the LLM; ``None`` for manual entries."""
     created_at: datetime
     updated_at: datetime
+    company_id: int | None = None
+    """The company of the position's employer (always ``None`` for education and
+    certificates)."""
+    company_tag: str | None = None
+    """That company's tag."""
+
+
+def _out(session: Session, entries: list[WorkHistoryEntry]) -> list[WorkHistoryOut]:
+    """The entries as returned by the API, with their matched company."""
+    companies = resolve_career_companies(session, entries)
+    out = []
+    for entry in entries:
+        item = WorkHistoryOut.model_validate(entry)
+        if (company := companies.get(entry.id)) is not None:
+            item.company_id, item.company_tag = company.id, company.tag
+        out.append(item)
+    return out
 
 
 def _get_or_404(session: Session, entry_id: int) -> WorkHistoryEntry:
@@ -74,9 +94,9 @@ def _all_entries(session: Session) -> list[WorkHistoryEntry]:
 
 
 @router.get("", response_model=list[WorkHistoryOut])
-def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryEntry]:
+def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryOut]:
     """All work history entries, most recent position first."""
-    return _all_entries(session)
+    return _out(session, _all_entries(session))
 
 
 @router.get("/json", response_model=list[WorkHistoryExport])
@@ -103,7 +123,7 @@ def import_entries(
     payload: Annotated[list[WorkHistoryImport], Body()],
     session: Annotated[Session, Depends(get_session)],
     replace: bool = False,
-) -> list[WorkHistoryEntry]:
+) -> list[WorkHistoryOut]:
     """Import a JSON array in the shape produced by ``GET /json``. Entries are appended;
     pass ``?replace=true`` to drop the existing work history first. The whole import is
     validated before anything is written, so a bad entry rejects the entire payload."""
@@ -123,21 +143,21 @@ def import_entries(
     session.commit()
     for entry in entries:
         session.refresh(entry)
-    return entries
+    return _out(session, entries)
 
 
 @router.post("", response_model=WorkHistoryOut, status_code=status.HTTP_201_CREATED)
-def create_entry(payload: WorkHistoryCreate, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryEntry:
+def create_entry(payload: WorkHistoryCreate, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryOut:
     entry = WorkHistoryEntry(**payload.model_dump())
     session.add(entry)
     session.commit()
     session.refresh(entry)
-    return entry
+    return _out(session, [entry])[0]
 
 
 @router.get("/{entry_id}", response_model=WorkHistoryOut)
-def get_entry(entry_id: int, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryEntry:
-    return _get_or_404(session, entry_id)
+def get_entry(entry_id: int, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryOut:
+    return _out(session, [_get_or_404(session, entry_id)])[0]
 
 
 @router.patch("/{entry_id}", response_model=WorkHistoryOut)
@@ -145,7 +165,7 @@ def update_entry(
     entry_id: int,
     payload: WorkHistoryUpdate,
     session: Annotated[Session, Depends(get_session)],
-) -> WorkHistoryEntry:
+) -> WorkHistoryOut:
     """Update the given fields only. Send ``"date_end": null`` to mark a position current."""
     entry = _get_or_404(session, entry_id)
     changes = payload.model_dump(exclude_unset=True)
@@ -166,7 +186,7 @@ def update_entry(
         setattr(entry, field, value)
     session.commit()
     session.refresh(entry)
-    return entry
+    return _out(session, [entry])[0]
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

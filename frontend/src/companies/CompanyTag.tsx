@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import CompanyLink from '../applications/CompanyLink.tsx'
 import { PickerPill } from '../applications/StatusBadge.tsx'
 import { describeError } from '../cv/api.ts'
@@ -37,8 +37,9 @@ const OPTIONS = [...COMPANY_TAGS.map((t) => t.key), NONE].map((key) => ({
   label: pill(key),
 }))
 
-/** The company's tag pill. With `name`, the pill reads: tag icon | company name | stats. Clicking the tag cycles the tag (none → each tag → none); its right part
- * counts the applications to the company by outcome, when there are any. Safe to use inside
+/** The company's tag pill. With `name`, the pill reads: tag icon | company name | stats. Clicking
+ * the tag cycles the tag (none → each tag → none); the right part counts the applications to the
+ * company by outcome and the positions held there (💼), when there are any. Safe to use inside
  * another button. Renders nothing without a company id. */
 export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) {
   const current = useCompanyTag(companyId, tag)
@@ -69,22 +70,22 @@ export function CompanyTagBadge({ companyId, tag, name, onOpenCompany }: Props) 
       ))}
     </span>
   ) : null
-  const extra =
+  const nameEl =
     name != null ? (
-      <>
-        <span className="company-tag-name" title={name}>
-          {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
-        </span>
-        {statsEl && (
-          <>
-            <span className="app-status-sep" aria-hidden="true" />
-            {statsEl}
-          </>
-        )}
-      </>
-    ) : (
-      statsEl
-    )
+      <span className="company-tag-name" title={name}>
+        {onOpenCompany ? <CompanyLink name={name} companyId={companyId} onOpen={onOpenCompany} /> : name}
+      </span>
+    ) : null
+  // The parts right of the tag icon, each after a divider (PickerPill draws the first one).
+  const parts = [nameEl, statsEl].filter((p) => p != null)
+  const extra = parts.length
+    ? parts.map((part, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="app-status-sep" aria-hidden="true" />}
+          {part}
+        </Fragment>
+      ))
+    : null
   const tagTitle = info ? info.label : 'No tag'
 
   return (
