@@ -54,6 +54,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Ghosted (never heard back): a small, faded ghost in muted violet. */
+.company-app-stat.ghosted {
+  color: #8b7fb8;
+
+  .company-app-stat-icon {
+    font-size: 10px;
+    opacity: 0.8;
+  }
+}
+
 /* A declined offer: the offer trophy, greyed out and struck through. */
 .company-app-stat.declined .company-app-stat-icon {
   position: relative;
