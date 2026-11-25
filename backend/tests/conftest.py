@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.config import Settings, get_settings
 from app.db import get_engine, get_session, init_db, make_engine, session_factory
+from app.llm_calls import load_model_overrides
 from app.main import app
 from app.models import ScrapeSource
 from app.queue import get_queue
@@ -20,6 +21,18 @@ def ensure_source(session, key: str = "skillshot", **fields) -> ScrapeSource:
         session.add(row)
         session.flush()
     return row
+
+
+@pytest.fixture(autouse=True)
+def no_model_overrides(tmp_path, monkeypatch):
+    """Ignore a developer's local ``llm_models.toml``: every test sees the defaults from
+    ``app.llm_calls`` unless it writes its own override file."""
+    monkeypatch.setenv("OPENROUTER_MODELS_FILE", str(tmp_path / "no-llm-models.toml"))
+    get_settings.cache_clear()
+    load_model_overrides.cache_clear()
+    yield
+    get_settings.cache_clear()
+    load_model_overrides.cache_clear()
 
 
 @pytest.fixture

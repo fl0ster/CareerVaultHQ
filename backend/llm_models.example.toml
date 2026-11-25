@@ -1,0 +1,99 @@
+# Per-deployment overrides of the OpenRouter model used by each LLM call.
+#
+# Copy this file to the path in OPENROUTER_MODELS_FILE (docker-compose: /data/llm_models.toml
+# on the data volume; development: backend/llm_models.toml), uncomment the calls to change and
+# restart the API and the worker. Calls not listed keep the default from app/llm_calls.py.
+# Unknown keys are an error. Model ids: https://openrouter.ai/models
+# ("decision" calls use the Jev Decisions API: https://openrouter.ai/docs/guides/community/jev)
+
+[models]
+
+# Summarise the candidate's details and work history into the profile text that jobs are scored
+# against.
+# kind: chat | used in: app.services.candidate_profile
+# candidate_profile = "openai/gpt-4o-mini"
+
+# Yes/no: does the text (job description or recruiter e-mail) describe the recruitment process at
+# all? Gates the extraction below.
+# kind: decision | used in: app.tasks.parse.parse (also app.tasks.gmail.interview_steps)
+# interview_steps_presence = "typesafe/jev-1.14"
+
+# Extract the ordered interview stages (title, duration) from the text as JSON.
+# kind: chat | used in: app.tasks.parse.parse (also app.tasks.gmail.interview_steps)
+# interview_steps_extract = "openai/gpt-4o-mini"
+
+# Yes/no: are the extracted interview stages faithful to the text? Unfaithful extractions are
+# dropped.
+# kind: decision | used in: app.tasks.parse.parse (also app.tasks.gmail.interview_steps)
+# interview_steps_faithful = "typesafe/jev-1.14"
+
+# List the technologies named in a job description, each with a quote that is checked against the
+# text.
+# kind: chat | used in: app.tasks.parse.parse
+# parse_technologies = "openai/gpt-4o-mini"
+
+# Probability that a parsed job is a good match for the candidate profile (the job's score).
+# kind: decision | used in: app.tasks.evaluate.evaluate
+# job_evaluation = "typesafe/jev-1.14"
+
+# Short human-readable explanation of why a job got its score (on demand from the job page).
+# kind: chat | used in: app.services.score_explanation
+# job_score_explanation = "openai/gpt-4o-mini"
+
+# Prefill a new work history entry (description, technologies) from the accepted job's
+# description.
+# kind: chat | used in: app.tasks.work_history.prefill
+# work_history_prefill = "openai/gpt-4o-mini"
+
+# Probability that an e-mail is a rejection of one of the candidate's applications.
+# kind: decision | used in: app.tasks.gmail.rejections
+# gmail_rejection = "typesafe/jev-1.14"
+
+# Read the company and role an e-mail is about, to match it to an application.
+# kind: chat | used in: app.tasks.gmail.rejections (also app.tasks.gmail.interview_steps)
+# mail_company_and_role = "openai/gpt-4o-mini"
+
+# Extract candidate details and work history as JSON from the text of an uploaded CV PDF.
+# kind: chat | used in: app.tasks.cv_import.extract
+# cv_import = "openai/gpt-4o-mini"
+
+# Probability that a past role is relevant to the target job; decides which roles are listed in
+# full.
+# kind: decision | used in: app.tasks.cv.generate
+# cv_relevance = "typesafe/jev-1.14"
+
+# Rewrite a role's project context paragraph for the target job.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_context = "openai/gpt-4o-mini"
+
+# Select and order a role's technologies for the target job.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_tech = "openai/gpt-4o-mini"
+
+# Condense an older / less relevant role into a one-line 'Additional experience' entry.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_early = "openai/gpt-4o-mini"
+
+# Group the CV's technologies into skill categories.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_categories = "openai/gpt-4o-mini"
+
+# Write the CV's summary paragraph tailored to the target job.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_summary = "openai/gpt-4o-mini"
+
+# Choose the headline role title shown at the top of the CV.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_role = "openai/gpt-4o-mini"
+
+# Pick the core technologies highlighted in the CV header.
+# kind: chat | used in: app.tasks.cv.generate
+# cv_core_tech = "openai/gpt-4o-mini"
+
+# Ad-hoc chat request through the API; the request may name its own model and source.
+# kind: chat | used in: app.api.routes.openrouter
+# playground_chat = "openai/gpt-4o-mini"
+
+# Ad-hoc decision request through the API; the request may name its own model and source.
+# kind: decision | used in: app.api.routes.openrouter
+# playground_decide = "typesafe/jev-1.14"

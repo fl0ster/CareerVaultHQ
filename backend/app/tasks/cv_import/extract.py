@@ -32,6 +32,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 from pypdf import PageObject, PdfReader
 
+from app import llm_calls
 from app.config import Settings
 from app.schemas.candidate_details import CandidateDetailsIn, LanguageEntry
 from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
@@ -40,8 +41,6 @@ from app.tasks.cv_import.prompts import CV_IMPORT_PROMPT, CV_IMPORT_SYSTEM, RESP
 
 log = logging.getLogger(__name__)
 
-CV_IMPORT_SOURCE = "tasks.cv_import"
-"""``source`` label of the OpenRouter call."""
 
 CURRENT_MARKERS = {"present", "current", "now", "today", "ongoing", "obecnie", "teraz", "nadal"}
 """``date_end`` values meaning the position is current."""
@@ -479,10 +478,9 @@ def extract_cv(service: OpenRouterService, pdf: PdfText, settings: Settings) -> 
     reply = service.chat(
         CV_IMPORT_PROMPT.format(text=pdf.text, links=links),
         system=CV_IMPORT_SYSTEM,
-        model=settings.cv_import_model or None,
         temperature=0,
         extra={"response_format": RESPONSE_FORMAT},
-        source=CV_IMPORT_SOURCE,
+        call=llm_calls.CV_IMPORT,
         private=True,
     ).text
     return build_result(_load_reply(reply), pdf)

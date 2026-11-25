@@ -36,6 +36,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import CandidateProfile, JobEvaluation, JobEvaluationFailure, JobParseResult
@@ -48,8 +49,6 @@ from app.services.openrouter import (
 
 log = logging.getLogger(__name__)
 
-SOURCE = "tasks.evaluate"
-"""``openrouter_calls.source`` label for calls made by this task."""
 
 MAX_PARSE_AGE = timedelta(days=7)
 """Parse results older than this are not evaluated: the listing is probably gone and the
@@ -134,7 +133,7 @@ def build_state(profile: CandidateProfile, parsed: JobParseResult) -> dict[str, 
 
 def evaluate_one(service: OpenRouterService, profile: CandidateProfile, parsed: JobParseResult) -> JobEvaluation:
     """Ask OpenRouter about one job and return the (unsaved) ``JobEvaluation``."""
-    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, source=SOURCE)
+    decision = service.decide(state=build_state(profile, parsed), questions=QUESTIONS, call=llm_calls.JOB_EVALUATION)
     return JobEvaluation(
         job_parse_result_id=parsed.id,
         candidate_profile_id=profile.id,

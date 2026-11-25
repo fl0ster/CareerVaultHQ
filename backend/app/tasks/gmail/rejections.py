@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app import llm_calls
 from app.db import init_db, session_factory
 from app.integrations.gmail import AppsScriptClient, AppsScriptError, GmailMessage
 from app.models import (
@@ -71,8 +72,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-SOURCE = "tasks.gmail_rejections"
-"""``openrouter_calls.source`` label for calls made by this task."""
 
 COMPANY_THRESHOLD = 0.85
 """Minimum company-name similarity (0-1) for an application to be a candidate."""
@@ -277,7 +276,7 @@ def _mail_state(message: GmailMessage) -> dict[str, Any]:
 
 
 def rejection_probability(service: OpenRouterService, message: GmailMessage) -> float:
-    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, source=SOURCE, private=True)
+    decision = service.decide(state=_mail_state(message), questions=QUESTIONS, call=llm_calls.GMAIL_REJECTION, private=True)
     return decision.noul(QUESTION_NAME)
 
 
@@ -286,7 +285,7 @@ def extract_company_and_role(
     message: GmailMessage,
     *,
     about: str = REJECTION_ABOUT,
-    source: str = SOURCE,
+    source: str | None = None,
 ) -> tuple[str | None, str | None]:
     """``(company, role)`` named in the mail; ``None`` for what could not be read. ``about``
     is the first line of the prompt, telling the model what kind of mail it reads."""
@@ -294,6 +293,7 @@ def extract_company_and_role(
         EXTRACTION_PROMPT.format(about=about, sender=message.sender, subject=message.subject, body=message.body),
         system=EXTRACTION_SYSTEM,
         temperature=0,
+        call=llm_calls.MAIL_COMPANY_AND_ROLE,
         source=source,
         private=True,
     ).text

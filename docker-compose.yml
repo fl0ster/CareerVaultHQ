@@ -21,6 +21,10 @@ services:
       # Generated CVs (app.tasks.cv); same volume as the worker's.
       CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Optional per-call LLM model overrides (defaults live in app/llm_calls.py). To use:
+      #   docker compose exec careervaulthq cp llm_models.example.toml /data/llm_models.toml
+      # edit it on the volume, then: docker compose restart careervaulthq worker
+      OPENROUTER_MODELS_FILE: /data/llm_models.toml
     volumes:
       - careervaulthq-data:/data
     depends_on:
@@ -43,6 +47,8 @@ services:
       LATEX_TIMEOUT: "300"
       CV_ROOT: /data/cv
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # Same model overrides as the API (see above).
+      OPENROUTER_MODELS_FILE: /data/llm_models.toml
     volumes:
       - careervaulthq-data:/data
     depends_on:

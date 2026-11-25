@@ -32,6 +32,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.config import get_settings
 from app.db import init_db, session_factory
 from app.models import Job, JobParseResult, PendingJobParseRun
@@ -81,7 +82,6 @@ class InterviewStepsResult:
     extraction was not attempted or returned nothing)."""
 
 
-INTERVIEW_STEPS_SOURCE = "tasks.parse.interview_steps"
 INTERVIEW_STEPS_THRESHOLD = 0.5
 """Minimum Jev probability for both the presence and the faithfulness check."""
 MAX_STEP_TITLE = 128
@@ -171,7 +171,7 @@ def extract_interview_steps(
     service: OpenRouterService,
     text: str | None,
     *,
-    source: str = INTERVIEW_STEPS_SOURCE,
+    source: str | None = None,
     private: bool = False,
 ) -> InterviewStepsResult:
     """Interview rounds described in ``text`` (a job description, or any text about one such
@@ -192,6 +192,7 @@ def extract_interview_steps(
     present = service.decide(
         state={"job_description": text},
         questions=PRESENCE_QUESTIONS,
+        call=llm_calls.INTERVIEW_STEPS_PRESENCE,
         source=source,
         private=private,
     ).noul(PRESENCE_QUESTION)
@@ -202,6 +203,7 @@ def extract_interview_steps(
         EXTRACTION_PROMPT.format(text=text),
         system=EXTRACTION_SYSTEM,
         temperature=0,
+        call=llm_calls.INTERVIEW_STEPS_EXTRACT,
         source=source,
         private=private,
     ).text
@@ -217,6 +219,7 @@ def extract_interview_steps(
             ],
         },
         questions=FAITHFUL_QUESTIONS,
+        call=llm_calls.INTERVIEW_STEPS_FAITHFUL,
         source=source,
         private=private,
     ).noul(FAITHFUL_QUESTION)
@@ -226,7 +229,6 @@ def extract_interview_steps(
     return InterviewStepsResult(steps, present, faithful)
 
 
-TECHNOLOGIES_SOURCE = "tasks.parse.technologies"
 MAX_TECHNOLOGIES = 40
 MAX_TECHNOLOGY_NAME = 64
 
@@ -313,7 +315,7 @@ def extract_technologies(service: OpenRouterService, text: str | None) -> list[d
         TECHNOLOGIES_PROMPT.format(text=text),
         system=EXTRACTION_SYSTEM,
         temperature=0,
-        source=TECHNOLOGIES_SOURCE,
+        call=llm_calls.PARSE_TECHNOLOGIES,
     ).text
     return _technologies_from_reply(reply, text)
 

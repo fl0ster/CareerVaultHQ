@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.config import Settings
+from app.llm_calls import ChatCall, DecisionCall
 from app.main import app
 from app.models import OpenRouterCall
 from app.services.openrouter import (
@@ -16,6 +17,11 @@ from app.services.openrouter import (
 )
 
 BASE = "/api/openrouter"
+
+TEST_CHAT = ChatCall(key="test_chat", source="tests.chat", model="test/chat-default", purpose="tests", used_in="tests")
+TEST_DECIDE = DecisionCall(
+    key="test_decide", source="tests.decide", model="test/decide-default", purpose="tests", used_in="tests"
+)
 
 
 def _completion(content, *, model="test/model", cost=0.0042, gen_id="gen-1"):
@@ -78,7 +84,7 @@ def service_factory(db_session, settings, requests_seen):
 def test_chat_returns_text_and_records_call(service_factory, db_session, requests_seen):
     service = service_factory(lambda req: httpx.Response(200, json=_completion("hello there")))
 
-    result = service.chat("hi", system="be brief", source="tests.chat", model="foo/bar")
+    result = service.chat("hi", system="be brief", call=TEST_CHAT, model="foo/bar")
 
     assert result.text == "hello there"
     assert result.usage.cost == pytest.approx(0.0042)
@@ -107,10 +113,27 @@ def test_chat_returns_text_and_records_call(service_factory, db_session, request
     assert call.latency_ms is not None
 
 
-def test_chat_uses_default_model_from_settings(service_factory, requests_seen, settings):
+def test_chat_uses_the_calls_model_and_source(service_factory, requests_seen, db_session):
     service = service_factory(lambda req: httpx.Response(200, json=_completion("x")))
-    service.chat("hi", source="t")
-    assert json.loads(requests_seen[0].content)["model"] == settings.openrouter_chat_model
+    result = service.chat("hi", call=TEST_CHAT)
+    assert json.loads(requests_seen[0].content)["model"] == "test/chat-default"
+    assert db_session.get(OpenRouterCall, result.call_id).source == "tests.chat"
+
+
+def test_source_override_keeps_the_calls_model(service_factory, requests_seen, db_session):
+    service = service_factory(lambda req: httpx.Response(200, json=_completion("x")))
+    result = service.chat("hi", call=TEST_CHAT, source="tests.other")
+    assert json.loads(requests_seen[0].content)["model"] == "test/chat-default"
+    assert db_session.get(OpenRouterCall, result.call_id).source == "tests.other"
+
+
+def test_call_kind_must_match_the_method(service_factory, db_session):
+    service = service_factory(lambda req: httpx.Response(200, json={}))
+    with pytest.raises(TypeError, match="'decision' call"):
+        service.chat("hi", call=TEST_DECIDE)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="'chat' call"):
+        service.decide(state="x", questions=NOUL_QUESTIONS, call=TEST_CHAT)  # type: ignore[arg-type]
+    assert db_session.scalars(select(OpenRouterCall)).first() is None
 
 
 def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_seen, settings):
@@ -137,7 +160,7 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
         "urgency": {"type": "score", "criteria": ["low", "high"]},
     }
 
-    result = service.decide(state=state, questions=questions, source="tests.decide")
+    result = service.decide(state=state, questions=questions, call=TEST_DECIDE)
 
     assert result.noul("is_match") == pytest.approx(0.82)
     assert result.choice("team") == "backend"
@@ -149,7 +172,7 @@ def test_decide_calls_jev_decisions_api(service_factory, db_session, requests_se
     assert req.headers["Authorization"] == "Bearer sk-test"
     body = json.loads(req.content)
     assert body == {
-        "model": settings.openrouter_decision_model,
+        "model": "test/decide-default",
         "state": state,
         "questions": questions,
     }
@@ -171,7 +194,7 @@ def test_decide_model_override_and_extra(service_factory, requests_seen):
     service.decide(
         state="text",
         questions=NOUL_QUESTIONS,
-        source="t",
+        call=TEST_DECIDE,
         model="typesafe/jev-1.14",
         extra={"session_id": "abc"},
     )
@@ -182,7 +205,7 @@ def test_decide_model_override_and_extra(service_factory, requests_seen):
 
 def test_decide_answer_type_mismatch_and_missing(service_factory):
     service = service_factory(lambda req: httpx.Response(200, json=_decision({"is_match": {"type": "refusal"}})))
-    result = service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
+    result = service.decide(state="x", questions=NOUL_QUESTIONS, call=TEST_DECIDE)
     with pytest.raises(OpenRouterError, match="expected a 'noul' answer"):
         result.noul("is_match")
     with pytest.raises(OpenRouterError, match="no answer"):
@@ -192,7 +215,7 @@ def test_decide_answer_type_mismatch_and_missing(service_factory):
 def test_decide_without_answers_marks_call_failed(service_factory, db_session):
     service = service_factory(lambda req: httpx.Response(200, json={"id": "x", "usage": {}}))
     with pytest.raises(OpenRouterError, match="no answers"):
-        service.decide(state="x", questions=NOUL_QUESTIONS, source="t")
+        service.decide(state="x", questions=NOUL_QUESTIONS, call=TEST_DECIDE)
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
 
@@ -200,13 +223,13 @@ def test_decide_without_answers_marks_call_failed(service_factory, db_session):
 def test_decide_requires_questions(service_factory):
     service = service_factory(lambda req: httpx.Response(200, json={}))
     with pytest.raises(ValueError):
-        service.decide(state="x", questions={}, source="t")
+        service.decide(state="x", questions={}, call=TEST_DECIDE)
 
 
 def test_http_error_is_recorded(service_factory, db_session):
     service = service_factory(lambda req: httpx.Response(402, json={"error": {"message": "Insufficient credits"}}))
     with pytest.raises(OpenRouterError, match="402") as exc_info:
-        service.chat("hi", source="t")
+        service.chat("hi", call=TEST_CHAT)
     assert exc_info.value.status_code == 402
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
@@ -220,7 +243,7 @@ def test_transport_error_is_recorded(service_factory, db_session):
 
     service = service_factory(boom)
     with pytest.raises(OpenRouterError, match="no network"):
-        service.chat("hi", source="t")
+        service.chat("hi", call=TEST_CHAT)
     call = db_session.scalars(select(OpenRouterCall)).one()
     assert call.status == "failed"
 
@@ -228,7 +251,7 @@ def test_transport_error_is_recorded(service_factory, db_session):
 def test_missing_api_key(db_session):
     service = OpenRouterService(db_session, Settings(openrouter_api_key="", cors_origins=[]))
     with pytest.raises(OpenRouterNotConfigured):
-        service.chat("hi", source="t")
+        service.chat("hi", call=TEST_CHAT)
     assert db_session.scalars(select(OpenRouterCall)).first() is None
 
 
@@ -360,7 +383,7 @@ def test_cost_report_series_and_breakdowns(api, db_session):
         "calls": 2,
         "total_tokens": 15,
     }
-    assert report["by_model"][0]["key"] == "test/model"  # the failed call logs the default model
+    assert report["by_model"][0]["key"] == "test/model"  # the failed call logs the configured model
     assert report["facets"]["sources"] == ["api.openrouter.chat", "other"]
     assert report["facets"]["statuses"] == ["failed", "ok"]
 

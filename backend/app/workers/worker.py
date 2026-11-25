@@ -18,6 +18,7 @@ from rq import Queue, Worker
 
 from app.config import get_settings
 from app.db import init_db
+from app.llm_calls import load_model_overrides
 from app.queue import get_redis
 
 
@@ -29,6 +30,7 @@ def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
 
     init_db()
+    load_model_overrides(settings.openrouter_models_file)  # fail fast on an invalid override file
     connection = get_redis()
     queue = Queue(settings.queue_name, connection=connection)
     worker = Worker([queue], connection=connection)
