@@ -267,6 +267,10 @@ export const OFFER_STATUS = 'OFFER'
 
 export const MAX_INTERVIEW_ROUNDS = 20
 
+/** The states shown in a status history: the stage entry (entering INTERVIEW before any round
+ * is held) is left out, since no interview happened then. */
+export const historyEvents = (app: Application) => app.events.filter((e) => !e.stage_entry)
+
 /** Interview rounds already held, oldest first (the stage entry is not a round). */
 export const heldRounds = (app: Application) =>
   app.events.filter((e) => e.status.key === INTERVIEW_STATUS && !e.stage_entry)

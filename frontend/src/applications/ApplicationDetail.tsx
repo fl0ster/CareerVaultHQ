@@ -24,6 +24,7 @@ import {
   formatDuration,
   fromLocalInput,
   heldRounds,
+  historyEvents,
   isAutoEvent,
   nextRoundLabel,
   notifyApplicationsChanged,
@@ -672,11 +673,11 @@ export default function ApplicationDetail({
             <option key={t} value={t} />
           ))}
         </datalist>
-        {application.events.length === 0 && application.planned_events.length === 0 ? (
+        {historyEvents(application).length === 0 && application.planned_events.length === 0 ? (
           <p className="muted">No status recorded yet.</p>
         ) : (
           <ol className="app-events">
-            {application.events.map((event) => (
+            {historyEvents(application).map((event) => (
               <EventRow
                 key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}:${event.title}:${event.duration_minutes}`}
                 application={application}
