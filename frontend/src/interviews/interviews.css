@@ -130,6 +130,7 @@
     box-sizing: border-box;
     resize: vertical;
     min-height: 120px;
+    display: block;
     background: var(--surface);
   }
 }
@@ -168,15 +169,17 @@
 
 .iv-current-notes {
   display: block;
+  position: relative;
+
+  /* Save status sits inside the textarea's bottom-right corner, taking no room below it. */
+  .iv-saved {
+    position: absolute;
+    right: 18px;
+    bottom: 6px;
+    pointer-events: none;
+  }
 }
 
-.iv-current-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
-}
 
 .iv-saved {
   font-size: 12px;

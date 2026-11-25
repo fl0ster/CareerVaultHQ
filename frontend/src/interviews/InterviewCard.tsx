@@ -159,12 +159,10 @@ function CurrentStep({
           rows={6}
           disabled={busy}
         />
-      </label>
-      <div className="iv-current-foot">
         <span className="iv-saved muted" aria-live="polite">
           {busy ? 'Saving…' : saved ? 'Saved' : ''}
         </span>
-      </div>
+      </label>
     </section>
   )
 }
