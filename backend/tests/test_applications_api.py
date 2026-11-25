@@ -399,6 +399,21 @@ def test_removing_applied_leaves_the_interview_stage(client, db_session):
     assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
 
 
+@pytest.mark.parametrize("final", ["OFFER", "REJECTED"])
+def test_removing_applied_drops_every_later_state(client, db_session, final):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": final}).json()
+    applied = next(e["id"] for e in body["events"] if e["status"]["key"] == "APPLIED")
+
+    body = client.delete(f"{url}/events/{applied}").json()
+    assert body["status"]["key"] == "SHORTLISTED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
+
 def test_final_state_keeps_planned_rounds_but_blocks_them(client, db_session):
     app_id = _new_application(client, db_session, "APPLIED", "INTERVIEW")
     url = f"{BASE}/{app_id}"

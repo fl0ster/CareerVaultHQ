@@ -192,8 +192,8 @@ function EventRow({
         ? `Undo accepting the offer? The application goes back to "Offer" and the position it added to My Career is deleted.`
         : event.status.key === DECLINED_STATUS
           ? `Undo declining the offer? The application goes back to "Offer".`
-          : event.status.key === APPLIED_STATUS && application.events.some((e) => e.status.key === INTERVIEW_STATUS)
-            ? `Remove the "Applied" state? Every held interview round goes back to planned and the job back to Jobs.`
+          : event.status.key === APPLIED_STATUS && application.events.some((e) => e.status.key !== APPLIED_STATUS && e.status.key !== INITIAL_ONLY_STATUS)
+            ? `Remove the "Applied" state? Every later state (interviews, offer, rejection…) is undone: held rounds go back to planned and the job back to Jobs.`
             : `Remove the "${event.status.label}" state?`
     if (!window.confirm(question)) return
     const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))

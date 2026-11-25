@@ -319,6 +319,23 @@ def leave_interviews(session: Session, application: Application) -> None:
     session.expire(application, ["events"])
 
 
+def unapply(session: Session, application: Application) -> None:
+    """Take the application back to ``SHORTLISTED``: undo the interview stage
+    (``leave_interviews``), then delete every other state (``APPLIED`` and anything after it,
+    such as ``OFFER`` or ``REJECTED``; dropping ``ACCEPTED`` also drops its work-history
+    entry). Planned rounds are kept. Not committed."""
+    leave_interviews(session, application)
+    for event in list(application.history):
+        if event.status.key == INITIAL_ONLY_STATUS:
+            continue
+        if event.status.key == ACCEPTED_STATUS:
+            undo_accept(session, application)
+        application.events.remove(event)
+        session.delete(event)
+    session.flush()
+    session.expire(application, ["events"])
+
+
 def held_rounds(application: Application) -> list[ApplicationEvent]:
     """Interview rounds that already took place (the stage entry is not one)."""
     return [e for e in application.history if e.status.key == INTERVIEW_STATUS and not e.stage_entry]

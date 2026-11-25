@@ -81,7 +81,6 @@ from app.services.applications import (
     ensure_statuses,
     held_at,
     held_rounds,
-    leave_interviews,
     plan_parsed_rounds,
     record_event,
     reject_if_final,
@@ -91,6 +90,7 @@ from app.services.applications import (
     set_interview_rounds,
     set_job_decision,
     status_by_key,
+    unapply,
     undo_accept,
 )
 from app.services.candidate_profile import current_profile_ids
@@ -710,9 +710,9 @@ def delete_event(
     queue: Annotated[Queue, Depends(get_queue)],
 ) -> ApplicationOut:
     """Remove a state; a held interview round becomes a planned one again instead. Removing
-    ``APPLIED`` also undoes the interview stage (``leave_interviews``), so the application
-    is back to ``SHORTLISTED``; removing ``ACCEPTED`` also deletes the work-history entry
-    accepting the offer created."""
+    ``APPLIED`` takes the application back to ``SHORTLISTED`` (``unapply``: held rounds
+    become planned, every later state is deleted); removing ``ACCEPTED`` also deletes the
+    work-history entry accepting the offer created."""
     application = _get_or_404(session, application_id)
     event = _event_or_404(application, event_id)
     try:
@@ -721,9 +721,9 @@ def delete_event(
         raise _http_error(exc) from exc
     if event.status.key == INTERVIEW_STATUS and not event.planned and not event.stage_entry:
         event.planned = True
+    elif event.status.key == APPLIED_STATUS:
+        unapply(session, application)
     else:
-        if event.status.key == APPLIED_STATUS:
-            leave_interviews(session, application)
         if event.status.key == ACCEPTED_STATUS and not any(
             e.status.key == ACCEPTED_STATUS for e in application.history if e is not event
         ):
