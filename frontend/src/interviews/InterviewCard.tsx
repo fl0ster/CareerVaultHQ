@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { CalendarClock, ChevronRight } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import {
@@ -88,9 +88,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
             round={current}
             total={rounds.length}
             busy={busy}
-            onMarkHeld={(note) =>
-              run(() => applicationsApi.updateEvent(a.id, current.event.id, { planned: false, note }))
-            }
             onSaveNote={(note) => run(() => applicationsApi.updateEvent(a.id, current.event.id, { note }))}
           />
         ) : (
@@ -109,15 +106,12 @@ function CurrentStep({
   round,
   total,
   busy,
-  onMarkHeld,
   onSaveNote,
 }: {
   application: Application
   round: Round
   total: number
   busy: boolean
-  /** Marks the round held, saving `note` with it. */
-  onMarkHeld: (note: string) => Promise<boolean>
   onSaveNote: (note: string) => Promise<boolean>
 }) {
   const { event } = round
@@ -127,23 +121,9 @@ function CurrentStep({
   const duration = formatDuration(event.duration_minutes)
   const kind = event.title || null
 
-  // The latest note save. Mark held waits for it, so the save's answer can't land after (and
-  // undo) the round being marked held.
-  const saving = useRef<Promise<unknown>>(Promise.resolve())
-  const [marking, setMarking] = useState(false)
-
   const saveNote = () => {
     if (note === event.note) return
-    saving.current = onSaveNote(note).then(setSaved)
-  }
-
-  // Not disabled while the note saves: pressing this button blurs the notes first, which
-  // starts that save before the click arrives.
-  const markHeld = async () => {
-    setMarking(true)
-    await saving.current
-    await onMarkHeld(note)
-    setMarking(false)
+    void onSaveNote(note).then(setSaved)
   }
 
   return (
@@ -176,7 +156,7 @@ function CurrentStep({
           }}
           onBlur={saveNote}
           placeholder={round.held ? 'How did it go?' : 'Prep notes: who you meet, topics, questions to ask…'}
-          rows={3}
+          rows={6}
           disabled={busy}
         />
       </label>
@@ -184,11 +164,6 @@ function CurrentStep({
         <span className="iv-saved muted" aria-live="polite">
           {busy ? 'Saving…' : saved ? 'Saved' : ''}
         </span>
-        {!round.held && (
-          <button type="button" className="small" onClick={() => void markHeld()} disabled={marking}>
-            Mark held
-          </button>
-        )}
       </div>
     </section>
   )

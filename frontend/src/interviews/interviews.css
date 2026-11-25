@@ -129,7 +129,7 @@
     width: 100%;
     box-sizing: border-box;
     resize: vertical;
-    min-height: 64px;
+    min-height: 120px;
     background: var(--surface);
   }
 }
@@ -215,6 +215,17 @@
   margin-top: auto;
   display: flex;
   justify-content: flex-start;
+
+  /* A larger target than the list rows' pill. */
+  .app-status-main {
+    padding: 7px 10px 7px 14px;
+  }
+  .app-status-main.alone {
+    padding-right: 14px;
+  }
+  .app-status-more {
+    padding: 7px 12px 7px 10px;
+  }
 }
 
 /* The stepper column follows the current step's height instead of setting it; longer lists scroll. */
