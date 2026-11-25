@@ -519,8 +519,13 @@
   overflow-x: auto;
   overflow-y: hidden;
   cursor: grab;
-  scrollbar-width: thin;
+  /* Panning is by drag, wheel/trackpad and the pointer follow; no visible scrollbar needed. */
+  scrollbar-width: none;
   background: var(--canvas);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   &:active {
     cursor: grabbing;
