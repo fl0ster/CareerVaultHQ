@@ -176,3 +176,54 @@ def test_to_dict_shape():
         "context": "x",
         "relevance": 0.1235,
     }
+
+
+# --------------------------------------------------------------------------- tenures
+
+
+def test_tenure_boundary_month_is_not_an_overlap():
+    junior = role("Acme", date(2019, 1, 1), date(2022, 3, 14), 0.9, tenure=1, id=1)
+    senior = role("Acme", date(2022, 3, 15), None, 0.9, tenure=1, id=2, transition="promotion")
+    history = build_coherent_history([senior, junior], max_entries=5, min_entries=1, min_months=3)
+    assert [(r.id, format_month(r.start), format_month(r.end)) for r in history.main] == [
+        (2, "Mar 2022", "Nov 2026"),
+        (1, "Jan 2019", "Feb 2022"),
+    ]
+    assert not any(line.startswith("dropped") for line in history.log)
+
+
+def test_a_tenure_counts_as_one_entry():
+    roles = [
+        role("Acme", date(2024, 1, 1), None, 0.9, tenure=1, id=3, transition="promotion"),
+        role("Acme", date(2022, 1, 1), date(2023, 12, 1), 0.9, tenure=1, id=2, transition="promotion"),
+        role("Acme", date(2020, 1, 1), date(2021, 12, 1), 0.9, tenure=1, id=1),
+        role("Beta", date(2018, 1, 1), date(2019, 12, 1), 0.9, id=4),
+        role("Gamma", date(2016, 1, 1), date(2017, 12, 1), 0.9, id=5),
+    ]
+    history = build_coherent_history(roles, max_entries=2, min_entries=1, min_months=3)
+    assert [r.id for r in history.main] == [3, 2, 1, 4]
+    assert [r.id for r in history.early] == [5]
+
+
+def test_an_irrelevant_earlier_role_stays_with_its_tenure():
+    senior = role("Acme", date(2022, 1, 1), None, 0.9, tenure=1, id=2, transition="promotion")
+    intern = role("Acme", date(2020, 1, 1), date(2021, 12, 1), 0.05, tenure=1, id=1)
+    other = role("Beta", date(2015, 1, 1), date(2019, 12, 1), 0.05, id=3)
+    history = build_coherent_history(
+        [senior, intern, other], max_entries=5, min_entries=1, irrelevant_relevance=0.1, min_months=3
+    )
+    assert [r.id for r in history.main] == [2, 1]
+    assert [r.id for r in history.early] == [3]
+    assert "keeping  Acme / Acme role: listed with its later role at Acme" in history.log
+
+
+def test_no_gap_note_within_a_tenure():
+    senior = role("Acme", date(2022, 6, 1), None, 0.9, tenure=1, id=2, transition="promotion")
+    junior = role("Acme", date(2019, 1, 1), date(2021, 12, 1), 0.9, tenure=1, id=1)
+    history = build_coherent_history([senior, junior], max_entries=5, min_entries=1)
+    assert not any("gap" in line for line in history.log)
+
+
+def test_to_dict_carries_the_transition():
+    r = role("Acme", date(2020, 1, 1), None, 0.5, transition="promotion")
+    assert r.to_dict(TODAY)["transition"] == "promotion"

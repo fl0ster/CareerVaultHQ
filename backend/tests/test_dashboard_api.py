@@ -86,7 +86,8 @@ def test_upcoming_lists_scheduled_rounds(client, db_session):
     seed_cv_inputs(client, db_session)
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session, 0).id}).json()["id"]
     client.post(f"{BASE}/{app_id}/events", json={"status": "APPLIED"})
-    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})
+    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})  # enters the stage
+    client.post(f"{BASE}/{app_id}/events", json={"status": "INTERVIEW"})  # round 1 held
     client.patch(f"{BASE}/{app_id}", json={"interview_rounds": 3})  # rounds 2 and 3 planned
     planned = client.get(f"{BASE}/{app_id}").json()["planned_events"]
     soon = datetime.now(UTC) + timedelta(days=2)

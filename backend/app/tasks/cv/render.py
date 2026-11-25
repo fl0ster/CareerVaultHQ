@@ -90,19 +90,16 @@ def render_headline(role: str, core_technologies: list[str]) -> str:
 # --------------------------------------------------------------------------- roles
 
 
-def render_role(entry: dict) -> str:
-    """One ``cvrole`` block. ``context`` may be prose (split into sentences) or a list."""
-    title = tex_escape(entry.get("role"))
-    company = tex_escape(entry.get("employer"))
-    dates = f"{tex_escape(entry.get('date_start'))} -- {tex_escape(entry.get('date_end'))}"
-    location = tex_escape(entry.get("location"))
+def _dates(entry: dict) -> str:
+    return f"{tex_escape(entry.get('date_start'))} -- {tex_escape(entry.get('date_end'))}"
 
+
+def _role_body(entry: dict) -> list[str]:
+    """The bullets and the tech line of a role. ``context`` may be prose (split into
+    sentences) or a list."""
     context = entry.get("context")
     bullets = context if isinstance(context, list) else split_sentences(context)
-
-    lines = [f"\\begin{{cvrole}}{{{title}}}{{{company}}}{{{dates}}}{{{location}}}"]
-    for bullet in bullets:
-        lines.append(f"  \\item {tex_escape(bullet)}")
+    lines = [f"  \\item {tex_escape(bullet)}" for bullet in bullets]
     if not bullets:
         lines.append("  \\item[] ")  # itemize must not be empty
     tech = entry.get("tech")
@@ -110,25 +107,58 @@ def render_role(entry: dict) -> str:
         tech = ", ".join(tech)
     if tech:
         lines.append(f"  \\cvtech{{{tex_escape(tech)}}}")
-    lines.append("\\end{cvrole}")
-    return "\n".join(lines)
+    return lines
+
+
+def render_role(entry: dict) -> str:
+    """One ``cvrole`` block: the role with its employer, dates and location."""
+    title = tex_escape(entry.get("role"))
+    company = tex_escape(entry.get("employer"))
+    location = tex_escape(entry.get("location"))
+    head = f"\\begin{{cvrole}}{{{title}}}{{{company}}}{{{_dates(entry)}}}{{{location}}}"
+    return "\n".join([head, *_role_body(entry), "\\end{cvrole}"])
+
+
+def render_subrole(entry: dict) -> str:
+    """One ``cvsubrole`` block: an earlier role at the employer of the block above it."""
+    head = f"\\begin{{cvsubrole}}{{{tex_escape(entry.get('role'))}}}{{{_dates(entry)}}}"
+    return "\n".join([head, *_role_body(entry), "\\end{cvsubrole}"])
+
+
+def group_tenures(entries: list[dict]) -> list[list[dict]]:
+    """Consecutive entries (newest first) of the same ``tenure`` grouped together: one
+    employer block each. An entry without a ``tenure`` is a group of its own."""
+    groups: list[list[dict]] = []
+    for entry in entries:
+        tenure = entry.get("tenure")
+        if groups and tenure is not None and groups[-1][-1].get("tenure") == tenure:
+            groups[-1].append(entry)
+        else:
+            groups.append([entry])
+    return groups
+
+
+def _early_context(entry: dict) -> str:
+    context = entry.get("context")
+    if isinstance(context, list):
+        context = " ".join(context)
+    return tex_escape(context).rstrip(",.")
 
 
 def render_early_history(entries: list[dict]) -> str:
-    """All early roles as a single ``cvrole`` block, one line per role (newest first)."""
+    """All early roles as a single ``cvrole`` block, one line per role (newest first); the
+    roles of one tenure share a line (``Engineer -> Senior Engineer``)."""
     if not entries:
         return ""
     dates = f"{tex_escape(entries[-1].get('date_start'))} -- {tex_escape(entries[0].get('date_end'))}"
     lines = [f"\\begin{{cvrole}}{{Additional Experience}}{{Various Companies}}{{{dates}}}{{}}"]
-    for entry in entries:
-        role = tex_escape(entry.get("role"))
-        company = tex_escape(entry.get("employer"))
-        start = tex_escape(entry.get("date_start"))
-        end = tex_escape(entry.get("date_end"))
-        context = entry.get("context")
-        if isinstance(context, list):
-            context = " ".join(context)
-        context = tex_escape(context).rstrip(",.")
+    for group in group_tenures(entries):
+        newest, oldest = group[0], group[-1]
+        role = " $\\rightarrow$ ".join(tex_escape(e.get("role")) for e in reversed(group))
+        company = tex_escape(newest.get("employer"))
+        start = tex_escape(oldest.get("date_start"))
+        end = tex_escape(newest.get("date_end"))
+        context = "; ".join(c for c in (_early_context(e) for e in group) if c)
         line = f"\\textbf{{{role}}}, {{\\small {{\\color{{muted}}{company} ({start} -- {end})}}"
         if context:
             line += f": {context}"
@@ -138,7 +168,11 @@ def render_early_history(entries: list[dict]) -> str:
 
 
 def render_roles(main: list[dict], early: list[dict]) -> str:
-    blocks = [render_role(entry) for entry in main]
+    """The roles listed in full, one employer block per tenure (its newest role with the
+    employer, the earlier ones as sub-roles), then the early history."""
+    blocks = [
+        "\n".join([render_role(group[0]), *(render_subrole(entry) for entry in group[1:])]) for group in group_tenures(main)
+    ]
     early_tex = render_early_history(early)
     if early_tex:
         blocks.append(early_tex)

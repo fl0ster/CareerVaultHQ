@@ -25,6 +25,7 @@ dist/
 build/
 
 # Backend
+backend/llm_models.toml
 backend/static/uploads
 backend/static/jobs
 backend/static/cv

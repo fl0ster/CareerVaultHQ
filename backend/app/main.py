@@ -6,12 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 from app.config import get_settings
 from app.db import init_db
+from app.llm_calls import load_model_overrides
 from app.spa import mount_spa
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Fail at startup, not on the first LLM call, when the model override file is invalid.
+    load_model_overrides(get_settings().openrouter_models_file)
     yield
     # Shutdown: release resources.
 

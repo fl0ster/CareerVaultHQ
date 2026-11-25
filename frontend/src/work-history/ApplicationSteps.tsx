@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { type Application, applicationsApi, formatDuration, serverDate } from '../applications/api.ts'
+import { type Application, applicationsApi, formatDuration, historyEvents, serverDate } from '../applications/api.ts'
 import StatusBadge from '../applications/StatusBadge.tsx'
 import '../applications/applications.css'
 import { describeError } from '../cv/api.ts'
@@ -32,7 +32,7 @@ export default function ApplicationSteps({ applicationId }: { applicationId: num
       {!application && !error && <span className="spinner" aria-hidden="true" />}
       {application && (
         <ol className="wh-steps-list">
-          {application.events.map((event) => (
+          {historyEvents(application).map((event) => (
             <li key={event.id}>
               <StatusBadge status={event.status} />
               {event.title && <strong>{event.title}</strong>}

@@ -163,6 +163,7 @@ def upcoming_rounds(session: Session, now: datetime, limit: int = UPCOMING_LIMIT
         .where(
             held.application_id == ApplicationEvent.application_id,
             held.planned.is_(False),
+            held.stage_entry.is_(False),
             ApplicationStatus.key == INTERVIEW_STATUS,
         )
         .scalar_subquery()

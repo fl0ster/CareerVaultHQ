@@ -154,14 +154,21 @@ def record_event(
     source_ref: str | None = None,
 ) -> ApplicationEvent:
     """Record a state change on ``application`` following the application rules (see
-    ``app.api.routes.applications``); ``EventRejected`` when they forbid it. Recording
-    ``INTERVIEW`` holds the first planned round instead of adding one. Not committed."""
+    ``app.api.routes.applications``); ``EventRejected`` when they forbid it. The first
+    ``INTERVIEW`` only enters the interview stage (a ``stage_entry`` event; planned rounds
+    stay planned); later ones hold the first planned round instead of adding one.
+    ``APPLIED`` while in ``INTERVIEW`` goes back to ``APPLIED`` (see ``leave_interviews``).
+    Not committed."""
     reject_initial_only(status_key)
     reject_offer_decision(status_key)
     reject_if_final(application)
     key = status_key.upper()
     if key == APPLIED_STATUS:
         current = application.current_event
+        applied = next((e for e in application.history if e.status.key == APPLIED_STATUS), None)
+        if applied is not None and current is not None and current.status.key == INTERVIEW_STATUS:
+            leave_interviews(session, application)
+            return applied
         if any(e.status.key == APPLIED_STATUS for e in application.events):
             raise EventRejected(f"application is already {APPLIED_STATUS}")
         if current is None or current.status.key != INITIAL_ONLY_STATUS:
@@ -169,7 +176,8 @@ def record_event(
     plan = application.plan
     if occurred_at is not None:
         reject_out_of_order(application, key, occurred_at)
-    if key == INTERVIEW_STATUS and plan:
+    entering = key == INTERVIEW_STATUS and not any(e.status.key == INTERVIEW_STATUS for e in application.history)
+    if key == INTERVIEW_STATUS and plan and not entering:
         # Hold the next planned round instead of adding a new one.
         event = plan[0]
         event.occurred_at = occurred_at or held_at(application, event)
@@ -186,6 +194,7 @@ def record_event(
         source=source,
         source_ref=source_ref,
         occurred_at=occurred_at or datetime.now(UTC),
+        stage_entry=entering,
     )
     # Appended (rather than only added to the session) so ``application.events`` and
     # ``current_event`` stay right for callers that keep using the object.
@@ -295,9 +304,41 @@ def held_at(application: Application, event: ApplicationEvent) -> datetime:
     return datetime.now(UTC)
 
 
+def leave_interviews(session: Session, application: Application) -> None:
+    """Undo the interview stage: held rounds become planned again (keeping their date as the
+    schedule) and the stage entry is deleted. Not committed."""
+    for event in list(application.history):
+        if event.status.key != INTERVIEW_STATUS:
+            continue
+        if event.stage_entry:
+            application.events.remove(event)
+            session.delete(event)
+        else:
+            event.planned = True
+    session.flush()
+    session.expire(application, ["events"])
+
+
+def unapply(session: Session, application: Application) -> None:
+    """Take the application back to ``SHORTLISTED``: undo the interview stage
+    (``leave_interviews``), then delete every other state (``APPLIED`` and anything after it,
+    such as ``OFFER`` or ``REJECTED``; dropping ``ACCEPTED`` also drops its work-history
+    entry). Planned rounds are kept. Not committed."""
+    leave_interviews(session, application)
+    for event in list(application.history):
+        if event.status.key == INITIAL_ONLY_STATUS:
+            continue
+        if event.status.key == ACCEPTED_STATUS:
+            undo_accept(session, application)
+        application.events.remove(event)
+        session.delete(event)
+    session.flush()
+    session.expire(application, ["events"])
+
+
 def held_rounds(application: Application) -> list[ApplicationEvent]:
-    """Interview rounds that already took place."""
-    return [e for e in application.history if e.status.key == INTERVIEW_STATUS]
+    """Interview rounds that already took place (the stage entry is not one)."""
+    return [e for e in application.history if e.status.key == INTERVIEW_STATUS and not e.stage_entry]
 
 
 def set_interview_rounds(session: Session, application: Application, rounds: int, interview: ApplicationStatus) -> None:

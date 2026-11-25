@@ -1,0 +1,369 @@
+/* Interviews page: one card per application, two columns when there is room. */
+.iv-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.iv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow var(--t-fast) ease,
+    border-color var(--t-fast) ease;
+
+  &:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .error {
+    margin: 0;
+  }
+}
+
+/* Head: job and company on the left, the status control on the right. */
+.iv-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.iv-card-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.iv-card-job {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--heading);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+
+  &:hover {
+    color: var(--accent);
+  }
+  &:focus-visible {
+    border-radius: 4px;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.iv-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+
+.iv-card-head-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+
+  /* The status pill as roomy as the Details button next to it. */
+  .app-status-main {
+    padding: 8px 10px 8px 14px;
+  }
+  .app-status-main.alone {
+    padding-right: 14px;
+  }
+  .app-status-more {
+    padding: 8px 12px 8px 10px;
+  }
+}
+
+.iv-card-details {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 12px 9px 16px;
+  font-size: 14px;
+}
+
+/* The current step: the round being prepared for (or the last one held) and its notes. */
+.iv-current {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-md);
+  color: var(--text-h);
+
+  &.held {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+  &.muted {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 120px;
+    display: block;
+    background: var(--surface);
+  }
+}
+
+.iv-current-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.iv-current-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn-fg);
+
+  .iv-current.held & {
+    color: var(--text);
+  }
+}
+
+.iv-current-name {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.iv-current-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.iv-current-notes {
+  display: block;
+  position: relative;
+
+  /* Save status sits inside the textarea's bottom-right corner, taking no room below it. */
+  .iv-saved {
+    position: absolute;
+    right: 18px;
+    bottom: 6px;
+    pointer-events: none;
+  }
+}
+
+
+.iv-saved {
+  font-size: 12px;
+}
+
+/* Body: the rounds down the left, the current step beside them. */
+.iv-card-body {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) 1fr;
+  align-items: start;
+  gap: 18px;
+
+  > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left column: the stepper on top, the status control at the bottom left below it. */
+.iv-card-side {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  .iv-stepper-wrap {
+    flex: 1;
+  }
+}
+
+.iv-card-status {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-start;
+
+  /* A larger target than the list rows' pill. */
+  .app-status-main {
+    padding: 7px 10px 7px 14px;
+  }
+  .app-status-main.alone {
+    padding-right: 14px;
+  }
+  .app-status-more {
+    padding: 7px 12px 7px 10px;
+  }
+}
+
+/* The stepper column follows the current step's height instead of setting it; longer lists scroll. */
+.iv-stepper-wrap {
+  position: relative;
+  align-self: stretch;
+  min-height: 120px;
+
+  .iv-stepper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    /* Room for the current round's ring. */
+    padding: 4px;
+  }
+  /* Rounds cut off above or below fade out, so it shows there are more. The top fade stays
+     shorter than one round, so it only ever covers the round before the current one. */
+  .iv-stepper.cut-bottom {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  }
+  .iv-stepper.cut-top {
+    mask-image: linear-gradient(to top, #000 calc(100% - 32px), transparent);
+  }
+  .iv-stepper.cut-top.cut-bottom {
+    mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 40px), transparent);
+  }
+
+  @media (max-width: 600px) {
+    min-height: 0;
+
+    .iv-stepper {
+      position: static;
+      max-height: 180px;
+    }
+  }
+}
+
+/* Vertical stepper: a dot per round joined by a line, the label beside it. */
+.iv-stepper {
+  --iv-done: var(--warn-solid);
+  --iv-dot: 24px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
+
+  &:is(.offer, .accepted) {
+    --iv-done: var(--success-solid);
+  }
+  &.rejected {
+    --iv-done: var(--danger-solid);
+  }
+  &:is(.closed, .declined) {
+    --iv-done: var(--neutral-solid);
+  }
+}
+
+.iv-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--iv-dot) 1fr;
+  column-gap: 10px;
+  min-height: calc(var(--iv-dot) + 22px);
+
+  /* The line down to the next step. */
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: calc(var(--iv-dot) / 2 - 1px);
+    top: calc(var(--iv-dot) + 3px);
+    bottom: 3px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--border);
+  }
+  &.is-done:not(:last-child)::after {
+    background: var(--iv-done);
+  }
+}
+
+.iv-step-dot {
+  display: grid;
+  place-items: center;
+  width: var(--iv-dot);
+  height: var(--iv-dot);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+
+  .iv-step.is-held & {
+    border: none;
+    background: var(--iv-done);
+    color: var(--on-strong);
+  }
+  .iv-step.is-current & {
+    border: 2px solid var(--warn-fg);
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    box-shadow: 0 0 0 3px var(--warn-border);
+  }
+  /* The last round, held: filled and checked, still ringed as current. */
+  .iv-step.is-current.is-done:last-child & {
+    background: var(--iv-done);
+    color: var(--on-strong);
+  }
+}
+
+.iv-step-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-top: 2px;
+  line-height: 1.3;
+}
+
+.iv-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+
+  .iv-step.is-current & {
+    color: var(--text-h);
+  }
+}
+
+.iv-step-when {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+}

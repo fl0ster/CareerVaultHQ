@@ -273,7 +273,7 @@ def test_applied_only_once_and_after_shortlisted(client, db_session):
 
 def _rounds(body):
     """(held interview rounds, titles of the planned ones)."""
-    held = [e for e in body["events"] if e["status"]["key"] == "INTERVIEW"]
+    held = [e for e in body["events"] if e["status"]["key"] == "INTERVIEW" and not e["stage_entry"]]
     return len(held), [e["title"] for e in body["planned_events"]]
 
 
@@ -291,7 +291,7 @@ def test_interview_rounds_are_planned_and_resized(client, db_session):
     url = f"{BASE}/{app_id}"
 
     body = client.patch(url, json={"interview_rounds": 5}).json()
-    assert _rounds(body) == (1, [""] * 4)
+    assert _rounds(body) == (0, [""] * 5)
     # Planned rounds are never the current state.
     assert body["status"]["key"] == "INTERVIEW" and body["notes"] == ""
 
@@ -301,10 +301,11 @@ def test_interview_rounds_are_planned_and_resized(client, db_session):
 
     # Shrinking drops rounds from the end; 0 drops every planned one.
     assert _rounds(client.patch(url, json={"interview_rounds": 3}).json()) == (
-        1,
-        ["Culture match", ""],
+        0,
+        ["Culture match", "", ""],
     )
-    assert _rounds(client.patch(url, json={"interview_rounds": 0}).json()) == (1, [])
+    assert _rounds(client.patch(url, json={"interview_rounds": 0}).json()) == (0, [])
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
     client.post(f"{url}/events", json={"status": "INTERVIEW"})
     assert client.patch(url, json={"interview_rounds": 1}).status_code == 422
     # Notes alone leave the rounds alone.
@@ -324,9 +325,16 @@ def test_recording_an_interview_holds_the_next_round(client, db_session):
     assert stats[str(body["job"]["company_id"])] == {"APPLIED": 1}
     client.patch(f"{url}/events/{first}", json={"title": "HR", "note": "plan note"})
 
+    # The first interview only enters the stage: every round is still planned.
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    entry = body["events"][-1]
+    assert body["status"]["key"] == "INTERVIEW" and entry["stage_entry"]
+    assert _rounds(body) == (0, ["HR", ""])
+
     body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
     held = body["events"][-1]
     assert (held["id"], held["title"], held["note"]) == (first, "HR", "plan note")
+    assert not held["stage_entry"]
     assert held["occurred_at"] is not None
     assert [e["id"] for e in body["planned_events"]] == [second]
 
@@ -343,6 +351,68 @@ def test_recording_an_interview_holds_the_next_round(client, db_session):
     body = client.delete(f"{url}/events/{extra}").json()
     assert _rounds(body) == (2, [])
 
+    # Removing the stage entry drops it instead of planning it.
+    body = client.delete(f"{url}/events/{entry['id']}").json()
+    assert entry["id"] not in [e["id"] for e in body["events"] + body["planned_events"]]
+    assert _rounds(body) == (2, [])
+
+
+def test_entering_the_interview_stage_holds_no_round(client, db_session):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    assert body["status"]["key"] == "INTERVIEW" and _rounds(body) == (0, ["", ""])
+
+    body = client.delete(f"{url}/events/{body['events'][-1]['id']}").json()
+    assert body["status"]["key"] == "APPLIED" and _rounds(body) == (0, ["", ""])
+
+
+def test_picking_applied_again_leaves_the_interview_stage(client, db_session):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    assert _rounds(body) == (1, [""])
+
+    res = client.post(f"{url}/events", json={"status": "APPLIED"})
+    assert res.status_code == 201
+    body = res.json()
+    assert body["status"]["key"] == "APPLIED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED", "APPLIED"]
+    # Outside the interview stage APPLIED still cannot be recorded twice.
+    assert client.post(f"{url}/events", json={"status": "APPLIED"}).status_code == 409
+
+
+def test_removing_applied_leaves_the_interview_stage(client, db_session):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    applied = next(e["id"] for e in body["events"] if e["status"]["key"] == "APPLIED")
+
+    body = client.delete(f"{url}/events/{applied}").json()
+    assert body["status"]["key"] == "SHORTLISTED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
+
+@pytest.mark.parametrize("final", ["OFFER", "REJECTED"])
+def test_removing_applied_drops_every_later_state(client, db_session, final):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": final}).json()
+    applied = next(e["id"] for e in body["events"] if e["status"]["key"] == "APPLIED")
+
+    body = client.delete(f"{url}/events/{applied}").json()
+    assert body["status"]["key"] == "SHORTLISTED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
 
 def test_final_state_keeps_planned_rounds_but_blocks_them(client, db_session):
     app_id = _new_application(client, db_session, "APPLIED", "INTERVIEW")
@@ -350,7 +420,7 @@ def test_final_state_keeps_planned_rounds_but_blocks_them(client, db_session):
     planned = client.patch(url, json={"interview_rounds": 3}).json()["planned_events"][0]["id"]
 
     body = client.post(f"{url}/events", json={"status": "REJECTED"}).json()
-    assert body["status"]["key"] == "REJECTED" and len(body["planned_events"]) == 2
+    assert body["status"]["key"] == "REJECTED" and len(body["planned_events"]) == 3
     assert client.post(f"{url}/events", json={"status": "INTERVIEW"}).status_code == 409
     assert client.patch(f"{url}/events/{planned}", json={"planned": False}).status_code == 409
 

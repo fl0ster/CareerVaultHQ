@@ -52,8 +52,6 @@ class Settings(BaseSettings):
     # Where generated CVs are written (``<cv_root>/<generated_cv_id>/cv.{tex,pdf}``);
     # shared by API and worker.
     cv_root: Path = BACKEND_DIR / "static" / "cv"
-    # Chat model used to tailor the work history; empty = ``openrouter_chat_model``.
-    cv_chat_model: str = ""
     # How many OpenRouter requests one generation keeps in flight at once.
     cv_max_workers: int = 4
     # Hard limit for one generation (RQ ``job_timeout``, seconds): dozens of LLM calls plus
@@ -83,19 +81,17 @@ class Settings(BaseSettings):
     cv_import_max_chars: int = 60_000
     # Fewer non-whitespace characters than this means the PDF has no text layer (a scan).
     cv_import_min_text_chars: int = 200
-    # Chat model that extracts the data; empty = ``openrouter_chat_model``.
-    cv_import_model: str = ""
 
     # --- OpenRouter (LLM calls) ---
     # API key from https://openrouter.ai/keys. Calls fail with 503 when it is empty.
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Default model for free-text chat completions.
-    openrouter_chat_model: str = "openai/gpt-4o-mini"
     # Jev Decisions API (https://openrouter.ai/docs/guides/community/jev): typed answers
     # (probabilities) to questions about a ``state`` instead of free text.
     openrouter_decisions_url: str = "https://openrouter.ai/api/alpha/decisions"
-    openrouter_decision_model: str = "typesafe/jev-1.14"
+    # Models are set per call in ``app/llm_calls.py``. This optional TOML file overrides them
+    # per deployment (``[models]`` table, key = call key); see ``llm_models.example.toml``.
+    openrouter_models_file: Path = BACKEND_DIR / "llm_models.toml"
     # Per-request HTTP timeout (seconds).
     openrouter_timeout: float = 120.0
     # Optional attribution headers shown on openrouter.ai rankings.

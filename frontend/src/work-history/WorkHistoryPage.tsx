@@ -2,11 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import './work-history.css'
 import { type WorkHistoryEntry, type WorkHistoryExport, type WorkHistoryInput, workHistoryApi } from './api.ts'
-import { type Bar, layout, todayIndex } from './timeline-model.ts'
+import { type Bar, formatDuration, layout, type TenureSpan, todayIndex } from './timeline-model.ts'
+import { orderForList, tenureOf, tenures, type Tenures } from './tenure.ts'
 import { useScrollPointer } from './useScrollPointer.ts'
 import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
-import EntryDetail, { EntryPeriod, Organisation, PrefillStatus } from './EntryDetail.tsx'
+import EntryDetail, { EntryPeriod, Organisation, PrefillStatus, TransitionChip } from './EntryDetail.tsx'
 import type { Crumb } from '../shell/nav.ts'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { candidateDetailsApi } from '../candidate-profile/api.ts'
@@ -26,10 +27,22 @@ function importedSummary(entries: { kind?: WorkHistoryEntry['kind'] }[]): string
 /** How often the list is reloaded while an entry is being filled in from its application. */
 const PREFILL_POLL_MS = 3000
 
-/** One row of the career list; clicking it opens the entry's details. */
+/** Where a card sits among the roles of its tenure (newest on top); null when the role stands alone. */
+function tenurePlace(t: Tenures, entry: WorkHistoryEntry): 'first' | 'mid' | 'last' | null {
+  const roles = tenureOf(t, entry)
+  if (roles.length < 2) return null
+  const i = roles.indexOf(entry)
+  return i === roles.length - 1 ? 'first' : i === 0 ? 'last' : 'mid'
+}
+
+/** One row of the career list; clicking it opens the entry's details. The roles of one tenure
+ * are joined by a rail; the newest one carries the organisation and the time spent there. */
 function EntryCard({
   entry,
   bar,
+  place,
+  tenure,
+  previous,
   active,
   cardRef,
   onOpen,
@@ -37,17 +50,23 @@ function EntryCard({
 }: {
   entry: WorkHistoryEntry
   bar: Bar | undefined
+  place: 'first' | 'mid' | 'last' | null
+  /** The span of the entry's tenure, when it held several roles there. */
+  tenure: TenureSpan | undefined
+  /** The role this one continues at its employer. */
+  previous: WorkHistoryEntry | undefined
   active: boolean
   cardRef: (el: HTMLLIElement | null) => void
   onOpen: () => void
   onOpenCompany: (companyId: number) => void
 }) {
   const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
+  const continuation = place === 'mid' || place === 'last'
   return (
     <li
       ref={cardRef}
       data-id={entry.id}
-      className={`wh-item kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${active ? ' active' : ''}`}
+      className={`wh-item kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${place ? ` tenure-${place}` : ''}${active ? ' active' : ''}`}
       role="link"
       tabIndex={0}
       aria-label={`${entryTitle(entry)}: open details`}
@@ -80,9 +99,17 @@ function EntryCard({
             {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
           </span>
         </div>
-        <div className="wh-org-line">
-          <Organisation entry={entry} onOpenCompany={onOpenCompany} />
-        </div>
+        {!continuation && (
+          <div className="wh-org-line">
+            <Organisation entry={entry} onOpenCompany={onOpenCompany} />
+            {place === 'first' && tenure && (
+              <span className="wh-tenure-total">
+                {formatDuration(tenure.end - tenure.start)} in {tenure.roles} roles
+              </span>
+            )}
+          </div>
+        )}
+        {previous && <TransitionChip entry={entry} previous={previous} />}
         <PrefillStatus entry={entry} />
       </div>
     </li>
@@ -165,11 +192,15 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
 
   const today = useMemo(() => todayIndex(), [])
   const model = useMemo(() => (entries && entries.length > 0 ? layout(entries, today) : null), [entries, today])
-  const order = useMemo(() => entries?.map((e) => e.id) ?? [], [entries])
+  const career = useMemo(() => tenures(entries ?? []), [entries])
+  // Newest first, with the roles of a tenure kept together.
+  const ordered = useMemo(() => (entries ? orderForList(entries, career) : null), [entries, career])
+  const byId = useMemo(() => new Map((entries ?? []).map((e) => [e.id, e])), [entries])
+  const order = useMemo(() => ordered?.map((e) => e.id) ?? [], [ordered])
   const emptyById = useMemo(() => new Map<number, Bar>(), [])
   const listMode = detailId == null
-  const openIndex = !listMode && entries ? entries.findIndex((e) => String(e.id) === detailId) : -1
-  const open = entries && openIndex >= 0 ? entries[openIndex] : null
+  const openIndex = !listMode && ordered ? ordered.findIndex((e) => String(e.id) === detailId) : -1
+  const open = ordered && openIndex >= 0 ? ordered[openIndex] : null
   const { activeId, pointer, spacer } = useScrollPointer(
     listMode && !!model,
     viewRef,
@@ -192,11 +223,13 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
     return () => ro.disconnect()
   }, [hasView])
 
-  // The open entry is the breadcrumb after "My Career".
+  // The open entry is the breadcrumb after "My Career", and its role replaces "My Career" as the page
+  // heading (so the heading stays and the layout doesn't jump). Set before paint, so it never flickers.
   const crumb = listMode ? null : open ? entryTitle(open) : entries ? 'Not found' : null
-  useEffect(() => {
-    onCrumbsChange(crumb ? [{ label: crumb }] : [])
-  }, [crumb, onCrumbsChange])
+  const heading = open?.role
+  useLayoutEffect(() => {
+    onCrumbsChange(crumb ? [{ label: crumb, heading }] : [])
+  }, [crumb, heading, onCrumbsChange])
   useEffect(() => () => onCrumbsChange([]), [onCrumbsChange])
 
   // Opening an entry starts its details at the top of the page.
@@ -244,6 +277,13 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
   const create = async (input: WorkHistoryInput) => {
     await workHistoryApi.create(input)
     await load()
+  }
+
+  /** Adds the next role at an employer and opens it. */
+  const addNext = async (input: WorkHistoryInput) => {
+    const created = await workHistoryApi.create(input)
+    await load()
+    onOpen(created.id)
   }
 
   const update = (id: number) => async (input: WorkHistoryInput) => {
@@ -392,22 +432,28 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
               key={open.id}
               entry={open}
               bar={model.byId.get(open.id)}
-              newer={entries[openIndex - 1] ?? null}
-              older={entries[openIndex + 1] ?? null}
+              tenure={tenureOf(career, open)}
+              entries={entries}
+              newer={ordered?.[openIndex - 1] ?? null}
+              older={ordered?.[openIndex + 1] ?? null}
               onOpen={onOpen}
               onOpenCompany={setCompanyId}
               onBack={onBack}
               onUpdate={update(open.id)}
+              onAddNext={addNext}
               onDelete={() => remove(open)}
             />
           ) : (
             <>
               <ul className="wh-list">
-                {entries.map((entry) => (
+                {(ordered ?? []).map((entry) => (
                   <EntryCard
                     key={entry.id}
                     entry={entry}
                     bar={model.byId.get(entry.id)}
+                    place={tenurePlace(career, entry)}
+                    tenure={model.tenureSpans.get(model.byId.get(entry.id)?.tenure ?? entry.id)}
+                    previous={entry.previous_role_id != null ? byId.get(entry.previous_role_id) : undefined}
                     active={entry.id === activeId}
                     cardRef={(el) => {
                       if (el) cardRefs.current.set(entry.id, el)

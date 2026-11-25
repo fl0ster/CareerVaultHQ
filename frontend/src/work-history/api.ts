@@ -11,6 +11,9 @@ function notifyChanged<T>(value: T): T {
 /** Kind of career event: a position, an education entry or a certificate. */
 export type EntryKind = 'job' | 'education' | 'certificate'
 
+/** How a position continues the previous one at the same employer. */
+export type Transition = 'promotion' | 'role_change'
+
 export type WorkHistoryEntry = {
   id: number
   kind: EntryKind
@@ -36,11 +39,24 @@ export type WorkHistoryEntry = {
   company_id: number | null
   /** That company's tag. */
   company_tag: string | null
+  /** A promotion or role change within the employer of the previous position (positions only). */
+  transition: Transition | null
+  /** The role a position with a `transition` continues: the latest earlier position at the same
+   * employer; null when there is none (the role then stands on its own). */
+  previous_role_id: number | null
 }
 
 export type WorkHistoryInput = Omit<
   WorkHistoryEntry,
-  'id' | 'application_id' | 'pending' | 'prefill_state' | 'created_at' | 'updated_at' | 'company_id' | 'company_tag'
+  | 'id'
+  | 'application_id'
+  | 'pending'
+  | 'prefill_state'
+  | 'created_at'
+  | 'updated_at'
+  | 'company_id'
+  | 'company_tag'
+  | 'previous_role_id'
 >
 
 /** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
@@ -54,6 +70,8 @@ export type WorkHistoryExport = {
   location: string | null
   tech: string | string[]
   context: string | null
+  /** Missing in older exports: a new employment. */
+  transition?: Transition | null
 }
 
 async function parse<T>(res: Response): Promise<T> {

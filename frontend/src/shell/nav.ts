@@ -143,7 +143,12 @@ export function findPage(id: PageId): { group: NavGroup | null; item: NavItem } 
 export type Route = { page: PageId; detail: string | null }
 
 /** Extra breadcrumb entries a page shows after its own name (e.g. the open item's title). */
-export type Crumb = { label: string; href?: string }
+export type Crumb = {
+  label: string
+  href?: string
+  /** Shown as the page heading (one line, ellipsised) while this detail is open; without it the heading steps aside. */
+  heading?: string
+}
 
 /** Parses `#/<page>` and `#/<page>/<id>`; anything unknown falls back to the default page. */
 export function routeFromHash(hash: string): Route {

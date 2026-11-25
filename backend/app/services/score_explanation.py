@@ -11,11 +11,9 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.models import JobEvaluation
 from app.services.openrouter import OpenRouterError, OpenRouterService
-
-SOURCE = "api.jobs.explanation"
-"""``openrouter_calls.source`` label for explanation calls."""
 
 MAX_DESCRIPTION_CHARS = 12_000
 """Longer job descriptions are cut: the requirements are almost always near the top."""
@@ -58,7 +56,13 @@ def explain_evaluation(session: Session, service: OpenRouterService, evaluation:
     Raises ``OpenRouterError`` when the chat call fails."""
     if evaluation.explanation:
         return evaluation.explanation
-    reply = service.chat(build_prompt(evaluation, threshold), system=SYSTEM, temperature=0.2, max_tokens=200, source=SOURCE)
+    reply = service.chat(
+        build_prompt(evaluation, threshold),
+        system=SYSTEM,
+        temperature=0.2,
+        max_tokens=200,
+        call=llm_calls.JOB_SCORE_EXPLANATION,
+    )
     text = " ".join(reply.text.split())
     if not text:
         raise OpenRouterError("the model returned an empty explanation")

@@ -16,13 +16,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.models import CandidateProfile, WorkHistoryEntry
 from app.services.openrouter import OpenRouterError, OpenRouterService
 
 log = logging.getLogger(__name__)
 
-SOURCE = "candidate_profile.create"
-"""``openrouter_calls.source`` label for profile generation."""
 
 PROFILE_SYSTEM_PROMPT = (
     "You are an expert technical recruiter. You write candidate profiles based on the "
@@ -31,7 +30,11 @@ PROFILE_SYSTEM_PROMPT = (
 
 PROFILE_PROMPT = """\
 Below is the candidate's full work history as JSON (newest position first; a null date_end
-means a current position).
+means a current position). A position with a "transition" continues the candidate's previous
+position at the same employer: "promotion" for a promotion, "role_change" for another internal
+move. Count such consecutive roles as one continuous employment at that employer (not as
+changing jobs), and treat promotions as evidence of growth when judging seniority and the
+career trajectory.
 
 Write a comprehensive candidate profile in plain prose (no markdown headings).
 Cover:
@@ -62,14 +65,16 @@ def _month(value: date | None) -> str | None:
 def _work_history_payload(session: Session) -> list[dict]:
     """The work history in the shape of ``GET /api/work-history/json``, newest first. Pending
     positions (starting in the future) are left out until they start, and so are education
-    and certificates (the profile describes the work experience)."""
+    and certificates (the profile describes the work experience). ``transition`` is included
+    only when set, so a work history without promotions keeps the hash it always had."""
     entries = session.scalars(
         select(WorkHistoryEntry)
         .where(WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB, WorkHistoryEntry.date_start <= date.today())
         .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
     ).all()
-    return [
-        {
+    payload = []
+    for e in entries:
+        item = {
             "date_start": _month(e.date_start),
             "date_end": _month(e.date_end),
             "employer": e.employer,
@@ -78,8 +83,10 @@ def _work_history_payload(session: Session) -> list[dict]:
             "tech": ", ".join(e.tech),
             "context": e.context,
         }
-        for e in entries
-    ]
+        if e.transition:
+            item["transition"] = e.transition
+        payload.append(item)
+    return payload
 
 
 def work_history_id(work_history: list[dict]) -> str | None:
@@ -106,7 +113,7 @@ def current_profile(session: Session, ai_service: OpenRouterService) -> tuple[Ca
 
     log.info("Work history changed or no profile yet; generating a new candidate profile")
     prompt = PROFILE_PROMPT.format(work_history=json.dumps(work_history, indent=2))
-    result = ai_service.chat(prompt, system=PROFILE_SYSTEM_PROMPT, source=SOURCE)
+    result = ai_service.chat(prompt, system=PROFILE_SYSTEM_PROMPT, call=llm_calls.CANDIDATE_PROFILE)
     content = result.text.strip()
     if not content:
         raise OpenRouterError("empty response from OpenRouter")

@@ -32,7 +32,9 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 from pypdf import PageObject, PdfReader
 
+from app import llm_calls
 from app.config import Settings
+from app.models import WorkHistoryEntry
 from app.schemas.candidate_details import CandidateDetailsIn, LanguageEntry
 from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.services.openrouter import OpenRouterService
@@ -40,8 +42,6 @@ from app.tasks.cv_import.prompts import CV_IMPORT_PROMPT, CV_IMPORT_SYSTEM, RESP
 
 log = logging.getLogger(__name__)
 
-CV_IMPORT_SOURCE = "tasks.cv_import"
-"""``source`` label of the OpenRouter call."""
 
 CURRENT_MARKERS = {"present", "current", "now", "today", "ongoing", "obecnie", "teraz", "nadal"}
 """``date_end`` values meaning the position is current."""
@@ -390,7 +390,15 @@ def _work_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:
         location=_str(item.get("location"), 256) or None,
         tech=_clean_tech(_strs(item.get("tech"))),
         context=_str(item.get("context"), multiline=True) or None,
+        transition=_transition(item.get("transition")),
     )
+
+
+def _transition(value: Any) -> str | None:
+    """A promotion / role change within the employer of the previous position; anything
+    else (blank or unknown) means a new employment."""
+    text = _str(value).lower()
+    return text if text in WorkHistoryEntry.TRANSITIONS else None
 
 
 def _education_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:
@@ -479,10 +487,9 @@ def extract_cv(service: OpenRouterService, pdf: PdfText, settings: Settings) -> 
     reply = service.chat(
         CV_IMPORT_PROMPT.format(text=pdf.text, links=links),
         system=CV_IMPORT_SYSTEM,
-        model=settings.cv_import_model or None,
         temperature=0,
         extra={"response_format": RESPONSE_FORMAT},
-        source=CV_IMPORT_SOURCE,
+        call=llm_calls.CV_IMPORT,
         private=True,
     ).text
     return build_result(_load_reply(reply), pdf)

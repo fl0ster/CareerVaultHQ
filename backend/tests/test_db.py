@@ -31,3 +31,4 @@ def test_init_db_moves_education_off_the_candidate_details(tmp_path):
     with engine.connect() as conn:
         assert conn.exec_driver_sql("SELECT first_name FROM candidate_details").scalar() == "Jane"
         assert conn.exec_driver_sql("SELECT kind FROM work_history").scalar() == "job"  # existing rows are jobs
+        assert conn.exec_driver_sql("SELECT transition FROM work_history").scalar() is None

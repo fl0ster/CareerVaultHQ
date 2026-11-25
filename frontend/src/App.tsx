@@ -1,7 +1,9 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
-import ApplicationsPage, { type Stage } from './applications/ApplicationsPage.tsx'
+import ApplicationsPage from './applications/ApplicationsPage.tsx'
+import InterviewsPage from './interviews/InterviewsPage.tsx'
+import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
@@ -45,6 +47,7 @@ function App() {
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
   const onCareerCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, 'work-history': c })), [])
+  const detailHeading = route.detail !== null ? crumbs[page]?.at(-1)?.heading : undefined
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const { counts, failed: countsFailed } = useNavCounts(page)
   const jobsInbox = counts?.jobs_inbox ?? 0
@@ -116,28 +119,41 @@ function App() {
 
   // A change in the counts (possibly made by a background task) also refreshes the open list.
   const countsVersion = counts ? `${counts.applications}/${counts.interviews}/${counts.offers}` : ''
-  const applicationList = (id: PageId, stage: Stage, onCrumbs: (c: Crumb[]) => void) => (
-    <ApplicationsPage
-      stage={stage}
-      detailId={detailOf(id)}
-      version={countsVersion}
-      onOpen={openIn(id)}
-      onBack={backTo(id)}
-      onCrumbsChange={onCrumbs}
-    />
-  )
-
   /** Only the page on screen is created; entering a page mounts it, so it always loads fresh. */
   const renderPage = (id: PageId): ReactNode => {
     switch (id) {
       case 'dashboard':
         return <DashboardPage setup={setup} />
       case 'interviews':
-        return applicationList('interviews', 'interviews', onInterviewCrumbs)
+        return (
+          <InterviewsPage
+            detailId={detailOf('interviews')}
+            version={countsVersion}
+            onOpen={openIn('interviews')}
+            onBack={backTo('interviews')}
+            onCrumbsChange={onInterviewCrumbs}
+          />
+        )
       case 'offers':
-        return applicationList('offers', 'offers', onOfferCrumbs)
+        return (
+          <OffersPage
+            detailId={detailOf('offers')}
+            version={countsVersion}
+            onOpen={openIn('offers')}
+            onBack={backTo('offers')}
+            onCrumbsChange={onOfferCrumbs}
+          />
+        )
       case 'applications':
-        return applicationList('applications', 'all', onApplicationCrumbs)
+        return (
+          <ApplicationsPage
+            detailId={detailOf('applications')}
+            version={countsVersion}
+            onOpen={openIn('applications')}
+            onBack={backTo('applications')}
+            onCrumbsChange={onApplicationCrumbs}
+          />
+        )
       case 'jobs':
         return (
           <JobsPage
@@ -218,10 +234,13 @@ function App() {
           ) : (
             <section key={page} aria-labelledby={`page-${page}`}>
               <div className="view">
-                {/* An open detail (application, job) has its own title, so the page heading steps aside;
+                {/* An open detail (application, job) has its own title, so the page heading steps aside,
+                    unless the detail names a heading to show in its place (a career entry's role);
                     so does the dashboard while it shows the setup checklist. */}
-                <header className={route.detail !== null || onboarding ? 'sr-only' : 'page-header'}>
-                  <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
+                <header className={(route.detail !== null && !detailHeading) || onboarding ? 'sr-only' : 'page-header'}>
+                  <h1 id={`page-${page}`} className={detailHeading ? 'page-title-detail' : undefined} title={detailHeading}>
+                    {detailHeading ?? item.title ?? item.label}
+                  </h1>
                   {item.description && <p>{item.description}</p>}
                 </header>
                 {renderPage(page)}

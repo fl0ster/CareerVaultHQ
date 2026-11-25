@@ -149,3 +149,13 @@ def test_pending_flag_follows_the_start_date(client):
         res = client.post("/api/work-history", json={"date_start": start.isoformat(), "employer": "E", "role": "R"})
         body = res.json()
         assert (body["pending"], body["application_id"], body["prefill_state"]) == (pending, None, None)
+
+
+def test_removing_applied_undoes_an_accepted_offer(client, db_session):
+    app_id = _offer(client, db_session)
+    body = client.post(f"{BASE}/{app_id}/accept", json={"start_date": START.isoformat()}).json()
+    applied = next(e["id"] for e in body["events"] if e["status"]["key"] == "APPLIED")
+
+    body = client.delete(f"{BASE}/{app_id}/events/{applied}").json()
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+    assert db_session.query(WorkHistoryEntry).filter(WorkHistoryEntry.application_id.is_not(None)).count() == 0

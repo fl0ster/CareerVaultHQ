@@ -90,6 +90,7 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
     && rm requirements.txt
 
 COPY backend/app ./app
+COPY backend/llm_models.example.toml ./
 COPY --from=frontend /src/dist ./frontend/dist
 
 # Runtime configuration (override with -e / compose environment).
