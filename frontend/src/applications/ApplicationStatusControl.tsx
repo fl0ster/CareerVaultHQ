@@ -25,7 +25,8 @@ export default function ApplicationStatusControl({ application: a, statuses, onC
       status={a.status}
       auto={isAutoEvent(currentEvent(a))}
       nextRound={nextRoundLabel(a)}
-      roundTitle={currentEvent(a)?.title}
+      // The round a click acts on: the next planned one, else the last held.
+      roundTitle={(a.status?.key === INTERVIEW_STATUS && a.planned_events[0]?.title) || currentEvent(a)?.title}
       statuses={statuses}
       planRound={a.status?.key === INTERVIEW_STATUS && a.planned_events.length === 0}
       onSelect={(key) =>
