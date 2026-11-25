@@ -177,3 +177,21 @@ def test_generation_succeeds_when_queue_is_down(client, fake_queue, monkeypatch)
     res = client.get(f"{BASE}/latest")
     assert res.status_code == 200
     assert client.get(f"{BASE}/latest").json()["id"] == res.json()["id"]
+
+
+def test_transition_is_sent_only_when_set(client, db_session):
+    from app.services.candidate_profile import _work_history_payload
+
+    _add_entry(client)
+    before = _work_history_payload(db_session)
+    assert "transition" not in before[0]  # unchanged shape (and hash) without promotions
+
+    res = client.post(
+        WORK_HISTORY,
+        json={"date_start": "2023-01-01", "employer": "Acme", "role": "Lead", "transition": "promotion"},
+    )
+    assert res.status_code == 201
+    db_session.expire_all()
+    payload = _work_history_payload(db_session)
+    assert payload[0]["transition"] == "promotion"
+    assert payload[1]["date_end"] == "Dec 2022"  # the promotion ended the previous role

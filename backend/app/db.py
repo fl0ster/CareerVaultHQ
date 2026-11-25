@@ -59,6 +59,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
         "prefill_state": "VARCHAR(16)",
         "kind": "VARCHAR(16) NOT NULL DEFAULT 'job'",
+        "transition": "VARCHAR(16)",
     },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",

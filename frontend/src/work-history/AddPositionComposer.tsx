@@ -1,10 +1,12 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import '../jobs/jobs.css'
-import type { WorkHistoryInput } from './api.ts'
+import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
 import { type Draft, draftError, draftReady, toDraft, toInput, withKind } from './draft.ts'
 import { KINDS } from './kinds.ts'
 import KindSwitch from './KindSwitch.tsx'
+import { predecessorCandidate } from './tenure.ts'
+import TransitionSwitch from './TransitionSwitch.tsx'
 
 const EMPTY: Draft = toDraft()
 
@@ -14,9 +16,16 @@ type TextField = 'role' | 'employer' | 'location' | 'date_start' | 'date_end' | 
  * Floating "add" button in the bottom-right corner that morphs into a Gmail-style compose
  * window, like the one for adding jobs. It adds a position, an education entry or a
  * certificate (the switch at the top). Clicking outside minimises it back into the button;
- * the draft is kept.
+ * the draft is kept. A position at an employer the career already has offers to continue the
+ * earlier role there (a promotion or a role change).
  */
-export default function AddPositionComposer({ onSubmit }: { onSubmit: (input: WorkHistoryInput) => Promise<void> }) {
+export default function AddPositionComposer({
+  entries,
+  onSubmit,
+}: {
+  entries: WorkHistoryEntry[]
+  onSubmit: (input: WorkHistoryInput) => Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -47,6 +56,7 @@ export default function AddPositionComposer({ onSubmit }: { onSubmit: (input: Wo
     setDraft((d) => ({ ...d, [key]: e.target.value }))
 
   const ready = draftReady(draft)
+  const previous = predecessorCandidate(entries, draft)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -59,7 +69,7 @@ export default function AddPositionComposer({ onSubmit }: { onSubmit: (input: Wo
     setSaving(true)
     setError(null)
     try {
-      await onSubmit(toInput(draft))
+      await onSubmit(toInput(previous ? draft : { ...draft, transition: '' }))
       // Keep the kind: several certificates or degrees are often added in a row.
       setDraft(withKind(EMPTY, draft.kind))
       setOpen(false)
@@ -116,6 +126,15 @@ export default function AddPositionComposer({ onSubmit }: { onSubmit: (input: Wo
           onChange={set('employer')}
           required={info.organisationRequired}
         />
+        {previous && (
+          <TransitionSwitch
+            className="compact"
+            value={draft.transition}
+            onChange={(transition) => setDraft((d) => ({ ...d, transition }))}
+            previous={previous}
+            dateStart={draft.date_start}
+          />
+        )}
         {info.showLocation && (
           <input placeholder="Location (optional)" value={draft.location} onChange={set('location')} />
         )}

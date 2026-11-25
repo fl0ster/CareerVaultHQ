@@ -87,7 +87,7 @@ def test_json_shape(client):
     items = client.get(f"{BASE}/json").json()
     assert isinstance(items, list) and len(items) == 2
     assert list(items[0].keys()) == [
-        "kind", "date_start", "date_end", "employer", "role", "location", "tech", "context",
+        "kind", "date_start", "date_end", "employer", "role", "location", "tech", "context", "transition",
     ]  # fmt: skip
     assert items[0]["kind"] == "job"
     assert items[0]["date_start"] == "Jan 2024"
@@ -95,6 +95,7 @@ def test_json_shape(client):
     assert items[0]["employer"] == "Acme Corp"
     assert items[0]["tech"] == "Python, FastAPI"
     assert items[0]["context"] == ENTRY["context"]
+    assert items[0]["transition"] is None
 
 
 # --- JSON import ----------------------------------------------------------------------
@@ -124,7 +125,8 @@ def test_import_json_round_trips_export(client):
     assert created[0]["tech"] == ["python", "sql"]
 
     exported = client.get(f"{BASE}/json").json()
-    assert exported == _import_payload(kind="job")  # an import without ``kind`` is a job
+    # An import without ``kind`` is a job, without ``transition`` a new employment.
+    assert exported == _import_payload(kind="job", transition=None)
 
     # Export output can be imported again unchanged (appends).
     res = client.post(f"{BASE}/json", json=exported)
@@ -280,3 +282,93 @@ def test_application_stats_ghosted_bucket():
 
     assert _outcome({"APPLIED", "GHOSTED"}) == "GHOSTED"
     assert _outcome({"GHOSTED", "REJECTED"}) == "REJECTED"
+
+
+# --- promotions / role changes ---------------------------------------------------------
+
+JOB = {"employer": "Acme Corp", "role": "Engineer", "location": "Warsaw", "tech": ["Python"]}
+
+
+def test_promotion_links_and_closes_the_previous_role(client):
+    first = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "date_end": None}).json()
+    assert first["transition"] is None and first["previous_role_id"] is None
+
+    res = client.post(
+        BASE,
+        json={**JOB, "employer": "ACME corp.", "role": "Senior Engineer", "date_start": "2022-03-01",
+              "transition": "promotion"},
+    )  # fmt: skip
+    assert res.status_code == 201, res.text
+    promoted = res.json()
+    assert promoted["transition"] == "promotion"
+    assert promoted["previous_role_id"] == first["id"]
+
+    # The ongoing role it continues ends the day before.
+    closed = client.get(f"{BASE}/{first['id']}").json()
+    assert closed["date_end"] == "2022-02-28"
+    listed = {e["id"]: e for e in client.get(BASE).json()}
+    assert listed[promoted["id"]]["previous_role_id"] == first["id"]
+
+
+def test_transition_without_an_earlier_role_stands_alone(client):
+    client.post(BASE, json={**JOB, "employer": "Other", "date_start": "2018-01-01", "date_end": "2018-12-31"})
+    later = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "transition": "role_change"}).json()
+    assert later["transition"] == "role_change"
+    assert later["previous_role_id"] is None
+
+
+def test_transition_does_not_close_an_ended_role(client):
+    first = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "date_end": "2021-12-31"}).json()
+    client.post(BASE, json={**JOB, "date_start": "2022-06-01", "transition": "promotion"})
+    assert client.get(f"{BASE}/{first['id']}").json()["date_end"] == "2021-12-31"
+
+
+def test_transition_is_for_positions_only(client):
+    body = client.post(
+        BASE, json={**JOB, "kind": "education", "role": "MSc", "date_start": "2019-01-01", "transition": "promotion"}
+    ).json()
+    assert body["transition"] is None
+
+    entry_id = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "transition": "promotion"}).json()["id"]
+    body = client.patch(f"{BASE}/{entry_id}", json={"kind": "certificate"}).json()
+    assert body["transition"] is None
+
+    assert client.post(BASE, json={**JOB, "date_start": "2019-01-01", "transition": "demotion"}).status_code == 422
+
+
+def test_patch_sets_and_clears_the_transition(client):
+    first = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "date_end": None}).json()
+    second = client.post(BASE, json={**JOB, "role": "Lead", "date_start": "2023-01-01", "date_end": None}).json()
+    assert client.get(f"{BASE}/{first['id']}").json()["date_end"] is None  # no transition: left alone
+
+    body = client.patch(f"{BASE}/{second['id']}", json={"transition": "promotion"}).json()
+    assert body["previous_role_id"] == first["id"]
+    assert client.get(f"{BASE}/{first['id']}").json()["date_end"] == "2022-12-31"
+
+    body = client.patch(f"{BASE}/{second['id']}", json={"transition": None}).json()
+    assert body["transition"] is None and body["previous_role_id"] is None
+
+
+def test_transition_round_trips_through_json(client):
+    payload = [
+        {"date_start": "Mar 2022", "date_end": None, "employer": "Acme", "role": "Senior Dev", "transition": "promotion"},
+        {"date_start": "Jan 2019", "date_end": "Feb 2022", "employer": "Acme", "role": "Dev", "transition": ""},
+    ]
+    res = client.post(f"{BASE}/json", json=payload)
+    assert res.status_code == 201, res.text
+    senior, dev = res.json()
+    assert senior["previous_role_id"] == dev["id"]
+    assert dev["transition"] is None  # "" means a new employment
+
+    exported = client.get(f"{BASE}/json").json()
+    assert [e["transition"] for e in exported] == ["promotion", None]
+
+    res = client.post(f"{BASE}/json?replace=true", json=exported)
+    assert res.status_code == 201
+    senior, dev = res.json()
+    assert senior["transition"] == "promotion" and senior["previous_role_id"] == dev["id"]
+
+
+def test_import_rejects_an_unknown_transition(client):
+    res = client.post(f"{BASE}/json", json=_import_payload(transition="sideways"))
+    assert res.status_code == 422

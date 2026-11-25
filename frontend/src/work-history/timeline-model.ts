@@ -1,5 +1,6 @@
-import type { EntryKind, WorkHistoryEntry } from './api.ts'
+import type { EntryKind, Transition, WorkHistoryEntry } from './api.ts'
 import { isPoint, KIND_ORDER } from './kinds.ts'
+import { linkedTransition, tenures } from './tenure.ts'
 
 /*
  * Pure layout model shared by the timeline and the list.
@@ -11,6 +12,11 @@ import { isPoint, KIND_ORDER } from './kinds.ts'
  * end date is a single point (one month wide for the packing). A pending position
  * (starting in the future) is drawn one month wide from its start. Only positions count
  * towards the time employed and the gaps.
+ *
+ * Roles held one after another at one employer (a tenure: promotions and role changes, see
+ * tenure.ts) are packed as one unit: they share a lane and a tone, and a role ends where the
+ * next one starts, so the bars join up. Where they join, the end of one role and the start
+ * of the next are a single "promotion" / "move" event.
  */
 
 export const TONES = ['accent', 'info', 'success', 'warn'] as const
@@ -32,9 +38,19 @@ export type Bar = {
   tone: Tone
   /** Where the next entry in the same lane starts (`Infinity` when none); bounds a marker's label. */
   next: number
+  /** Id of the first role of the tenure (the entry's own id when it stands alone). */
+  tenure: number
+  /** How the role continues the previous one at its employer; null when it doesn't. */
+  transition: Transition | null
+  /** The bar joins up with the previous / next role of its tenure. */
+  joinedBefore: boolean
+  joinedAfter: boolean
 }
 
-export type EventKind = 'start' | 'end' | 'point'
+export type EventKind = 'start' | 'end' | 'point' | 'promotion' | 'move'
+
+/** A tenure with more than one role: its whole span on the timeline. */
+export type TenureSpan = { start: number; end: number; lane: number; tone: Tone; roles: number }
 
 export type TimelineEvent = {
   at: number
@@ -70,39 +86,81 @@ export function formatDuration(months: number): string {
   return parts.join(' ')
 }
 
+/** Where an entry sits on the timeline: start and (exclusive) end month. */
+function span(entry: WorkHistoryEntry, today: number) {
+  const start = monthIndex(entry.date_start)
+  const point = isPoint(entry)
+  const ongoing = entry.date_end === null && !point
+  const end = point
+    ? start + 1
+    : ongoing
+      ? entry.pending
+        ? start + 1
+        : Math.max(today, start + 0.5)
+      : monthIndex(entry.date_end!) + 1
+  return { start, end, ongoing, point }
+}
+
+/** A role ends where the next role of its tenure starts, so their bars join up. */
+function joinTenure(unit: Bar[]) {
+  unit.forEach((bar, i) => {
+    const following = unit[i + 1]
+    if (!following || following.start <= bar.start || bar.end < following.start) return
+    bar.end = following.start
+    bar.ongoing = false
+    bar.joinedAfter = true
+    following.joinedBefore = true
+  })
+}
+
 export function layout(entries: WorkHistoryEntry[], today: number) {
   const sorted = [...entries].sort(
     (a, b) => a.date_start.localeCompare(b.date_start) || (a.date_end ?? '9').localeCompare(b.date_end ?? '9'),
   )
+  const { rootOf } = tenures(entries)
   const bars: Bar[] = []
+  const tenureSpans = new Map<number, TenureSpan>()
   let lanes = 0
   const counts = { job: 0, education: 0, certificate: 0 } satisfies Record<EntryKind, number>
   for (const kind of KIND_ORDER) {
+    // Packing units, oldest first: the roles of a tenure together, any other entry on its own.
+    const units = new Map<number, Bar[]>()
+    for (const entry of sorted.filter((e) => e.kind === kind)) {
+      const tenure = rootOf.get(entry.id) ?? entry.id
+      const bar: Bar = {
+        entry,
+        kind,
+        ...span(entry, today),
+        pending: entry.pending,
+        lane: 0,
+        tone: kind === 'job' ? TONES[0] : KIND_TONES[kind],
+        next: Infinity,
+        tenure,
+        transition: linkedTransition(entry),
+        joinedBefore: false,
+        joinedAfter: false,
+      }
+      units.set(tenure, [...(units.get(tenure) ?? []), bar])
+      bars.push(bar)
+      counts[kind] += 1
+    }
     const laneEnds: number[] = []
     const laneBars: Bar[][] = []
-    sorted
-      .filter((entry) => entry.kind === kind)
-      .forEach((entry, i) => {
-        const start = monthIndex(entry.date_start)
-        const point = isPoint(entry)
-        const ongoing = entry.date_end === null && !point
-        const pending = entry.pending
-        const end = point
-          ? start + 1
-          : ongoing
-            ? pending
-              ? start + 1
-              : Math.max(today, start + 0.5)
-            : monthIndex(entry.date_end!) + 1
-        let lane = laneEnds.findIndex((e) => e <= start)
-        if (lane === -1) lane = laneEnds.length
-        laneEnds[lane] = end
-        const tone: Tone = kind === 'job' ? TONES[i % TONES.length] : KIND_TONES[kind]
-        const bar: Bar = { entry, kind, start, end, ongoing, point, pending, lane: lanes + lane, tone, next: Infinity }
+    ;[...units.values()].forEach((unit, i) => {
+      joinTenure(unit)
+      const start = unit[0].start
+      const end = Math.max(...unit.map((b) => b.end))
+      let lane = laneEnds.findIndex((e) => e <= start)
+      if (lane === -1) lane = laneEnds.length
+      laneEnds[lane] = end
+      const tone: Tone = kind === 'job' ? TONES[i % TONES.length] : KIND_TONES[kind]
+      for (const bar of unit) {
+        bar.lane = lanes + lane
+        bar.tone = tone
         ;(laneBars[lane] ??= []).push(bar)
-        bars.push(bar)
-        counts[kind] += 1
-      })
+      }
+      if (unit.length > 1) tenureSpans.set(unit[0].tenure, { start, end, lane: lanes + lane, tone, roles: unit.length })
+    })
     for (const row of laneBars) row.forEach((bar, i) => (bar.next = row[i + 1]?.start ?? Infinity))
     lanes += laneEnds.length
   }
@@ -119,11 +177,12 @@ export function layout(entries: WorkHistoryEntry[], today: number) {
       push(bar.start, 'point', bar)
       continue
     }
-    push(bar.start, 'start', bar)
-    if (!bar.ongoing) push(bar.end, 'end', bar)
+    // Where two roles of a tenure join, the promotion / move into the next role is the only event.
+    push(bar.start, bar.joinedBefore ? (bar.transition === 'promotion' ? 'promotion' : 'move') : 'start', bar)
+    if (!bar.ongoing && !bar.joinedAfter) push(bar.end, 'end', bar)
   }
   const events = [...byAt.values()].sort((a, b) => a.at - b.at)
-  const rank: Record<EventKind, number> = { end: 0, start: 1, point: 2 }
+  const rank: Record<EventKind, number> = { end: 0, promotion: 1, move: 1, start: 1, point: 2 }
   for (const ev of events) ev.items.sort((a, b) => rank[a.kind] - rank[b.kind])
 
   // Gaps: holes in the union of all positions, plus months employed (for the summary).
@@ -149,5 +208,5 @@ export function layout(entries: WorkHistoryEntry[], today: number) {
   const rangeStart = Math.floor(minStart / 12) * 12
   const rangeEnd = Math.ceil((maxEnd + 0.01) / 12) * 12
 
-  return { bars, byId, events, gaps, covered, counts, rangeStart, rangeEnd, lanes: Math.max(1, lanes) }
+  return { bars, byId, tenureSpans, events, gaps, covered, counts, rangeStart, rangeEnd, lanes: Math.max(1, lanes) }
 }

@@ -60,6 +60,10 @@ export type PipelineEntry = {
   tech: string
   context: string | null
   relevance: number
+  /** Set on a role that continues the previous one at its employer (a promotion or a move). */
+  transition?: 'promotion' | 'role_change' | null
+  /** Roles sharing a tenure are listed as one employer block on the CV. */
+  tenure?: number | null
   months?: number
   original_context?: string | null
   original_tech?: string

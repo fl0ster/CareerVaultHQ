@@ -3,19 +3,29 @@ import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
 import { type Draft, draftError, toDraft, toInput, withKind } from './draft.ts'
 import { KINDS } from './kinds.ts'
 import KindSwitch from './KindSwitch.tsx'
+import { predecessorCandidate } from './tenure.ts'
+import TransitionSwitch from './TransitionSwitch.tsx'
 
 type Props = {
+  /** The entry being edited; without it the form adds a new one. */
   initial?: WorkHistoryEntry
+  /** Starting values of a new entry (e.g. the next role at an employer). */
+  seed?: Draft
+  /** Heading of a new entry's form (default "New position"). */
+  heading?: string
+  /** The whole career, to offer linking a position to the earlier one at its employer. */
+  entries: WorkHistoryEntry[]
   onSubmit: (input: WorkHistoryInput) => Promise<void>
   onCancel: () => void
 }
 
-export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) {
-  const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
+export default function WorkHistoryForm({ initial, seed, heading, entries, onSubmit, onCancel }: Props) {
+  const [draft, setDraft] = useState<Draft>(() => seed ?? toDraft(initial))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const info = KINDS[draft.kind]
   const point = draft.kind === 'certificate' && draft.current
+  const previous = predecessorCandidate(entries, draft, initial?.id)
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -30,7 +40,8 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
     setSaving(true)
     setError(null)
     try {
-      await onSubmit(toInput(draft))
+      // Without an earlier position at the employer there is nothing to continue.
+      await onSubmit(toInput(previous ? draft : { ...draft, transition: '' }))
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err))
     } finally {
@@ -40,7 +51,7 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
   return (
     <form className="wh-form" onSubmit={submit}>
-      <h2>{initial ? `Edit ${info.noun}` : `New ${info.noun}`}</h2>
+      <h2>{initial ? `Edit ${info.noun}` : (heading ?? `New ${info.noun}`)}</h2>
 
       <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />
 
@@ -94,6 +105,15 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
           {info.openEnded}
         </label>
       </div>
+
+      {previous && (
+        <TransitionSwitch
+          value={draft.transition}
+          onChange={(transition) => set('transition', transition)}
+          previous={previous}
+          dateStart={draft.date_start}
+        />
+      )}
 
       {info.showTech && (
         <label>

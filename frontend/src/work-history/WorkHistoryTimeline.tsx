@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStuck } from '../shell/useStuck.ts'
 import type { WorkHistoryEntry } from './api.ts'
 import { countLabel, entryTitle, KIND_ORDER, KINDS } from './kinds.ts'
+import { TRANSITIONS } from './tenure.ts'
 import { type Bar, type EventKind, formatDuration, monthLabel, type TimelineModel } from './timeline-model.ts'
 
 /*
@@ -12,11 +13,16 @@ import { type Bar, type EventKind, formatDuration, monthLabel, type TimelineMode
  * details open, that entry is selected and centered instead. Above the lanes is
  * an event row (start / end markers, merged when they fall on the same boundary), behind
  * them are shaded career gaps and a "today" line, and below is the year/month axis.
+ * Roles at one employer that follow each other (a promotion or a role change) are joined bars
+ * of one colour, with a step marker where one role becomes the next; hovering or selecting one
+ * outlines the whole time at the employer.
  */
 
 /** Tooltip / screen reader wording of a timeline event: `[before, highlighted, after]`. */
 function eventText(kind: EventKind, entry: WorkHistoryEntry): [string, string, string] {
   const at = entry.employer ? ` at ${entry.employer}` : ''
+  if (kind === 'promotion') return [TRANSITIONS.promotion.to, entry.role, at]
+  if (kind === 'move') return [TRANSITIONS.role_change.to, entry.role, at]
   if (entry.kind === 'job') {
     return kind === 'start' ? ['Joined ', entry.employer, ` as ${entry.role}`] : ['Left ', entry.employer, '']
   }
@@ -59,7 +65,7 @@ export default function WorkHistoryTimeline({
   focusId?: number | null
   onSelect: (id: number) => void
 }) {
-  const { bars, byId, events, gaps, covered, counts, rangeStart, rangeEnd, lanes } = model
+  const { bars, byId, tenureSpans, events, gaps, covered, counts, rangeStart, rangeEnd, lanes } = model
   const [ppm, setPpm] = useState(DEFAULT_PPM)
   const [hoverId, setHoverId] = useState<number | null>(null)
   const section = useRef<HTMLElement>(null)
@@ -204,6 +210,7 @@ export default function WorkHistoryTimeline({
 
   const active = hoverId ?? activeId
   const activeBar = active !== null ? byId.get(active) : undefined
+  const activeTenure = activeBar ? tenureSpans.get(activeBar.tenure) : undefined
 
   return (
     <section ref={section} className={`wh-tl${stuck ? ' stuck' : ''}`} aria-label="Career timeline">
@@ -289,6 +296,20 @@ export default function WorkHistoryTimeline({
             />
           )}
 
+          {/* The whole time at the employer of the active role, when it held several roles there */}
+          {activeBar && activeTenure && (
+            <div
+              className={`wh-tl-tenure tone-${activeTenure.tone}`}
+              style={{
+                left: x(activeTenure.start) - 3,
+                width: (activeTenure.end - activeTenure.start) * ppm + 6,
+                top: lanesTop + activeTenure.lane * (LANE_H + LANE_GAP) - 3,
+                height: LANE_H + 6,
+              }}
+              title={`${activeTenure.roles} roles at ${activeBar.entry.employer}, ${formatDuration(activeTenure.end - activeTenure.start)}`}
+            />
+          )}
+
           {/* Today */}
           <div className="wh-tl-today" style={{ left: x(today), top: 8, height: height - 8 - AXIS_H }}>
             <span>Today</span>
@@ -347,11 +368,14 @@ export default function WorkHistoryTimeline({
             const period = bar.pending
               ? `starts ${monthLabel(bar.start)}`
               : formatDuration(bar.end - bar.start)
+            // A role joined to the previous one at its employer says how it got there instead.
+            const org = bar.joinedBefore && bar.transition ? TRANSITIONS[bar.transition].past : entry.employer
+            const joined = `${bar.joinedBefore ? ' joined-before' : ''}${bar.joinedAfter ? ' joined-after' : ''}`
             return (
               <button
                 key={entry.id}
                 {...common}
-                className={`wh-tl-pos kind-${bar.kind} tone-${bar.tone}${bar.pending ? ' pending' : bar.ongoing ? ' ongoing' : ''}${state}`}
+                className={`wh-tl-pos kind-${bar.kind} tone-${bar.tone}${bar.pending ? ' pending' : bar.ongoing ? ' ongoing' : ''}${joined}${state}`}
                 style={{ left: x(bar.start), width: w, top: top + inset, height: LANE_H - 2 * inset }}
                 aria-label={
                   bar.pending
@@ -365,11 +389,28 @@ export default function WorkHistoryTimeline({
                     {bar.kind !== 'job' && <Icon size={12} aria-hidden="true" />}
                     {entry.role}
                   </strong>
-                  <small>{[entry.employer, period].filter(Boolean).join(' · ')}</small>
+                  <small>{[org, period].filter(Boolean).join(' · ')}</small>
                 </span>
               </button>
             )
           })}
+
+          {/* Steps where one role at an employer becomes the next */}
+          {bars
+            .filter((bar) => bar.joinedBefore && bar.transition)
+            .map((bar) => {
+              const Icon = TRANSITIONS[bar.transition!].icon
+              return (
+                <span
+                  key={`step-${bar.entry.id}`}
+                  className={`wh-tl-step tone-${bar.tone}${bar.entry.id === active || bar.entry.previous_role_id === active ? ' active' : ''}`}
+                  style={{ left: x(bar.start), top: lanesTop + bar.lane * (LANE_H + LANE_GAP) + LANE_H / 2 }}
+                  aria-hidden="true"
+                >
+                  <Icon size={10} strokeWidth={2.5} />
+                </span>
+              )
+            })}
 
           {/* Events */}
           {events.map((ev) => {

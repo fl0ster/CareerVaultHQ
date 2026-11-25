@@ -5,7 +5,14 @@ row, each with a ``relevance`` score in 0..1), the output a :class:`CoherentHist
 the roles to list in full (``main``), the roles to condense into a single "Additional
 experience" block (``early``) and a human readable ``log`` of what was decided.
 
-Three transformations are applied, in this order:
+Roles held one after another at the same employer (a promotion or a role change, see
+``app.services.career``) share a ``tenure``. A tenure is listed as one employer block, so it
+counts as a single entry and is kept together. The transformations are applied in this
+order:
+
+0. Tenure boundaries. A role that a later role of its tenure continues ends the month
+   before that later role starts. Otherwise a promotion in the middle of a month would read
+   as an overlap of the two roles.
 
 1. Irrelevant removal. Roles with relevance below ``irrelevant_relevance`` are moved
    straight to ``early``, no matter where they sit in the timeline and even if that
@@ -21,8 +28,10 @@ Three transformations are applied, in this order:
    other case the shorter role is dropped, unless the months it alone covers would leave a
    gap of at least ``min_months``, in which case it is trimmed instead.
 
-3. Early career split. Roles are listed newest first. At most ``max_entries`` are listed
-   in full, never more; every older role is moved to ``early``.
+3. Early career split. Roles are listed newest first. At most ``max_entries`` entries are
+   listed in full, never more; every older role is moved to ``early``. All roles of one
+   tenure count as one entry, and every earlier role of a tenure listed in full is listed
+   with it (even an irrelevant one), unless it would overlap another listed role.
 
 4. Early overlap resolution. The condensed block prints dates too, so it must not reveal
    parallel employment either: every early role is trimmed around the roles listed in
@@ -68,6 +77,11 @@ class Role:
     context: str | None = None
     current: bool = False
     id: int | None = None
+    tenure: int | None = None
+    """Id of the first role of the chain of promotions / moves at one employer this role
+    belongs to; ``None`` for a role that stands on its own."""
+    transition: str | None = None
+    """``promotion`` / ``role_change`` when the role continues the previous one at the employer."""
 
     def __post_init__(self) -> None:
         if self.end < self.start:
@@ -117,8 +131,9 @@ class Role:
         return self.start <= other.end and other.start <= self.end
 
     def to_dict(self, today: date | None = None) -> dict:
-        """The shape the LLM prompts and the LaTeX renderer work with."""
-        return {
+        """The shape the LLM prompts and the LaTeX renderer work with; ``transition`` only
+        for a role that continues the previous one at its employer."""
+        data = {
             "date_start": self.date_start,
             "date_end": self.date_end_label(today),
             "employer": self.employer,
@@ -128,6 +143,12 @@ class Role:
             "context": self.context,
             "relevance": round(self.relevance, 4),
         }
+        if self.transition:
+            data["transition"] = self.transition
+        return data
+
+    def same_tenure(self, other: Role) -> bool:
+        return self.tenure is not None and self.tenure == other.tenure
 
 
 @dataclass
@@ -144,6 +165,27 @@ def _newest_first(roles: list[Role]) -> list[Role]:
 
 
 # --------------------------------------------------------------------------- steps
+
+
+def _entry_key(role: Role) -> object:
+    """What counts as one CV entry: the tenure, or the role itself when it stands alone."""
+    return ("tenure", role.tenure) if role.tenure is not None else ("role", id(role))
+
+
+def join_tenures(roles: list[Role], log: list[str]) -> None:
+    """End every role of a tenure (in place) the month before the next role of the tenure
+    starts, when it ran into it."""
+    tenures: dict[int, list[Role]] = {}
+    for role in roles:
+        if role.tenure is not None:
+            tenures.setdefault(role.tenure, []).append(role)
+    for members in tenures.values():
+        members.sort(key=lambda r: (r.start, r.end))
+        for earlier, later in zip(members, members[1:], strict=False):
+            if earlier.start < later.start <= earlier.end:
+                old = _span(earlier)
+                earlier.end = later.start - 1
+                log.append(f"trimmed  {earlier.label} ({old} -> {_span(earlier)}) to end where {later.label} starts")
 
 
 def split_irrelevant(roles: list[Role], irrelevant_relevance: float, log: list[str]) -> tuple[list[Role], list[Role]]:
@@ -285,11 +327,18 @@ def drop_short(roles: list[Role], min_months: int, log: list[str]) -> list[Role]
 
 
 def split_early_career(roles: list[Role], max_entries: int, log: list[str]) -> tuple[list[Role], list[Role]]:
-    """``(kept, early)``: everything older than the newest ``max_entries`` roles."""
-    newest_first = _newest_first(roles)
+    """``(kept, early)``: everything older than the newest ``max_entries`` entries (a tenure
+    being one entry)."""
     cut = max(max_entries, 0)
+    entries: set[object] = set()
+    kept: list[Role] = []
+    early: list[Role] = []
+    for role in _newest_first(roles):
+        key = _entry_key(role)
+        if key not in entries and len(entries) < cut:
+            entries.add(key)
+        (kept if key in entries else early).append(role)
 
-    early = newest_first[cut:]
     if early:
         log.append(
             f"moved {len(early)} early role(s) "
@@ -298,7 +347,23 @@ def split_early_career(roles: list[Role], max_entries: int, log: list[str]) -> t
         )
         for r in early:
             log.append(f"    - {r.label} [{r.relevance:.2f}]")
-    return newest_first[:cut], early
+    return kept, early
+
+
+def regroup_tenures(kept: list[Role], early: list[Role], log: list[str]) -> tuple[list[Role], list[Role]]:
+    """``(kept, early)``: early roles whose tenure is listed in full join it, so the employer
+    block shows the whole progression; not when the role would overlap a listed role."""
+    tenures = {r.tenure for r in kept if r.tenure is not None}
+    joined: list[Role] = []
+    rest: list[Role] = []
+    for role in _newest_first(early):
+        listed = kept + joined
+        if role.tenure in tenures and not any(role.overlaps(r) for r in listed):
+            joined.append(role)
+            log.append(f"keeping  {role.label}: listed with its later role at {role.employer}")
+        else:
+            rest.append(role)
+    return kept + joined, rest
 
 
 # ----------------------------------------------------------------------------- entry
@@ -318,6 +383,7 @@ def build_coherent_history(
     log: list[str] = []
     roles = [replace(r) for r in roles]
     min_entries = min(min_entries, max_entries)
+    join_tenures(roles, log)
 
     kept, early = split_irrelevant(roles, irrelevant_relevance, log)
     kept = resolve_overlaps(kept, high_relevance, min_months, log)
@@ -325,7 +391,7 @@ def build_coherent_history(
         kept, early = backfill(kept, early, min_entries, log)
         kept = resolve_overlaps(kept, high_relevance, min_months, log)
     kept, older = split_early_career(kept, max_entries, log)
-    early += older
+    kept, early = regroup_tenures(kept, early + older, log)
 
     # The condensed block prints dates as well: no overlaps there either.
     early = resolve_against(early, kept, log)
@@ -338,6 +404,6 @@ def build_coherent_history(
         log.append(f"  {format_month(r.start):>8} - {format_month(r.end):<8}  {r.relevance:.2f}  {r.label}")
     for newer, older_role in zip(main, main[1:], strict=False):
         gap = newer.start - older_role.end - 1
-        if gap > 0:
+        if gap > 0 and not newer.same_tenure(older_role):
             log.append(f"  note: {gap}-month gap between {older_role.label} and {newer.label}")
     return CoherentHistory(main=main, early=early, log=log)

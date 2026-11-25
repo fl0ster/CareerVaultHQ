@@ -7,10 +7,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 EntryKind = Literal["job", "education", "certificate"]
 """Kind of career event; mirrors ``WorkHistoryEntry.KINDS``."""
+
+Transition = Literal["promotion", "role_change"]
+"""How a position continues the previous one at the same employer; mirrors
+``WorkHistoryEntry.TRANSITIONS`` (see ``app.services.career``)."""
 
 
 def _check_employer(kind: str, employer: str) -> None:
@@ -48,6 +52,8 @@ class WorkHistoryCreate(BaseModel):
     location: str | None = Field(default=None, max_length=256)
     tech: list[str] = Field(default_factory=list)
     context: str | None = None
+    transition: Transition | None = None
+    """A promotion or role change within the employer of the previous position; positions only."""
 
     @model_validator(mode="after")
     def _validate(self) -> WorkHistoryCreate:
@@ -55,6 +61,8 @@ class WorkHistoryCreate(BaseModel):
         self.employer = self.employer.strip()
         _check_employer(self.kind, self.employer)
         self.tech = _clean_tech(self.tech)
+        if self.kind != "job":
+            self.transition = None
         return self
 
 
@@ -69,6 +77,7 @@ class WorkHistoryUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=256)
     tech: list[str] | None = None
     context: str | None = None
+    transition: Transition | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> WorkHistoryUpdate:
@@ -111,12 +120,14 @@ class WorkHistoryExport(BaseModel):
     location: str | None
     tech: str
     context: str | None
+    transition: Transition | None
 
 
 class WorkHistoryImport(BaseModel):
     """One entry of an import payload. Same shape as :class:`WorkHistoryExport`, so an
     export can be fed straight back in; ``tech`` may be either a comma separated string
-    or a list. ``kind`` defaults to ``job`` so older exports still import."""
+    or a list. ``kind`` defaults to ``job`` and ``transition`` to none, so older exports still
+    import (and older versions importing a newer export ignore ``transition``)."""
 
     kind: EntryKind = "job"
     date_start: str
@@ -126,6 +137,12 @@ class WorkHistoryImport(BaseModel):
     location: str | None = Field(default=None, max_length=256)
     tech: str | list[str] = ""
     context: str | None = None
+    transition: Transition | None = None
+
+    @field_validator("transition", mode="before")
+    @classmethod
+    def _blank_transition(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
 
     def to_create(self) -> WorkHistoryCreate:
         """Convert to the validated create payload; raises ``ValueError`` on bad dates."""
@@ -142,4 +159,5 @@ class WorkHistoryImport(BaseModel):
             location=self.location,
             tech=tech,
             context=self.context,
+            transition=self.transition,
         )

@@ -34,6 +34,7 @@ from pypdf import PageObject, PdfReader
 
 from app import llm_calls
 from app.config import Settings
+from app.models import WorkHistoryEntry
 from app.schemas.candidate_details import CandidateDetailsIn, LanguageEntry
 from app.schemas.work_history import MONTH_FORMAT, WorkHistoryImport, _clean_tech
 from app.services.openrouter import OpenRouterService
@@ -389,7 +390,15 @@ def _work_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:
         location=_str(item.get("location"), 256) or None,
         tech=_clean_tech(_strs(item.get("tech"))),
         context=_str(item.get("context"), multiline=True) or None,
+        transition=_transition(item.get("transition")),
     )
+
+
+def _transition(value: Any) -> str | None:
+    """A promotion / role change within the employer of the previous position; anything
+    else (blank or unknown) means a new employment."""
+    text = _str(value).lower()
+    return text if text in WorkHistoryEntry.TRANSITIONS else None
 
 
 def _education_entry(item: dict[str, Any], warnings: list[str]) -> Dated | None:

@@ -13,7 +13,9 @@ Pipeline (a port of the ``building_cv`` reference scripts):
    relevant experience for the job.
 2. **Timeline.** ``app.tasks.cv.history.build_coherent_history`` picks which roles are
    listed in full (``main``) and which are condensed (``early``), resolving overlapping
-   periods and pushing old, non-relevant roles out of the main listing.
+   periods and pushing old, non-relevant roles out of the main listing. Roles held one after
+   another at one employer (promotions, see ``app.services.career``) form a tenure, listed
+   as one employer block.
 3. **Tailoring.** For every main role the chat model rewrites the context (max 3
    sentences) and reorders/filters its technologies for the job; every early role is
    condensed to a single sentence. A failed call keeps the original text and is reported
@@ -56,6 +58,7 @@ from app.models import (
     OpenRouterCall,
     WorkHistoryEntry,
 )
+from app.services.career import previous_role_ids, tenure_ids
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -90,8 +93,12 @@ def job_description_text(parsed: JobParseResult) -> str:
 
 def load_roles(session: Session, today: date | None = None) -> list[Role]:
     """The positions of the work history as ``Role``s, newest first; pending positions
-    (starting after ``today``), education and certificates are left out."""
+    (starting after ``today``), education and certificates are left out. Roles that continue
+    an earlier one at the same employer carry its ``tenure`` (``None`` for a lone role)."""
     entries = _started(session, WorkHistoryEntry.KIND_JOB, today)
+    previous = previous_role_ids(entries)
+    tenures = tenure_ids(entries)
+    in_chain = set(previous) | set(previous.values())
     return [
         Role.from_dates(
             employer=e.employer,
@@ -103,6 +110,8 @@ def load_roles(session: Session, today: date | None = None) -> list[Role]:
             tech=list(e.tech or []),
             context=e.context,
             id=e.id,
+            tenure=tenures[e.id] if e.id in in_chain else None,
+            transition=e.transition if e.id in previous else None,
         )
         for e in entries
     ]
@@ -574,9 +583,14 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     main_entries = tailor_main_roles(llm, main_entries, job_description, warnings)
     early_entries = condense_early_roles(llm, early_entries, job_description, warnings)
 
+    # Which listed roles share an employer block; added after tailoring so the ids never
+    # reach the prompts.
+    main_entries = [entry | {"tenure": role.tenure} for entry, role in zip(main_entries, history.main, strict=True)]
+    early_entries = [entry | {"tenure": role.tenure} for entry, role in zip(early_entries, history.early, strict=True)]
+
     # 4. headline
     technologies = collect_technologies(main_entries)
-    prompt_history = [{k: v for k, v in e.items() if k != "relevance"} for e in main_entries]
+    prompt_history = [{k: v for k, v in e.items() if k not in ("relevance", "tenure")} for e in main_entries]
     categories, summary, headline_role, core_technologies = llm.run_all(
         [
             lambda s: categorize_technologies(llm, s, technologies, job_description, warnings),

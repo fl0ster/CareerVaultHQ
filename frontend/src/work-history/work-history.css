@@ -1045,3 +1045,225 @@
     padding-top: 22px;
   }
 }
+
+/* -----------------------------------------------------------------------------
+ * Promotions and role changes: roles held one after another at one employer (a tenure)
+ * --------------------------------------------------------------------------- */
+
+/* "New position · Promotion · Role change" in the forms, with what the choice does. */
+.wh-transition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  /* Inside the compose window: a row under the employer, like the other fields. */
+  &.compact {
+    padding: 8px 16px 10px;
+    border-bottom: 1px solid var(--border);
+
+    .wh-kind-switch { align-self: stretch; }
+    .wh-kind-switch label { flex: 1; justify-content: center; padding: 4px 6px; }
+  }
+}
+
+.wh-transition-switch {
+  --kind-bg: var(--accent-bg);
+  --kind-fg: var(--accent);
+}
+
+.wh-transition-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text);
+
+  strong { color: var(--text-h); font-weight: 600; }
+}
+
+/* "Promoted from Software Engineer" */
+.wh-transition-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 1px 9px 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone-fg, var(--accent)) 12%, transparent);
+  color: var(--tone-fg, var(--accent));
+  font-size: 12px;
+  font-weight: 500;
+
+  strong { font-weight: 600; }
+}
+
+.wh-meta .wh-transition-chip {
+  margin-top: 0;
+}
+
+.wh-tenure-total {
+  align-self: center;
+  margin-left: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+/* List: the roles of a tenure hang off one rail, the newest on top. */
+.wh-item.tenure-first,
+.wh-item.tenure-mid {
+  border-bottom-style: dashed;
+  border-bottom-color: color-mix(in srgb, var(--tone-fg) 25%, transparent);
+}
+
+.wh-item.tenure-mid,
+.wh-item.tenure-last {
+  padding-left: 40px;
+
+  /* The rail down from the role above, and this role's node on it. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    bottom: 0;
+    left: 19px;
+    border-left: 2px solid color-mix(in srgb, var(--tone-fg) 45%, transparent);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 19px;
+    left: 14px;
+    width: 8px;
+    height: 8px;
+    border: 2px solid var(--tone-fg);
+    border-radius: 50%;
+    background: var(--surface);
+  }
+}
+
+.wh-item.tenure-last::before {
+  bottom: auto;
+  height: 21px;
+}
+
+/* Detail: every role at the employer, oldest first. */
+.wh-progression {
+  margin: 0 0 18px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text);
+
+    span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  }
+
+  ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 5px 10px;
+    border: 1px solid color-mix(in srgb, var(--tone-fg, var(--accent)) 30%, transparent);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-h);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    strong { font-size: 13px; }
+    small { font-size: 11.5px; color: var(--text); }
+
+    &:hover { background: color-mix(in srgb, var(--tone-fg, var(--accent)) 8%, transparent); }
+    &:disabled { cursor: default; opacity: 1; }
+  }
+
+  li.current button {
+    border-color: var(--tone-fg, var(--accent));
+    background: var(--tone-bg, var(--accent-bg));
+    box-shadow: 0 0 0 1px var(--tone-fg, var(--accent));
+  }
+}
+
+.wh-progression-step {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--tone-fg, var(--accent));
+  color: var(--surface);
+}
+
+/* Timeline: joined bars of one tenure. */
+.wh-tl-pos.joined-after {
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.wh-tl-pos.joined-before {
+  border-left-width: 1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+
+  .wh-tl-pos-label { padding-left: 14px; }
+}
+
+/* The step from one role to the next, on the join. */
+.wh-tl-step {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--tone-fg);
+  color: var(--surface);
+  pointer-events: none;
+  z-index: 4;
+  transition: box-shadow 0.15s;
+
+  &.active { box-shadow: 0 0 0 2px var(--tone-fg); }
+}
+
+/* The whole time at the employer of the hovered / selected role. */
+.wh-tl-tenure {
+  position: absolute;
+  border: 1.5px dashed var(--tone-fg);
+  border-radius: 9px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.wh-tl-event {
+  &.promotion { background: var(--accent); }
+  &.move { background: var(--info-fg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wh-tl-step {
+    transition: none;
+  }
+}

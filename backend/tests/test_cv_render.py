@@ -14,6 +14,7 @@ from app.tasks.cv.render import (
     render_education,
     render_headline,
     render_role,
+    render_roles,
     split_sentences,
     tex_escape,
 )
@@ -63,6 +64,31 @@ EARLY = [
         "tech": "PHP",
         "context": "Maintained a legacy shop.",
     }
+]
+
+
+PROMOTED = [
+    {
+        "date_start": "Mar 2022",
+        "date_end": "Jun 2024",
+        "employer": "Acme",
+        "role": "Lead Engineer",
+        "location": "Warsaw",
+        "tech": "Kotlin",
+        "context": "Led a team of five.",
+        "transition": "promotion",
+        "tenure": 7,
+    },
+    {
+        "date_start": "Jan 2019",
+        "date_end": "Feb 2022",
+        "employer": "Acme",
+        "role": "Engineer",
+        "location": "Warsaw",
+        "tech": "Java",
+        "context": "Built the checkout.",
+        "tenure": 7,
+    },
 ]
 
 
@@ -161,7 +187,7 @@ def _render():
         headline_role="Senior React Native Engineer",
         core_technologies=["React Native", "TypeScript"],
         summary="Senior mobile engineer with 10+ years & measurable impact.",
-        main=MAIN,
+        main=MAIN + PROMOTED,
         early=EARLY,
         categories=[("Mobile", ["React Native"]), ("Languages", ["TypeScript"])],
     )
@@ -207,3 +233,20 @@ def test_rendered_cv_compiles(tmp_path):
     result = compile_latex(str(tex), passes=1, timeout=180)
     assert (tmp_path / "cv.pdf").read_bytes().startswith(b"%PDF")
     assert "Output written" in result["log_tail"]
+
+
+def test_roles_of_one_tenure_share_an_employer_block():
+    tex = render_roles(MAIN + PROMOTED, [])
+    assert tex.count("\\begin{cvrole}") == 2
+    assert "\\begin{cvrole}{Lead Engineer}{Acme}{Mar 2022 -- Jun 2024}{Warsaw}" in tex
+    assert "\\begin{cvsubrole}{Engineer}{Jan 2019 -- Feb 2022}\n  \\item Built the checkout.\n  \\cvtech{Java}" in tex
+    # the sub-role follows its employer block directly
+    assert tex.index("\\end{cvrole}\n\\begin{cvsubrole}") > tex.index("Lead Engineer")
+
+
+def test_early_roles_of_one_tenure_share_a_line():
+    early = [{**e, "context": "Did things."} for e in PROMOTED] + EARLY
+    tex = render_early_history(early)
+    assert "\\textbf{Engineer $\\rightarrow$ Lead Engineer}, {\\small {\\color{muted}Acme (Jan 2019 -- Jun 2024)}" in tex
+    assert "Did things; Did things}" in tex
+    assert tex.count("\\item") == 2

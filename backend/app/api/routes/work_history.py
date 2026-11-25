@@ -9,6 +9,9 @@ Entries created by accepting an offer (``POST /api/applications/{id}/accept``) c
 ``application_id`` and the progress of filling them in from it (``prefill_state``).
 A position's employer is resolved to its company (created when it is not known yet, like a
 company scraped from a job page): ``company_id`` and ``company_tag`` name it.
+A position may continue the previous one at the same employer (``transition``: a promotion
+or a role change, see ``app.services.career``); ``previous_role_id`` names that role, and
+saving such a position ends the previous role when it is still ongoing.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from app.db import get_session
 from app.models import WorkHistoryEntry
 from app.schemas.work_history import (
     EntryKind,
+    Transition,
     WorkHistoryCreate,
     WorkHistoryExport,
     WorkHistoryImport,
@@ -33,6 +37,7 @@ from app.schemas.work_history import (
     _check_employer,
     _format_month,
 )
+from app.services.career import close_previous_role, job_entries, previous_role_ids
 from app.services.companies import resolve_career_companies
 
 router = APIRouter()
@@ -63,16 +68,23 @@ class WorkHistoryOut(BaseModel):
     certificates)."""
     company_tag: str | None = None
     """That company's tag."""
+    transition: Transition | None = None
+    """The position is a promotion or role change within the employer of ``previous_role_id``."""
+    previous_role_id: int | None = None
+    """The role a position with a ``transition`` continues; ``None`` when there is no earlier
+    position at the same employer (the role then stands on its own)."""
 
 
 def _out(session: Session, entries: list[WorkHistoryEntry]) -> list[WorkHistoryOut]:
     """The entries as returned by the API, with their matched company."""
     companies = resolve_career_companies(session, entries)
+    previous = previous_role_ids(job_entries(session))
     out = []
     for entry in entries:
         item = WorkHistoryOut.model_validate(entry)
         if (company := companies.get(entry.id)) is not None:
             item.company_id, item.company_tag = company.id, company.tag
+        item.previous_role_id = previous.get(entry.id)
         out.append(item)
     return out
 
@@ -102,7 +114,7 @@ def list_entries(session: Annotated[Session, Depends(get_session)]) -> list[Work
 @router.get("/json", response_model=list[WorkHistoryExport])
 def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[WorkHistoryExport]:
     """Work history as a bare JSON array with exactly the keys
-    ``kind, date_start, date_end, employer, role, location, tech, context``."""
+    ``kind, date_start, date_end, employer, role, location, tech, context, transition``."""
     return [
         WorkHistoryExport(
             kind=e.kind,
@@ -113,6 +125,7 @@ def export_entries(session: Annotated[Session, Depends(get_session)]) -> list[Wo
             location=e.location,
             tech=str.join(", ", e.tech),
             context=e.context,
+            transition=e.transition,
         )
         for e in _all_entries(session)
     ]
@@ -150,6 +163,7 @@ def import_entries(
 def create_entry(payload: WorkHistoryCreate, session: Annotated[Session, Depends(get_session)]) -> WorkHistoryOut:
     entry = WorkHistoryEntry(**payload.model_dump())
     session.add(entry)
+    close_previous_role(session, entry)
     session.commit()
     session.refresh(entry)
     return _out(session, [entry])[0]
@@ -166,7 +180,8 @@ def update_entry(
     payload: WorkHistoryUpdate,
     session: Annotated[Session, Depends(get_session)],
 ) -> WorkHistoryOut:
-    """Update the given fields only. Send ``"date_end": null`` to mark a position current."""
+    """Update the given fields only. Send ``"date_end": null`` to mark a position current and
+    ``"transition": null`` to make it a new employment again."""
     entry = _get_or_404(session, entry_id)
     changes = payload.model_dump(exclude_unset=True)
     if changes.get("kind", "") is None:
@@ -182,8 +197,11 @@ def update_entry(
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
+    if changes.get("kind", entry.kind) != WorkHistoryEntry.KIND_JOB:
+        changes["transition"] = None
     for field, value in changes.items():
         setattr(entry, field, value)
+    close_previous_role(session, entry)
     session.commit()
     session.refresh(entry)
     return _out(session, [entry])[0]
