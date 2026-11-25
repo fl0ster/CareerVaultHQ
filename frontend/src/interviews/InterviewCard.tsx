@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { CalendarClock, ChevronRight } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import {
@@ -26,11 +26,13 @@ type Props = {
  * the rounds to the offer. */
 export default function InterviewCard({ application: a, statuses, onOpen, onOpenCompany, onChange }: Props) {
   const { rounds, current } = interviewRounds(a)
-  const [busy, setBusy] = useState(false)
+  // Requests in flight (a note save can still be running when Mark held is clicked).
+  const [inFlight, setInFlight] = useState(0)
+  const busy = inFlight > 0
   const [error, setError] = useState<string | null>(null)
 
   const run = async (fn: () => Promise<Application>) => {
-    setBusy(true)
+    setInFlight((n) => n + 1)
     setError(null)
     try {
       onChange(await fn())
@@ -39,7 +41,7 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
       setError(describeError(e))
       return false
     } finally {
-      setBusy(false)
+      setInFlight((n) => n - 1)
     }
   }
 
@@ -82,7 +84,9 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
             round={current}
             total={rounds.length}
             busy={busy}
-            onMarkHeld={() => run(() => applicationsApi.updateEvent(a.id, current.event.id, { planned: false }))}
+            onMarkHeld={(note) =>
+              run(() => applicationsApi.updateEvent(a.id, current.event.id, { planned: false, note }))
+            }
             onSaveNote={(note) => run(() => applicationsApi.updateEvent(a.id, current.event.id, { note }))}
           />
         ) : (
@@ -108,7 +112,8 @@ function CurrentStep({
   round: Round
   total: number
   busy: boolean
-  onMarkHeld: () => void
+  /** Marks the round held, saving `note` with it. */
+  onMarkHeld: (note: string) => Promise<boolean>
   onSaveNote: (note: string) => Promise<boolean>
 }) {
   const { event } = round
@@ -118,9 +123,23 @@ function CurrentStep({
   const duration = formatDuration(event.duration_minutes)
   const kind = event.title || null
 
-  const saveNote = async () => {
+  // The latest note save. Mark held waits for it, so the save's answer can't land after (and
+  // undo) the round being marked held.
+  const saving = useRef<Promise<unknown>>(Promise.resolve())
+  const [marking, setMarking] = useState(false)
+
+  const saveNote = () => {
     if (note === event.note) return
-    setSaved(await onSaveNote(note))
+    saving.current = onSaveNote(note).then(setSaved)
+  }
+
+  // Not disabled while the note saves: pressing this button blurs the notes first, which
+  // starts that save before the click arrives.
+  const markHeld = async () => {
+    setMarking(true)
+    await saving.current
+    await onMarkHeld(note)
+    setMarking(false)
   }
 
   return (
@@ -151,7 +170,7 @@ function CurrentStep({
             setNote(e.target.value)
             setSaved(false)
           }}
-          onBlur={() => void saveNote()}
+          onBlur={saveNote}
           placeholder={round.held ? 'How did it go?' : 'Prep notes: who you meet, topics, questions to ask…'}
           rows={3}
           disabled={busy}
@@ -162,7 +181,7 @@ function CurrentStep({
           {busy ? 'Saving…' : saved ? 'Saved' : ''}
         </span>
         {!round.held && (
-          <button type="button" className="small" onClick={onMarkHeld} disabled={busy}>
+          <button type="button" className="small" onClick={() => void markHeld()} disabled={marking}>
             Mark held
           </button>
         )}
