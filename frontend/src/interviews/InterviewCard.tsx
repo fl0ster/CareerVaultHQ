@@ -61,24 +61,28 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
             )}
           </div>
         </div>
-        <div className="iv-card-status">
-          <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
-        </div>
+        <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
+          Details <ChevronRight size={16} aria-hidden="true" />
+        </button>
       </header>
 
       <div className="iv-card-body">
-        {rounds.length > 0 && <InterviewStepper application={a} rounds={rounds} current={current} />}
+        {rounds.length > 0 && (
+          <div className="iv-stepper-wrap">
+            <InterviewStepper application={a} rounds={rounds} current={current} />
+          </div>
+        )}
         {current ? (
           <CurrentStep
-          key={current.event.id}
-          application={a}
-          round={current}
-          total={rounds.length}
-          busy={busy}
-          onMarkHeld={() => run(() => applicationsApi.updateEvent(a.id, current.event.id, { planned: false }))}
-          onSaveNote={(note) => run(() => applicationsApi.updateEvent(a.id, current.event.id, { note }))}
-        />
-      ) : (
+            key={current.event.id}
+            application={a}
+            round={current}
+            total={rounds.length}
+            busy={busy}
+            onMarkHeld={() => run(() => applicationsApi.updateEvent(a.id, current.event.id, { planned: false }))}
+            onSaveNote={(note) => run(() => applicationsApi.updateEvent(a.id, current.event.id, { note }))}
+          />
+        ) : (
           <p className="iv-current muted">No interview round to show.</p>
         )}
       </div>
@@ -86,11 +90,7 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
       {error && <p className="error">{error}</p>}
 
       <footer className="iv-card-foot">
-        <div className="iv-card-actions">
-          <button type="button" className="secondary small" onClick={() => onOpen(a.id)}>
-            Details <ChevronRight size={14} aria-hidden="true" />
-          </button>
-        </div>
+        <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
       </footer>
     </article>
   )

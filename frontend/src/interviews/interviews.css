@@ -76,8 +76,13 @@
 }
 
 
-.iv-card-status {
+.iv-card-details {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 12px 9px 16px;
+  font-size: 14px;
 }
 
 /* The current step: the round being prepared for (or the last one held) and its notes. */
@@ -163,21 +168,7 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.iv-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-
-  button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
+  align-items: flex-start;
 }
 
 /* Body: the rounds down the left, the current step beside them. */
@@ -193,6 +184,30 @@
 
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
+  }
+}
+
+/* The stepper column follows the current step's height instead of setting it; longer lists scroll. */
+.iv-stepper-wrap {
+  position: relative;
+  align-self: stretch;
+  min-height: 120px;
+
+  .iv-stepper {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+
+  @media (max-width: 600px) {
+    min-height: 0;
+
+    .iv-stepper {
+      position: static;
+      max-height: 180px;
+    }
   }
 }
 
