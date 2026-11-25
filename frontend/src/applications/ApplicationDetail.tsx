@@ -24,6 +24,7 @@ import {
   formatDuration,
   fromLocalInput,
   heldRounds,
+  historyEvents,
   isAutoEvent,
   nextRoundLabel,
   notifyApplicationsChanged,
@@ -183,7 +184,7 @@ function EventRow({
   }
 
   // Removing a held interview round turns it back into a planned one.
-  const isHeldRound = event.status.key === INTERVIEW_STATUS
+  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
   const remove = async () => {
     const question = isHeldRound
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`
@@ -191,7 +192,9 @@ function EventRow({
         ? `Undo accepting the offer? The application goes back to "Offer" and the position it added to My Career is deleted.`
         : event.status.key === DECLINED_STATUS
           ? `Undo declining the offer? The application goes back to "Offer".`
-          : `Remove the "${event.status.label}" state?`
+          : event.status.key === APPLIED_STATUS && application.events.some((e) => e.status.key !== APPLIED_STATUS && e.status.key !== INITIAL_ONLY_STATUS)
+            ? `Remove the "Applied" state? Every later state (interviews, offer, rejection…) is undone: held rounds go back to planned and the job back to Jobs.`
+            : `Remove the "${event.status.label}" state?`
     if (!window.confirm(question)) return
     const updated = await run(() => applicationsApi.removeEvent(application.id, event.id))
     if (updated) onChange(updated)
@@ -672,11 +675,11 @@ export default function ApplicationDetail({
             <option key={t} value={t} />
           ))}
         </datalist>
-        {application.events.length === 0 && application.planned_events.length === 0 ? (
+        {historyEvents(application).length === 0 && application.planned_events.length === 0 ? (
           <p className="muted">No status recorded yet.</p>
         ) : (
           <ol className="app-events">
-            {application.events.map((event) => (
+            {historyEvents(application).map((event) => (
               <EventRow
                 key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}:${event.title}:${event.duration_minutes}`}
                 application={application}
