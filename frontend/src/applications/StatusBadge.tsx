@@ -168,6 +168,8 @@ type Props = {
   auto?: boolean
   /** Name of the current interview round ("Technical"): shown instead of the INTERVIEW label. */
   roundTitle?: string
+  /** A click on the INTERVIEW pill plans the next round (none is planned yet). */
+  planRound?: boolean
 }
 
 function AutoMark() {
@@ -182,7 +184,7 @@ function AutoMark() {
  * Application state pill; known states get a colour, custom ones the neutral badge.
  * With `onSelect` it is a `PickerPill`: click moves to the state's `next_key`, ⋮ picks any state.
  */
-export default function StatusBadge({ status, statuses = [], onSelect, nextRound, auto = false, roundTitle }: Props) {
+export default function StatusBadge({ status, statuses = [], onSelect, nextRound, auto = false, roundTitle, planRound = false }: Props) {
   const cls = `badge app-status ${status ? status.key.toLowerCase() : 'none'}`
   const label = (
     <>
@@ -216,7 +218,7 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
       currentKey={status?.key ?? null}
       nextKey={nextKey}
       onSelect={onSelect}
-      title={interview ? (nextRound ? `Mark ${nextRound} as held` : 'Record another interview round') : undefined}
+      title={interview ? (nextRound ? `Mark ${nextRound} as held` : planRound ? 'Plan the next interview round' : 'Record another interview round') : undefined}
       extra={final ? null : undefined}
       previewClass={nextKey ? `app-status ${nextKey.toLowerCase()}` : undefined}
     >
