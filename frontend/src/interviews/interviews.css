@@ -129,7 +129,8 @@
     width: 100%;
     box-sizing: border-box;
     resize: vertical;
-    min-height: 64px;
+    min-height: 120px;
+    display: block;
     background: var(--surface);
   }
 }
@@ -168,15 +169,17 @@
 
 .iv-current-notes {
   display: block;
+  position: relative;
+
+  /* Save status sits inside the textarea's bottom-right corner, taking no room below it. */
+  .iv-saved {
+    position: absolute;
+    right: 18px;
+    bottom: 6px;
+    pointer-events: none;
+  }
 }
 
-.iv-current-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 28px;
-}
 
 .iv-saved {
   font-size: 12px;
@@ -195,6 +198,36 @@
 
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Left column: the stepper on top, the status control at the bottom left below it. */
+.iv-card-side {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  .iv-stepper-wrap {
+    flex: 1;
+  }
+}
+
+.iv-card-status {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-start;
+
+  /* A larger target than the list rows' pill. */
+  .app-status-main {
+    padding: 7px 10px 7px 14px;
+  }
+  .app-status-main.alone {
+    padding-right: 14px;
+  }
+  .app-status-more {
+    padding: 7px 12px 7px 10px;
   }
 }
 
