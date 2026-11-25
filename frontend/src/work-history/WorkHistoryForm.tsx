@@ -26,6 +26,12 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
   const info = KINDS[draft.kind]
   const point = draft.kind === 'certificate' && draft.current
   const previous = predecessorCandidate(entries, draft, initial?.id)
+  // A position stays a position: it can't be turned into education or a certificate, and the
+  // next role at an employer is a position too.
+  const kindLocked = initial?.kind === 'job' || !!seed
+  // A promotion / role change is at the employer of the role it continues; choosing "New
+  // position" frees the field again.
+  const employerLocked = draft.kind === 'job' && !!draft.transition && !!previous
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -53,7 +59,7 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
     <form className="wh-form" onSubmit={submit}>
       <h2>{initial ? `Edit ${info.noun}` : (heading ?? `New ${info.noun}`)}</h2>
 
-      <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />
+      {!kindLocked && <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />}
 
       <div className="wh-grid">
         <label>
@@ -66,6 +72,8 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
           <input
             required={info.organisationRequired}
             value={draft.employer}
+            readOnly={employerLocked}
+            title={employerLocked ? 'The employer of the role this one continues' : undefined}
             onChange={(e) => set('employer', e.target.value)}
           />
         </label>

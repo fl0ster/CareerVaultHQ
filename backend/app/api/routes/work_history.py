@@ -35,6 +35,7 @@ from app.schemas.work_history import (
     WorkHistoryUpdate,
     _check_dates,
     _check_employer,
+    _check_kind_change,
     _format_month,
 )
 from app.services.career import close_previous_role, job_entries, previous_role_ids
@@ -192,6 +193,7 @@ def update_entry(
     new_start = changes.get("date_start", entry.date_start)
     new_end = changes.get("date_end", entry.date_end)
     try:
+        _check_kind_change(entry.kind, changes.get("kind", entry.kind))
         _check_dates(new_start, new_end)
         _check_employer(changes.get("kind", entry.kind), changes.get("employer", entry.employer))
     except ValueError as exc:

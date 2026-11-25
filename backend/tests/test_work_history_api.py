@@ -212,6 +212,16 @@ def test_update_switches_kind(client):
     assert body["kind"] == "job"
 
 
+def test_a_position_cannot_change_its_kind(client):
+    entry_id = client.post(BASE, json=ENTRY).json()["id"]
+    for kind in ("education", "certificate"):
+        res = client.patch(f"{BASE}/{entry_id}", json={"kind": kind})
+        assert res.status_code == 422
+        assert "cannot be changed" in res.json()["detail"]
+    assert client.get(f"{BASE}/{entry_id}").json()["kind"] == "job"
+    assert client.patch(f"{BASE}/{entry_id}", json={"kind": "job", "role": "Lead"}).status_code == 200
+
+
 def test_import_export_round_trips_kinds(client):
     payload = [
         {**_import_payload()[0], "kind": "job"},
@@ -329,8 +339,7 @@ def test_transition_is_for_positions_only(client):
     ).json()
     assert body["transition"] is None
 
-    entry_id = client.post(BASE, json={**JOB, "date_start": "2019-01-01", "transition": "promotion"}).json()["id"]
-    body = client.patch(f"{BASE}/{entry_id}", json={"kind": "certificate"}).json()
+    body = client.patch(f"{BASE}/{body['id']}", json={"transition": "promotion"}).json()
     assert body["transition"] is None
 
     assert client.post(BASE, json={**JOB, "date_start": "2019-01-01", "transition": "demotion"}).status_code == 422

@@ -1066,6 +1066,13 @@
   }
 }
 
+/* The employer of a promotion / role change: fixed to the role it continues. */
+.wh-form input[readonly] {
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: default;
+}
+
 .wh-transition-switch {
   --kind-bg: var(--accent-bg);
   --kind-fg: var(--accent);

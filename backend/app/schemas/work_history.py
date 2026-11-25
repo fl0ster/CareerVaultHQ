@@ -23,6 +23,12 @@ def _check_employer(kind: str, employer: str) -> None:
         raise ValueError("employer is required for a job")
 
 
+def _check_kind_change(old: str, new: str) -> None:
+    """A position stays a position (it may have later roles, a company, an application)."""
+    if old == "job" and new != "job":
+        raise ValueError("a position cannot be changed into education or a certificate")
+
+
 def _check_dates(date_start: date | None, date_end: date | None) -> None:
     if date_start is not None and date_end is not None and date_end < date_start:
         raise ValueError("date_end must not be earlier than date_start")
