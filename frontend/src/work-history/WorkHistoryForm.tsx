@@ -1,21 +1,68 @@
 import { type FormEvent, useState } from 'react'
-import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
+import { formatDay } from '../applications/api.ts'
+import type { Transition, WorkHistoryEntry, WorkHistoryInput } from './api.ts'
 import { type Draft, draftError, toDraft, toInput, withKind } from './draft.ts'
 import { KINDS } from './kinds.ts'
 import KindSwitch from './KindSwitch.tsx'
+import { dayBefore, predecessorCandidate, TRANSITIONS } from './tenure.ts'
+
+function formatMonth(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })
+}
+
+/** "Role change at Acme: continues Software Engineer (Jan 2019 – present), which ends on 29/02/2024." */
+function ContinuesNote({
+  transition,
+  previous,
+  dateStart,
+  adding,
+}: {
+  transition: Transition
+  previous: WorkHistoryEntry
+  dateStart: string
+  /** A new role: an ongoing previous role is ended the day before it starts. */
+  adding: boolean
+}) {
+  const { icon: Icon, label } = TRANSITIONS[transition]
+  const end = previous.date_end ? formatMonth(previous.date_end) : 'present'
+  const closes = adding && previous.date_end === null && dateStart
+  return (
+    <p className="wh-transition-note">
+      <Icon size={14} aria-hidden="true" />
+      <span>
+        {label} at {previous.employer}: continues <strong>{previous.role}</strong> ({formatMonth(previous.date_start)} –{' '}
+        {end}){closes ? `, which ends on ${formatDay(dayBefore(dateStart))}` : ''}.
+      </span>
+    </p>
+  )
+}
 
 type Props = {
+  /** The entry being edited; without it the form adds a new one. */
   initial?: WorkHistoryEntry
+  /** Starting values of a new entry (e.g. a role change at an employer). */
+  seed?: Draft
+  /** Heading of a new entry's form (default "New position"). */
+  heading?: string
+  /** The whole career, to find the role a role change continues. */
+  entries: WorkHistoryEntry[]
   onSubmit: (input: WorkHistoryInput) => Promise<void>
   onCancel: () => void
 }
 
-export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) {
-  const [draft, setDraft] = useState<Draft>(() => toDraft(initial))
+export default function WorkHistoryForm({ initial, seed, heading, entries, onSubmit, onCancel }: Props) {
+  const [draft, setDraft] = useState<Draft>(() => seed ?? toDraft(initial))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const info = KINDS[draft.kind]
   const point = draft.kind === 'certificate' && draft.current
+  const previous = predecessorCandidate(entries, draft, initial?.id)
+  // A position stays a position: it can't be turned into education or a certificate, and a
+  // role change is a position too.
+  const kindLocked = initial?.kind === 'job' || !!seed
+  // A role change (or promotion) is at the employer of the role it continues. Whether a role
+  // continues an earlier one is set when it is added and is not changed here.
+  const continues = draft.kind === 'job' && draft.transition ? previous : null
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -30,7 +77,8 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
     setSaving(true)
     setError(null)
     try {
-      await onSubmit(toInput(draft))
+      // Without an earlier position at the employer there is nothing to continue.
+      await onSubmit(toInput(previous ? draft : { ...draft, transition: '' }))
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err))
     } finally {
@@ -40,9 +88,9 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
   return (
     <form className="wh-form" onSubmit={submit}>
-      <h2>{initial ? `Edit ${info.noun}` : `New ${info.noun}`}</h2>
+      <h2>{initial ? `Edit ${info.noun}` : (heading ?? `New ${info.noun}`)}</h2>
 
-      <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />
+      {!kindLocked && <KindSwitch value={draft.kind} onChange={(kind) => setDraft((d) => withKind(d, kind))} />}
 
       <div className="wh-grid">
         <label>
@@ -55,6 +103,8 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
           <input
             required={info.organisationRequired}
             value={draft.employer}
+            readOnly={!!continues}
+            title={continues ? 'The employer of the role this one continues' : undefined}
             onChange={(e) => set('employer', e.target.value)}
           />
         </label>
@@ -95,6 +145,15 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
         </label>
       </div>
 
+      {continues && draft.transition && (
+        <ContinuesNote
+          transition={draft.transition}
+          previous={continues}
+          dateStart={draft.date_start}
+          adding={!initial}
+        />
+      )}
+
       {info.showTech && (
         <label>
           Technologies <span className="muted">(comma separated)</span>
@@ -119,7 +178,13 @@ export default function WorkHistoryForm({ initial, onSubmit, onCancel }: Props) 
 
       <div className="wh-actions">
         <button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : initial ? 'Save changes' : `Add ${info.noun}`}
+          {saving
+            ? 'Saving…'
+            : initial
+              ? 'Save changes'
+              : draft.transition
+                ? `Add ${TRANSITIONS[draft.transition].label.toLowerCase()}`
+                : `Add ${info.noun}`}
         </button>
         <button type="button" className="secondary" onClick={onCancel} disabled={saving}>
           Cancel

@@ -31,6 +31,9 @@ Rules:
     each as a short name (e.g. "Python", "PostgreSQL", "AWS Lambda").
   - "context": the position's description and achievements, as in the CV (keep bullet
     points as separate lines starting with "- ").
+  - "transition": "promotion" when the CV shows the position as a promotion from the
+    candidate's previous position at the same employer (e.g. several titles listed under one
+    company), "role_change" for any other move within that employer, "" otherwise.
 - education: one entry per degree or study programme: "degree" (with the field of study),
   "institution", dates in the same "YYYY-MM" / "YYYY" format ("date_end" is "present" while
   still studying and "" when not stated), and "note" for anything else stated (thesis,
@@ -86,6 +89,7 @@ CV_IMPORT_SCHEMA: dict[str, Any] = _object(
             date_end=_STRING,
             tech=_STRINGS,
             context=_STRING,
+            transition={"type": "string", "enum": ["", "promotion", "role_change"]},
         ),
     },
     education={

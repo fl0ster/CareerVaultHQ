@@ -11,7 +11,9 @@
 %   PDF_SUBJECT   headline role for the PDF metadata
 %   CONTACTS      one line of contact items (email, phone, links, location)
 %   SUMMARY       professional summary paragraph
-%   ROLES         cvrole blocks (one per position) + the "Additional Experience" block
+%   ROLES         cvrole blocks (one per employer block), each followed by a cvsubrole block
+%                 per earlier role at that employer (promotions), + the "Additional
+%                 Experience" block
 %   EDUCATION     whole "Education & Certifications" section block, or empty
 %   TECHNOLOGIES  whole "Technologies" section block, or empty
 %   LANGUAGES     whole "Languages" section block, or empty
@@ -60,6 +62,8 @@
 \newlength{\cvRoleGap}        \setlength{\cvRoleGap}{10pt}   % between roles
 \newlength{\cvRoleHeadGap}    \setlength{\cvRoleHeadGap}{3pt} % header -> bullets
 \newlength{\cvTechGap}        \setlength{\cvTechGap}{3pt}    % bullets -> Tech line
+\newlength{\cvSubRoleGap}     \setlength{\cvSubRoleGap}{8pt} % between roles at one employer
+\newlength{\cvSubRoleIndent}  \setlength{\cvSubRoleIndent}{0.8em}
 
 % -----------------------------------------------------------------------------
 % General layout
@@ -162,6 +166,42 @@
     \else
       \vspace{\cvRoleGap}\cvrule\usebox{\cvrolebox}\par
     \fi
+  \fi
+}
+
+% cvsubrole environment: an earlier role at the employer of the cvrole block above it (the
+% role the candidate was promoted from, or moved from within the company). Slightly indented,
+% without the company line and the separator rule; unbreakable like cvrole.
+%   \begin{cvsubrole}{Role title}{Dates}
+%     \item ...
+%     \cvtech{...}          % optional
+%   \end{cvsubrole}
+\newcommand{\cvsubroleheader}[2]{%
+  {\fontsize{11pt}{13pt}\selectfont\bfseries #1}%
+  \hfill{\color{muted}\small #2}\par
+  \vspace{\cvRoleHeadGap}%
+}
+\newenvironment{cvsubrole}[2]{%
+  \begin{lrbox}{\cvrolebox}%
+  \hspace*{\cvSubRoleIndent}%
+  \begin{minipage}{\dimexpr\linewidth-\cvSubRoleIndent\relax}%
+    \raggedright
+    \cvsubroleheader{#1}{#2}%
+    \begin{itemize}
+}{%
+    \end{itemize}%
+  \end{minipage}%
+  \end{lrbox}%
+  \par\penalty0
+  \setlength{\cvroleneed}{\ht\cvrolebox}%
+  \addtolength{\cvroleneed}{\dp\cvrolebox}%
+  \addtolength{\cvroleneed}{\cvSubRoleGap}%
+  \setlength{\cvroleavail}{\pagegoal}%
+  \addtolength{\cvroleavail}{-\pagetotal}%
+  \ifdim\cvroleneed>\cvroleavail
+    \newpage\usebox{\cvrolebox}\par
+  \else
+    \vspace{\cvSubRoleGap}\usebox{\cvrolebox}\par
   \fi
 }
 

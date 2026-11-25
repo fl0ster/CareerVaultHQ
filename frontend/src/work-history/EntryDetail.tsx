@@ -1,12 +1,14 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import '../jobs/jobs.css'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { formatDay } from '../applications/api.ts'
 import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
 import ApplicationSteps from './ApplicationSteps.tsx'
+import { nextRoleDraft } from './draft.ts'
 import { isPoint, KINDS } from './kinds.ts'
-import { type Bar, formatDuration } from './timeline-model.ts'
+import { linkedTransition, TRANSITIONS } from './tenure.ts'
+import { type Bar, formatDuration, monthIndex, todayIndex } from './timeline-model.ts'
 import WorkHistoryForm from './WorkHistoryForm.tsx'
 
 function formatMonth(iso: string): string {
@@ -66,6 +68,63 @@ export function EntryPeriod({ entry, bar }: { entry: WorkHistoryEntry; bar: Bar 
   )
 }
 
+/** "Promoted from Software Engineer" on a role that continues `previous` at its employer. */
+export function TransitionChip({ entry, previous }: { entry: WorkHistoryEntry; previous: WorkHistoryEntry }) {
+  const transition = linkedTransition(entry)
+  if (!transition) return null
+  const { icon: Icon, from } = TRANSITIONS[transition]
+  return (
+    <span className={`wh-transition-chip ${transition}`}>
+      <Icon size={13} aria-hidden="true" />
+      {from} <strong>{previous.role}</strong>
+    </span>
+  )
+}
+
+/** "Jan 2019 – Feb 2022" */
+function period(entry: WorkHistoryEntry): string {
+  return `${formatMonth(entry.date_start)} – ${entry.date_end ? formatMonth(entry.date_end) : 'present'}`
+}
+
+/** Every role held at the employer of the open one (oldest first), each opening its details. */
+function Progression({ roles, current, onOpen }: { roles: WorkHistoryEntry[]; current: number; onOpen: (id: number) => void }) {
+  const last = roles[roles.length - 1]
+  const months =
+    (last.date_end ? monthIndex(last.date_end) + 1 : Math.max(todayIndex(), monthIndex(last.date_start) + 1)) -
+    monthIndex(roles[0].date_start)
+  return (
+    <section className="wh-progression" aria-label={`Roles at ${last.employer}`}>
+      <h3>
+        At {last.employer} <span>· {formatDuration(months)} in {roles.length} roles</span>
+      </h3>
+      <ol>
+        {roles.map((role) => {
+          const transition = linkedTransition(role)
+          const Step = transition ? TRANSITIONS[transition].icon : null
+          return (
+            <li key={role.id} className={role.id === current ? 'current' : undefined}>
+              {Step && (
+                <span className="wh-progression-step" title={TRANSITIONS[transition!].label}>
+                  <Step size={12} aria-hidden="true" />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpen(role.id)}
+                aria-current={role.id === current || undefined}
+                disabled={role.id === current}
+              >
+                <strong>{role.role}</strong>
+                <small>{period(role)}</small>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
 export function PrefillStatus({ entry }: { entry: WorkHistoryEntry }) {
   if (entry.prefill_state === 'queued') {
     return (
@@ -87,6 +146,10 @@ const editable = (target: EventTarget | null) =>
 type Props = {
   entry: WorkHistoryEntry
   bar: Bar | undefined
+  /** The roles held at the entry's employer, oldest first (just the entry when it stands alone). */
+  tenure: WorkHistoryEntry[]
+  /** The whole career, for the forms. */
+  entries: WorkHistoryEntry[]
   /** The neighbouring entries in the list: newer (above) and older (below). */
   newer: WorkHistoryEntry | null
   older: WorkHistoryEntry | null
@@ -94,14 +157,35 @@ type Props = {
   onOpenCompany: (companyId: number) => void
   onBack: () => void
   onUpdate: (input: WorkHistoryInput) => Promise<void>
+  /** Adds a role change at the entry's employer (and opens it). */
+  onAddNext: (input: WorkHistoryInput) => Promise<void>
   onDelete: () => void
 }
 
 /** The details of one career entry, shown under the timeline in place of the list. */
-export default function EntryDetail({ entry, bar, newer, older, onOpen, onOpenCompany, onBack, onUpdate, onDelete }: Props) {
-  const [editing, setEditing] = useState(false)
+export default function EntryDetail({
+  entry,
+  bar,
+  tenure,
+  entries,
+  newer,
+  older,
+  onOpen,
+  onOpenCompany,
+  onBack,
+  onUpdate,
+  onAddNext,
+  onDelete,
+}: Props) {
+  /** Showing the details, editing them, or adding a role change at the employer. */
+  const [mode, setMode] = useState<'view' | 'edit' | 'next'>('view')
+  const editing = mode !== 'view'
+  const setEditing = (on: boolean) => setMode(on ? 'edit' : 'view')
   const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
   const filling = entry.prefill_state === 'queued'
+  const previous = tenure.find((role) => role.id === entry.previous_role_id)
+  // A role change is added from the latest role at the employer.
+  const canAddNext = entry.kind === 'job' && tenure[tenure.length - 1].id === entry.id
 
   // ← / → step to the older / newer entry (not while typing or on the timeline, which steps itself).
   useEffect(() => {
@@ -147,15 +231,25 @@ export default function EntryDetail({ entry, bar, newer, older, onOpen, onOpenCo
       </nav>
 
       <div className="detail-card wh-detail-card">
-        {editing ? (
+        {mode === 'edit' ? (
           <WorkHistoryForm
             key={entry.id}
             initial={entry}
+            entries={entries}
             onSubmit={async (input) => {
               await onUpdate(input)
               setEditing(false)
             }}
             onCancel={() => setEditing(false)}
+          />
+        ) : mode === 'next' ? (
+          <WorkHistoryForm
+            key={`next-${entry.id}`}
+            seed={nextRoleDraft(entry)}
+            heading={`Role change at ${entry.employer}`}
+            entries={entries}
+            onSubmit={onAddNext}
+            onCancel={() => setMode('view')}
           />
         ) : (
           <>
@@ -177,6 +271,17 @@ export default function EntryDetail({ entry, bar, newer, older, onOpen, onOpenCo
                 <Organisation entry={entry} onOpenCompany={onOpenCompany} />
               </div>
               <div className="wh-detail-actions">
+                {canAddNext && (
+                  <button
+                    type="button"
+                    className="secondary small"
+                    onClick={() => setMode('next')}
+                    disabled={filling}
+                    title={`Moved to another role at ${entry.employer}? Add it here.`}
+                  >
+                    <ArrowRightLeft size={14} aria-hidden="true" /> Role change
+                  </button>
+                )}
                 <button
                   type="button"
                   className="secondary small"
@@ -196,9 +301,12 @@ export default function EntryDetail({ entry, bar, newer, older, onOpen, onOpenCo
               <EntryPeriod entry={entry} bar={bar} />
               {entry.location && <span>{entry.location}</span>}
               {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
+              {previous && <TransitionChip entry={entry} previous={previous} />}
             </div>
 
             <PrefillStatus entry={entry} />
+
+            {tenure.length > 1 && <Progression roles={tenure} current={entry.id} onOpen={onOpen} />}
 
             {entry.tech.length > 0 && (
               <ul className="job-tech wh-detail-tech" aria-label="Technologies">

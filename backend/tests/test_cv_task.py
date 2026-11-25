@@ -324,3 +324,25 @@ def test_generate_cv_is_a_noop_when_already_finished(task_engine, requests_seen)
         session.commit()
     assert generate_task.generate_cv(cv_id)["pdf_path"] == "/x/cv.pdf"
     assert requests_seen == []
+
+
+def test_load_roles_groups_promotions_into_a_tenure(db_session):
+    def job(start, role, transition=None, end=None, employer="Acme"):
+        return models.WorkHistoryEntry(
+            date_start=start, date_end=end, employer=employer, role=role, tech=[], transition=transition
+        )
+
+    first = job(date(2018, 1, 1), "Engineer", end=date(2020, 12, 31))
+    second = job(date(2021, 1, 1), "Senior Engineer", "promotion", end=date(2022, 12, 31))
+    third = job(date(2023, 1, 1), "Lead", "role_change")
+    other = job(date(2016, 1, 1), "Dev", end=date(2017, 12, 31), employer="Beta")
+    db_session.add_all([first, second, third, other])
+    db_session.commit()
+
+    roles = generate_task.load_roles(db_session, today=date(2026, 1, 1))
+    assert {r.role: (r.tenure, r.transition) for r in roles} == {
+        "Lead": (first.id, "role_change"),
+        "Senior Engineer": (first.id, "promotion"),
+        "Engineer": (first.id, None),
+        "Dev": (None, None),
+    }

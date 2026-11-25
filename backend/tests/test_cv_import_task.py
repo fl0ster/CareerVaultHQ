@@ -334,3 +334,18 @@ def test_worker_can_resolve_the_job_function():
     backend = Path(__file__).resolve().parents[1]
     done = subprocess.run([sys.executable, "-c", code], cwd=backend, capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
+
+
+def test_transition_is_passed_through(cv_file):
+    pdf = pdf_text(cv_file())
+    entries = [
+        {"employer": "Acme", "role": "Lead", "date_start": "2022-03", "date_end": "present", "transition": "promotion"},
+        {"employer": "Acme", "role": "Dev", "date_start": "2019-01", "date_end": "2022-02", "transition": ""},
+        {"employer": "Beta", "role": "Dev", "date_start": "2017-01", "date_end": "2018-12", "transition": "sideways"},
+    ]
+    result = build_result(reply(work_history=entries, education=[], certifications=[]), pdf)
+    assert [(e.role, e.employer, e.transition) for e in result.work_history] == [
+        ("Lead", "Acme", "promotion"),
+        ("Dev", "Acme", None),
+        ("Dev", "Beta", None),
+    ]

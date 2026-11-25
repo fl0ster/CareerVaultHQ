@@ -280,6 +280,10 @@ class WorkHistoryEntry(Base):
     KIND_CERTIFICATE = "certificate"
     KINDS = (KIND_JOB, KIND_EDUCATION, KIND_CERTIFICATE)
 
+    TRANSITION_PROMOTION = "promotion"
+    TRANSITION_ROLE_CHANGE = "role_change"
+    TRANSITIONS = (TRANSITION_PROMOTION, TRANSITION_ROLE_CHANGE)
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String(16), default=KIND_JOB, server_default=KIND_JOB)
     date_start: Mapped[date] = mapped_column(Date, index=True)
@@ -294,6 +298,10 @@ class WorkHistoryEntry(Base):
     """Technologies used in the role, stored as a JSON array of strings."""
     context: Mapped[str | None] = mapped_column(Text)
     """Free-form, potentially long description of the role."""
+    transition: Mapped[str | None] = mapped_column(String(16))
+    """For a position only: ``TRANSITION_PROMOTION`` or ``TRANSITION_ROLE_CHANGE`` when the role
+    continues the candidate's previous position at the same employer (see
+    ``app.services.career``); ``None`` for a new employment."""
     application_id: Mapped[int | None] = mapped_column(
         ForeignKey("applications.id", ondelete="SET NULL"), unique=True, index=True
     )

@@ -108,12 +108,21 @@ CATEGORIES_SYSTEM_PROMPT = (
     '[{"category": "Languages", "technologies": ["TypeScript", "Kotlin"]}, ...]'
 )
 
+TRANSITION_NOTE = (
+    "A position with a 'transition' continues the previous position at the same employer: "
+    "'promotion' for a promotion, 'role_change' for another internal move. Such positions "
+    "are one continuous employment at that employer; a progression may be mentioned, but "
+    "the seniority never goes beyond the most recent real role title.\n"
+)
+"""Shared by the prompts that read the whole work history."""
+
 SUMMARY_SYSTEM_PROMPT = (
     "You are an expert CV writer. Write the professional summary that opens a "
     "candidate's CV, tailored to a specific job offer.\n"
     "You will receive the job description and the candidate's work history (JSON). "
     "The work history is the only source of truth about the candidate.\n"
-    "- Write in the third person without pronouns or the candidate's name "
+    + TRANSITION_NOTE
+    + "- Write in the third person without pronouns or the candidate's name "
     "(e.g. 'Senior mobile engineer with ...').\n"
     "- Every claim must be directly supported by the work history: the years of "
     "experience, roles, domains, technologies, responsibilities and achievements. "
@@ -142,7 +151,8 @@ ROLE_SYSTEM_PROMPT = (
     "of a candidate's CV, tailored to a specific job offer.\n"
     "You will receive the job description and the candidate's work history (JSON). "
     "The work history is the only source of truth about the candidate.\n"
-    "- The title must be a truthful description of what the candidate has actually "
+    + TRANSITION_NOTE
+    + "- The title must be a truthful description of what the candidate has actually "
     "done according to the work history. It must never claim a role, "
     "specialisation, domain, technology or seniority that the work history does "
     "not support, even if the job asks for it.\n"
