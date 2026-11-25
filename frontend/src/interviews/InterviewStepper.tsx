@@ -1,4 +1,4 @@
-import { Check, Trophy } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { type Application, formatDuration, isFinalStatus, roundLabel, serverDate } from '../applications/api.ts'
 import { type Round, formatShortDay } from './interviewRounds.ts'
 
@@ -8,8 +8,8 @@ type Props = {
   current: Round | null
 }
 
-/** The interview rounds left to right, ending in the offer: held rounds checked, the current
- * one ringed, the rest still to come. */
+/** The interview rounds top to bottom: held rounds checked, the current one ringed, the rest
+ * still to come. */
 export default function InterviewStepper({ application, rounds, current }: Props) {
   const final = isFinalStatus(application.status) ? application.status!.key.toLowerCase() : null
   const heldCount = rounds.filter((r) => r.held).length
@@ -38,14 +38,6 @@ export default function InterviewStepper({ application, rounds, current }: Props
           </li>
         )
       })}
-      <li className="iv-step goal" title="Offer">
-        <span className="iv-step-dot" aria-hidden="true">
-          <Trophy size={12} strokeWidth={2.5} />
-        </span>
-        <span className="iv-step-label">
-          <span className="iv-step-name">Offer</span>
-        </span>
-      </li>
     </ol>
   )
 }

@@ -180,16 +180,31 @@
   }
 }
 
-/* Horizontal stepper: a dot per round joined by a line, labels underneath. */
+/* Body: the rounds down the left, the current step beside them. */
+.iv-card-body {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) 1fr;
+  align-items: start;
+  gap: 18px;
+
+  > :only-child {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Vertical stepper: a dot per round joined by a line, the label beside it. */
 .iv-stepper {
   --iv-done: var(--warn-solid);
-  --iv-dot: 26px;
+  --iv-dot: 24px;
   list-style: none;
   margin: 0;
-  padding: 0 0 4px;
+  padding: 4px 0 0;
   display: flex;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  flex-direction: column;
 
   &:is(.offer, .accepted) {
     --iv-done: var(--success-solid);
@@ -204,26 +219,23 @@
 
 .iv-step {
   position: relative;
-  flex: 1 0 76px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
+  display: grid;
+  grid-template-columns: var(--iv-dot) 1fr;
+  column-gap: 10px;
+  min-height: calc(var(--iv-dot) + 22px);
 
-  /* The line to the previous step. */
-  & + &::before {
+  /* The line down to the next step. */
+  &:not(:last-child)::after {
     content: '';
     position: absolute;
-    top: calc(var(--iv-dot) / 2 - 1px);
-    right: calc(50% + var(--iv-dot) / 2 + 2px);
-    left: calc(-50% + var(--iv-dot) / 2 + 2px);
-    height: 2px;
+    left: calc(var(--iv-dot) / 2 - 1px);
+    top: calc(var(--iv-dot) + 3px);
+    bottom: 3px;
+    width: 2px;
     border-radius: 1px;
     background: var(--border);
   }
-  &.done + &::before,
-  &.done + &.current::before {
+  &.done:not(:last-child)::after {
     background: var(--iv-done);
   }
 }
@@ -238,7 +250,7 @@
   border: 2px dashed var(--border-strong);
   background: var(--surface);
   color: var(--text);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 
   .iv-step.held & {
@@ -250,28 +262,23 @@
     border: 2px solid var(--warn-fg);
     background: var(--warn-bg);
     color: var(--warn-fg);
-    box-shadow: 0 0 0 4px var(--warn-border);
-  }
-  .iv-step.goal & {
-    border-style: dashed;
-    color: var(--success-fg);
+    box-shadow: 0 0 0 3px var(--warn-border);
   }
 }
 
 .iv-step-label {
   display: flex;
   flex-direction: column;
-  max-width: 100%;
-  padding: 0 4px;
-  box-sizing: border-box;
-  line-height: 1.25;
+  min-width: 0;
+  padding-top: 2px;
+  line-height: 1.3;
 }
 
 .iv-step-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
 
@@ -281,8 +288,7 @@
 }
 
 .iv-step-when {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text);
   opacity: 0.8;
-  white-space: nowrap;
 }

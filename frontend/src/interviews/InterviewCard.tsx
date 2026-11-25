@@ -66,8 +66,10 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
         </div>
       </header>
 
-      {current ? (
-        <CurrentStep
+      <div className="iv-card-body">
+        {rounds.length > 0 && <InterviewStepper application={a} rounds={rounds} current={current} />}
+        {current ? (
+          <CurrentStep
           key={current.event.id}
           application={a}
           round={current}
@@ -77,13 +79,13 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
           onSaveNote={(note) => run(() => applicationsApi.updateEvent(a.id, current.event.id, { note }))}
         />
       ) : (
-        <p className="iv-current muted">No interview round to show.</p>
-      )}
+          <p className="iv-current muted">No interview round to show.</p>
+        )}
+      </div>
 
       {error && <p className="error">{error}</p>}
 
       <footer className="iv-card-foot">
-        <InterviewStepper application={a} rounds={rounds} current={current} />
         <div className="iv-card-actions">
           <button type="button" className="secondary small" onClick={() => onOpen(a.id)}>
             Details <ChevronRight size={14} aria-hidden="true" />
