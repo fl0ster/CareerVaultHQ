@@ -207,9 +207,19 @@
   .iv-stepper {
     position: absolute;
     inset: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
+    overflow: hidden;
+    /* Room for the current round's ring. */
+    padding: 4px;
+  }
+  /* Rounds cut off above or below fade out, so it shows there are more. */
+  .iv-stepper.cut-bottom {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  }
+  .iv-stepper.cut-top {
+    mask-image: linear-gradient(to top, #000 calc(100% - 40px), transparent);
+  }
+  .iv-stepper.cut-top.cut-bottom {
+    mask-image: linear-gradient(transparent, #000 40px, #000 calc(100% - 40px), transparent);
   }
 
   @media (max-width: 600px) {
@@ -261,7 +271,7 @@
     border-radius: 1px;
     background: var(--border);
   }
-  &.done:not(:last-child)::after {
+  &.is-done:not(:last-child)::after {
     background: var(--iv-done);
   }
 }
@@ -279,12 +289,12 @@
   font-size: 11px;
   font-weight: 700;
 
-  .iv-step.held & {
+  .iv-step.is-held & {
     border: none;
     background: var(--iv-done);
     color: var(--on-strong);
   }
-  .iv-step.current & {
+  .iv-step.is-current & {
     border: 2px solid var(--warn-fg);
     background: var(--warn-bg);
     color: var(--warn-fg);
@@ -308,7 +318,7 @@
   font-weight: 600;
   color: var(--text);
 
-  .iv-step.current & {
+  .iv-step.is-current & {
     color: var(--text-h);
   }
 }
