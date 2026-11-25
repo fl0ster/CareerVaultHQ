@@ -1,0 +1,58 @@
+/* Offers page: cards in two columns (one on narrow screens), the decision at the bottom. */
+.offer-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  @media (max-width: 800px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.offer-card-start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Pushed to the bottom so the decisions of cards side by side line up. */
+.offer-card-decision {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  background: var(--success-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+
+  .accept-offer {
+    padding: 7px 16px;
+  }
+  .decline-offer {
+    padding: 6px 15px;
+  }
+  .decline-offer:not(:hover) {
+    background: var(--surface);
+  }
+}
+
+.offer-card-prompt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--success-fg);
+}
+
+.offer-card-buttons {
+  display: flex;
+  gap: 8px;
+}
