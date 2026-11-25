@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Trash2, TrendingUp } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import '../jobs/jobs.css'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
@@ -157,7 +157,7 @@ type Props = {
   onOpenCompany: (companyId: number) => void
   onBack: () => void
   onUpdate: (input: WorkHistoryInput) => Promise<void>
-  /** Adds the next role at the entry's employer (and opens it). */
+  /** Adds a role change at the entry's employer (and opens it). */
   onAddNext: (input: WorkHistoryInput) => Promise<void>
   onDelete: () => void
 }
@@ -177,14 +177,14 @@ export default function EntryDetail({
   onAddNext,
   onDelete,
 }: Props) {
-  /** Showing the details, editing them, or adding the next role at the employer. */
+  /** Showing the details, editing them, or adding a role change at the employer. */
   const [mode, setMode] = useState<'view' | 'edit' | 'next'>('view')
   const editing = mode !== 'view'
   const setEditing = (on: boolean) => setMode(on ? 'edit' : 'view')
   const { icon: Icon, label: kindLabel } = KINDS[entry.kind]
   const filling = entry.prefill_state === 'queued'
   const previous = tenure.find((role) => role.id === entry.previous_role_id)
-  // The next role is added from the latest role at the employer.
+  // A role change is added from the latest role at the employer.
   const canAddNext = entry.kind === 'job' && tenure[tenure.length - 1].id === entry.id
 
   // ← / → step to the older / newer entry (not while typing or on the timeline, which steps itself).
@@ -246,7 +246,7 @@ export default function EntryDetail({
           <WorkHistoryForm
             key={`next-${entry.id}`}
             seed={nextRoleDraft(entry)}
-            heading={`Next role at ${entry.employer}`}
+            heading={`Role change at ${entry.employer}`}
             entries={entries}
             onSubmit={onAddNext}
             onCancel={() => setMode('view')}
@@ -277,9 +277,9 @@ export default function EntryDetail({
                     className="secondary small"
                     onClick={() => setMode('next')}
                     disabled={filling}
-                    title={`Promoted or moved to another role at ${entry.employer}? Add it here.`}
+                    title={`Moved to another role at ${entry.employer}? Add it here.`}
                   >
-                    <TrendingUp size={14} aria-hidden="true" /> Add next role
+                    <ArrowRightLeft size={14} aria-hidden="true" /> Role change
                   </button>
                 )}
                 <button

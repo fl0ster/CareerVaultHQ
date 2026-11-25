@@ -32,8 +32,8 @@ export function toDraft(entry?: WorkHistoryEntry): Draft {
   }
 }
 
-/** A draft of the role that follows `entry` at its employer: same employer, location and
- * technologies, a promotion, current; the title and start date are left to fill in. */
+/** A draft of a role change after `entry` at its employer: same employer, location and
+ * technologies, current; the title and start date are left to fill in. */
 export function nextRoleDraft(entry: WorkHistoryEntry): Draft {
   return {
     ...toDraft(),
@@ -41,7 +41,7 @@ export function nextRoleDraft(entry: WorkHistoryEntry): Draft {
     location: entry.location ?? '',
     tech: entry.tech.join(', '),
     current: true,
-    transition: 'promotion',
+    transition: 'role_change',
   }
 }
 

@@ -470,7 +470,7 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
         </div>
       )}
 
-      {listMode && <AddPositionComposer entries={entries ?? []} onSubmit={create} />}
+      {listMode && <AddPositionComposer onSubmit={create} />}
 
       {companyId != null && (
         <CompanyDialog key={companyId} companyId={companyId} onClose={() => setCompanyId(null)} />
