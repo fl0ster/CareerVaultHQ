@@ -218,7 +218,7 @@ export default function StatusBadge({ status, statuses = [], onSelect, nextRound
       currentKey={status?.key ?? null}
       nextKey={nextKey}
       onSelect={onSelect}
-      title={interview ? (nextRound ? `Mark ${nextRound} as held` : planRound ? 'Plan the next interview round' : 'Record another interview round') : undefined}
+      ? (nextRound ? `Mark ${nextRound} as held` : 'Plan the next interview round') : undefined}
       extra={final ? null : undefined}
       previewClass={nextKey ? `app-status ${nextKey.toLowerCase()}` : undefined}
     >
