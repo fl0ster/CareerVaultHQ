@@ -1,7 +1,9 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
-import ApplicationsPage, { type Stage } from './applications/ApplicationsPage.tsx'
+import ApplicationsPage from './applications/ApplicationsPage.tsx'
+import InterviewsPage from './interviews/InterviewsPage.tsx'
+import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
@@ -117,28 +119,41 @@ function App() {
 
   // A change in the counts (possibly made by a background task) also refreshes the open list.
   const countsVersion = counts ? `${counts.applications}/${counts.interviews}/${counts.offers}` : ''
-  const applicationList = (id: PageId, stage: Stage, onCrumbs: (c: Crumb[]) => void) => (
-    <ApplicationsPage
-      stage={stage}
-      detailId={detailOf(id)}
-      version={countsVersion}
-      onOpen={openIn(id)}
-      onBack={backTo(id)}
-      onCrumbsChange={onCrumbs}
-    />
-  )
-
   /** Only the page on screen is created; entering a page mounts it, so it always loads fresh. */
   const renderPage = (id: PageId): ReactNode => {
     switch (id) {
       case 'dashboard':
         return <DashboardPage setup={setup} />
       case 'interviews':
-        return applicationList('interviews', 'interviews', onInterviewCrumbs)
+        return (
+          <InterviewsPage
+            detailId={detailOf('interviews')}
+            version={countsVersion}
+            onOpen={openIn('interviews')}
+            onBack={backTo('interviews')}
+            onCrumbsChange={onInterviewCrumbs}
+          />
+        )
       case 'offers':
-        return applicationList('offers', 'offers', onOfferCrumbs)
+        return (
+          <OffersPage
+            detailId={detailOf('offers')}
+            version={countsVersion}
+            onOpen={openIn('offers')}
+            onBack={backTo('offers')}
+            onCrumbsChange={onOfferCrumbs}
+          />
+        )
       case 'applications':
-        return applicationList('applications', 'all', onApplicationCrumbs)
+        return (
+          <ApplicationsPage
+            detailId={detailOf('applications')}
+            version={countsVersion}
+            onOpen={openIn('applications')}
+            onBack={backTo('applications')}
+            onCrumbsChange={onApplicationCrumbs}
+          />
+        )
       case 'jobs':
         return (
           <JobsPage
