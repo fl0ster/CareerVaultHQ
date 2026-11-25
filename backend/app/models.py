@@ -625,6 +625,9 @@ class ApplicationEvent(Base):
     note: Mapped[str] = mapped_column(Text, default="")
     planned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     """A planned interview round that has not happened yet."""
+    stage_entry: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    """The ``INTERVIEW`` state that moved the application into the interview stage: part of
+    the history (and the current state until a round is held) but not a round itself."""
     title: Mapped[str] = mapped_column(String(128), default="")
     """Kind of interview round ("Culture match", "Technical", ...)."""
     duration_minutes: Mapped[int | None] = mapped_column(Integer)

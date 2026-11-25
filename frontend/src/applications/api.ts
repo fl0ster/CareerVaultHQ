@@ -30,6 +30,8 @@ export type ApplicationEvent = {
   occurred_at: string
   /** `gmail` when the Gmail rejection monitor recorded the state automatically. */
   source: EventSource
+  /** The INTERVIEW state that entered the interview stage; not a round. */
+  stage_entry: boolean
   created_at: string
 }
 
@@ -265,8 +267,9 @@ export const OFFER_STATUS = 'OFFER'
 
 export const MAX_INTERVIEW_ROUNDS = 20
 
-/** Interview rounds already held, oldest first. */
-export const heldRounds = (app: Application) => app.events.filter((e) => e.status.key === INTERVIEW_STATUS)
+/** Interview rounds already held, oldest first (the stage entry is not a round). */
+export const heldRounds = (app: Application) =>
+  app.events.filter((e) => e.status.key === INTERVIEW_STATUS && !e.stage_entry)
 
 /** "1 h 30 min", "45 min"; empty without a duration. */
 export function formatDuration(minutes: number | null): string {
@@ -279,9 +282,10 @@ export function formatDuration(minutes: number | null): string {
 /** Name of the round at `index` (0-based): its title, or "Round n". */
 export const roundLabel = (round: { title: string }, index: number) => round.title || `Round ${index + 1}`
 
-/** "round 2 (Technical)" for the next planned round, if there is one. */
+/** "round 2 (Technical)" for the next planned round, if there is one. Only once the application
+ * is in the interview stage: recording INTERVIEW before that just enters the stage. */
 export function nextRoundLabel(app: Application): string | undefined {
   const next = app.planned_events[0]
-  if (!next) return undefined
+  if (!next || app.status?.key !== INTERVIEW_STATUS) return undefined
   return `round ${heldRounds(app).length + 1}${next.title ? ` (${next.title})` : ''}`
 }

@@ -183,7 +183,7 @@ function EventRow({
   }
 
   // Removing a held interview round turns it back into a planned one.
-  const isHeldRound = event.status.key === INTERVIEW_STATUS
+  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
   const remove = async () => {
     const question = isHeldRound
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`

@@ -15,7 +15,6 @@ from app import llm_calls
 from app.models import JobEvaluation
 from app.services.openrouter import OpenRouterError, OpenRouterService
 
-
 MAX_DESCRIPTION_CHARS = 12_000
 """Longer job descriptions are cut: the requirements are almost always near the top."""
 

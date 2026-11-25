@@ -141,6 +141,8 @@ class EventOut(BaseModel):
     """When it happened; for a planned round the optional scheduled time."""
     source: Literal["manual", "gmail"] = "manual"
     """``gmail`` when the state was recorded automatically by the Gmail rejection monitor."""
+    stage_entry: bool = False
+    """The ``INTERVIEW`` state that entered the interview stage; not a round."""
     created_at: datetime
 
 
@@ -317,6 +319,7 @@ def _event_out(e: ApplicationEvent) -> EventOut:
         duration_minutes=e.duration_minutes,
         occurred_at=e.occurred_at,
         source=e.source or ApplicationEvent.SOURCE_MANUAL,
+        stage_entry=bool(e.stage_entry),
         created_at=e.created_at,
     )
 
@@ -713,7 +716,7 @@ def delete_event(
         reject_initial_only(event.status.key)
     except EventRejected as exc:
         raise _http_error(exc) from exc
-    if event.status.key == INTERVIEW_STATUS and not event.planned:
+    if event.status.key == INTERVIEW_STATUS and not event.planned and not event.stage_entry:
         event.planned = True
     else:
         if event.status.key == ACCEPTED_STATUS and not any(

@@ -63,6 +63,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
         "source_ref": "VARCHAR(128)",
+        "stage_entry": "BOOLEAN NOT NULL DEFAULT 0",
     },
     "job_parse_results": {
         "interview_steps": "JSON",
