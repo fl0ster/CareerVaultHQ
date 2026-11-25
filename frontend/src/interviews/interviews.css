@@ -5,9 +5,7 @@
   padding: 0;
   display: grid;
   gap: 16px;
-  /* Columns of at least 420px (or the full width), and never narrower than half the row,
-     so there are two at most. */
-  grid-template-columns: repeat(auto-fill, minmax(max(min(100%, 420px), calc((100% - 16px) / 2)), 1fr));
+  grid-template-columns: 1fr;
 }
 
 .iv-card {
@@ -77,17 +75,6 @@
   font-size: 13px;
 }
 
-.iv-card-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text);
-  text-decoration: none;
-
-  &:hover {
-    color: var(--accent);
-  }
-}
 
 .iv-card-status {
   flex-shrink: 0;

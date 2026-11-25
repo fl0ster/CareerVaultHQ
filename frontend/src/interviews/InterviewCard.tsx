@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import { CalendarClock, ChevronRight, ExternalLink, Plus } from 'lucide-react'
+import { CalendarClock, ChevronRight } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import {
   type Application,
   type ApplicationStatus,
-  MAX_INTERVIEW_ROUNDS,
   applicationsApi,
   formatDuration,
-  isFinalStatus,
   roundLabel,
   serverDate,
 } from '../applications/api.ts'
@@ -45,8 +43,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
     }
   }
 
-  const addRound = () => run(() => applicationsApi.setInterviewRounds(a.id, rounds.length + 1))
-
   return (
     <article className="iv-card">
       <header className="iv-card-head">
@@ -63,9 +59,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
                 onOpenCompany={onOpenCompany}
               />
             )}
-            <a className="iv-card-link" href={a.job.link} target="_blank" rel="noreferrer" title="Open the job posting">
-              Posting <ExternalLink size={12} aria-hidden="true" />
-            </a>
           </div>
         </div>
         <div className="iv-card-status">
@@ -92,11 +85,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
       <footer className="iv-card-foot">
         <InterviewStepper application={a} rounds={rounds} current={current} />
         <div className="iv-card-actions">
-          {!isFinalStatus(a.status) && rounds.length < MAX_INTERVIEW_ROUNDS && (
-            <button type="button" className="secondary small" onClick={addRound} disabled={busy}>
-              <Plus size={14} aria-hidden="true" /> Round
-            </button>
-          )}
           <button type="button" className="secondary small" onClick={() => onOpen(a.id)}>
             Details <ChevronRight size={14} aria-hidden="true" />
           </button>
