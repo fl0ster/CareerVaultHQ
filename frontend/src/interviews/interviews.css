@@ -301,6 +301,11 @@
     color: var(--warn-fg);
     box-shadow: 0 0 0 3px var(--warn-border);
   }
+  /* The last round, held: filled and checked, still ringed as current. */
+  .iv-step.is-current.is-done:last-child & {
+    background: var(--iv-done);
+    color: var(--on-strong);
+  }
 }
 
 .iv-step-label {
