@@ -65,7 +65,7 @@ export default function InterviewStepper({ application, rounds, current }: Props
             ref={isCurrent ? currentRef : undefined}
             className={`iv-step is-${state}${round.held ? ' is-done' : ''}`} title={hint}>
             <span className="iv-step-dot" aria-hidden="true">
-              {round.held && !isCurrent ? <Check size={12} strokeWidth={3} /> : round.index + 1}
+              {round.held && (!isCurrent || round === rounds[rounds.length - 1]) ? <Check size={12} strokeWidth={3} /> : round.index + 1}
             </span>
             <span className="iv-step-label">
               <span className="iv-step-name">{label}</span>
