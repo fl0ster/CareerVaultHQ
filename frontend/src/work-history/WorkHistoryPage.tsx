@@ -192,11 +192,13 @@ export default function WorkHistoryPage({ detailId = null, onOpen, onBack, onCru
     return () => ro.disconnect()
   }, [hasView])
 
-  // The open entry is the breadcrumb after "My Career".
+  // The open entry is the breadcrumb after "My Career", and its role replaces "My Career" as the page
+  // heading (so the heading stays and the layout doesn't jump). Set before paint, so it never flickers.
   const crumb = listMode ? null : open ? entryTitle(open) : entries ? 'Not found' : null
-  useEffect(() => {
-    onCrumbsChange(crumb ? [{ label: crumb }] : [])
-  }, [crumb, onCrumbsChange])
+  const heading = open?.role
+  useLayoutEffect(() => {
+    onCrumbsChange(crumb ? [{ label: crumb, heading }] : [])
+  }, [crumb, heading, onCrumbsChange])
   useEffect(() => () => onCrumbsChange([]), [onCrumbsChange])
 
   // Opening an entry starts its details at the top of the page.

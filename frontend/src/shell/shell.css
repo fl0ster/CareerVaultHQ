@@ -708,6 +708,13 @@
     margin-bottom: 12px;
   }
 
+  /* A detail's title in place of the page name: one line, ellipsised. */
+  .page-title-detail {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   p {
     margin-top: 6px;
     max-width: 64ch;

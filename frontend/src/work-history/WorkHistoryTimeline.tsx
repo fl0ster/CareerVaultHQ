@@ -85,14 +85,6 @@ export default function WorkHistoryTimeline({
     setPpm(clamped)
   }
 
-  const fit = () => {
-    const el = scroller.current
-    if (!el) return
-    zoomAnchor.current = null
-    setPpm(Math.min(MAX_PPM, Math.max(MIN_PPM, (el.clientWidth - PAD * 2) / (rangeEnd - rangeStart))))
-    el.scrollLeft = 0
-  }
-
   useLayoutEffect(() => {
     const el = scroller.current
     const anchor = zoomAnchor.current
@@ -239,17 +231,6 @@ export default function WorkHistoryTimeline({
               <strong>{gaps.length}</strong> gap{gaps.length === 1 ? '' : 's'}
             </span>
           )}
-        </div>
-        <div className="wh-tl-zoom" role="group" aria-label="Zoom">
-          <button type="button" className="secondary small" onClick={() => zoomTo(1 / 1.5)} disabled={ppm <= MIN_PPM} aria-label="Zoom out">
-            −
-          </button>
-          <button type="button" className="secondary small" onClick={fit}>
-            Fit
-          </button>
-          <button type="button" className="secondary small" onClick={() => zoomTo(1.5)} disabled={ppm >= MAX_PPM} aria-label="Zoom in">
-            +
-          </button>
         </div>
       </header>
 
@@ -437,9 +418,6 @@ export default function WorkHistoryTimeline({
         </div>
       </div>
 
-      <p className="wh-tl-hint">
-        Click an entry to open it · Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · ← → to step through entries
-      </p>
     </section>
   )
 }
