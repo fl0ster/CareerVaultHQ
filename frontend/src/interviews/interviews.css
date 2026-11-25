@@ -211,15 +211,16 @@
     /* Room for the current round's ring. */
     padding: 4px;
   }
-  /* Rounds cut off above or below fade out, so it shows there are more. */
+  /* Rounds cut off above or below fade out, so it shows there are more. The top fade stays
+     shorter than one round, so it only ever covers the round before the current one. */
   .iv-stepper.cut-bottom {
     mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
   }
   .iv-stepper.cut-top {
-    mask-image: linear-gradient(to top, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(to top, #000 calc(100% - 32px), transparent);
   }
   .iv-stepper.cut-top.cut-bottom {
-    mask-image: linear-gradient(transparent, #000 40px, #000 calc(100% - 40px), transparent);
+    mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 40px), transparent);
   }
 
   @media (max-width: 600px) {

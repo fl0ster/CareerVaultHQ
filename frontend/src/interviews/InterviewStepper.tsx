@@ -17,7 +17,8 @@ export default function InterviewStepper({ application, rounds, current }: Props
   const summary = `${heldCount} of ${rounds.length} interview rounds held`
 
   // The list never sets the card's height, so long ones are cut off (and fade out there).
-  // Then it starts at the current round, so it and the ones after it show first.
+  // Then it starts one round before the current one, so the current round and the ones after
+  // it show first.
   const listRef = useRef<HTMLOListElement>(null)
   const currentRef = useRef<HTMLLIElement>(null)
   const [cut, setCut] = useState({ top: false, bottom: false })
@@ -29,8 +30,11 @@ export default function InterviewStepper({ application, rounds, current }: Props
       const step = currentRef.current
       list.scrollTop = 0
       if (step && list.scrollHeight > list.clientHeight) {
+        // The round before the current one leads the list (it takes the fade when earlier
+        // rounds are cut off), so the current round itself is always fully in view.
+        const first = (step.previousElementSibling as HTMLElement | null) ?? step
         const ring = 4
-        list.scrollTop = step.getBoundingClientRect().top - list.getBoundingClientRect().top - ring
+        list.scrollTop = first.getBoundingClientRect().top - list.getBoundingClientRect().top - ring
       }
       const top = list.scrollTop > 0
       const bottom = list.scrollTop + list.clientHeight < list.scrollHeight - 1
