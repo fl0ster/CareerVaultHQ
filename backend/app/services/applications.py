@@ -156,14 +156,19 @@ def record_event(
     """Record a state change on ``application`` following the application rules (see
     ``app.api.routes.applications``); ``EventRejected`` when they forbid it. The first
     ``INTERVIEW`` only enters the interview stage (a ``stage_entry`` event; planned rounds
-    stay planned); later ones hold the first planned round instead of adding one. Not
-    committed."""
+    stay planned); later ones hold the first planned round instead of adding one.
+    ``APPLIED`` while in ``INTERVIEW`` goes back to ``APPLIED`` (see ``leave_interviews``).
+    Not committed."""
     reject_initial_only(status_key)
     reject_offer_decision(status_key)
     reject_if_final(application)
     key = status_key.upper()
     if key == APPLIED_STATUS:
         current = application.current_event
+        applied = next((e for e in application.history if e.status.key == APPLIED_STATUS), None)
+        if applied is not None and current is not None and current.status.key == INTERVIEW_STATUS:
+            leave_interviews(session, application)
+            return applied
         if any(e.status.key == APPLIED_STATUS for e in application.events):
             raise EventRejected(f"application is already {APPLIED_STATUS}")
         if current is None or current.status.key != INITIAL_ONLY_STATUS:
@@ -297,6 +302,21 @@ def held_at(application: Application, event: ApplicationEvent) -> datetime:
         if latest is None or _naive(scheduled) > latest:
             return scheduled
     return datetime.now(UTC)
+
+
+def leave_interviews(session: Session, application: Application) -> None:
+    """Undo the interview stage: held rounds become planned again (keeping their date as the
+    schedule) and the stage entry is deleted. Not committed."""
+    for event in list(application.history):
+        if event.status.key != INTERVIEW_STATUS:
+            continue
+        if event.stage_entry:
+            application.events.remove(event)
+            session.delete(event)
+        else:
+            event.planned = True
+    session.flush()
+    session.expire(application, ["events"])
 
 
 def held_rounds(application: Application) -> list[ApplicationEvent]:

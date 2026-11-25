@@ -252,7 +252,11 @@ export const pickableStatuses = (statuses: ApplicationStatus[], current?: string
       s.key !== INITIAL_ONLY_STATUS &&
       s.key !== ACCEPTED_STATUS &&
       s.key !== DECLINED_STATUS &&
-      (current === undefined || s.key !== APPLIED_STATUS || current === INITIAL_ONLY_STATUS),
+      (current === undefined ||
+        s.key !== APPLIED_STATUS ||
+        current === INITIAL_ONLY_STATUS ||
+        // Back to Applied: every held round becomes planned again.
+        current === INTERVIEW_STATUS),
   )
 
 /** Terminal states: while one is current no new state can be added (removing it reopens). */

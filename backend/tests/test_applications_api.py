@@ -369,6 +369,36 @@ def test_entering_the_interview_stage_holds_no_round(client, db_session):
     assert body["status"]["key"] == "APPLIED" and _rounds(body) == (0, ["", ""])
 
 
+def test_picking_applied_again_leaves_the_interview_stage(client, db_session):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    assert _rounds(body) == (1, [""])
+
+    res = client.post(f"{url}/events", json={"status": "APPLIED"})
+    assert res.status_code == 201
+    body = res.json()
+    assert body["status"]["key"] == "APPLIED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED", "APPLIED"]
+    # Outside the interview stage APPLIED still cannot be recorded twice.
+    assert client.post(f"{url}/events", json={"status": "APPLIED"}).status_code == 409
+
+
+def test_removing_applied_leaves_the_interview_stage(client, db_session):
+    app_id = _new_application(client, db_session, "APPLIED")
+    url = f"{BASE}/{app_id}"
+    client.patch(url, json={"interview_rounds": 2})
+    client.post(f"{url}/events", json={"status": "INTERVIEW"})
+    body = client.post(f"{url}/events", json={"status": "INTERVIEW"}).json()
+    applied = next(e["id"] for e in body["events"] if e["status"]["key"] == "APPLIED")
+
+    body = client.delete(f"{url}/events/{applied}").json()
+    assert body["status"]["key"] == "SHORTLISTED" and _rounds(body) == (0, ["", ""])
+    assert [e["status"]["key"] for e in body["events"]] == ["SHORTLISTED"]
+
+
 def test_final_state_keeps_planned_rounds_but_blocks_them(client, db_session):
     app_id = _new_application(client, db_session, "APPLIED", "INTERVIEW")
     url = f"{BASE}/{app_id}"
