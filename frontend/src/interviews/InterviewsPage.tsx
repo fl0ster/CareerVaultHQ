@@ -1,9 +1,10 @@
+import './interviews.css'
 import { INTERVIEW_STATUS } from '../applications/api.ts'
 import ApplicationsLayout from '../applications/ApplicationsLayout.tsx'
-import ApplicationStatusControl from '../applications/ApplicationStatusControl.tsx'
 import { type ApplicationPageProps, useApplicationList } from '../applications/useApplicationList.ts'
+import InterviewCard from './InterviewCard.tsx'
 
-/** Applications in the interview stage. */
+/** Applications in the interview stage, as cards. */
 export default function InterviewsPage({ detailId, version, onOpen, onBack, onCrumbsChange }: ApplicationPageProps) {
   const list = useApplicationList({ status: INTERVIEW_STATUS, detailId, version, onBack, onCrumbsChange })
 
@@ -13,13 +14,20 @@ export default function InterviewsPage({ detailId, version, onOpen, onBack, onCr
       onOpen={onOpen}
       onBack={onBack}
       emptyText="No interviews yet."
-      renderActions={(a) => (
-        <ApplicationStatusControl
-          application={a}
-          statuses={list.statuses}
-          onChange={list.replace}
-          onError={list.setError}
-        />
+      renderList={(applications, onOpenCompany) => (
+        <ul className="iv-grid">
+          {applications.map((a) => (
+            <li key={a.id}>
+              <InterviewCard
+                application={a}
+                statuses={list.statuses}
+                onOpen={onOpen}
+                onOpenCompany={onOpenCompany}
+                onChange={list.replace}
+              />
+            </li>
+          ))}
+        </ul>
       )}
     />
   )

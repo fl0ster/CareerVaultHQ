@@ -19,13 +19,15 @@ type Props = {
   filters?: ReactNode
   /** Shown when the list is empty and no search is active. */
   emptyText: string
-  /** The controls on the right of each row. */
-  renderActions: (application: Application) => ReactNode
+  /** The controls on the right of each row of the default list. */
+  renderActions?: (application: Application) => ReactNode
+  /** Replaces the default row list (e.g. with cards); gets the company popup opener. */
+  renderList?: (applications: Application[], onOpenCompany: (id: number) => void) => ReactNode
 }
 
 /** The frame shared by the application list pages: toolbar, list, the open application in
  * place of the list, and the company popup. */
-export default function ApplicationsLayout({ list, onOpen, onBack, filters, emptyText, renderActions }: Props) {
+export default function ApplicationsLayout({ list, onOpen, onBack, filters, emptyText, renderActions, renderList }: Props) {
   const { applications, detailOpen } = list
   // Company popup; also opens over the application view.
   const [companyId, setCompanyId] = useState<number | null>(null)
@@ -47,18 +49,22 @@ export default function ApplicationsLayout({ list, onOpen, onBack, filters, empt
           <p className="muted">{list.search ? 'No applications match your search.' : emptyText}</p>
         )}
 
-        <ul className="app-list">
-          {applications?.map((a) => (
-            <ApplicationRow
-              key={a.id}
-              application={a}
-              onOpen={onOpen}
-              onOpenCompany={setCompanyId}
-              onRescored={list.rescored}
-              actions={renderActions(a)}
-            />
-          ))}
-        </ul>
+        {renderList ? (
+          applications && applications.length > 0 && renderList(applications, setCompanyId)
+        ) : (
+          <ul className="app-list">
+            {applications?.map((a) => (
+              <ApplicationRow
+                key={a.id}
+                application={a}
+                onOpen={onOpen}
+                onOpenCompany={setCompanyId}
+                onRescored={list.rescored}
+                actions={renderActions?.(a)}
+              />
+            ))}
+          </ul>
+        )}
       </div>
 
       {companyId != null && (

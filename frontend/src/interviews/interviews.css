@@ -1,0 +1,301 @@
+/* Interviews page: one card per application, two columns when there is room. */
+.iv-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  /* Columns of at least 420px (or the full width), and never narrower than half the row,
+     so there are two at most. */
+  grid-template-columns: repeat(auto-fill, minmax(max(min(100%, 420px), calc((100% - 16px) / 2)), 1fr));
+}
+
+.iv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    box-shadow var(--t-fast) ease,
+    border-color var(--t-fast) ease;
+
+  &:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .error {
+    margin: 0;
+  }
+}
+
+/* Head: job and company on the left, the status control on the right. */
+.iv-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.iv-card-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.iv-card-job {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--heading);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+
+  &:hover {
+    color: var(--accent);
+  }
+  &:focus-visible {
+    border-radius: 4px;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+.iv-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.iv-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--accent);
+  }
+}
+
+.iv-card-status {
+  flex-shrink: 0;
+}
+
+/* The current step: the round being prepared for (or the last one held) and its notes. */
+.iv-current {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-md);
+  color: var(--text-h);
+
+  &.held {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+  &.muted {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 64px;
+    background: var(--surface);
+  }
+}
+
+.iv-current-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.iv-current-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warn-fg);
+
+  .iv-current.held & {
+    color: var(--text);
+  }
+}
+
+.iv-current-name {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.iv-current-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.iv-current-notes {
+  display: block;
+}
+
+.iv-current-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.iv-saved {
+  font-size: 12px;
+}
+
+/* Foot: the stepper, then the card's quiet actions. */
+.iv-card-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.iv-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+/* Horizontal stepper: a dot per round joined by a line, labels underneath. */
+.iv-stepper {
+  --iv-done: var(--warn-solid);
+  --iv-dot: 26px;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: thin;
+
+  &:is(.offer, .accepted) {
+    --iv-done: var(--success-solid);
+  }
+  &.rejected {
+    --iv-done: var(--danger-solid);
+  }
+  &:is(.closed, .declined) {
+    --iv-done: var(--neutral-solid);
+  }
+}
+
+.iv-step {
+  position: relative;
+  flex: 1 0 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+
+  /* The line to the previous step. */
+  & + &::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--iv-dot) / 2 - 1px);
+    right: calc(50% + var(--iv-dot) / 2 + 2px);
+    left: calc(-50% + var(--iv-dot) / 2 + 2px);
+    height: 2px;
+    border-radius: 1px;
+    background: var(--border);
+  }
+  &.done + &::before,
+  &.done + &.current::before {
+    background: var(--iv-done);
+  }
+}
+
+.iv-step-dot {
+  display: grid;
+  place-items: center;
+  width: var(--iv-dot);
+  height: var(--iv-dot);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+
+  .iv-step.held & {
+    border: none;
+    background: var(--iv-done);
+    color: var(--on-strong);
+  }
+  .iv-step.current & {
+    border: 2px solid var(--warn-fg);
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    box-shadow: 0 0 0 4px var(--warn-border);
+  }
+  .iv-step.goal & {
+    border-style: dashed;
+    color: var(--success-fg);
+  }
+}
+
+.iv-step-label {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  padding: 0 4px;
+  box-sizing: border-box;
+  line-height: 1.25;
+}
+
+.iv-step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+
+  .iv-step.current & {
+    color: var(--text-h);
+  }
+}
+
+.iv-step-when {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.8;
+  white-space: nowrap;
+}
