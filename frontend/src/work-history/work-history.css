@@ -476,10 +476,6 @@
   &.stuck {
     border-radius: 0 0 10px 10px;
     box-shadow: var(--shadow-md);
-
-    .wh-tl-hint {
-      display: none;
-    }
   }
 }
 
@@ -503,15 +499,6 @@
   strong {
     color: var(--text-h);
     font-variant-numeric: tabular-nums;
-  }
-}
-
-.wh-tl-zoom {
-  display: flex;
-  gap: 4px;
-
-  button {
-    min-width: 32px;
   }
 }
 
@@ -917,14 +904,6 @@
   }
 }
 
-.wh-tl-hint {
-  margin: 0;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: var(--text);
-  border-top: 1px solid var(--border);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .wh-tl-pos,
   .wh-tl-mark,
@@ -935,10 +914,6 @@
     transition: none;
     animation: none;
   }
-}
-
-@media (max-width: 600px) {
-  .wh-tl-hint { display: none; }
 }
 
 /* Add-position composer: reuses the `.add-job` compose window from jobs.css */
