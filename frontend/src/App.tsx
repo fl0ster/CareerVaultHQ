@@ -45,6 +45,7 @@ function App() {
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
   const onCareerCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, 'work-history': c })), [])
+  const detailHeading = route.detail !== null ? crumbs[page]?.at(-1)?.heading : undefined
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const { counts, failed: countsFailed } = useNavCounts(page)
   const jobsInbox = counts?.jobs_inbox ?? 0
@@ -218,10 +219,13 @@ function App() {
           ) : (
             <section key={page} aria-labelledby={`page-${page}`}>
               <div className="view">
-                {/* An open detail (application, job) has its own title, so the page heading steps aside;
+                {/* An open detail (application, job) has its own title, so the page heading steps aside,
+                    unless the detail names a heading to show in its place (a career entry's role);
                     so does the dashboard while it shows the setup checklist. */}
-                <header className={route.detail !== null || onboarding ? 'sr-only' : 'page-header'}>
-                  <h1 id={`page-${page}`}>{item.title ?? item.label}</h1>
+                <header className={(route.detail !== null && !detailHeading) || onboarding ? 'sr-only' : 'page-header'}>
+                  <h1 id={`page-${page}`} className={detailHeading ? 'page-title-detail' : undefined} title={detailHeading}>
+                    {detailHeading ?? item.title ?? item.label}
+                  </h1>
                   {item.description && <p>{item.description}</p>}
                 </header>
                 {renderPage(page)}
