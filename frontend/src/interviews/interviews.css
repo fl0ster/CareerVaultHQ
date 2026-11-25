@@ -198,6 +198,25 @@
   }
 }
 
+/* Left column: the stepper on top, the status control at the bottom left below it. */
+.iv-card-side {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+
+  .iv-stepper-wrap {
+    flex: 1;
+  }
+}
+
+.iv-card-status {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-start;
+}
+
 /* The stepper column follows the current step's height instead of setting it; longer lists scroll. */
 .iv-stepper-wrap {
   position: relative;

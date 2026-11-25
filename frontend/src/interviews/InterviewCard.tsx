@@ -64,7 +64,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
           </div>
         </div>
         <div className="iv-card-head-actions">
-          <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
           <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
             Details <ChevronRight size={16} aria-hidden="true" />
           </button>
@@ -72,11 +71,16 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
       </header>
 
       <div className="iv-card-body">
-        {rounds.length > 0 && (
-          <div className="iv-stepper-wrap">
-            <InterviewStepper application={a} rounds={rounds} current={current} />
+        <div className="iv-card-side">
+          {rounds.length > 0 && (
+            <div className="iv-stepper-wrap">
+              <InterviewStepper application={a} rounds={rounds} current={current} />
+            </div>
+          )}
+          <div className="iv-card-status">
+            <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
           </div>
-        )}
+        </div>
         {current ? (
           <CurrentStep
             key={current.event.id}
