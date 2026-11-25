@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.db import get_session
 from app.models import OpenRouterCall
 from app.services.openrouter import (
@@ -27,9 +28,6 @@ from app.services.openrouter import (
 )
 
 router = APIRouter()
-
-SOURCE_CHAT = "api.openrouter.chat"
-SOURCE_DECIDE = "api.openrouter.decide"
 
 
 class ChatMessage(BaseModel):
@@ -50,7 +48,7 @@ class _RequestBase(BaseModel):
     system: str | None = None
     messages: list[ChatMessage] | None = None
     model: str | None = None
-    """Overrides the default model from settings."""
+    """Overrides the model configured in ``app.llm_calls``."""
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1)
     source: str | None = Field(default=None, max_length=128)
@@ -194,7 +192,7 @@ def _http_error(exc: OpenRouterError) -> HTTPException:
 @router.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, service: Annotated[OpenRouterService, Depends(get_openrouter)]) -> ChatResponse:
     try:
-        result = service.chat(source=payload.source or SOURCE_CHAT, **_kwargs(payload))
+        result = service.chat(call=llm_calls.PLAYGROUND_CHAT, source=payload.source, **_kwargs(payload))
     except OpenRouterError as exc:
         raise _http_error(exc) from exc
     return ChatResponse(
@@ -211,7 +209,8 @@ def decide(payload: DecideRequest, service: Annotated[OpenRouterService, Depends
         result = service.decide(
             state=payload.state,
             questions=payload.questions,
-            source=payload.source or SOURCE_DECIDE,
+            call=llm_calls.PLAYGROUND_DECIDE,
+            source=payload.source,
             model=payload.model,
             extra=payload.extra,
         )

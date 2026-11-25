@@ -15,18 +15,22 @@ decisions endpoint always returns it).
 
 Usage from another route or task::
 
+    from app import llm_calls
     from app.services.openrouter import get_openrouter  # FastAPI dependency
     from app.services.openrouter import OpenRouterService
 
     service = OpenRouterService(session)             # anywhere a Session is at hand
-    text = service.chat("Summarise this", source="tasks.parse").text
+    text = service.chat("Summarise this", call=llm_calls.PARSE_TECHNOLOGIES).text
 
     decision = service.decide(
         state={"candidate_profile": profile, "job_description": description},
         questions={"is_match": {"type": "noul", "instructions": "Is this a good match?"}},
-        source="tasks.evaluate",
+        call=llm_calls.JOB_EVALUATION,
     )
     probability = decision.noul("is_match")
+
+Every call is registered in :mod:`app.llm_calls`, which sets its model (overridable per
+deployment) and its ``openrouter_calls.source`` label.
 """
 
 from __future__ import annotations
@@ -42,6 +46,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session
+from app.llm_calls import CHAT, DECISION, LlmCall, resolve_model
 from app.models import OpenRouterCall
 
 Message = dict[str, Any]
@@ -139,6 +144,11 @@ def _as_int(value: object) -> int | None:
         return None
 
 
+def _check_kind(call: LlmCall, kind: str) -> None:
+    if call.kind != kind:
+        raise ValueError(f"OpenRouter call {call.key!r} is a {call.kind!r} call, not {kind!r}")
+
+
 def build_messages(prompt: str, system: str | None = None) -> list[Message]:
     messages: list[Message] = []
     if system:
@@ -171,7 +181,8 @@ class OpenRouterService:
         self,
         prompt: str | None = None,
         *,
-        source: str,
+        call: LlmCall,
+        source: str | None = None,
         messages: list[Message] | None = None,
         system: str | None = None,
         model: str | None = None,
@@ -182,19 +193,21 @@ class OpenRouterService:
     ) -> ChatResult:
         """Free-text chat completion. Pass either ``prompt`` (+ optional ``system``) or a
         full ``messages`` list. With ``private`` the user/assistant message contents are not
-        stored in ``openrouter_calls.input`` (see ``redact_input``)."""
+        stored in ``openrouter_calls.input`` (see ``redact_input``). ``call`` sets the model
+        and ``source`` label; ``source``/``model`` override them (API playground, label reuse)."""
+        _check_kind(call, CHAT)
         body = self._body(
-            model or self.settings.openrouter_chat_model,
+            model or resolve_model(call, self.settings),
             self._messages(prompt, messages, system),
             temperature=temperature,
             max_tokens=max_tokens,
             extra=extra,
         )
         url = f"{self.settings.openrouter_base_url.rstrip('/')}/chat/completions"
-        raw, usage, call = self._call(
+        raw, usage, record = self._call(
             url,
             body,
-            source=source,
+            source=source or call.source,
             kind=OpenRouterCall.KIND_CHAT,
             result_key="choices",
             private=private,
@@ -203,7 +216,7 @@ class OpenRouterService:
             text=self._content(raw),
             model=raw.get("model", body["model"]),
             usage=usage,
-            call_id=call.id,
+            call_id=record.id,
             raw=raw,
         )
 
@@ -212,7 +225,8 @@ class OpenRouterService:
         *,
         state: str | dict[str, Any] | list[Any],
         questions: dict[str, dict[str, Any]],
-        source: str,
+        call: LlmCall,
+        source: str | None = None,
         model: str | None = None,
         extra: dict[str, Any] | None = None,
         private: bool = False,
@@ -221,34 +235,36 @@ class OpenRouterService:
         array); ``questions`` maps a name of your choice to a question such as
         ``{"type": "noul", "instructions": "...", "criteria": {"true": "...", "false": "..."}}``.
         ``extra`` is merged into the request body (``assets``, ``provider``, ``trace``, ...).
-        With ``private`` the ``state`` is not stored in ``openrouter_calls.input``.
+        With ``private`` the ``state`` is not stored in ``openrouter_calls.input``. ``call``
+        sets the model and ``source`` label; ``source``/``model`` override them.
         """
+        _check_kind(call, DECISION)
         if not questions:
             raise ValueError("at least one question is required")
         body: dict[str, Any] = {
-            "model": model or self.settings.openrouter_decision_model,
+            "model": model or resolve_model(call, self.settings),
             "state": state,
             "questions": questions,
         }
         if extra:
             body.update(extra)
-        raw, usage, call = self._call(
+        raw, usage, record = self._call(
             self.settings.openrouter_decisions_url,
             body,
-            source=source,
+            source=source or call.source,
             kind=OpenRouterCall.KIND_DECISION,
             result_key="answers",
             private=private,
         )
         answers = raw.get("answers")
         if not isinstance(answers, dict):
-            self._mark_failed(call, "response has no answers object")
+            self._mark_failed(record, "response has no answers object")
             raise OpenRouterError("response has no answers object")
         return DecisionResult(
             answers=answers,
             model=raw.get("model", body["model"]),
             usage=usage,
-            call_id=call.id,
+            call_id=record.id,
             raw=raw,
         )
 

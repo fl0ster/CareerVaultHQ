@@ -23,6 +23,7 @@ from typing import Any
 from rq import Queue
 from sqlalchemy.orm import Session
 
+from app import llm_calls
 from app.config import Settings, get_settings
 from app.db import init_db, session_factory
 from app.models import Application, WorkHistoryEntry
@@ -31,8 +32,6 @@ from app.services.openrouter import OpenRouterError, OpenRouterService
 
 log = logging.getLogger(__name__)
 
-SOURCE = "tasks.work_history.prefill"
-"""``openrouter_calls.source`` label of the chat call."""
 PREFILL_TIMEOUT = 300
 """RQ ``job_timeout`` (seconds): a single chat call."""
 MAX_DESCRIPTION_CHARS = 20000
@@ -158,7 +157,9 @@ def prefill(session: Session, entry: WorkHistoryEntry, service: OpenRouterServic
         session.commit()
         return entry
     try:
-        reply = service.chat(build_prompt(application), system=SYSTEM, temperature=0, source=SOURCE).text
+        reply = service.chat(
+            build_prompt(application), system=SYSTEM, temperature=0, call=llm_calls.WORK_HISTORY_PREFILL
+        ).text
     except OpenRouterError:
         log.exception("Could not prefill work-history entry %d", entry_id)
         state, data = WorkHistoryEntry.PREFILL_FAILED, None

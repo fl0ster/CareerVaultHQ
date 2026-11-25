@@ -11,6 +11,7 @@
 
 - **Thin Routers (`backend/app/api/routes/`):** Routes should only handle HTTP parsing, validation (Pydantic v2), dependency injection, and response serialization. Flag business logic or direct complex ORM queries placed inside route handlers instead of `services/` or `tasks/`.
 - **LLM Integration:** All LLM calls **must** go through `OpenRouterService` (which logs usage/costs to `openrouter_calls`). Flag any direct calls to OpenAI, Anthropic, `httpx`/`requests` to LLM endpoints, or bypassing of `OpenRouterService`.
+- **Centralised LLM Call Config (`backend/app/llm_calls.py`):** Every OpenRouter call **must** be registered there as an `LlmCall` (unique `key`, `source` label, `kind`, default `model`, `purpose`, `used_in`), listed in `ALL_CALLS`, and passed to `OpenRouterService.chat`/`decide` as `call=`. Each new call must also be added (commented out) to `backend/llm_models.example.toml`, the per-deployment override file (`OPENROUTER_MODELS_FILE`). Flag hardcoded model ids, ad-hoc `source` strings, or new per-feature model settings in `config.py` outside that registry.
 - **Scrape Sources (`backend/app/tasks/scrape/sources/`):** New job board plugins (`<key>.py`) must adhere to the contract defined in the package docstring and properly sync/mirror into the `scrape_sources` table.
 - **Frontend Structure (`frontend/src/<feature>/`):** Code should be organized by feature folder (containing its own `api.ts`, components, and CSS) using React 19 and strict TypeScript.
 
