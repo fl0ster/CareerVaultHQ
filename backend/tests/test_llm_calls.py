@@ -31,7 +31,7 @@ def test_registry_is_complete_and_consistent():
     assert len(keys) == len(set(keys))
     for call in ALL_CALLS:
         assert re.fullmatch(r"[a-z][a-z0-9_]*", call.key)
-        assert call.kind in ("chat", "decision")
+        assert type(call) in (llm_calls.ChatCall, llm_calls.DecisionCall)
         assert call.model.strip() and call.purpose.strip() and call.source.strip() and call.used_in.strip()
 
 
@@ -41,6 +41,14 @@ def test_example_file_lists_every_call():
     # Uncommented as-is, the example must load cleanly.
     uncommented = re.sub(r"^# ([a-z0-9_]+ = )", r"\1", EXAMPLE.read_text(), flags=re.M)
     assert tomllib.loads(uncommented)["models"]["cv_summary"] == CV_SUMMARY.model
+
+
+def test_kind_is_fixed_by_the_class():
+    assert llm_calls.ChatCall.kind == "chat" and llm_calls.DecisionCall.kind == "decision"
+    with pytest.raises(TypeError):
+        llm_calls.ChatCall(key="k", source="s", model="m", purpose="p", used_in="u", kind="decision")  # type: ignore[call-arg]
+    with pytest.raises(TypeError, match="ChatCall or DecisionCall"):
+        llm_calls.LlmCall(key="k", source="s", model="m", purpose="p", used_in="u")
 
 
 def test_missing_file_means_defaults(tmp_path):

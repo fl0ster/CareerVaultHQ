@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.config import Settings
-from app.llm_calls import LlmCall
+from app.llm_calls import ChatCall, DecisionCall
 from app.main import app
 from app.models import OpenRouterCall
 from app.services.openrouter import (
@@ -18,11 +18,9 @@ from app.services.openrouter import (
 
 BASE = "/api/openrouter"
 
-TEST_CHAT = LlmCall(
-    key="test_chat", source="tests.chat", kind="chat", model="test/chat-default", purpose="tests", used_in="tests"
-)
-TEST_DECIDE = LlmCall(
-    key="test_decide", source="tests.decide", kind="decision", model="test/decide-default", purpose="tests", used_in="tests"
+TEST_CHAT = ChatCall(key="test_chat", source="tests.chat", model="test/chat-default", purpose="tests", used_in="tests")
+TEST_DECIDE = DecisionCall(
+    key="test_decide", source="tests.decide", model="test/decide-default", purpose="tests", used_in="tests"
 )
 
 
@@ -131,10 +129,10 @@ def test_source_override_keeps_the_calls_model(service_factory, requests_seen, d
 
 def test_call_kind_must_match_the_method(service_factory, db_session):
     service = service_factory(lambda req: httpx.Response(200, json={}))
-    with pytest.raises(ValueError, match="'decision' call"):
-        service.chat("hi", call=TEST_DECIDE)
-    with pytest.raises(ValueError, match="'chat' call"):
-        service.decide(state="x", questions=NOUL_QUESTIONS, call=TEST_CHAT)
+    with pytest.raises(TypeError, match="'decision' call"):
+        service.chat("hi", call=TEST_DECIDE)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="'chat' call"):
+        service.decide(state="x", questions=NOUL_QUESTIONS, call=TEST_CHAT)  # type: ignore[arg-type]
     assert db_session.scalars(select(OpenRouterCall)).first() is None
 
 

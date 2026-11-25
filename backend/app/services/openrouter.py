@@ -46,7 +46,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.llm_calls import CHAT, DECISION, LlmCall, resolve_model
+from app.llm_calls import ChatCall, DecisionCall, LlmCall, resolve_model
 from app.models import OpenRouterCall
 
 Message = dict[str, Any]
@@ -144,9 +144,10 @@ def _as_int(value: object) -> int | None:
         return None
 
 
-def _check_kind(call: LlmCall, kind: str) -> None:
-    if call.kind != kind:
-        raise ValueError(f"OpenRouter call {call.key!r} is a {call.kind!r} call, not {kind!r}")
+def _check_kind(call: LlmCall, expected: type[LlmCall]) -> None:
+    """Guards against untyped callers; type checkers already reject the wrong class."""
+    if not isinstance(call, expected):
+        raise TypeError(f"OpenRouter call {call.key!r} is a {call.kind!r} call, not {expected.kind!r}")
 
 
 def build_messages(prompt: str, system: str | None = None) -> list[Message]:
@@ -181,7 +182,7 @@ class OpenRouterService:
         self,
         prompt: str | None = None,
         *,
-        call: LlmCall,
+        call: ChatCall,
         source: str | None = None,
         messages: list[Message] | None = None,
         system: str | None = None,
@@ -195,7 +196,7 @@ class OpenRouterService:
         full ``messages`` list. With ``private`` the user/assistant message contents are not
         stored in ``openrouter_calls.input`` (see ``redact_input``). ``call`` sets the model
         and ``source`` label; ``source``/``model`` override them (API playground, label reuse)."""
-        _check_kind(call, CHAT)
+        _check_kind(call, ChatCall)
         body = self._body(
             model or resolve_model(call, self.settings),
             self._messages(prompt, messages, system),
@@ -225,7 +226,7 @@ class OpenRouterService:
         *,
         state: str | dict[str, Any] | list[Any],
         questions: dict[str, dict[str, Any]],
-        call: LlmCall,
+        call: DecisionCall,
         source: str | None = None,
         model: str | None = None,
         extra: dict[str, Any] | None = None,
@@ -238,7 +239,7 @@ class OpenRouterService:
         With ``private`` the ``state`` is not stored in ``openrouter_calls.input``. ``call``
         sets the model and ``source`` label; ``source``/``model`` override them.
         """
-        _check_kind(call, DECISION)
+        _check_kind(call, DecisionCall)
         if not questions:
             raise ValueError("at least one question is required")
         body: dict[str, Any] = {

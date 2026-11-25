@@ -48,7 +48,7 @@ from sqlalchemy.orm import Session, joinedload
 from app import llm_calls
 from app.config import Settings, get_settings
 from app.db import init_db, session_factory
-from app.llm_calls import LlmCall
+from app.llm_calls import ChatCall, DecisionCall
 from app.models import (
     CandidateDetails,
     GeneratedCV,
@@ -224,7 +224,7 @@ class Llm:
         system: str,
         user: str,
         *,
-        call: LlmCall,
+        call: ChatCall,
         temperature: float,
     ) -> str | None:
         for attempt in range(1, self.ATTEMPTS + 1):
@@ -253,7 +253,7 @@ class Llm:
         state: dict[str, Any],
         questions: dict[str, dict[str, Any]],
         *,
-        call: LlmCall,
+        call: DecisionCall,
     ) -> dict[str, dict[str, Any]] | None:
         for attempt in range(1, self.ATTEMPTS + 1):
             try:
