@@ -4,6 +4,8 @@ import {
   type ApplicationStatus,
   applicationsApi,
   currentEvent,
+  heldRounds,
+  INTERVIEW_STATUS,
   isAutoEvent,
   nextRoundLabel,
 } from './api.ts'
@@ -25,9 +27,14 @@ export default function ApplicationStatusControl({ application: a, statuses, onC
       nextRound={nextRoundLabel(a)}
       roundTitle={currentEvent(a)?.title}
       statuses={statuses}
+      planRound={a.status?.key === INTERVIEW_STATUS && a.planned_events.length === 0}
       onSelect={(key) =>
-        applicationsApi
-          .addEvent(a.id, { status: key })
+        // In the interview stage without a planned round, a click first plans the next round;
+        // the following click marks it as held.
+        (key === INTERVIEW_STATUS && a.status?.key === INTERVIEW_STATUS && a.planned_events.length === 0
+          ? applicationsApi.setInterviewRounds(a.id, heldRounds(a).length + 1)
+          : applicationsApi.addEvent(a.id, { status: key })
+        )
           .then(onChange)
           .catch((e) => onError(`Could not change status: ${describeError(e)}`))
       }
