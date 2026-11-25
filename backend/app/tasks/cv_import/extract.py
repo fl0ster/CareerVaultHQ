@@ -41,7 +41,6 @@ from app.tasks.cv_import.prompts import CV_IMPORT_PROMPT, CV_IMPORT_SYSTEM, RESP
 
 log = logging.getLogger(__name__)
 
-"""``source`` label of the OpenRouter call."""
 
 CURRENT_MARKERS = {"present", "current", "now", "today", "ongoing", "obecnie", "teraz", "nadal"}
 """``date_end`` values meaning the position is current."""
