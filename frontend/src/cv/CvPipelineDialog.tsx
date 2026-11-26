@@ -375,23 +375,15 @@ function RoleGroup({ outcome, roles, intro }: { outcome: Outcome; roles: RoleRep
 type Props = {
   cv: GeneratedCv
   onClose: () => void
-  /** Generates the CV again (closing the dialog); without it there is no such button. */
-  onRegenerate?: () => void
 }
 
-export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null)
+/** What the generation of `cv` did: the summary, cost, how each role scored and where it ended
+ * up, the timeline decisions and the skill categories (`GET /api/cv/{id}/pipeline`). */
+export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
   const [pipeline, setPipeline] = useState<CvPipeline | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
-
-  // No close() on cleanup: unmounting removes the dialog anyway, and in dev StrictMode the
-  // close event from a cleanup would land after the remount and shut the dialog again.
-  useEffect(() => {
-    const el = dialog.current
-    if (el && !el.open) el.showModal()
-  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -416,6 +408,155 @@ export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
   const empty = pipeline !== null && roles.length === 0
 
   return (
+    <div className="pl-report">
+      {cv.headline_role && (
+        <p className="pl-headline">
+          <strong>{cv.headline_role}</strong>
+          {cv.core_technologies.length > 0 && <span className="muted"> · {cv.core_technologies.join(' · ')}</span>}
+        </p>
+      )}
+      {cv.summary && <p className="cv-summary pl-summary">{cv.summary}</p>}
+      <CvActions cv={cv} />
+
+      {cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
+      {error && <p className="error">Could not load the pipeline report: {error}</p>}
+      {!pipeline && !error && <span className="spinner" aria-hidden="true" />}
+      {empty && !cv.error && <p className="muted">No pipeline report yet: the generation has not finished.</p>}
+
+      {analysis && roles.length > 0 && (
+        <>
+          <div className="cost-tiles pl-tiles">
+            <div className="cost-tile">
+              <span className="cost-tile-label">Generation cost</span>
+              <span className="cost-tile-value">{cost === null || cost === undefined ? '—' : formatUsd(cost)}</span>
+              <span className="muted">{calls ?? 0} OpenRouter calls</span>
+            </div>
+            <div className="cost-tile">
+              <span className="cost-tile-label">Roles scored</span>
+              <span className="cost-tile-value">{roles.length}</span>
+              <span className="muted">{pipeline?.job_description_chars ?? '?'} chars of job text</span>
+            </div>
+            <div className="cost-tile outcome-listed">
+              <span className="cost-tile-label">Listed in full</span>
+              <span className="cost-tile-value">
+                {analysis.counts.listed}
+                {analysis.thresholds && (
+                  <span className="muted"> / {analysis.thresholds.min_entries}–{analysis.thresholds.max_entries}</span>
+                )}
+              </span>
+              <span className="muted">
+                {roles.filter((r) => r.trimmed).length} trimmed
+                {analysis.counts.backfilled > 0 && `, ${analysis.counts.backfilled} listed to reach the minimum`}
+              </span>
+            </div>
+            <div className="cost-tile">
+              <span className="cost-tile-label">Condensed / dropped</span>
+              <span className="cost-tile-value">
+                {analysis.counts.condensed} / {analysis.counts.dropped}
+              </span>
+              <span className="muted">{warnings.length} fallback{warnings.length === 1 ? '' : 's'}</span>
+            </div>
+          </div>
+
+          {warnings.length > 0 && (
+            <ul className="cv-warnings pl-warnings">
+              {warnings.map((w) => (
+                <li key={w}>⚠ {w}</li>
+              ))}
+            </ul>
+          )}
+
+          <RelevanceChart analysis={analysis} />
+          {analysis.hasSpans && <TimelineChart analysis={analysis} />}
+
+          {decisions.length > 0 && (
+            <section className="pl-section">
+              <h3>Timeline decisions</h3>
+              <p className="pl-hint">
+                Overlapping periods are resolved in favour of the longer role unless the shorter one is clearly more
+                relevant. Roles that are a poor fit are listed anyway when fewer than
+                {analysis.thresholds ? ` ${analysis.thresholds.min_entries}` : ' the minimum'} would remain, and older
+                roles past the limit{analysis.thresholds ? ` of ${analysis.thresholds.max_entries}` : ''} are always
+                condensed.
+              </p>
+              <ul className="pl-decisions">
+                {decisions.map((l, i) => (
+                  <li key={i} className={`log-${l.kind}`}>
+                    {l.text}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <RoleGroup
+            outcome="listed"
+            roles={listed}
+            intro="Each of these roles got two LLM calls: one rewrote the description for the job (max 3 sentences), one reordered and filtered its technologies."
+          />
+          <RoleGroup
+            outcome="condensed"
+            roles={condensed}
+            intro="These roles appear in the “Additional experience” block, each condensed to one sentence."
+          />
+          <RoleGroup
+            outcome="dropped"
+            roles={dropped}
+            intro="These roles do not appear in the CV at all: they overlapped a longer or more relevant role."
+          />
+
+          {pipeline?.categories && pipeline.categories.length > 0 && (
+            <section className="pl-section">
+              <h3>Skill categories</h3>
+              <p className="pl-hint">Technologies of the listed roles, grouped for the job by one more LLM call.</p>
+              <dl className="pl-categories">
+                {pipeline.categories.map(([name, techs]) => (
+                  <div key={name}>
+                    <dt>{name}</dt>
+                    <dd>
+                      <ul className="pl-chips">
+                        {techs.map((t) => (
+                          <li key={t} className={cv.core_technologies.includes(t) ? 'chip-core' : 'chip-kept'}>
+                            {t}
+                          </li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+
+          <div className="pl-raw-controls">
+            {pipeline?.timeline_log && (
+              <button type="button" className="secondary small" onClick={() => setShowLog((v) => !v)}>
+                {showLog ? 'Hide' : 'Show'} full timeline log
+              </button>
+            )}
+            <button type="button" className="secondary small" onClick={() => setShowRaw((v) => !v)}>
+              {showRaw ? 'Hide' : 'Show'} pipeline.json
+            </button>
+          </div>
+          {showLog && <pre className="pl-raw">{pipeline?.timeline_log?.join('\n')}</pre>}
+          {showRaw && <pre className="pl-raw">{JSON.stringify(pipeline, null, 2)}</pre>}
+        </>
+      )}
+    </div>
+  )
+}
+
+export default function CvPipelineDialog({ cv, onClose }: Props) {
+  const dialog = useRef<HTMLDialogElement>(null)
+
+  // No close() on cleanup: unmounting removes the dialog anyway, and in dev StrictMode the
+  // close event from a cleanup would land after the remount and shut the dialog again.
+  useEffect(() => {
+    const el = dialog.current
+    if (el && !el.open) el.showModal()
+  }, [])
+
+  return (
     <dialog
       ref={dialog}
       className="job-dialog pl-dialog"
@@ -438,157 +579,13 @@ export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
             </div>
           </div>
           <div className="app-buttons">
-            {onRegenerate && (
-              <button
-                type="button"
-                className="secondary small"
-                onClick={() => {
-                  onRegenerate()
-                  onClose()
-                }}
-              >
-                Generate again
-              </button>
-            )}
             <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
               ✕
             </button>
           </div>
         </div>
 
-        {cv.headline_role && (
-          <p className="pl-headline">
-            <strong>{cv.headline_role}</strong>
-            {cv.core_technologies.length > 0 && <span className="muted"> · {cv.core_technologies.join(' · ')}</span>}
-          </p>
-        )}
-        {cv.summary && <p className="cv-summary pl-summary">{cv.summary}</p>}
-        <CvActions cv={cv} />
-
-        {cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
-        {error && <p className="error">Could not load the pipeline report: {error}</p>}
-        {!pipeline && !error && <span className="spinner" aria-hidden="true" />}
-        {empty && !cv.error && <p className="muted">No pipeline report yet: the generation has not finished.</p>}
-
-        {analysis && roles.length > 0 && (
-          <>
-            <div className="cost-tiles pl-tiles">
-              <div className="cost-tile">
-                <span className="cost-tile-label">Generation cost</span>
-                <span className="cost-tile-value">{cost === null || cost === undefined ? '—' : formatUsd(cost)}</span>
-                <span className="muted">{calls ?? 0} OpenRouter calls</span>
-              </div>
-              <div className="cost-tile">
-                <span className="cost-tile-label">Roles scored</span>
-                <span className="cost-tile-value">{roles.length}</span>
-                <span className="muted">{pipeline?.job_description_chars ?? '?'} chars of job text</span>
-              </div>
-              <div className="cost-tile outcome-listed">
-                <span className="cost-tile-label">Listed in full</span>
-                <span className="cost-tile-value">
-                  {analysis.counts.listed}
-                  {analysis.thresholds && (
-                    <span className="muted"> / {analysis.thresholds.min_entries}–{analysis.thresholds.max_entries}</span>
-                  )}
-                </span>
-                <span className="muted">
-                  {roles.filter((r) => r.trimmed).length} trimmed
-                  {analysis.counts.backfilled > 0 && `, ${analysis.counts.backfilled} listed to reach the minimum`}
-                </span>
-              </div>
-              <div className="cost-tile">
-                <span className="cost-tile-label">Condensed / dropped</span>
-                <span className="cost-tile-value">
-                  {analysis.counts.condensed} / {analysis.counts.dropped}
-                </span>
-                <span className="muted">{warnings.length} fallback{warnings.length === 1 ? '' : 's'}</span>
-              </div>
-            </div>
-
-            {warnings.length > 0 && (
-              <ul className="cv-warnings pl-warnings">
-                {warnings.map((w) => (
-                  <li key={w}>⚠ {w}</li>
-                ))}
-              </ul>
-            )}
-
-            <RelevanceChart analysis={analysis} />
-            {analysis.hasSpans && <TimelineChart analysis={analysis} />}
-
-            {decisions.length > 0 && (
-              <section className="pl-section">
-                <h3>Timeline decisions</h3>
-                <p className="pl-hint">
-                  Overlapping periods are resolved in favour of the longer role unless the shorter one is clearly more
-                  relevant. Roles that are a poor fit are listed anyway when fewer than
-                  {analysis.thresholds ? ` ${analysis.thresholds.min_entries}` : ' the minimum'} would remain, and older
-                  roles past the limit{analysis.thresholds ? ` of ${analysis.thresholds.max_entries}` : ''} are always
-                  condensed.
-                </p>
-                <ul className="pl-decisions">
-                  {decisions.map((l, i) => (
-                    <li key={i} className={`log-${l.kind}`}>
-                      {l.text}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <RoleGroup
-              outcome="listed"
-              roles={listed}
-              intro="Each of these roles got two LLM calls: one rewrote the description for the job (max 3 sentences), one reordered and filtered its technologies."
-            />
-            <RoleGroup
-              outcome="condensed"
-              roles={condensed}
-              intro="These roles appear in the “Additional experience” block, each condensed to one sentence."
-            />
-            <RoleGroup
-              outcome="dropped"
-              roles={dropped}
-              intro="These roles do not appear in the CV at all: they overlapped a longer or more relevant role."
-            />
-
-            {pipeline?.categories && pipeline.categories.length > 0 && (
-              <section className="pl-section">
-                <h3>Skill categories</h3>
-                <p className="pl-hint">Technologies of the listed roles, grouped for the job by one more LLM call.</p>
-                <dl className="pl-categories">
-                  {pipeline.categories.map(([name, techs]) => (
-                    <div key={name}>
-                      <dt>{name}</dt>
-                      <dd>
-                        <ul className="pl-chips">
-                          {techs.map((t) => (
-                            <li key={t} className={cv.core_technologies.includes(t) ? 'chip-core' : 'chip-kept'}>
-                              {t}
-                            </li>
-                          ))}
-                        </ul>
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            )}
-
-            <div className="pl-raw-controls">
-              {pipeline?.timeline_log && (
-                <button type="button" className="secondary small" onClick={() => setShowLog((v) => !v)}>
-                  {showLog ? 'Hide' : 'Show'} full timeline log
-                </button>
-              )}
-              <button type="button" className="secondary small" onClick={() => setShowRaw((v) => !v)}>
-                {showRaw ? 'Hide' : 'Show'} pipeline.json
-              </button>
-            </div>
-            {showLog && <pre className="pl-raw">{pipeline?.timeline_log?.join('\n')}</pre>}
-            {showRaw && <pre className="pl-raw">{JSON.stringify(pipeline, null, 2)}</pre>}
-          </>
-        )}
+        <CvPipelineReport cv={cv} />
       </div>
     </dialog>
   )

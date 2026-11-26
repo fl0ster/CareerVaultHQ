@@ -196,7 +196,11 @@
 
 .pl-dialog {
   width: min(960px, calc(100vw - 32px));
+}
 
+/* The pipeline report: in the popup and in the application view's CV Settings tab. */
+.pl-dialog,
+.pl-report {
   /* Outcome colours (status palette: good / warning / critical). Marks wear them,
      text never does: each outcome also carries an icon and a label. */
   --ok: var(--success-solid);

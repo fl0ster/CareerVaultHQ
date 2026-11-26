@@ -130,6 +130,20 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  /* The offer link is not a tab: pushed to the far right. */
+  a {
+    margin-left: auto;
+  }
+}
+
+/* CV Settings tab: the pipeline report keeps its own headings, not the section labels'. */
+.app-history .pl-report h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-h);
 }
 
 .app-description pre.description {
@@ -139,11 +153,10 @@
 
 /* The CV: one icon (download / generating / generate), the info button opens its breakdown. */
 .app-cv {
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 8px;
 }
 .app-cv-control {
   display: inline-flex;
@@ -198,9 +211,46 @@
 }
 .app-cv-error {
   margin: 0;
-  max-width: 260px;
   font-size: 12px;
-  text-align: right;
+}
+.app-cv-date {
+  margin-top: -4px;
+  font-size: 12px;
+}
+.app-cv-toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+.app-cv-earlier ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+}
+
+/* The status pill in the application view's header, with the breathing room it has in the list rows. */
+.app-view-status {
+  padding: 14px 0 14px 12px;
 }
 
 .app-detail {
