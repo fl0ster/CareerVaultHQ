@@ -91,6 +91,7 @@
 }
 
 .iv-card-head-actions {
+  align-self: center;
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
