@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from app.tasks.scrape._helpers import HEADERS
 from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources._helpers import html_to_text
-from app.tasks.scrape.work_mode import OFFICE, work_mode_from_text
+from app.tasks.scrape.work_mode import work_mode_from_text
 
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
@@ -121,8 +121,6 @@ def parse_location(html: str) -> str:
 def parse_work_mode(html: str) -> str | None:
     """Work mode of a single job page (see ``app.tasks.scrape.work_mode``). Employers state
     it in the header's location ("Warszawa (model hybrydowy)", "zdalnie", "ON-SITE in
-    Poznań"), else maybe in the offer body ("praca stacjonarna w biurze"). A location that
-    is just a city means on-site: remote and hybrid offers say so there."""
-    location = parse_location(html)
-    mode = work_mode_from_text(location) or work_mode_from_text(parse_description(html))
-    return mode or (OFFICE if location else None)
+    Poznań"), else maybe in the offer body ("praca stacjonarna w biurze"). ``None`` when
+    neither states it (a bare city such as "Łódź" is not taken to mean on-site)."""
+    return work_mode_from_text(parse_location(html)) or work_mode_from_text(parse_description(html))

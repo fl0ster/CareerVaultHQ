@@ -73,7 +73,7 @@ def test_skillshot_parse_location():
         ("ON-SITE in Poznań", "", "office"),
         ("Łódź", "<ul><li>Pracy stacjonarnej w biurze</li></ul>", "office"),
         ("Gdańsk", "<p>Hybrid: 3 days in the office</p>", "hybrid"),
-        ("Łódź", "<p>We need a dev</p>", "office"),
+        ("Łódź", "<p>We need a dev</p>", None),
     ],
 )
 def test_skillshot_parse_work_mode(location, body, expected):
