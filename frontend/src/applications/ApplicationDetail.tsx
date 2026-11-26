@@ -626,8 +626,6 @@ export default function ApplicationDetail({
             {application.job.link}
           </a>
         </dd>
-        <dt>Created</dt>
-        <dd>{serverDate(application.created_at).toLocaleString()}</dd>
       </dl>
 
       <section className="app-section">
