@@ -130,6 +130,10 @@
     color: var(--accent);
     border-bottom-color: var(--accent);
   }
+  /* The offer link is not a tab: pushed to the far right. */
+  a {
+    margin-left: auto;
+  }
 }
 
 .app-description pre.description {
