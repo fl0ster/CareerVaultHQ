@@ -586,8 +586,7 @@ export default function ApplicationDetail({ application, statuses, technologies,
   return (
     <div className="app-detail">
       <aside className="app-aside">
-        <section className="app-section app-current-status" aria-labelledby={`app-status-${application.id}`}>
-          <h3 id={`app-status-${application.id}`}>Status</h3>
+        <section className="app-section app-current-status" aria-label="Status">
           <ApplicationStatusControl
             application={application}
             statuses={statuses}
