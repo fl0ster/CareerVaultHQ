@@ -629,9 +629,63 @@ function OfferBox({
   )
 }
 
+/** Free-text notes about the position: a draft saved with the Save button (or Ctrl/⌘+Enter). */
+function NotesPane({
+  application,
+  onChange,
+}: {
+  application: Application
+  onChange: (application: Application) => void
+}) {
+  const [draft, setDraft] = useState(application.notes)
+  const [saved, setSaved] = useState(false)
+  const { busy, error, run } = useAction()
+  const dirty = draft !== application.notes
+
+  const save = async () => {
+    if (!dirty) return
+    const updated = await run(() => applicationsApi.updateNotes(application.id, draft))
+    if (updated) {
+      onChange(updated)
+      setSaved(true)
+    }
+  }
+
+  return (
+    <div className="app-notes">
+      <textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setSaved(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void save()
+        }}
+        placeholder="Your notes about this position…"
+        aria-label="Notes about this position"
+        rows={10}
+        disabled={busy}
+      />
+      <div className="app-buttons">
+        <button type="button" className="small" onClick={() => void save()} disabled={busy || !dirty}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {dirty && (
+          <button type="button" className="secondary small" onClick={() => setDraft(application.notes)} disabled={busy}>
+            Discard changes
+          </button>
+        )}
+        {saved && !dirty && <span className="muted">Saved.</span>}
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
+  )
+}
+
 /** Body of the application view: the CV, salary & work mode, the interview round count and the
  * job's technologies in a narrow column on the left; beside it the status history (a vertical stepper),
- * how the latest CV was generated (CV Settings) or the job description, switched by tabs, plus a
+ * how the latest CV was generated (CV Settings), notes about the position or the job description, switched by tabs, plus a
  * Link that opens the offer. */
 export default function ApplicationDetail({
   application,
@@ -641,7 +695,7 @@ export default function ApplicationDetail({
   onChange,
   onAccepted,
 }: Props) {
-  const [pane, setPane] = useState<'history' | 'cv' | 'description'>('history')
+  const [pane, setPane] = useState<'history' | 'cv' | 'notes' | 'description'>('history')
   const held = heldRounds(application)
   const history = historyEvents(application)
   const status = application.status
@@ -700,6 +754,12 @@ export default function ApplicationDetail({
           <button type="button" role="tab" aria-selected={pane === 'cv'} onClick={() => setPane('cv')}>
             CV Settings
           </button>
+          <button type="button" role="tab" aria-selected={pane === 'notes'} onClick={() => setPane('notes')}>
+            Notes
+            {application.notes.trim() && (
+              <span className="app-tab-dot" title="This position has notes" aria-label="(has notes)" />
+            )}
+          </button>
           <button
             type="button"
             role="tab"
@@ -723,6 +783,10 @@ export default function ApplicationDetail({
             )}
           </div>
         )}
+        {/* Kept mounted while other tabs show, so an unsaved draft survives. */}
+        <div hidden={pane !== 'notes'} role="tabpanel">
+          <NotesPane application={application} onChange={onChange} />
+        </div>
         {pane === 'description' && (
           <div className="job-desc app-description" role="tabpanel">
             {description === undefined ? (
