@@ -321,7 +321,9 @@
     font-size: 14px;
     color: var(--text-h);
   }
-  .iv-step.is-current .iv-step-dot {
+  /* The current recorded state: filled in its colour and ringed. (A current planned round keeps
+     the interview stepper's ring.) */
+  .iv-step.is-current.is-held .iv-step-dot {
     border: none;
     background: var(--iv-done);
     color: var(--on-strong);
@@ -331,7 +333,7 @@
     font-weight: 700;
   }
   /* Planned rounds: dashed dots, like the rounds still to come. */
-  .iv-step.is-upcoming .iv-step-dot {
+  .iv-step.is-upcoming:not(.is-current) .iv-step-dot {
     color: var(--text);
   }
 }

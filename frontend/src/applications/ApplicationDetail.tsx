@@ -343,12 +343,15 @@ function PlannedEventRow({
   application,
   event,
   index,
+  current,
   onChange,
 }: {
   application: Application
   event: PlannedRound
   /** Position among all rounds (0-based). */
   index: number
+  /** The next round to be held: ringed, as in the interview card's stepper. */
+  current: boolean
   onChange: (application: Application) => void
 }) {
   const [title, setTitle] = useState(event.title)
@@ -382,7 +385,7 @@ function PlannedEventRow({
   }
 
   return (
-    <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}`}>
+    <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}${current ? ' is-current' : ''}`}>
       <span className="iv-step-dot" aria-hidden="true">
         {index + 1}
       </span>
@@ -585,6 +588,9 @@ export default function ApplicationDetail({
   const history = historyEvents(application)
   const status = application.status
   const final = isFinalStatus(status)
+  // As in the interview card: while rounds are planned the next one is the current step (ringed);
+  // otherwise the latest recorded state is.
+  const upcoming = !final && application.planned_events.length > 0
   const [statusError, setStatusError] = useState<string | null>(null)
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
@@ -673,7 +679,7 @@ export default function ApplicationDetail({
               application={application}
               event={event}
               name={eventName(event)}
-              current={i === history.length - 1}
+              current={!upcoming && i === history.length - 1}
               statuses={statuses}
               onChange={onChange}
             />
@@ -685,6 +691,7 @@ export default function ApplicationDetail({
               application={application}
               event={event}
               index={held.length + i}
+              current={upcoming && i === 0}
               onChange={onChange}
             />
           ))}
