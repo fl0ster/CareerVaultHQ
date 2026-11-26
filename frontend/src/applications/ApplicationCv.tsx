@@ -96,9 +96,6 @@ export default function ApplicationCv({ application, onChange }: Props) {
           </button>
         )}
       </div>
-      {cv?.status === 'finished' && cv.finished_at && (
-        <span className="muted app-cv-date">{formatCreated(cv)}</span>
-      )}
       {earlier && earlier.length > 0 && (
         <div className="app-cv-earlier">
           <button
