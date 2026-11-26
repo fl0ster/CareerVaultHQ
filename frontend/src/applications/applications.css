@@ -512,15 +512,15 @@
 
 .app-step-body {
   min-width: 0;
-  padding-top: 2px;
   line-height: 1.35;
 }
 
+/* As tall as the dot, so the name sits on the dot's centre line. */
 .app-step-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 22px;
+  min-height: var(--iv-dot, 24px);
 }
 
 /* Edit / remove show up on hover (always on touch screens). */
@@ -528,6 +528,8 @@
   display: inline-flex;
   gap: 2px;
   margin-left: auto;
+  /* The 26px buttons may overhang the 24px head instead of making it taller. */
+  margin-block: -1px;
   opacity: 0;
   transition: opacity 0.12s;
 
