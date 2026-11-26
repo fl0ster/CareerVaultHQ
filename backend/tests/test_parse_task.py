@@ -348,3 +348,37 @@ def test_parse_job_survives_salary_parser_error(task_engine, monkeypatch):
 
     assert parse_task.parse_job(pending_id)["salary"] is None
     assert _parsed(task_engine, pending_id).salary is None
+
+
+def test_parse_job_stores_work_mode_from_source_hook(task_engine):
+    html = HTML.replace("</a></b></p>", "</a></b> <span>w</span> Warszawa (model hybrydowy)</p>")
+    pending_id = _make_pending(task_engine, html=html)
+
+    assert parse_task.parse_job(pending_id)["work_mode"] == "hybrid"
+    assert _parsed(task_engine, pending_id).work_mode == "hybrid"
+
+
+def test_parse_job_work_mode_falls_back_to_description(task_engine, monkeypatch):
+    monkeypatch.delattr(skillshot, "parse_work_mode")
+    monkeypatch.setattr(skillshot, "parse_description", lambda html: "Fully remote team")
+
+    assert parse_task.parse_job(_make_pending(task_engine))["work_mode"] == "remote"
+
+
+def test_parse_job_drops_unknown_work_mode(task_engine, monkeypatch):
+    monkeypatch.setattr(skillshot, "parse_work_mode", lambda html: "on the moon")
+    pending_id = _make_pending(task_engine)
+
+    assert parse_task.parse_job(pending_id)["work_mode"] is None
+    assert _parsed(task_engine, pending_id).work_mode is None
+
+
+def test_parse_job_survives_work_mode_parser_error(task_engine, monkeypatch):
+    def boom(html):
+        raise RuntimeError("bad work mode")
+
+    monkeypatch.setattr(skillshot, "parse_work_mode", boom)
+    pending_id = _make_pending(task_engine)
+
+    assert parse_task.parse_job(pending_id)["work_mode"] is None
+    assert _parsed(task_engine, pending_id).work_mode is None

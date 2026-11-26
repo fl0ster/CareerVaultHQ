@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from app.tasks.scrape._helpers import HEADERS
 from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources._helpers import html_to_text
+from app.tasks.scrape.work_mode import OFFICE, work_mode_from_text
 
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
@@ -103,3 +104,25 @@ def parse_salary(html: str) -> dict | None:
     soup = BeautifulSoup(html, "html.parser")
     el = soup.find("div", id="job_presentation")
     return salary_from_text(html_to_text(el), default_currency="PLN") if el else None
+
+
+def parse_location(html: str) -> str:
+    """Free-text location of a single job page: what follows "w" in the job header
+    ("dla <company> w Warszawa / Zdalnie"); ``""`` when the header has none."""
+    soup = BeautifulSoup(html, "html.parser")
+    header = soup.find("div", id="job_presentation") or soup
+    marker = header.find("span", string=re.compile(r"^\s*w\s*$"))
+    if marker is None:
+        return ""
+    parts = [s.get_text(" ") if hasattr(s, "get_text") else str(s) for s in marker.next_siblings]
+    return re.sub(r"\s+", " ", "".join(parts)).strip()
+
+
+def parse_work_mode(html: str) -> str | None:
+    """Work mode of a single job page (see ``app.tasks.scrape.work_mode``). Employers state
+    it in the header's location ("Warszawa (model hybrydowy)", "zdalnie", "ON-SITE in
+    Poznań"), else maybe in the offer body ("praca stacjonarna w biurze"). A location that
+    is just a city means on-site: remote and hybrid offers say so there."""
+    location = parse_location(html)
+    mode = work_mode_from_text(location) or work_mode_from_text(parse_description(html))
+    return mode or (OFFICE if location else None)

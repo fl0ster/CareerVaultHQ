@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 
 from app.tasks.scrape.salary import salary_from_jobposting, salary_from_text
 from app.tasks.scrape.sources._helpers import _name, format_jobposting, html_to_blocks, jsonld_jobposting
+from app.tasks.scrape.work_mode import work_mode_from_jobposting, work_mode_from_text
 
 MAX_DESCRIPTION_CHARS = 20_000
 
@@ -86,3 +87,9 @@ def parse_salary(html: str) -> dict | None:
     """``JobPosting.baseSalary`` when the page embeds one, else the first salary stated in
     the page's description text (see ``app.tasks.scrape.salary``)."""
     return salary_from_jobposting(jsonld_jobposting(html)) or salary_from_text(parse_description(html))
+
+
+def parse_work_mode(html: str) -> str | None:
+    """``"remote"`` when the embedded ``JobPosting`` is ``TELECOMMUTE``, else the work mode
+    stated in the page's description text (see ``app.tasks.scrape.work_mode``)."""
+    return work_mode_from_jobposting(jsonld_jobposting(html)) or work_mode_from_text(parse_description(html))
