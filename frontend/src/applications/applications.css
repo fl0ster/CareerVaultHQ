@@ -306,13 +306,9 @@
   .iv-step.is-current .iv-step-name {
     font-weight: 700;
   }
-  /* Planned rounds and the next step: dashed dots, like the rounds still to come. */
+  /* Planned rounds: dashed dots, like the rounds still to come. */
   .iv-step.is-upcoming .iv-step-dot {
     color: var(--text);
-  }
-  .app-add-step .iv-step-dot {
-    border-color: var(--accent-border);
-    color: var(--accent);
   }
 }
 
@@ -425,15 +421,10 @@
   }
 }
 
-.app-planned textarea,
-.app-add-step textarea {
+.app-planned textarea {
   resize: none;
   field-sizing: content;
   min-height: 0;
-}
-
-.app-add-step .app-form-row {
-  margin-top: 6px;
 }
 
 .app-timeline .iv-step.editing .app-form-row + .app-form-row {

@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { Check, Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Check, Pencil, Trash2, Undo2 } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
@@ -25,7 +25,6 @@ import {
   heldRounds,
   historyEvents,
   isAutoEvent,
-  nextRoundLabel,
   roundLabel,
   serverDate,
   toLocalInput,
@@ -517,77 +516,6 @@ function InterviewPlan({
   )
 }
 
-/** The step still to be recorded: a "+" dot at the end of the history with the new state. */
-function AddEventForm({
-  application,
-  statuses,
-  onChange,
-}: {
-  application: Application
-  statuses: ApplicationStatus[]
-  onChange: (application: Application) => void
-}) {
-  const [status, setStatus] = useState('')
-  const [note, setNote] = useState('')
-  const [when, setWhen] = useState('')
-  const { busy, error, run } = useAction()
-  const options = pickableStatuses(statuses, application.status?.key ?? null)
-  const selected = status || options[0]?.key || ''
-  const nextRound = selected === INTERVIEW_STATUS ? nextRoundLabel(application) : undefined
-  const min = earliestFor(application, selected)
-  const dateError = tooEarly(when, min)
-
-  const add = async () => {
-    const updated = await run(() =>
-      applicationsApi.addEvent(application.id, { status: selected, note, occurred_at: fromLocalInput(when) }),
-    )
-    if (updated) {
-      onChange(updated)
-      setNote('')
-      setWhen('')
-    }
-  }
-
-  return (
-    <li className="iv-step is-upcoming app-add-step">
-      <span className="iv-step-dot" aria-hidden="true">
-        <Plus size={13} strokeWidth={3} />
-      </span>
-      <div className="app-step-body">
-        <span className="iv-step-name">Next step</span>
-        <div className="app-form-row">
-          <select value={selected} onChange={(e) => setStatus(e.target.value)} aria-label="New status">
-            {options.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="datetime-local"
-            value={when}
-            min={min}
-            onChange={(e) => setWhen(e.target.value)}
-            aria-label="When (defaults to now)"
-            title="When (defaults to now)"
-          />
-          <button type="button" className="small" onClick={add} disabled={busy || !selected || !!dateError}>
-            {busy ? 'Adding…' : nextRound ? `Record ${nextRound}` : 'Add status'}
-          </button>
-        </div>
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          aria-label="Note for the new state"
-          rows={1}
-        />
-        {(dateError || error) && <p className="error">{dateError || error}</p>}
-      </div>
-    </li>
-  )
-}
-
 /** The offer stage: the agreed start date (saved when changed) and accepting or declining
  * the offer. */
 function OfferBox({
@@ -703,7 +631,6 @@ export default function ApplicationDetail({ application, statuses, technologies,
               onChange={onChange}
             />
           ))}
-          {!final && <AddEventForm application={application} statuses={statuses} onChange={onChange} />}
         </ol>
         {status?.key === OFFER_STATUS ? (
           <OfferBox
