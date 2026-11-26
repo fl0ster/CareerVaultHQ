@@ -200,7 +200,7 @@ export function useApplicationList({
     // Only moving forward into the offer stage celebrates; undoing a decline/accept
     // (back to OFFER) does not.
     const prior = before?.status?.key
-    if (updated.status?.key === OFFER_STATUS && prior !== OFFER_STATUS && prior !== DECLINED_STATUS && prior !== 'ACCEPTED') {
+    if (updated.status?.key === OFFER_STATUS && prior !== OFFER_STATUS && prior !== DECLINED_STATUS && prior !== ACCEPTED_STATUS) {
       setCelebrations((n) => n + 1)
     }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
