@@ -560,3 +560,51 @@ def test_application_shows_the_newest_score_and_whether_it_is_outdated(client, d
         assert body["evaluation"]["id"] == rescored.id
         assert body["evaluation"]["outdated"] is False
         assert body["evaluation"]["relevance"] < 0
+
+
+def test_salary_and_work_mode_parsed_and_overridden(client, db_session):
+    app_id = _new_application(client, db_session)
+    parsed = db_session.get(Application, app_id).job_parse_result
+    parsed.salary = {"min": 15000.0, "max": 20000.0, "currency": "PLN", "period": "month", "gross": True, "raw": "15-20k"}
+    parsed.work_mode = "hybrid"
+    db_session.commit()
+
+    body = client.get(f"{BASE}/{app_id}").json()
+    assert body["parsed_salary"]["min"] == 15000.0
+    assert body["parsed_salary"]["raw"] == "15-20k"
+    assert body["parsed_work_mode"] == "hybrid"
+    assert body["salary_override"] is None
+    assert body["work_mode_override"] is None
+
+    override = {"min": 18000, "max": 22000, "currency": " eur ", "period": "month", "gross": False}
+    body = client.patch(f"{BASE}/{app_id}", json={"salary_override": override, "work_mode_override": "remote"}).json()
+    assert body["salary_override"] == {
+        "min": 18000.0,
+        "max": 22000.0,
+        "currency": "EUR",
+        "period": "month",
+        "gross": False,
+        "raw": None,
+    }
+    assert body["work_mode_override"] == "remote"
+    # The parsed values stay underneath.
+    assert body["parsed_salary"]["min"] == 15000.0
+    assert body["parsed_work_mode"] == "hybrid"
+
+    # Other updates leave the overrides alone; null clears them.
+    assert client.patch(f"{BASE}/{app_id}", json={"notes": "x"}).json()["work_mode_override"] == "remote"
+    body = client.patch(f"{BASE}/{app_id}", json={"salary_override": None, "work_mode_override": None}).json()
+    assert body["salary_override"] is None
+    assert body["work_mode_override"] is None
+
+    # An all-empty salary clears the override too.
+    body = client.patch(f"{BASE}/{app_id}", json={"salary_override": {"currency": " "}}).json()
+    assert body["salary_override"] is None
+
+
+def test_salary_and_work_mode_override_validation(client, db_session):
+    app_id = _new_application(client, db_session)
+    assert client.patch(f"{BASE}/{app_id}", json={"salary_override": {"min": 5, "max": 1}}).status_code == 422
+    assert client.patch(f"{BASE}/{app_id}", json={"salary_override": {"min": -1}}).status_code == 422
+    assert client.patch(f"{BASE}/{app_id}", json={"salary_override": {"period": "decade"}}).status_code == 422
+    assert client.patch(f"{BASE}/{app_id}", json={"work_mode_override": "moon"}).status_code == 422

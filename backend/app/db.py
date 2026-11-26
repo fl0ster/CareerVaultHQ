@@ -54,6 +54,8 @@ def init_db(engine: Engine | None = None) -> None:
 ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "applications": {
         "start_date": "DATE",
+        "salary_override": "JSON",
+        "work_mode_override": "VARCHAR(16)",
     },
     "work_history": {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",

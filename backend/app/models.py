@@ -581,6 +581,13 @@ class Application(Base):
     start_date: Mapped[date | None] = mapped_column(Date)
     """Agreed start date of the offered position, if known; accepting the offer uses it as
     the start of the work-history entry it creates."""
+    salary_override: Mapped[dict | None] = mapped_column(JSON)
+    """Salary entered by the user, replacing the parsed ``JobParseResult.salary`` (same shape,
+    without ``raw``). Kept on the application so re-parsing the job never overwrites it;
+    ``None``: use the parsed one."""
+    work_mode_override: Mapped[str | None] = mapped_column(String(16))
+    """Work mode entered by the user (one of ``WORK_MODES``), replacing the parsed
+    ``JobParseResult.work_mode``; ``None``: use the parsed one."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

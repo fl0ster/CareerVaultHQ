@@ -1,10 +1,8 @@
 import { type ReactNode, useState } from 'react'
-import { Check, Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
+import { Check, ExternalLink, Pencil, Trash2, Undo2 } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
-import { updateCompanyNotes } from '../companies/api.ts'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
-import NotesEditor from '../notes/NotesEditor.tsx'
 import {
   type Application,
   type ApplicationEvent,
@@ -27,12 +25,12 @@ import {
   heldRounds,
   historyEvents,
   isAutoEvent,
-  nextRoundLabel,
-  notifyApplicationsChanged,
   roundLabel,
   serverDate,
   toLocalInput,
 } from './api.ts'
+import ApplicationStatusControl from './ApplicationStatusControl.tsx'
+import SalaryWorkMode from './SalaryWorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
@@ -40,12 +38,13 @@ import { pageHref } from '../shell/nav.ts'
 type Props = {
   application: Application
   statuses: ApplicationStatus[]
-  /** The job's technologies, shown quietly in the side column. */
+  /** The job's technologies, shown quietly in the left column. */
   technologies: string[]
+  /** The job's parsed description (`undefined` while loading, `null` when there is none). */
+  description: string | null | undefined
   onChange: (application: Application) => void
   /** The offer was accepted (the application is now `ACCEPTED`). */
   onAccepted: (application: Application) => void
-  onDelete: (id: number) => void
 }
 
 /** Runs an API call, tracking busy state and turning failures into an error message. */
@@ -345,12 +344,15 @@ function PlannedEventRow({
   application,
   event,
   index,
+  current,
   onChange,
 }: {
   application: Application
   event: PlannedRound
   /** Position among all rounds (0-based). */
   index: number
+  /** The next round to be held: ringed, as in the interview card's stepper. */
+  current: boolean
   onChange: (application: Application) => void
 }) {
   const [title, setTitle] = useState(event.title)
@@ -384,7 +386,7 @@ function PlannedEventRow({
   }
 
   return (
-    <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}`}>
+    <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}${current ? ' is-current' : ''}`}>
       <span className="iv-step-dot" aria-hidden="true">
         {index + 1}
       </span>
@@ -472,7 +474,6 @@ function InterviewPlan({
 
   return (
     <div className="app-plan">
-      <span className="muted">Interview rounds</span>
       <span className="app-stepper">
         <button
           type="button"
@@ -519,77 +520,6 @@ function InterviewPlan({
       )}
       {error && <p className="error">{error}</p>}
     </div>
-  )
-}
-
-/** The step still to be recorded: a "+" dot at the end of the history with the new state. */
-function AddEventForm({
-  application,
-  statuses,
-  onChange,
-}: {
-  application: Application
-  statuses: ApplicationStatus[]
-  onChange: (application: Application) => void
-}) {
-  const [status, setStatus] = useState('')
-  const [note, setNote] = useState('')
-  const [when, setWhen] = useState('')
-  const { busy, error, run } = useAction()
-  const options = pickableStatuses(statuses, application.status?.key ?? null)
-  const selected = status || options[0]?.key || ''
-  const nextRound = selected === INTERVIEW_STATUS ? nextRoundLabel(application) : undefined
-  const min = earliestFor(application, selected)
-  const dateError = tooEarly(when, min)
-
-  const add = async () => {
-    const updated = await run(() =>
-      applicationsApi.addEvent(application.id, { status: selected, note, occurred_at: fromLocalInput(when) }),
-    )
-    if (updated) {
-      onChange(updated)
-      setNote('')
-      setWhen('')
-    }
-  }
-
-  return (
-    <li className="iv-step is-upcoming app-add-step">
-      <span className="iv-step-dot" aria-hidden="true">
-        <Plus size={13} strokeWidth={3} />
-      </span>
-      <div className="app-step-body">
-        <span className="iv-step-name">Next step</span>
-        <div className="app-form-row">
-          <select value={selected} onChange={(e) => setStatus(e.target.value)} aria-label="New status">
-            {options.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="datetime-local"
-            value={when}
-            min={min}
-            onChange={(e) => setWhen(e.target.value)}
-            aria-label="When (defaults to now)"
-            title="When (defaults to now)"
-          />
-          <button type="button" className="small" onClick={add} disabled={busy || !selected || !!dateError}>
-            {busy ? 'Adding…' : nextRound ? `Record ${nextRound}` : 'Add status'}
-          </button>
-        </div>
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Note (optional)"
-          aria-label="Note for the new state"
-          rows={1}
-        />
-        {(dateError || error) && <p className="error">{dateError || error}</p>}
-      </div>
-    </li>
   )
 }
 
@@ -643,55 +573,26 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the status history as a vertical stepper on the left, notes
- * and the job's technologies in a narrower column on the right. */
+/** Body of the application view: the status pill, the interview round count, salary & work
+ * mode and the job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
+ * or the job description, switched by tabs, plus a Link tab that opens the offer. */
 export default function ApplicationDetail({
   application,
   statuses,
   technologies,
+  description,
   onChange,
   onAccepted,
-  onDelete,
 }: Props) {
-  const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
-  const deleteAction = useAction()
+  const [pane, setPane] = useState<'history' | 'description'>('history')
   const held = heldRounds(application)
   const history = historyEvents(application)
-  const { company, company_id: companyId, company_notes: companyNotes } = application.job
   const status = application.status
   const final = isFinalStatus(status)
-
-  const saveNotes = async (notes: string) => {
-    onChange(await applicationsApi.updateNotes(application.id, notes))
-  }
-
-  const saveCompanyNotes = async (notes: string) => {
-    if (companyId == null) return
-    const updated = await updateCompanyNotes(companyId, notes)
-    onChange({ ...application, job: { ...application.job, company_notes: updated.notes } })
-    // Other applications to the same company show these notes too.
-    notifyApplicationsChanged()
-  }
-
-  const tab = (key: 'application' | 'company', label: string, hasNotes: boolean, disabled = false) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={notesTab === key}
-      disabled={disabled}
-      title={disabled ? 'The job has no resolved company' : label}
-      onClick={() => setNotesTab(key)}
-    >
-      {label}
-      {hasNotes && <span className="notes-dot" aria-label="(has notes)" />}
-    </button>
-  )
-
-  const remove = async () => {
-    if (!window.confirm('Delete this application and its status history? The generated CV is kept.')) return
-    const ok = await deleteAction.run(() => applicationsApi.remove(application.id).then(() => true))
-    if (ok) onDelete(application.id)
-  }
+  // As in the interview card: while rounds are planned the next one is the current step (ringed);
+  // otherwise the latest recorded state is.
+  const upcoming = !final && application.planned_events.length > 0
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
@@ -702,15 +603,72 @@ export default function ApplicationDetail({
 
   return (
     <div className="app-detail">
-      <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
-        <div className="app-section-head">
-          <h3 id={`app-history-${application.id}`}>Status history</h3>
+      <aside className="app-aside">
+        <section className="app-section app-current-status" aria-label="Status">
+          <ApplicationStatusControl
+            application={application}
+            statuses={statuses}
+            onChange={(updated) => {
+              setStatusError(null)
+              onChange(updated)
+            }}
+            onError={setStatusError}
+          />
+          {statusError && <p className="error">{statusError}</p>}
+        </section>
+        <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
+          <h3 id={`app-rounds-${application.id}`}>Interview rounds</h3>
           <InterviewPlan
             key={held.length + application.planned_events.length}
             application={application}
             onChange={onChange}
           />
+        </section>
+        <SalaryWorkMode application={application} onChange={onChange} />
+        {technologies.length > 0 && (
+          <section className="app-section app-tech" aria-label="Technologies">
+            <h3>Technologies</h3>
+            <TechPills technologies={technologies} />
+          </section>
+        )}
+      </aside>
+
+      <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
+        <div className="app-tabs" role="tablist" aria-label="Application">
+          <button
+            type="button"
+            role="tab"
+            id={`app-history-${application.id}`}
+            aria-selected={pane === 'history'}
+            onClick={() => setPane('history')}
+          >
+            Status history
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'description'}
+            onClick={() => setPane('description')}
+          >
+            Description
+          </button>
+          <a href={application.job.link} target="_blank" rel="noreferrer" title={`Open the job offer: ${application.job.link}`}>
+            Link <ExternalLink size={13} aria-hidden="true" />
+          </a>
         </div>
+        {pane === 'description' && (
+          <div className="job-desc app-description" role="tabpanel">
+            {description === undefined ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : description ? (
+              <pre className="description">{description}</pre>
+            ) : (
+              <p className="muted">No parsed description.</p>
+            )}
+          </div>
+        )}
+        {/* Kept mounted while the description shows, so drafts of planned rounds survive. */}
+        <div hidden={pane !== 'history'} role="tabpanel" aria-labelledby={`app-history-${application.id}`}>
         <datalist id={ROUND_TYPES_ID}>
           {ROUND_TYPES.map((t) => (
             <option key={t} value={t} />
@@ -723,7 +681,7 @@ export default function ApplicationDetail({
               application={application}
               event={event}
               name={eventName(event)}
-              current={i === history.length - 1}
+              current={!upcoming && i === history.length - 1}
               statuses={statuses}
               onChange={onChange}
             />
@@ -735,10 +693,10 @@ export default function ApplicationDetail({
               application={application}
               event={event}
               index={held.length + i}
+              current={upcoming && i === 0}
               onChange={onChange}
             />
           ))}
-          {!final && <AddEventForm application={application} statuses={statuses} onChange={onChange} />}
         </ol>
         {status?.key === OFFER_STATUS ? (
           <OfferBox
@@ -763,54 +721,8 @@ export default function ApplicationDetail({
         ) : final ? (
           <p className="muted app-final-hint">{status?.label} is final — remove that state to record new ones.</p>
         ) : null}
-      </section>
-
-      <aside className="app-aside">
-        <section className="app-section app-notes" aria-label="Notes">
-          <div className="app-section-head">
-            <h3>Notes</h3>
-            <div className="notes-switch" role="tablist" aria-label="Notes">
-              {tab('application', 'Application', !!application.notes)}
-              {tab('company', company ?? 'Company', !!companyNotes, companyId == null)}
-            </div>
-          </div>
-          {/* Both stay mounted so switching tabs keeps unsaved drafts. */}
-          <div hidden={notesTab !== 'application'}>
-            <NotesEditor
-              compact
-              label="Application notes"
-              value={application.notes}
-              placeholder="Notes about this application"
-              onSave={saveNotes}
-            />
-          </div>
-          {companyId != null && (
-            <div hidden={notesTab !== 'company'}>
-              <NotesEditor
-                compact
-                label="Company notes"
-                value={companyNotes ?? ''}
-                placeholder="Notes about this company (shared by all its applications)"
-                onSave={saveCompanyNotes}
-              />
-            </div>
-          )}
-        </section>
-
-        {technologies.length > 0 && (
-          <section className="app-section app-tech" aria-label="Technologies">
-            <h3>Technologies</h3>
-            <TechPills technologies={technologies} />
-          </section>
-        )}
-
-        <div className="app-danger-zone">
-          <button type="button" className="secondary small danger" onClick={remove} disabled={deleteAction.busy}>
-            <Trash2 size={14} aria-hidden="true" /> {deleteAction.busy ? 'Deleting…' : 'Delete application'}
-          </button>
-          {deleteAction.error && <span className="error">{deleteAction.error}</span>}
         </div>
-      </aside>
+      </section>
     </div>
   )
 }
