@@ -416,7 +416,8 @@ function PlannedEventRow({
   event: PlannedRound
   /** Position among all rounds (0-based). */
   index: number
-  /** The next round to be held: ringed, as in the interview card's stepper. */
+  /** The next round to be held (never once the application is final): ringed, as in the
+   * interview card's stepper, and the only round whose dot marks it as held. */
   current: boolean
   onChange: (application: Application) => void
 }) {
@@ -449,7 +450,8 @@ function PlannedEventRow({
 
   return (
     <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}${current ? ' is-current' : ''}`}>
-      {final ? (
+      {/* Only the next round to be held can be checked: rounds are held in order. */}
+      {!current ? (
         <span className="iv-step-dot" aria-hidden="true">
           {index + 1}
         </span>
