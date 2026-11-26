@@ -76,9 +76,9 @@
 }
 
 
-/* Status control (top right) and Details (bottom left) share one size. */
+/* Details and the status control (top right) share one size. */
 .iv-card-head-actions :is(.app-status-main, .app-status-more),
-.iv-card-status .iv-card-details {
+.iv-card-head-actions .iv-card-details {
   padding: 8px 10px 8px 14px;
   font-size: 14px;
   line-height: 1.2;
@@ -215,13 +215,6 @@
   .iv-stepper-wrap {
     flex: 1;
   }
-}
-
-.iv-card-status {
-  margin-top: auto;
-  display: flex;
-  justify-content: flex-start;
-
 }
 
 /* The stepper column follows the current step's height instead of setting it; longer lists scroll. */
