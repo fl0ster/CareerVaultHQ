@@ -372,9 +372,14 @@ function RoleGroup({ outcome, roles, intro }: { outcome: Outcome; roles: RoleRep
 
 // ------------------------------------------------------------------ dialog
 
-type Props = { cv: GeneratedCv; onClose: () => void }
+type Props = {
+  cv: GeneratedCv
+  onClose: () => void
+  /** Generates the CV again (closing the dialog); without it there is no such button. */
+  onRegenerate?: () => void
+}
 
-export default function CvPipelineDialog({ cv, onClose }: Props) {
+export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [pipeline, setPipeline] = useState<CvPipeline | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -432,9 +437,23 @@ export default function CvPipelineDialog({ cv, onClose }: Props) {
               </a>
             </div>
           </div>
-          <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
+          <div className="app-buttons">
+            {onRegenerate && (
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() => {
+                  onRegenerate()
+                  onClose()
+                }}
+              >
+                Generate again
+              </button>
+            )}
+            <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
+              ✕
+            </button>
+          </div>
         </div>
 
         {cv.headline_role && (

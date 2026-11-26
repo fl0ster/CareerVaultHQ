@@ -70,6 +70,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "interview_steps": "JSON",
         "technologies": "JSON",
         "salary": "JSON",
+        "work_mode": "VARCHAR(16)",
     },
     "candidate_details": {
         "photo": "TEXT NOT NULL DEFAULT ''",

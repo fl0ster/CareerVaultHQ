@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
-import type { GeneratedCv } from '../cv/api.ts'
-import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
 import { type Application, type ApplicationStatus } from './api.ts'
+import ApplicationCv from './ApplicationCv.tsx'
 import ApplicationDetail from './ApplicationDetail.tsx'
 import { type EvaluatedJobDetail, jobsApi } from '../jobs/api.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import '../jobs/jobs.css'
-import TechPills from '../jobs/TechPills.tsx'
 
 type Props = {
   application: Application
@@ -34,8 +32,6 @@ export default function ApplicationView({
   onBack,
   onRescored,
 }: Props) {
-  // "How it was generated" stays a popup over the view.
-  const [pipelineCv, setPipelineCv] = useState<GeneratedCv | null>(null)
   const { job, evaluation } = application
 
   // Technologies live on the job's parse result, which only the job detail carries.
@@ -57,7 +53,7 @@ export default function ApplicationView({
         <ArrowLeft size={15} aria-hidden="true" /> Back to applications
       </button>
       <div className="detail-card">
-        <div className="job-dialog-head">
+        <header className="job-dialog-head app-view-head">
           <div className="job-main">
             <div className="detail-title">
               {evaluation && (
@@ -70,6 +66,16 @@ export default function ApplicationView({
                 />
               )}
               <h2 id={`application-${application.id}`}>{job.title ?? 'Untitled job'}</h2>
+              <a
+                className="app-offer-link"
+                href={job.link}
+                target="_blank"
+                rel="noreferrer"
+                title={`Open the job offer: ${job.link}`}
+                aria-label="Open the job offer"
+              >
+                <ExternalLink size={16} aria-hidden="true" />
+              </a>
             </div>
             <div className="job-meta">
               {job.company && (
@@ -84,21 +90,19 @@ export default function ApplicationView({
               )}
             </div>
           </div>
-        </div>
-
-        <TechPills technologies={technologies} />
+          <ApplicationCv application={application} onChange={onChange} />
+        </header>
 
         <ApplicationDetail
           key={application.id}
           application={application}
           statuses={statuses}
+          technologies={technologies}
           onChange={onChange}
           onAccepted={onAccepted}
           onDelete={onDelete}
-          onShowPipeline={setPipelineCv}
         />
       </div>
-      {pipelineCv && <CvPipelineDialog key={pipelineCv.id} cv={pipelineCv} onClose={() => setPipelineCv(null)} />}
     </article>
   )
 }

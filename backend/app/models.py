@@ -203,6 +203,11 @@ class JobParseResult(Base):
     else ``app.tasks.scrape.salary.salary_from_text(description)``:
     ``{"min": 15000.0, "max": 20000.0, "currency": "PLN", "period": "month", "gross": True,
     "raw": "..."}`` (any value may be ``None``). ``None`` when no salary was found."""
+    work_mode: Mapped[str | None] = mapped_column(String(16))
+    """``"remote"``, ``"hybrid"`` or ``"office"`` (``app.tasks.scrape.work_mode.WORK_MODES``),
+    from the source's optional ``parse_work_mode`` hook or else
+    ``app.tasks.scrape.work_mode.work_mode_from_text(description)``. ``None`` when the page
+    does not say."""
     parsed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job: Mapped[Job] = relationship()

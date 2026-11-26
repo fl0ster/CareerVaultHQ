@@ -26,6 +26,8 @@ Optional:
 - ``fetch_description(url) -> str`` - when an API is better than HTML
 - ``parse_salary(html) -> dict | None`` - salary of a job page (see
   ``app.tasks.scrape.salary``); without it the parse task scans the parsed description
+- ``parse_work_mode(html) -> str | None`` - ``"remote"``, ``"hybrid"`` or ``"office"`` (see
+  ``app.tasks.scrape.work_mode``); without it the parse task scans the parsed description
 
 ``validate_source`` checks the contract and ``discover_sources`` reports every module with
 its import/contract problems, so a broken file shows up as an unhealthy source instead of
