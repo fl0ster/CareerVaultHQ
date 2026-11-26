@@ -64,9 +64,7 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
           </div>
         </div>
         <div className="iv-card-head-actions">
-          <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
-            Details <ChevronRight size={16} aria-hidden="true" />
-          </button>
+          <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
         </div>
       </header>
 
@@ -78,7 +76,9 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
             </div>
           )}
           <div className="iv-card-status">
-            <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
+            <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
+            Details <ChevronRight size={16} aria-hidden="true" />
+          </button>
           </div>
         </div>
         {current ? (
