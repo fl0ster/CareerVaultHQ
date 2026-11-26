@@ -592,6 +592,44 @@
   }
 }
 
+/* A planned round's dot is the "mark as held" button: on hover it fills in the interview colour
+   and its number turns into a check. */
+.app-detail button.app-dot-btn {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+
+  .app-dot-check {
+    display: none;
+  }
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border: 2px solid var(--warn-solid);
+    background: var(--warn-solid);
+    color: var(--on-strong);
+
+    .app-dot-num {
+      display: none;
+    }
+    .app-dot-check {
+      display: block;
+    }
+  }
+  &:disabled {
+    cursor: progress;
+  }
+}
+
 /* After the last held round: the step that records how the interviews ended. */
 .app-outcome-hint {
   font-weight: 500;
