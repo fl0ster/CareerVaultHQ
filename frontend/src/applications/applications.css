@@ -644,20 +644,6 @@
     opacity: 0;
   }
 
-  /* Hovering anywhere on the round hints that the dot checks it: a translucent check that
-     gently pulses in place of the number. */
-  .app-planned:hover &:not(:disabled, :hover, :focus-visible) {
-    border-color: var(--warn-solid);
-    color: var(--warn-fg);
-
-    .app-dot-num {
-      opacity: 0;
-    }
-    .app-dot-check {
-      animation: app-dot-hint 1.4s ease-in-out infinite;
-    }
-  }
-
   /* On the dot itself: filled, with a solid check. */
   &:hover:not(:disabled),
   &:focus-visible {
@@ -670,31 +656,10 @@
     }
     .app-dot-check {
       opacity: 1;
-      animation: none;
     }
   }
   &:disabled {
     cursor: progress;
-  }
-}
-
-@keyframes app-dot-hint {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.1);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .app-detail button.app-dot-btn .app-dot-check {
-    animation: none !important;
-  }
-  .app-detail .app-planned:hover button.app-dot-btn:not(:disabled, :hover, :focus-visible) .app-dot-check {
-    opacity: 0.5;
   }
 }
 
