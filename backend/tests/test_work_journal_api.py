@@ -1,7 +1,7 @@
 """``/api/work-history/{role_id}/journal``: logging notes and reading what was built from them."""
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Annotated
 
 import httpx
@@ -153,20 +153,21 @@ def test_refresh_without_an_api_key_is_503(client):
     assert client.post(f"{BASE}/{role['id']}/journal/refresh").status_code == 503
 
 
-def test_overdue_positions_in_the_list_and_the_menu(client, db_session):
+def test_overdue_positions_in_the_list_and_the_menu(client):
     role = _role(client)
     ended = _role(client, employer="Old", date_end="2024-06-30")
     assert client.get("/api/nav/counts").json()["journal_overdue"] == 0  # just added
 
-    note = client.post(f"{BASE}/{role['id']}/journal", json={"body": "Note"}).json()
-    row = db_session.get(WorkJournalEntry, note["id"])
-    row.created_at = datetime.now(UTC) - timedelta(days=8)
-    db_session.commit()
+    # A note added today but dated eight days ago does not count as this week's update.
+    eight_days_ago = (TODAY - timedelta(days=8)).isoformat()
+    client.post(f"{BASE}/{role['id']}/journal", json={"body": "Backfilled", "logged_on": eight_days_ago})
 
     entries = {e["id"]: e for e in client.get(BASE).json()}
-    assert entries[role["id"]]["journal_overdue"] and entries[role["id"]]["last_journal_at"]
+    assert entries[role["id"]]["journal_overdue"]
+    assert entries[role["id"]]["last_journal_on"] == eight_days_ago
     assert not entries[ended["id"]]["journal_overdue"] and entries[ended["id"]]["journal_count"] == 0
     assert client.get("/api/nav/counts").json()["journal_overdue"] == 1
 
     client.post(f"{BASE}/{role['id']}/journal", json={"body": "Fresh note"})
+    assert client.get(f"{BASE}/{role['id']}").json()["last_journal_on"] == TODAY.isoformat()
     assert client.get("/api/nav/counts").json()["journal_overdue"] == 0

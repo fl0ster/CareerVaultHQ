@@ -7,7 +7,7 @@ import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import './work-history.css'
-import { timeAgo, WORK_HISTORY_CHANGED, type WorkHistoryEntry, workHistoryApi } from './api.ts'
+import { daysAgo, WORK_HISTORY_CHANGED, type WorkHistoryEntry, workHistoryApi } from './api.ts'
 import JournalComposer from './JournalComposer.tsx'
 import JournalView from './JournalView.tsx'
 
@@ -27,11 +27,14 @@ function JournalStatus({ entry }: { entry: WorkHistoryEntry }) {
   return (
     <p className={`employment-journal-status${entry.journal_overdue ? ' overdue' : ''}`}>
       <Clock size={13} aria-hidden="true" />
-      {entry.last_journal_at ? (
+      {entry.last_journal_on ? (
         <span>
           Last journal entry{' '}
-          <time dateTime={entry.last_journal_at} title={new Date(entry.last_journal_at).toLocaleString()}>
-            {timeAgo(entry.last_journal_at)}
+          <time
+            dateTime={entry.last_journal_on}
+            title={new Date(`${entry.last_journal_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}
+          >
+            {daysAgo(entry.last_journal_on)}
           </time>
         </span>
       ) : (

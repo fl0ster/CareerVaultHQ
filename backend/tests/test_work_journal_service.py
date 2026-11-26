@@ -265,17 +265,20 @@ def test_cv_and_profile_use_the_effective_values(db_session):
 
 
 def test_overdue_current_positions(db_session):
-    now = datetime.now(UTC)
-    fresh = _role(db_session, created_at=now - timedelta(days=30))
-    _note(db_session, fresh, now.date(), "Today.")
-    stale = _role(db_session, created_at=now - timedelta(days=30))
-    old_note = _note(db_session, stale, now.date() - timedelta(days=8), "Last week.")
-    old_note.created_at = now - timedelta(days=8)
-    never = _role(db_session, created_at=now - timedelta(days=7, minutes=1))
-    _role(db_session, created_at=now - timedelta(days=1))  # just added: not yet
-    _role(db_session, created_at=now - timedelta(days=30), date_end=date(2025, 1, 1))  # ended
-    _role(db_session, created_at=now - timedelta(days=30), date_start=now.date() + timedelta(days=5))  # pending
-    _role(db_session, kind="education", created_at=now - timedelta(days=30))
-    db_session.commit()
+    today = date.today()
+    long_ago = datetime.now(UTC) - timedelta(days=30)
+    fresh = _role(db_session, created_at=long_ago)
+    _note(db_session, fresh, today - timedelta(days=6), "Within the week.")
+    stale = _role(db_session, created_at=long_ago)
+    _note(db_session, stale, today - timedelta(days=7), "A week ago.")
+    # Saved just now, but dated ten days ago: the day it is dated counts.
+    backfilled = _role(db_session, created_at=long_ago)
+    _note(db_session, backfilled, today - timedelta(days=10), "Backfilled.")
+    never = _role(db_session, created_at=datetime.now(UTC) - timedelta(days=8))
+    _role(db_session, created_at=datetime.now(UTC) - timedelta(days=1))  # just added: not yet
+    _role(db_session, created_at=long_ago, date_end=date(2025, 1, 1))  # ended
+    _role(db_session, created_at=long_ago, date_start=today + timedelta(days=5))  # pending
+    _role(db_session, kind="education", created_at=long_ago)
 
-    assert sorted(work_journal.overdue_role_ids(db_session, now)) == [stale.id, never.id]
+    assert sorted(work_journal.overdue_role_ids(db_session, today)) == sorted([stale.id, backfilled.id, never.id])
+    assert work_journal.activity(db_session, [backfilled.id])[backfilled.id].last_on == today - timedelta(days=10)

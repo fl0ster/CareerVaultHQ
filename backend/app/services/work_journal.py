@@ -22,8 +22,9 @@ in the notes are dropped; every generated text is checked by the decisions model
 (``JOURNAL_FAITHFUL``), retried once at temperature 0 when judged unfaithful and discarded
 (keeping the previous version) when it still is.
 
-A current position is *overdue* when its last note was logged ``OVERDUE_AFTER`` ago or more
-(with no notes yet: when it was added to the app that long ago).
+A current position is *overdue* when its latest note is dated (``logged_on``, not when it was
+saved) ``OVERDUE_AFTER`` or more ago (with no notes yet: when it was added to the app that long
+ago), so backfilled notes for past days do not hide a missing update for this week.
 """
 
 from __future__ import annotations
@@ -391,32 +392,25 @@ def refresh_stale_journals(session: Session, roles: Iterable[WorkHistoryEntry], 
 # --- Activity -------------------------------------------------------------------------------
 
 
-def _aware(value: datetime | None) -> datetime | None:
-    """SQLite drops the tzinfo of ``DateTime(timezone=True)``; the stored values are UTC."""
-    if value is not None and value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value
-
-
 @dataclass(frozen=True, slots=True)
 class JournalActivity:
     count: int
     """Notes in the journal."""
-    last_at: datetime | None
-    """When the latest note was logged."""
+    last_on: date | None
+    """The day of the latest note (its ``logged_on``, so a backfilled note counts for its own day)."""
 
 
 def activity(session: Session, role_ids: Iterable[int]) -> dict[int, JournalActivity]:
-    """Note count and time of the latest note per role (roles without notes are left out)."""
+    """Note count and day of the latest note per role (roles without notes are left out)."""
     ids = list(role_ids)
     if not ids:
         return {}
     rows = session.execute(
-        select(WorkJournalEntry.work_history_id, func.count(), func.max(WorkJournalEntry.created_at))
+        select(WorkJournalEntry.work_history_id, func.count(), func.max(WorkJournalEntry.logged_on))
         .where(WorkJournalEntry.work_history_id.in_(ids))
         .group_by(WorkJournalEntry.work_history_id)
     )
-    return {role_id: JournalActivity(count, _aware(last_at)) for role_id, count, last_at in rows}
+    return {role_id: JournalActivity(count, last_on) for role_id, count, last_on in rows}
 
 
 def is_current_position(role: WorkHistoryEntry, today: date | None = None) -> bool:
@@ -424,24 +418,26 @@ def is_current_position(role: WorkHistoryEntry, today: date | None = None) -> bo
     return role.kind == WorkHistoryEntry.KIND_JOB and role.date_end is None and role.date_start <= (today or date.today())
 
 
-def is_overdue(role: WorkHistoryEntry, last_at: datetime | None, now: datetime | None = None) -> bool:
-    """A current position whose last note (or, with none, its creation) is ``OVERDUE_AFTER`` old."""
-    now = now or datetime.now(UTC)
-    if not is_current_position(role, now.date()):
+def is_overdue(role: WorkHistoryEntry, last_on: date | None, today: date | None = None) -> bool:
+    """A current position whose latest note is dated ``OVERDUE_AFTER`` or more before ``today``
+    (with no notes: added to the app that long ago). The note's own day counts, not when it was
+    saved: backfilling last month does not cover this week."""
+    today = today or date.today()
+    if not is_current_position(role, today):
         return False
-    since = last_at or _aware(role.created_at) or now
-    return now - since >= OVERDUE_AFTER
+    since = last_on or (role.created_at.date() if role.created_at else today)
+    return today - since >= OVERDUE_AFTER
 
 
-def overdue_role_ids(session: Session, now: datetime | None = None) -> list[int]:
-    """Ids of the current positions without a journal note for ``OVERDUE_AFTER``."""
-    now = now or datetime.now(UTC)
+def overdue_role_ids(session: Session, today: date | None = None) -> list[int]:
+    """Ids of the current positions without a journal note dated within ``OVERDUE_AFTER``."""
+    today = today or date.today()
     roles = session.scalars(
         select(WorkHistoryEntry).where(
             WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB,
             WorkHistoryEntry.date_end.is_(None),
-            WorkHistoryEntry.date_start <= now.date(),
+            WorkHistoryEntry.date_start <= today,
         )
     ).all()
     stats = activity(session, [r.id for r in roles])
-    return [r.id for r in roles if is_overdue(r, stats[r.id].last_at if r.id in stats else None, now)]
+    return [r.id for r in roles if is_overdue(r, stats[r.id].last_on if r.id in stats else None, today)]

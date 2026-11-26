@@ -50,8 +50,8 @@ export type WorkHistoryEntry = {
   journal_tech: string[]
   /** Notes in the position's work journal. */
   journal_count: number
-  /** When the latest journal note was logged. */
-  last_journal_at: string | null
+  /** The day of the latest journal note (ISO date): the day it is dated, not when it was saved. */
+  last_journal_on: string | null
   /** A current position without a journal note for a week. */
   journal_overdue: boolean
 }
@@ -70,7 +70,7 @@ export type WorkHistoryInput = Omit<
   | 'journal_context'
   | 'journal_tech'
   | 'journal_count'
-  | 'last_journal_at'
+  | 'last_journal_on'
   | 'journal_overdue'
 >
 
@@ -215,9 +215,11 @@ export const journalApi = {
       .then(notifyChanged),
 }
 
-/** "today", "yesterday", "3 days ago", "2 weeks ago", "4 months ago". */
-export function timeAgo(iso: string, now: Date = new Date()): string {
-  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000)
+/** How long ago a day (ISO date, local) was: "today", "yesterday", "3 days ago", "2 weeks ago". */
+export function daysAgo(isoDate: string, now: Date = new Date()): string {
+  const day = new Date(`${isoDate}T00:00:00`)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000)
   const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
   if (days < 7) return rtf.format(-Math.max(days, 0), 'day')
   if (days < 31) return rtf.format(-Math.floor(days / 7), 'week')

@@ -16,7 +16,7 @@ saving such a position ends the previous role when it is still ongoing.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
@@ -81,8 +81,8 @@ class WorkHistoryOut(BaseModel):
     """The technologies from its work journal; used while ``tech`` is empty."""
     journal_count: int = 0
     """Notes in the position's work journal."""
-    last_journal_at: datetime | None = None
-    """When the latest journal note was logged."""
+    last_journal_on: date | None = None
+    """The day of the latest journal note (the day it is dated, not when it was saved)."""
     journal_overdue: bool = False
     """A current position without a journal note for a week."""
 
@@ -97,13 +97,13 @@ def _out(session: Session, entries: list[WorkHistoryEntry]) -> list[WorkHistoryO
     companies = resolve_career_companies(session, entries)
     previous = previous_role_ids(job_entries(session))
     journals = work_journal.activity(session, [e.id for e in entries if e.kind == WorkHistoryEntry.KIND_JOB])
-    now = datetime.now(UTC)
+    today = date.today()
     out = []
     for entry in entries:
         item = WorkHistoryOut.model_validate(entry)
         if (journal := journals.get(entry.id)) is not None:
-            item.journal_count, item.last_journal_at = journal.count, journal.last_at
-        item.journal_overdue = work_journal.is_overdue(entry, item.last_journal_at, now)
+            item.journal_count, item.last_journal_on = journal.count, journal.last_on
+        item.journal_overdue = work_journal.is_overdue(entry, item.last_journal_on, today)
         if (company := companies.get(entry.id)) is not None:
             item.company_id, item.company_tag = company.id, company.tag
         item.previous_role_id = previous.get(entry.id)
