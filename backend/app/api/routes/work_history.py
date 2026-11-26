@@ -138,9 +138,12 @@ def import_entries(
     session: Annotated[Session, Depends(get_session)],
     replace: bool = False,
 ) -> list[WorkHistoryOut]:
-    """Import a JSON array in the shape produced by ``GET /json``. Entries are appended;
-    pass ``?replace=true`` to drop the existing work history first. The whole import is
-    validated before anything is written, so a bad entry rejects the entire payload."""
+    """Import a JSON array in the shape produced by ``GET /json``. Entries are merged into
+    the existing work history: an entry already there (same kind, employer, role and start,
+    see ``_entry_key``) is skipped, so importing the same file twice adds nothing. Pass
+    ``?replace=true`` to drop the existing work history first. The whole import is
+    validated before anything is written, so a bad entry rejects the entire payload.
+    Returns the entries created (``[]`` when all of them were duplicates)."""
     if not payload:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "no entries to import")
     creates: list[WorkHistoryCreate] = []
@@ -152,12 +155,29 @@ def import_entries(
 
     if replace:
         session.execute(delete(WorkHistoryEntry))
-    entries = [WorkHistoryEntry(**c.model_dump()) for c in creates]
+        seen: set[tuple] = set()
+    else:
+        existing = session.execute(
+            select(WorkHistoryEntry.kind, WorkHistoryEntry.employer, WorkHistoryEntry.role, WorkHistoryEntry.date_start)
+        )
+        seen = {_entry_key(*row) for row in existing}
+    entries: list[WorkHistoryEntry] = []
+    for create in creates:
+        key = _entry_key(create.kind, create.employer, create.role, create.date_start)
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append(WorkHistoryEntry(**create.model_dump()))
     session.add_all(entries)
     session.commit()
     for entry in entries:
         session.refresh(entry)
     return _out(session, entries)
+
+
+def _entry_key(kind: str, employer: str, role: str, date_start: date) -> tuple[str, str, str, date]:
+    """What makes two entries the same one when merging an import."""
+    return kind, employer.strip().casefold(), role.strip().casefold(), date_start
 
 
 @router.post("", response_model=WorkHistoryOut, status_code=status.HTTP_201_CREATED)

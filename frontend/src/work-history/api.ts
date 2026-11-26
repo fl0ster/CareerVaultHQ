@@ -114,6 +114,8 @@ export const workHistoryApi = {
     fetch(`${API}/${id}`, { method: 'DELETE' })
       .then((r) => parse<void>(r))
       .then(notifyChanged),
+  exportJson: () => fetch(`${API}/json`).then((r) => parse<WorkHistoryExport[]>(r)),
+  /** Merges into the existing entries (duplicates skipped), or replaces them all; returns the entries created. */
   importJson: (items: WorkHistoryExport[], replace: boolean) =>
     fetch(`${API}/json?replace=${replace}`, {
       method: 'POST',

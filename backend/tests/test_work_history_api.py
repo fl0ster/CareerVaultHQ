@@ -128,10 +128,25 @@ def test_import_json_round_trips_export(client):
     # An import without ``kind`` is a job, without ``transition`` a new employment.
     assert exported == _import_payload(kind="job", transition=None)
 
-    # Export output can be imported again unchanged (appends).
+    # Export output can be imported again unchanged; merging skips the entry already there.
     res = client.post(f"{BASE}/json", json=exported)
     assert res.status_code == 201
-    assert len(client.get(BASE).json()) == 2
+    assert res.json() == []
+    assert len(client.get(BASE).json()) == 1
+
+
+def test_import_json_merge_skips_duplicates(client):
+    client.post(f"{BASE}/json", json=_import_payload())
+    # Same entry with different casing, a new one, and the new one repeated in the payload.
+    payload = (
+        _import_payload(employer=" ACME ", role="dev")
+        + _import_payload(employer="Globex")
+        + _import_payload(employer="Globex")
+    )
+    res = client.post(f"{BASE}/json", json=payload)
+    assert res.status_code == 201
+    assert [e["employer"] for e in res.json()] == ["Globex"]
+    assert sorted(e["employer"] for e in client.get(BASE).json()) == ["Acme", "Globex"]
 
 
 def test_import_json_replace(client):
