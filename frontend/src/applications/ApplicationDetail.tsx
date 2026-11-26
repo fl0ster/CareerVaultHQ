@@ -29,8 +29,8 @@ import {
   serverDate,
   toLocalInput,
 } from './api.ts'
-import ApplicationStatusControl from './ApplicationStatusControl.tsx'
-import SalaryWorkMode from './SalaryWorkMode.tsx'
+import Salary from './Salary.tsx'
+import WorkMode from './WorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
@@ -592,7 +592,6 @@ export default function ApplicationDetail({
   // As in the interview card: while rounds are planned the next one is the current step (ringed);
   // otherwise the latest recorded state is.
   const upcoming = !final && application.planned_events.length > 0
-  const [statusError, setStatusError] = useState<string | null>(null)
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
@@ -604,18 +603,8 @@ export default function ApplicationDetail({
   return (
     <div className="app-detail">
       <aside className="app-aside">
-        <section className="app-section app-current-status" aria-label="Status">
-          <ApplicationStatusControl
-            application={application}
-            statuses={statuses}
-            onChange={(updated) => {
-              setStatusError(null)
-              onChange(updated)
-            }}
-            onError={setStatusError}
-          />
-          {statusError && <p className="error">{statusError}</p>}
-        </section>
+        <Salary application={application} onChange={onChange} />
+        <WorkMode application={application} onChange={onChange} />
         <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
           <h3 id={`app-rounds-${application.id}`}>Interview rounds</h3>
           <InterviewPlan
@@ -624,7 +613,6 @@ export default function ApplicationDetail({
             onChange={onChange}
           />
         </section>
-        <SalaryWorkMode application={application} onChange={onChange} />
         {technologies.length > 0 && (
           <section className="app-section app-tech" aria-label="Technologies">
             <h3>Technologies</h3>

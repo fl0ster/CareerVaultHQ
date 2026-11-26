@@ -3,13 +3,11 @@ import { Pencil, Undo2 } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import {
   type Application,
-  type Salary,
+  type Salary as SalaryValue,
   type SalaryPeriod,
-  type WorkMode,
   applicationsApi,
   formatSalary,
   SALARY_PERIODS,
-  WORK_MODES,
 } from './api.ts'
 
 type Props = {
@@ -19,7 +17,7 @@ type Props = {
 
 type Draft = { min: string; max: string; currency: string; period: string; gross: string }
 
-const toDraft = (s: Salary | null): Draft => ({
+const toDraft = (s: SalaryValue | null): Draft => ({
   min: s?.min != null ? String(s.min) : '',
   max: s?.max != null ? String(s.max) : '',
   currency: s?.currency ?? '',
@@ -27,7 +25,7 @@ const toDraft = (s: Salary | null): Draft => ({
   gross: s?.gross == null ? '' : s.gross ? 'gross' : 'net',
 })
 
-const fromDraft = (d: Draft): Salary => ({
+const fromDraft = (d: Draft): SalaryValue => ({
   min: d.min.trim() ? Number(d.min) : null,
   max: d.max.trim() ? Number(d.max) : null,
   currency: d.currency.trim().toUpperCase() || null,
@@ -35,23 +33,21 @@ const fromDraft = (d: Draft): Salary => ({
   gross: d.gross ? d.gross === 'gross' : null,
 })
 
-/** The job's salary and work mode as parsed from its page, each of which can be overridden
- * for this application (and reset back to the parsed value). */
-export default function SalaryWorkMode({ application, onChange }: Props) {
+/** The job's salary as parsed from its page, which can be overridden for this application
+ * (and reset back to the parsed value). */
+export default function Salary({ application, onChange }: Props) {
   const { parsed_salary: parsedSalary, salary_override: salaryOverride } = application
-  const { parsed_work_mode: parsedMode, work_mode_override: modeOverride } = application
   const salary = salaryOverride ?? parsedSalary
-  const mode = modeOverride ?? parsedMode
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Draft>(() => toDraft(salary))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const save = async (changes: Parameters<typeof applicationsApi.setOverrides>[1]) => {
+  const save = async (salary_override: SalaryValue | null) => {
     setBusy(true)
     setError(null)
     try {
-      onChange(await applicationsApi.setOverrides(application.id, changes))
+      onChange(await applicationsApi.setOverrides(application.id, { salary_override }))
       return true
     } catch (e) {
       setError(describeError(e))
@@ -66,12 +62,7 @@ export default function SalaryWorkMode({ application, onChange }: Props) {
     setEditing(true)
   }
   const saveSalary = async () => {
-    if (await save({ salary_override: fromDraft(draft) })) setEditing(false)
-  }
-  // Picking the parsed mode again drops the override instead of copying it.
-  const pickMode = (key: WorkMode) => {
-    if (key === mode) return
-    void save({ work_mode_override: key === parsedMode ? null : key })
+    if (await save(fromDraft(draft))) setEditing(false)
   }
 
   const min = Number(draft.min)
@@ -87,23 +78,11 @@ export default function SalaryWorkMode({ application, onChange }: Props) {
     onChange: (e: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: e.target.value })),
     disabled: busy,
   })
-
-  const reset = (label: string, onClick: () => void, original: string) => (
-    <button
-      type="button"
-      className="app-icon-btn"
-      onClick={onClick}
-      disabled={busy}
-      title={`Back to the parsed ${label}${original ? `: ${original}` : ' (none)'}`}
-      aria-label={`Back to the parsed ${label}`}
-    >
-      <Undo2 size={14} aria-hidden="true" />
-    </button>
-  )
+  const original = formatSalary(parsedSalary)
 
   return (
-    <section className="app-section app-pay" aria-labelledby={`app-pay-${application.id}`}>
-      <h3 id={`app-pay-${application.id}`}>Salary &amp; work mode</h3>
+    <section className="app-section app-pay" aria-labelledby={`app-salary-${application.id}`}>
+      <h3 id={`app-salary-${application.id}`}>Salary</h3>
 
       {editing ? (
         <div className="app-salary-form">
@@ -151,7 +130,7 @@ export default function SalaryWorkMode({ application, onChange }: Props) {
             className={salary && formatSalary(salary) ? 'app-salary' : 'app-salary muted'}
             title={parsedSalary?.raw && !salaryOverride ? `Parsed from: ${parsedSalary.raw}` : undefined}
           >
-            {formatSalary(salary) || 'Salary not stated'}
+            {formatSalary(salary) || 'Unknown'}
           </span>
           {salaryOverride && <span className="app-edited">edited</span>}
           <span className="app-pay-actions">
@@ -165,39 +144,21 @@ export default function SalaryWorkMode({ application, onChange }: Props) {
             >
               <Pencil size={14} aria-hidden="true" />
             </button>
-            {salaryOverride &&
-              reset('salary', () => void save({ salary_override: null }), formatSalary(parsedSalary))}
+            {salaryOverride && (
+              <button
+                type="button"
+                className="app-icon-btn"
+                onClick={() => void save(null)}
+                disabled={busy}
+                title={`Back to the parsed salary${original ? `: ${original}` : ' (none)'}`}
+                aria-label="Back to the parsed salary"
+              >
+                <Undo2 size={14} aria-hidden="true" />
+              </button>
+            )}
           </span>
         </div>
       )}
-
-      <div className="app-pay-row">
-        <div className="app-work-mode" role="radiogroup" aria-label="Work mode">
-          {WORK_MODES.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              role="radio"
-              aria-checked={mode === m.key}
-              onClick={() => pickMode(m.key)}
-              disabled={busy}
-              title={m.key === parsedMode ? `${m.label} (parsed from the job)` : m.label}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        {modeOverride && (
-          <span className="app-pay-actions">
-            {reset(
-              'work mode',
-              () => void save({ work_mode_override: null }),
-              WORK_MODES.find((m) => m.key === parsedMode)?.label ?? '',
-            )}
-          </span>
-        )}
-      </div>
-      {!mode && <p className="muted app-pay-hint">Work mode not stated.</p>}
       {error && <p className="error">{error}</p>}
     </section>
   )
