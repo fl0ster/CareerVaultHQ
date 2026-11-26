@@ -324,6 +324,8 @@ function EventRow({
             ) : (
               <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
                 {pickableStatuses(statuses)
+                  // Rounds come only from the round count, so no other state turns into one.
+                  .filter((s) => s.key !== INTERVIEW_STATUS)
                   .filter(
                     (s) =>
                       s.key !== APPLIED_STATUS ||
