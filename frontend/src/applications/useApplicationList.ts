@@ -4,6 +4,8 @@ import {
   APPLICATIONS_CHANGED,
   type Application,
   type ApplicationStatus,
+  ACCEPTED_STATUS,
+  DECLINED_STATUS,
   OFFER_STATUS,
   applicationsApi,
   notifyApplicationsChanged,
@@ -196,7 +198,10 @@ export function useApplicationList({
 
   const replace = (updated: Application) => {
     const before = selected?.id === updated.id ? selected : applications?.find((a) => a.id === updated.id)
-    if (updated.status?.key === OFFER_STATUS && before?.status?.key !== OFFER_STATUS) {
+    // Only moving forward into the offer stage celebrates; undoing a decline/accept
+    // (back to OFFER) does not.
+    const prior = before?.status?.key
+    if (updated.status?.key === OFFER_STATUS && prior !== OFFER_STATUS && prior !== DECLINED_STATUS && prior !== ACCEPTED_STATUS) {
       setCelebrations((n) => n + 1)
     }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
