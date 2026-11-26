@@ -9,7 +9,9 @@ requested after the notes changed, never on a schedule):
   ``source_hash`` it was built from;
 * the position's ``journal_context`` (a CV-style description built from the monthly
   summaries) and ``journal_tech`` (the summaries' technologies, most frequent first). They are
-  stale when the summaries no longer hash to ``journal_hash``.
+  stale when the summaries no longer hash to ``journal_hash``. A description that fails the
+  truthfulness check is not retried until the summaries change: ``journal_failed_hash``
+  remembers the summaries it failed for.
 
 ``WorkHistoryEntry.effective_context`` / ``effective_tech`` use them only while the user's
 own ``context`` / ``tech`` are blank: a user edit is never overwritten, and clearing it brings
@@ -48,7 +50,10 @@ log = logging.getLogger(__name__)
 OVERDUE_AFTER = timedelta(days=7)
 """A current position without a journal note for this long is flagged on the Employment tab."""
 FAITHFUL_THRESHOLD = 0.5
-"""Minimum probability (``JOURNAL_FAITHFUL``) that a generated text is supported by its source."""
+"""Minimum probability (``JOURNAL_FAITHFUL``) that a monthly summary is supported by its notes."""
+CONTEXT_FAITHFUL_THRESHOLD = 0.3
+"""The same for the role description, checked against the monthly summaries. Lower: condensing
+several months into a few sentences is often judged too strictly."""
 MAX_SUMMARY_CHARS = 2000
 MAX_CONTEXT_CHARS = 2000
 MAX_ACCOMPLISHMENTS = 8
@@ -161,7 +166,8 @@ def is_stale(role: WorkHistoryEntry) -> bool:
     months_with_notes = {month_of(n.logged_on) for n in role.journal_entries}
     if stale_months(role) or any(m.month not in months_with_notes for m in role.journal_months):
         return True
-    return role.journal_hash != months_hash(role.journal_months)
+    current = months_hash(role.journal_months)
+    return current != role.journal_hash and current != role.journal_failed_hash
 
 
 # --- Reply parsing and truthfulness guards --------------------------------------------------
@@ -213,13 +219,15 @@ def parse_month_reply(reply: str, notes_text: str) -> dict[str, Any]:
     }
 
 
-def is_faithful(service: OpenRouterService, source: object, generated: object) -> bool:
+def is_faithful(
+    service: OpenRouterService, source: object, generated: object, threshold: float = FAITHFUL_THRESHOLD
+) -> bool:
     probability = service.decide(
         state={"source": source, "generated": generated},
         questions=FAITHFUL_QUESTIONS,
         call=llm_calls.JOURNAL_FAITHFUL,
     ).noul(FAITHFUL_QUESTION)
-    if probability < FAITHFUL_THRESHOLD:
+    if probability < threshold:
         log.info("Discarded a journal text judged unfaithful (%.2f): %r", probability, generated)
         return False
     return True
@@ -296,7 +304,7 @@ def build_role_context(service: OpenRouterService, role: WorkHistoryEntry, month
     for temperature in (0.3, 0.0):
         reply = service.chat(prompt, system=CONTEXT_SYSTEM, temperature=temperature, call=llm_calls.JOURNAL_ROLE_CONTEXT)
         text = " ".join(reply.text.split())[:MAX_CONTEXT_CHARS]
-        if text and is_faithful(service, log_data, text):
+        if text and is_faithful(service, log_data, text, CONTEXT_FAITHFUL_THRESHOLD):
             return text
     return None
 
@@ -342,9 +350,12 @@ def refresh_journal(session: Session, role: WorkHistoryEntry, service: OpenRoute
     target_hash = months_hash(months)
     if target_hash != role.journal_hash:
         if target_hash is None:
-            role.journal_context = role.journal_tech = role.journal_hash = None
+            role.journal_context = role.journal_tech = role.journal_hash = role.journal_failed_hash = None
         else:
             role.journal_tech = aggregate_tech(months)
+        # These very summaries already gave a description that failed the truthfulness check:
+        # not retried until they change.
+        if target_hash is not None and target_hash != role.journal_failed_hash:
             try:
                 context = build_role_context(service, role, months)
             except OpenRouterNotConfigured:
@@ -354,9 +365,14 @@ def refresh_journal(session: Session, role: WorkHistoryEntry, service: OpenRoute
                 warnings.append(f"The description could not be rebuilt from your journal right now ({exc}).")
             else:
                 if context is None:
-                    warnings.append("No description built from your journal passed the truthfulness check.")
+                    role.journal_failed_hash = target_hash
+                    warnings.append(
+                        "No description built from your journal passed the truthfulness check; "
+                        "it will be tried again once your notes change."
+                    )
                 else:
                     role.journal_context, role.journal_hash = context, target_hash
+                    role.journal_failed_hash = None
     session.commit()
     return warnings
 

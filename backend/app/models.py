@@ -335,6 +335,9 @@ class WorkHistoryEntry(Base):
     wherever ``tech`` is empty."""
     journal_hash: Mapped[str | None] = mapped_column(String(64))
     """Hash of the monthly summaries ``journal_context`` was built from (stale when it differs)."""
+    journal_failed_hash: Mapped[str | None] = mapped_column(String(64))
+    """Hash of the monthly summaries whose description failed the truthfulness check: it is not
+    retried until the summaries change."""
 
     application: Mapped[Application | None] = relationship(back_populates="work_entry")
     journal_entries: Mapped[list[WorkJournalEntry]] = relationship(

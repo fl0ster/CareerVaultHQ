@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Pencil, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, Pencil, ShieldAlert, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import '../jobs/jobs.css'
 import { pageHref } from '../shell/nav.ts'
@@ -228,6 +228,14 @@ export default function JournalView({ role, onBack }: { role: WorkHistoryEntry; 
               <li key={w}>{w}</li>
             ))}
           </ul>
+        )}
+
+        {journal?.context_failed && !refreshing && journal.warnings.length === 0 && (
+          <p className="journal-hint muted">
+            <ShieldAlert size={13} aria-hidden="true" /> The role description built from these notes did not pass the
+            truthfulness check{journal.journal_context ? ', so the previous one is kept' : ''}. It will be tried again
+            once your notes change.
+          </p>
         )}
 
         {journal && journal.entries.length === 0 && (

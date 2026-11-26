@@ -154,16 +154,46 @@ def test_an_unfaithful_retry_that_passes_is_used(db_session, llm):
     assert role.journal_months[0].summary == MONTH_REPLY["summary"]
 
 
-def test_an_unfaithful_description_is_not_saved(db_session, llm):
+def test_an_unfaithful_description_is_not_saved_nor_retried_until_the_summaries_change(db_session, llm):
     role = _role(db_session)
     _note(db_session, role, date(2026, 11, 2), "Python work.")
     llm["faithful"] = [0.9, 0.1, 0.1]
     warnings = work_journal.refresh_journal(db_session, role, llm["service"])
-    assert warnings == ["No description built from your journal passed the truthfulness check."]
+    assert warnings == [
+        "No description built from your journal passed the truthfulness check; "
+        "it will be tried again once your notes change."
+    ]
     assert role.journal_context is None and role.journal_hash is None
+    assert role.journal_failed_hash == work_journal.months_hash(role.journal_months)
     # The technologies need no LLM, so they are saved anyway.
     assert role.journal_tech == ["Python"]
-    assert work_journal.is_stale(role)
+
+    # Nothing changed: not stale, and a refresh (e.g. by a CV generation) makes no call.
+    assert not work_journal.is_stale(role)
+    llm["calls"].clear()
+    assert work_journal.refresh_journal(db_session, role, llm["service"]) == []
+    assert llm["calls"] == []
+
+    # New notes that change the month's summary: the description is tried again.
+    _note(db_session, role, date(2026, 11, 9), "More Python work.")
+    llm["month"] = MONTH_REPLY | {"summary": "Built more of the queue in Python."}
+    assert work_journal.refresh_journal(db_session, role, llm["service"]) == []
+    assert _kinds(llm) == ["month", "faithful", "context", "faithful"]
+    assert role.journal_context == CONTEXT_REPLY and role.journal_failed_hash is None
+
+
+def test_the_description_check_is_more_lenient_than_the_month_check(db_session, llm):
+    role = _role(db_session)
+    _note(db_session, role, date(2026, 11, 2), "Python work.")
+    between = (work_journal.CONTEXT_FAITHFUL_THRESHOLD + work_journal.FAITHFUL_THRESHOLD) / 2
+    # The month summary at that score is rejected twice; the description is accepted.
+    llm["faithful"] = [between, between]
+    work_journal.refresh_journal(db_session, role, llm["service"])
+    assert role.journal_months == []
+
+    llm["faithful"] = [0.9, between]
+    assert work_journal.refresh_journal(db_session, role, llm["service"]) == []
+    assert role.journal_context == CONTEXT_REPLY
 
 
 def test_a_failing_model_is_a_warning(db_session, llm):

@@ -176,6 +176,8 @@ export type Journal = {
   context_overridden: boolean
   /** The user's own technologies are used instead of `journal_tech`. */
   tech_overridden: boolean
+  /** The description could not be built truthfully from the current summaries; tried again once the notes change. */
+  context_failed: boolean
   /** Something needs regenerating: call `refresh`. */
   stale: boolean
   /** What a refresh could not regenerate (the previous version is kept). */

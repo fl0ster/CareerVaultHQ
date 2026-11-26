@@ -64,6 +64,9 @@ class JournalOut(BaseModel):
     """The user wrote their own description, which is used instead of ``journal_context``."""
     tech_overridden: bool
     """The user set their own technologies, which are used instead of ``journal_tech``."""
+    context_failed: bool
+    """The description could not be built truthfully from the current summaries; it is tried
+    again once the notes change."""
     stale: bool
     """Something needs regenerating: call ``POST .../refresh``."""
     warnings: list[str] = []
@@ -145,6 +148,8 @@ def _journal(role: WorkHistoryEntry, warnings: list[str] | None = None) -> Journ
         journal_tech=list(role.journal_tech or []),
         context_overridden=bool((role.context or "").strip()),
         tech_overridden=bool(role.tech),
+        context_failed=role.journal_failed_hash is not None
+        and role.journal_failed_hash == work_journal.months_hash(role.journal_months),
         stale=work_journal.is_stale(role),
         warnings=warnings or [],
     )
