@@ -84,8 +84,8 @@
   }
 }
 
-/* Application view: header (title, offer link, CV), then a narrow column with the interview
-   round count and the job's technologies on the left, the status history beside it. */
+/* Application view: header (title, offer link, CV), then a narrow column with the status pill,
+   the interview round count and the job's technologies on the left, the status history beside it. */
 .app-view-head {
   align-items: center;
   padding-bottom: 16px;
@@ -246,10 +246,15 @@
 
 /* Technologies: quiet, small pills in the left column. */
 .app-tech,
-.app-rounds {
+.app-rounds,
+.app-current-status {
   h3 {
     margin-bottom: 8px;
   }
+}
+.app-current-status .error {
+  margin: 6px 0 0;
+  font-size: 13px;
 }
 .app-tech {
   .job-tech {

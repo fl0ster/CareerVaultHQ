@@ -29,6 +29,7 @@ import {
   serverDate,
   toLocalInput,
 } from './api.ts'
+import ApplicationStatusControl from './ApplicationStatusControl.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
@@ -566,13 +567,14 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the interview round count and the job's technologies in a
- * narrow column on the left, the status history as a vertical stepper beside it. */
+/** Body of the application view: the status pill, the interview round count and the job's
+ * technologies in a narrow column on the left, the status history as a vertical stepper beside it. */
 export default function ApplicationDetail({ application, statuses, technologies, onChange, onAccepted }: Props) {
   const held = heldRounds(application)
   const history = historyEvents(application)
   const status = application.status
   const final = isFinalStatus(status)
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
@@ -584,6 +586,19 @@ export default function ApplicationDetail({ application, statuses, technologies,
   return (
     <div className="app-detail">
       <aside className="app-aside">
+        <section className="app-section app-current-status" aria-labelledby={`app-status-${application.id}`}>
+          <h3 id={`app-status-${application.id}`}>Status</h3>
+          <ApplicationStatusControl
+            application={application}
+            statuses={statuses}
+            onChange={(updated) => {
+              setStatusError(null)
+              onChange(updated)
+            }}
+            onError={setStatusError}
+          />
+          {statusError && <p className="error">{statusError}</p>}
+        </section>
         <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
           <h3 id={`app-rounds-${application.id}`}>Interview rounds</h3>
           <InterviewPlan
