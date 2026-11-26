@@ -14,11 +14,13 @@ import {
   isFinalStatus,
   ACCEPTED_STATUS,
   APPLIED_STATUS,
+  CLOSED_STATUS,
   DECLINED_STATUS,
   INITIAL_ONLY_STATUS,
   INTERVIEW_STATUS,
   MAX_INTERVIEW_ROUNDS,
   OFFER_STATUS,
+  REJECTED_STATUS,
   pickableStatuses,
   applicationsApi,
   formatDay,
@@ -519,7 +521,7 @@ function PlannedEventRow({
 }
 
 /** The states that can end the interview stage, in the order offered. */
-const OUTCOME_STATUSES = [OFFER_STATUS, 'REJECTED', 'CLOSED']
+const OUTCOME_STATUSES = [OFFER_STATUS, REJECTED_STATUS, CLOSED_STATUS]
 
 /** After the last round is held: a closing step with a dashed dot whose buttons record how the
  * interviews ended (Offer / Rejected / Closed). */

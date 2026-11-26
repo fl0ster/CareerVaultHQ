@@ -285,6 +285,16 @@ export const INITIAL_ONLY_STATUS = 'SHORTLISTED'
 /** Recorded at most once, and only straight after `INITIAL_ONLY_STATUS`. */
 export const APPLIED_STATUS = 'APPLIED'
 
+/** State of interview rounds; every one is a round, planned rounds always have it. */
+export const INTERVIEW_STATUS = 'INTERVIEW'
+export const OFFER_STATUS = 'OFFER'
+
+/** The company turned the application down. */
+export const REJECTED_STATUS = 'REJECTED'
+
+/** The application was closed (final, like a rejection). */
+export const CLOSED_STATUS = 'CLOSED'
+
 /** The offer was accepted; only set by `applicationsApi.accept`, never picked as a state. */
 export const ACCEPTED_STATUS = 'ACCEPTED'
 
@@ -309,14 +319,17 @@ export const pickableStatuses = (statuses: ApplicationStatus[], current?: string
   )
 
 /** Terminal states: while one is current no new state can be added (removing it reopens). */
-export const FINAL_STATUSES: readonly string[] = ['OFFER', 'ACCEPTED', 'DECLINED', 'REJECTED', 'CLOSED']
+export const FINAL_STATUSES: readonly string[] = [
+  OFFER_STATUS,
+  ACCEPTED_STATUS,
+  DECLINED_STATUS,
+  REJECTED_STATUS,
+  CLOSED_STATUS,
+]
 
 export const isFinalStatus = (status: ApplicationStatus | null | undefined) =>
   status != null && FINAL_STATUSES.includes(status.key)
 
-/** State of interview rounds; every one is a round, planned rounds always have it. */
-export const INTERVIEW_STATUS = 'INTERVIEW'
-export const OFFER_STATUS = 'OFFER'
 
 export const MAX_INTERVIEW_ROUNDS = 20
 
