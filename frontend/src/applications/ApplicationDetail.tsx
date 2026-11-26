@@ -80,6 +80,9 @@ const ROUND_TYPES = [
 ]
 const ROUND_TYPES_ID = 'interview-round-types'
 
+/** Outcomes recordable in one click (Accepted / Declined follow from an offer). */
+const OUTCOME_STATUSES = [OFFER_STATUS, 'REJECTED', 'CLOSED']
+
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240]
 
 function DurationSelect({
@@ -573,6 +576,59 @@ function OfferBox({
   )
 }
 
+/** Quick outcome: one click records Offer / Rejected / Closed; on an offer, accepting or
+ * declining it; once final, the outcome itself. */
+function Outcome({
+  application,
+  statuses,
+  onChange,
+  onAccepted,
+}: {
+  application: Application
+  statuses: ApplicationStatus[]
+  onChange: (application: Application) => void
+  onAccepted: (application: Application) => void
+}) {
+  const { busy, error, run } = useAction()
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+  const status = application.status
+  const record = async (s: ApplicationStatus) => {
+    if (!window.confirm(`Mark the application as "${s.label}"?`)) return
+    const updated = await run(() => applicationsApi.addEvent(application.id, { status: s.key }))
+    if (updated) onChange(updated)
+  }
+  const choices = statuses.filter((s) => OUTCOME_STATUSES.includes(s.key))
+
+  return (
+    <section className="app-section app-outcome" aria-labelledby={`app-outcome-${application.id}`}>
+      <h3 id={`app-outcome-${application.id}`}>Outcome</h3>
+      {status?.key === OFFER_STATUS ? (
+        <div className="app-buttons">
+          <AcceptOfferButton application={application} label="Accept" onAccepted={onAccepted} onError={setAcceptError} />
+          <DeclineOfferButton application={application} label="Decline" onDeclined={onChange} />
+        </div>
+      ) : isFinalStatus(status) && status ? (
+        <StatusBadge status={status} />
+      ) : (
+        <div className="app-buttons">
+          {choices.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`secondary small ${stepTone(s.key)}`}
+              onClick={() => void record(s)}
+              disabled={busy}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {(error || acceptError) && <p className="error">{error ?? acceptError}</p>}
+    </section>
+  )
+}
+
 /** Body of the application view: the status pill, the interview round count, salary & work
  * mode and the job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
  * or the job description, switched by tabs, plus a Link tab that opens the offer. */
@@ -603,6 +659,7 @@ export default function ApplicationDetail({
   return (
     <div className="app-detail">
       <aside className="app-aside">
+        <Outcome application={application} statuses={statuses} onChange={onChange} onAccepted={onAccepted} />
         <Salary application={application} onChange={onChange} />
         <WorkMode application={application} onChange={onChange} />
         <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
