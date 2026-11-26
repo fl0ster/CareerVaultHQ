@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { FileDown, FilePlus, FileX, Info } from 'lucide-react'
-import { cvApi, describeError, isInProgress } from '../cv/api.ts'
-import CvPipelineDialog from '../cv/CvPipelineDialog.tsx'
+import { useEffect, useState } from 'react'
+import { FileDown, FilePlus, FileX, RefreshCw } from 'lucide-react'
+import { type GeneratedCv, cvApi, describeError, isInProgress } from '../cv/api.ts'
 import { type Application, applicationsApi } from './api.ts'
 
 type Props = {
@@ -9,14 +8,34 @@ type Props = {
   onChange: (application: Application) => void
 }
 
-/** The application's CV as one icon: downloads it when ready, spins while it is generated,
- * generates one when there is none (or the last attempt failed). The info button beside it
- * opens how it was generated (a popup, which can also generate it again). */
+const formatCreated = (cv: GeneratedCv) =>
+  new Date(cv.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+/** The CV section of the application's left column: downloads the latest CV (or generates
+ * one when there is none or the last attempt failed, spinning meanwhile), generates a new one,
+ * and lists the earlier finished CVs of the job for download. */
 export default function ApplicationCv({ application, onChange }: Props) {
   const [busy, setBusy] = useState(false)
-  const [showPipeline, setShowPipeline] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Earlier finished CVs of the job, newest first (`undefined` while loading). */
+  const [earlier, setEarlier] = useState<GeneratedCv[] | undefined>(undefined)
+  const [showEarlier, setShowEarlier] = useState(false)
   const cv = application.cv
+  const generating = busy || (cv != null && isInProgress(cv))
+
+  const jobId = application.job.id
+  const latestId = cv?.id ?? null
+  useEffect(() => {
+    const controller = new AbortController()
+    cvApi
+      .list({ job_id: jobId, limit: 100 }, controller.signal)
+      .then((page) => setEarlier(page.items.filter((c) => c.id !== latestId && c.status === 'finished')))
+      .catch(() => {
+        // Optional extra: without it only the latest CV is offered.
+        if (!controller.signal.aborted) setEarlier([])
+      })
+    return () => controller.abort()
+  }, [jobId, latestId])
 
   const generate = async () => {
     setBusy(true)
@@ -31,7 +50,7 @@ export default function ApplicationCv({ application, onChange }: Props) {
   }
 
   let main
-  if (busy || (cv && isInProgress(cv))) {
+  if (generating) {
     main = (
       <span className="app-cv-main generating" role="status" title="Generating the CV…">
         <span className="spinner" aria-hidden="true" />
@@ -40,9 +59,9 @@ export default function ApplicationCv({ application, onChange }: Props) {
     )
   } else if (cv?.status === 'finished') {
     main = (
-      <a className="app-cv-main ready" href={cvApi.pdfUrl(cv.id)} download title={`Download CV #${cv.id} (PDF)`}>
-        <FileDown size={18} aria-hidden="true" />
-        <span className="app-cv-text">CV</span>
+      <a className="app-cv-main ready" href={cvApi.pdfUrl(cv.id)} download title="Download the latest CV (PDF)">
+        <FileDown size={16} aria-hidden="true" />
+        <span className="app-cv-text">Download latest</span>
       </a>
     )
   } else {
@@ -54,38 +73,56 @@ export default function ApplicationCv({ application, onChange }: Props) {
         onClick={generate}
         title={failed ? `CV generation failed${cv?.error ? `: ${cv.error}` : ''}. Click to try again.` : 'Generate a CV for this job'}
       >
-        {failed ? <FileX size={18} aria-hidden="true" /> : <FilePlus size={18} aria-hidden="true" />}
+        {failed ? <FileX size={16} aria-hidden="true" /> : <FilePlus size={16} aria-hidden="true" />}
         <span className="app-cv-text">{failed ? 'Retry CV' : 'Generate CV'}</span>
       </button>
     )
   }
 
-  const details = cv && !busy && !isInProgress(cv)
   return (
-    <div className="app-cv">
+    <section className="app-section app-cv" aria-labelledby={`app-cv-${application.id}`}>
+      <h3 id={`app-cv-${application.id}`}>CV</h3>
       <div className="app-cv-control">
         {main}
-        {details && (
+        {cv?.status === 'finished' && !generating && (
           <button
             type="button"
             className="app-cv-info"
-            onClick={() => setShowPipeline(true)}
-            title="How it was generated"
-            aria-label="How the CV was generated"
+            onClick={generate}
+            title="Generate a new CV"
+            aria-label="Generate a new CV"
           >
-            <Info size={16} aria-hidden="true" />
+            <RefreshCw size={14} aria-hidden="true" />
           </button>
         )}
       </div>
-      {error && <p className="error app-cv-error">{error}</p>}
-      {showPipeline && cv && (
-        <CvPipelineDialog
-          key={cv.id}
-          cv={cv}
-          onClose={() => setShowPipeline(false)}
-          onRegenerate={() => void generate()}
-        />
+      {cv?.status === 'finished' && cv.finished_at && (
+        <span className="muted app-cv-date">{formatCreated(cv)}</span>
       )}
-    </div>
+      {earlier && earlier.length > 0 && (
+        <div className="app-cv-earlier">
+          <button
+            type="button"
+            className="app-cv-toggle"
+            aria-expanded={showEarlier}
+            onClick={() => setShowEarlier((v) => !v)}
+          >
+            {showEarlier ? 'Hide earlier versions' : `Earlier versions (${earlier.length})`}
+          </button>
+          {showEarlier && (
+            <ul>
+              {earlier.map((c) => (
+                <li key={c.id}>
+                  <a href={cvApi.pdfUrl(c.id)} download title={`Download CV #${c.id} (PDF)`}>
+                    <FileDown size={13} aria-hidden="true" /> {formatCreated(c)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {error && <p className="error app-cv-error">{error}</p>}
+    </section>
   )
 }

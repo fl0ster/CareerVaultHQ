@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { type Application, type ApplicationStatus } from './api.ts'
-import ApplicationCv from './ApplicationCv.tsx'
+import ApplicationStatusControl from './ApplicationStatusControl.tsx'
 import ApplicationDetail from './ApplicationDetail.tsx'
 import { type EvaluatedJobDetail, jobsApi } from '../jobs/api.ts'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
@@ -31,6 +31,7 @@ export default function ApplicationView({
   onRescored,
 }: Props) {
   const { job, evaluation } = application
+  const [statusError, setStatusError] = useState<string | null>(null)
 
   // Technologies and the parsed description live on the job's parse result, which only the
   // job detail carries. `undefined`: still loading; `null`: no description (or it failed).
@@ -84,8 +85,16 @@ export default function ApplicationView({
               )}
             </div>
           </div>
-          <ApplicationCv application={application} onChange={onChange} />
+          <div className="app-badges app-view-status">
+            <ApplicationStatusControl
+              application={application}
+              statuses={statuses}
+              onChange={onChange}
+              onError={setStatusError}
+            />
+          </div>
         </header>
+        {statusError && <p className="error">{statusError}</p>}
 
         <ApplicationDetail
           key={application.id}

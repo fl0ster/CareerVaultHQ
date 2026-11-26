@@ -29,6 +29,7 @@ import {
   serverDate,
   toLocalInput,
 } from './api.ts'
+import ApplicationCv from './ApplicationCv.tsx'
 import Salary from './Salary.tsx'
 import WorkMode from './WorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
@@ -573,8 +574,8 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the status pill, the interview round count, salary & work
- * mode and the job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
+/** Body of the application view: the CV, salary & work mode, the interview round count and the
+ * job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
  * or the job description, switched by tabs, plus a Link tab that opens the offer. */
 export default function ApplicationDetail({
   application,
@@ -603,6 +604,7 @@ export default function ApplicationDetail({
   return (
     <div className="app-detail">
       <aside className="app-aside">
+        <ApplicationCv application={application} onChange={onChange} />
         <Salary application={application} onChange={onChange} />
         <WorkMode application={application} onChange={onChange} />
         <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
