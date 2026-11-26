@@ -374,6 +374,21 @@ class OpenRouterCall(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OfferComparison(Base):
+    """The LLM's comparison of the open offers (``app.services.offer_comparison``), kept
+    until the offers it compared change. ``fingerprint`` hashes everything the prompt was
+    built from, so an unchanged set of offers is answered from here."""
+
+    __tablename__ = "offer_comparisons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    result: Mapped[dict] = mapped_column(JSON)
+    """``{"top_pick_id", "top_pick_reason", "offers": [{"application_id", "highlights", "watch_out"}]}``."""
+    openrouter_call_id: Mapped[int | None] = mapped_column(ForeignKey("openrouter_calls.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class JobEvaluation(Base):
     """How well a parsed job (``job_parse_results``) matches a ``CandidateProfile``, as
     judged by the OpenRouter decisions API (``app.tasks.evaluate``). One row per

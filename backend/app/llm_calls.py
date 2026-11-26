@@ -143,6 +143,16 @@ JOB_SCORE_EXPLANATION = ChatCall(
     used_in="app.services.score_explanation",
 )
 
+# --- Offers ---------------------------------------------------------------------------------
+
+OFFER_COMPARISON = ChatCall(
+    key="offer_comparison",
+    source="api.applications.offer_comparison",
+    model=DEFAULT_CHAT_MODEL,
+    purpose="Compare the open offers: each one's best and unique points, a trade-off and the top pick.",
+    used_in="app.services.offer_comparison",
+)
+
 # --- Work history ---------------------------------------------------------------------------
 
 WORK_HISTORY_PREFILL = ChatCall(
@@ -273,6 +283,7 @@ ALL_CALLS: tuple[LlmCall, ...] = (
     PARSE_TECHNOLOGIES,
     JOB_EVALUATION,
     JOB_SCORE_EXPLANATION,
+    OFFER_COMPARISON,
     WORK_HISTORY_PREFILL,
     GMAIL_REJECTION,
     MAIL_COMPANY_AND_ROLE,

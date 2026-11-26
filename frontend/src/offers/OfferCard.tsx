@@ -1,13 +1,25 @@
-import { CalendarDays, ChevronRight } from 'lucide-react'
-import { type Application, type ApplicationStatus, OFFER_STATUS, formatDay } from '../applications/api.ts'
+import { Award, CalendarDays, ChevronRight } from 'lucide-react'
+import {
+  type Application,
+  type ApplicationStatus,
+  type OfferHints as Hints,
+  OFFER_STATUS,
+  formatDay,
+} from '../applications/api.ts'
 import ApplicationStatusControl from '../applications/ApplicationStatusControl.tsx'
 import InterviewProgress from '../applications/InterviewProgress.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from '../applications/OfferActions.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import OfferHints from './OfferHints.tsx'
 
 type Props = {
   application: Application
   statuses: ApplicationStatus[]
+  /** AI comparison hints for this offer, once known. */
+  hints?: Hints
+  hintsLoading?: boolean
+  /** Set when the AI comparison picked this offer as the best fit: why. */
+  topPick?: { reason: string | null } | null
   onOpen: (id: number) => void
   onOpenCompany: (id: number) => void
   onAccepted: (updated: Application) => void
@@ -20,6 +32,9 @@ type Props = {
 export default function OfferCard({
   application: a,
   statuses,
+  hints,
+  hintsLoading = false,
+  topPick = null,
   onOpen,
   onOpenCompany,
   onAccepted,
@@ -30,7 +45,7 @@ export default function OfferCard({
   const isOffer = a.status?.key === OFFER_STATUS
 
   return (
-    <article className="iv-card offer-card">
+    <article className={topPick ? 'iv-card offer-card top-pick' : 'iv-card offer-card'}>
       <header className="iv-card-head">
         <div className="iv-card-title">
           <button type="button" className="iv-card-job" onClick={() => onOpen(a.id)}>
@@ -46,6 +61,12 @@ export default function OfferCard({
               />
             )}
             <InterviewProgress application={a} compact />
+            {topPick && (
+              <span className="badge offer-top-pick" title={topPick.reason ?? 'The best fit of your offers'}>
+                <Award size={13} aria-hidden="true" />
+                Top pick
+              </span>
+            )}
           </div>
         </div>
         <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
@@ -61,6 +82,8 @@ export default function OfferCard({
           <span className="muted">Start date not agreed yet</span>
         )}
       </p>
+
+      {isOffer && <OfferHints hints={hints} loading={hintsLoading} />}
 
       {/* The decision sits at the bottom of every card, so it is plain there is one to make. */}
       <footer className="offer-card-decision">

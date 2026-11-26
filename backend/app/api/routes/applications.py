@@ -36,12 +36,17 @@
   ``DECLINED``. Like ``ACCEPTED`` it cannot be added or switched to/from any other way
   (``422``); removing it reopens the offer.
 * ``POST /api/applications/{id}/cv`` generates the CV again.
+* ``POST /api/applications/offer-comparison`` compares every application in ``OFFER`` with the
+  chat model: per offer a few highlights (``best`` of all offers, ``unique`` to it, or a general
+  ``strength``), one ``watch_out`` trade-off, and the ``top_pick_id``. Stored until the offers
+  change (``?refresh=true`` makes a new one); ``503`` without OpenRouter, ``502`` when it fails.
 * ``GET /api/applications/statuses`` lists the available states;
   ``POST /api/applications/statuses`` adds a custom one.
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
@@ -95,9 +100,13 @@ from app.services.applications import (
 )
 from app.services.candidate_profile import current_profile_ids
 from app.services.evaluations import newest_evaluations
+from app.services.offer_comparison import compare_offers
+from app.services.openrouter import OpenRouterError, OpenRouterNotConfigured, OpenRouterService, get_openrouter
 from app.services.relevance import relevance
 from app.tasks.parse.enrich import enqueue_enrichment
 from app.tasks.work_history import enqueue_prefill
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -228,6 +237,30 @@ class AcceptOffer(BaseModel):
 class DeclineOffer(BaseModel):
     note: str = ""
     """Why the offer was declined (the note of the ``DECLINED`` state)."""
+
+
+class OfferHintOut(BaseModel):
+    kind: Literal["best", "unique", "strength"]
+    """``best``: better than every other offer on this point; ``unique``: only this offer
+    has it; ``strength``: good in general (nothing to compare against)."""
+    text: str
+
+
+class OfferHintsOut(BaseModel):
+    application_id: int
+    highlights: list[OfferHintOut]
+    watch_out: str | None = None
+    """The trade-off most worth weighing before accepting."""
+
+
+class OfferComparisonOut(BaseModel):
+    top_pick_id: int | None = None
+    """The application whose offer fits the candidate best (``None`` with a single offer)."""
+    top_pick_reason: str | None = None
+    offers: list[OfferHintsOut]
+    """One entry per application in ``OFFER``, oldest first."""
+    generated_at: datetime | None = None
+    """When the stored comparison was made; ``None`` when there are no offers."""
 
 
 def _to_utc(value: datetime | None) -> datetime | None:
@@ -521,6 +554,26 @@ def list_applications(
         limit=limit,
         has_more=offset + len(page) < len(applications),
     )
+
+
+@router.post("/offer-comparison", response_model=OfferComparisonOut)
+def compare_open_offers(
+    session: Annotated[Session, Depends(get_session)],
+    service: Annotated[OpenRouterService, Depends(get_openrouter)],
+    refresh: bool = False,
+) -> OfferComparisonOut:
+    """Hints comparing the open offers, for their cards on the Offers page. Generated with the
+    chat model when the offers (or their notes) changed since the stored comparison, or with
+    ``refresh``; otherwise answered from it. 503 when OpenRouter is not configured and 502
+    when the call fails."""
+    try:
+        result = compare_offers(session, service, refresh=refresh)
+    except OpenRouterNotConfigured as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except OpenRouterError as exc:
+        log.warning("Comparing the offers failed: %s", exc)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not compare the offers: {exc}") from exc
+    return OfferComparisonOut.model_validate(result)
 
 
 @router.get("/{application_id}", response_model=ApplicationOut)

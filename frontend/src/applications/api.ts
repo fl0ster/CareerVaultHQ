@@ -141,6 +141,27 @@ export function fromLocalInput(value: string): string | undefined {
   return value ? new Date(value).toISOString() : undefined
 }
 
+/** One point an offer stands out on: `best` beats every other offer on it, `unique` only this
+ * offer has, `strength` is good in general (nothing to compare it with). */
+export type OfferHint = { kind: 'best' | 'unique' | 'strength'; text: string }
+
+/** The LLM's hints for one offer's card. */
+export type OfferHints = {
+  application_id: number
+  highlights: OfferHint[]
+  /** The trade-off most worth weighing before accepting. */
+  watch_out: string | null
+}
+
+/** The LLM's side-by-side comparison of every open offer. */
+export type OfferComparison = {
+  /** The offer that fits best; null with a single offer or too little to tell. */
+  top_pick_id: number | null
+  top_pick_reason: string | null
+  offers: OfferHints[]
+  generated_at: string | null
+}
+
 async function parse<T>(res: Response): Promise<T> {
   if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T
   let message = `HTTP ${res.status}`
@@ -221,6 +242,12 @@ export const applicationsApi = {
       .then((r) => parse<Application>(r))
       .then(changed),
   remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)).then(changed),
+  /** The LLM comparison of the open offers: the stored one while the offers are unchanged,
+   * otherwise (or with `refresh`) a new one. */
+  compareOffers: (refresh = false, signal?: AbortSignal) =>
+    fetch(`${API}/offer-comparison${refresh ? '?refresh=true' : ''}`, { method: 'POST', signal }).then((r) =>
+      parse<OfferComparison>(r),
+    ),
   regenerateCv: (id: number) => fetch(`${API}/${id}/cv`, { method: 'POST' }).then((r) => parse<Application>(r)),
   addEvent: (id: number, event: EventInput) =>
     fetch(`${API}/${id}/events`, json('POST', event)).then((r) => parse<Application>(r)).then(changed),

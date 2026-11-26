@@ -40,6 +40,10 @@
 # kind: chat | used in: app.services.score_explanation
 # job_score_explanation = "openai/gpt-4o-mini"
 
+# Compare the open offers: each one's best and unique points, a trade-off and the top pick.
+# kind: chat | used in: app.services.offer_comparison
+# offer_comparison = "openai/gpt-4o-mini"
+
 # Prefill a new work history entry (description, technologies) from the accepted job's
 # description.
 # kind: chat | used in: app.tasks.work_history.prefill
