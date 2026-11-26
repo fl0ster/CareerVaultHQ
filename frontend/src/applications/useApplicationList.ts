@@ -4,8 +4,9 @@ import {
   APPLICATIONS_CHANGED,
   type Application,
   type ApplicationStatus,
-  OFFER_STATUS,
+  ACCEPTED_STATUS,
   DECLINED_STATUS,
+  OFFER_STATUS,
   applicationsApi,
   notifyApplicationsChanged,
 } from './api.ts'
