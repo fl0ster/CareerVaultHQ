@@ -592,6 +592,60 @@
   }
 }
 
+/* After the last held round: the step that records how the interviews ended. */
+.app-outcome-hint {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.app-outcome-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* Soft pills in the colour of the state each one records; filled on hover. */
+.app-detail button.app-outcome-btn {
+  --tone-bg: var(--neutral-bg);
+  --tone-fg: var(--neutral-fg);
+  --tone-solid: var(--neutral-solid);
+  margin: 0;
+  padding: 4px 14px;
+  border: 1px solid color-mix(in srgb, var(--tone-solid) 45%, transparent);
+  border-radius: 999px;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+
+  &.tone-offer {
+    --tone-bg: var(--success-bg);
+    --tone-fg: var(--success-fg);
+    --tone-solid: var(--success-solid);
+  }
+  &.tone-rejected {
+    --tone-bg: var(--danger-bg);
+    --tone-fg: var(--danger-fg);
+    --tone-solid: var(--danger-solid);
+  }
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-color: var(--tone-solid);
+    background: var(--tone-solid);
+    color: var(--on-strong);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
 .app-round-fields {
   margin-top: 6px;
 

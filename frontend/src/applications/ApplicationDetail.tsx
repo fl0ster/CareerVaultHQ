@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { Check, ExternalLink, Pencil, Trash2, Undo2 } from 'lucide-react'
+import { Check, ExternalLink, Flag, Pencil, Trash2, Undo2 } from 'lucide-react'
 import { describeError, isInProgress } from '../cv/api.ts'
 import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
 import '../cv/cv.css'
@@ -453,6 +453,59 @@ function PlannedEventRow({
   )
 }
 
+/** The states that can end the interview stage, in the order offered. */
+const OUTCOME_STATUSES = [OFFER_STATUS, 'REJECTED', 'CLOSED']
+
+/** After the last round is held: a closing step with a dashed dot whose buttons record how the
+ * interviews ended (Offer / Rejected / Closed). */
+function OutcomeRow({
+  application,
+  statuses,
+  onChange,
+}: {
+  application: Application
+  statuses: ApplicationStatus[]
+  onChange: (application: Application) => void
+}) {
+  const { busy, error, run } = useAction()
+  const options = OUTCOME_STATUSES.flatMap((key) => statuses.filter((s) => s.key === key))
+  if (options.length === 0) return null
+
+  const pick = async (key: string) => {
+    const updated = await run(() => applicationsApi.addEvent(application.id, { status: key }))
+    if (updated) onChange(updated)
+  }
+
+  return (
+    <li className="iv-step is-upcoming app-outcome">
+      <span className="iv-step-dot" aria-hidden="true">
+        <Flag size={12} strokeWidth={2.5} />
+      </span>
+      <div className="app-step-body">
+        <div className="app-step-head">
+          <span className="iv-step-name">
+            Outcome <span className="app-outcome-hint">· all rounds done</span>
+          </span>
+        </div>
+        <div className="app-outcome-choices" role="group" aria-label="Record the outcome">
+          {options.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`app-outcome-btn ${stepTone(s.key)}`}
+              onClick={() => void pick(s.key)}
+              disabled={busy}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        {error && <p className="error">{error}</p>}
+      </div>
+    </li>
+  )
+}
+
 /** Number of interview rounds (held + planned): −/+ stepper around an editable count. */
 function InterviewPlan({
   application,
@@ -596,6 +649,13 @@ export default function ApplicationDetail({
   // As in the interview card: while rounds are planned the next one is the current step (ringed);
   // otherwise the latest recorded state is.
   const upcoming = !final && application.planned_events.length > 0
+  // Every round held (none left planned) and the latest state is one of them: time to record how
+  // the interviews ended.
+  const roundsDone =
+    status?.key === INTERVIEW_STATUS &&
+    held.length > 0 &&
+    application.planned_events.length === 0 &&
+    history[history.length - 1] === held[held.length - 1]
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
@@ -704,6 +764,7 @@ export default function ApplicationDetail({
               onChange={onChange}
             />
           ))}
+          {roundsDone && <OutcomeRow application={application} statuses={statuses} onChange={onChange} />}
         </ol>
         {status?.key === OFFER_STATUS ? (
           <OfferBox
