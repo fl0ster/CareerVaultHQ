@@ -84,8 +84,8 @@
   }
 }
 
-/* Application view: header (title, offer link, CV), then a narrow column with the job's
-   technologies on the left and the status history beside it. */
+/* Application view: header (title, offer link, CV), then a narrow column with the interview
+   round count and the job's technologies on the left, the status history beside it. */
 .app-view-head {
   align-items: center;
   padding-bottom: 16px;
@@ -176,18 +176,13 @@
 
 .app-detail {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
   align-items: start;
   gap: 20px;
   margin-top: 20px;
 
-  &.has-aside {
-    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
-  }
   @media (max-width: 900px) {
-    &.has-aside {
-      grid-template-columns: 1fr;
-    }
+    grid-template-columns: 1fr;
   }
 
   textarea,
@@ -250,10 +245,13 @@
 }
 
 /* Technologies: quiet, small pills in the left column. */
-.app-tech {
+.app-tech,
+.app-rounds {
   h3 {
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
+}
+.app-tech {
   .job-tech {
     gap: 4px;
     margin: 0;

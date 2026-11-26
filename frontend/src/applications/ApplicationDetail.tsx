@@ -468,7 +468,6 @@ function InterviewPlan({
 
   return (
     <div className="app-plan">
-      <span className="muted">Interview rounds</span>
       <span className="app-stepper">
         <button
           type="button"
@@ -639,8 +638,8 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the job's technologies in a narrow column on the left, the
- * status history as a vertical stepper beside it. */
+/** Body of the application view: the interview round count and the job's technologies in a
+ * narrow column on the left, the status history as a vertical stepper beside it. */
 export default function ApplicationDetail({ application, statuses, technologies, onChange, onAccepted }: Props) {
   const held = heldRounds(application)
   const history = historyEvents(application)
@@ -655,24 +654,27 @@ export default function ApplicationDetail({ application, statuses, technologies,
   }
 
   return (
-    <div className={`app-detail${technologies.length > 0 ? ' has-aside' : ''}`}>
-      {technologies.length > 0 && (
-        <aside className="app-aside">
-          <section className="app-section app-tech" aria-label="Technologies">
-            <h3>Technologies</h3>
-            <TechPills technologies={technologies} />
-          </section>
-        </aside>
-      )}
-
-      <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
-        <div className="app-section-head">
-          <h3 id={`app-history-${application.id}`}>Status history</h3>
+    <div className="app-detail">
+      <aside className="app-aside">
+        <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
+          <h3 id={`app-rounds-${application.id}`}>Interview rounds</h3>
           <InterviewPlan
             key={held.length + application.planned_events.length}
             application={application}
             onChange={onChange}
           />
+        </section>
+        {technologies.length > 0 && (
+          <section className="app-section app-tech" aria-label="Technologies">
+            <h3>Technologies</h3>
+            <TechPills technologies={technologies} />
+          </section>
+        )}
+      </aside>
+
+      <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
+        <div className="app-section-head">
+          <h3 id={`app-history-${application.id}`}>Status history</h3>
         </div>
         <datalist id={ROUND_TYPES_ID}>
           {ROUND_TYPES.map((t) => (
