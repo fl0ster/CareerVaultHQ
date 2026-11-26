@@ -9,6 +9,8 @@ export type NavCounts = {
   offers: number
   /** Entries in the work history (My Career). */
   work_history: number
+  /** Positions held now (started, no end date). */
+  employment: number
 }
 
 export const navApi = {

@@ -9,6 +9,7 @@ evaluations, the Gmail monitor) as well as those made in the UI.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -38,6 +39,8 @@ class NavCounts(BaseModel):
     """Applications whose current state is ``OFFER``."""
     work_history: int
     """Entries in the work history (positions, education, certificates)."""
+    employment: int
+    """Positions held now: started, with no end date."""
 
 
 @router.get("/counts", response_model=NavCounts)
@@ -52,4 +55,14 @@ def nav_counts(
         interviews=stages.get(INTERVIEW_STATUS, 0),
         offers=stages.get(OFFER_STATUS, 0),
         work_history=session.scalar(select(func.count()).select_from(WorkHistoryEntry)) or 0,
+        employment=session.scalar(
+            select(func.count())
+            .select_from(WorkHistoryEntry)
+            .where(
+                WorkHistoryEntry.kind == WorkHistoryEntry.KIND_JOB,
+                WorkHistoryEntry.date_end.is_(None),
+                WorkHistoryEntry.date_start <= date.today(),
+            )
+        )
+        or 0,
     )
