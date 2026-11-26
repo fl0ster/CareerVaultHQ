@@ -375,8 +375,6 @@ function RoleGroup({ outcome, roles, intro }: { outcome: Outcome; roles: RoleRep
 type Props = {
   cv: GeneratedCv
   onClose: () => void
-  /** Generates the CV again (closing the dialog); without it there is no such button. */
-  onRegenerate?: () => void
 }
 
 /** What the generation of `cv` did: the summary, cost, how each role scored and where it ended
@@ -548,7 +546,7 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
   )
 }
 
-export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
+export default function CvPipelineDialog({ cv, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
 
   // No close() on cleanup: unmounting removes the dialog anyway, and in dev StrictMode the
@@ -581,18 +579,6 @@ export default function CvPipelineDialog({ cv, onClose, onRegenerate }: Props) {
             </div>
           </div>
           <div className="app-buttons">
-            {onRegenerate && (
-              <button
-                type="button"
-                className="secondary small"
-                onClick={() => {
-                  onRegenerate()
-                  onClose()
-                }}
-              >
-                Generate again
-              </button>
-            )}
             <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
               ✕
             </button>
