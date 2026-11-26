@@ -359,6 +359,7 @@ function PlannedEventRow({
   onChange: (application: Application) => void
 }) {
   const [title, setTitle] = useState(event.title)
+  const [renaming, setRenaming] = useState(false)
   const [note, setNote] = useState(event.note)
   const [when, setWhen] = useState(event.occurred_at ? toLocalInput(event.occurred_at) : '')
   const { busy, error, run } = useAction()
@@ -372,8 +373,14 @@ function PlannedEventRow({
   }
 
   const saveTitle = () => {
+    setRenaming(false)
     if (title.trim() !== event.title) void save({ title: title.trim() })
   }
+  const cancelRename = () => {
+    setTitle(event.title)
+    setRenaming(false)
+  }
+  const defaultName = `Round ${index + 1}`
   const saveNote = () => {
     if (note !== event.note) void save({ note })
   }
@@ -411,7 +418,36 @@ function PlannedEventRow({
       <div className="app-step-body">
         <div className="app-step-head">
           <span className="iv-step-name">
-            Round {index + 1} <span className="app-round-label">· {final ? 'not held' : 'planned'}</span>
+            {renaming ? (
+              <input
+                type="text"
+                className="app-round-name-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={saveTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveTitle()
+                  else if (e.key === 'Escape') cancelRename()
+                }}
+                list={ROUND_TYPES_ID}
+                placeholder={defaultName}
+                aria-label={`${defaultName}: name`}
+                maxLength={128}
+                autoFocus
+              />
+            ) : (
+              // The name (the custom one, or "Round N") is clicked to rename the round.
+              <button
+                type="button"
+                className="app-round-name"
+                onClick={() => setRenaming(true)}
+                disabled={busy}
+                title="Click to rename (e.g. Technical); leave empty for the default name"
+              >
+                {event.title || defaultName}
+              </button>
+            )}{' '}
+            <span className="app-round-label">· {final ? 'not held' : 'planned'}</span>
           </span>
           <span className="app-step-actions">
             <IconButton label="Remove this round from the plan" onClick={remove} disabled={busy} danger>
@@ -420,18 +456,6 @@ function PlannedEventRow({
           </span>
         </div>
         <div className="app-form-row app-round-fields">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-            list={ROUND_TYPES_ID}
-            placeholder="Kind of round (e.g. Technical)"
-            aria-label={`Round ${index + 1}: kind`}
-            maxLength={128}
-            disabled={busy}
-          />
           <DurationSelect
             value={event.duration_minutes}
             onChange={(minutes) => void save({ duration_minutes: minutes })}

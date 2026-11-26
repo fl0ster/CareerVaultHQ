@@ -592,6 +592,31 @@
   }
 }
 
+/* A planned round's name reads as plain text; a dotted underline on hover hints it can be
+   clicked to rename the round, which swaps it for an input of the same size. */
+.app-detail button.app-round-name {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-bottom-color: var(--text);
+  }
+}
+.app-detail input.app-round-name-input {
+  width: 18ch;
+  margin: 0;
+  padding: 1px 6px;
+  font: inherit;
+}
+
 /* A planned round's dot is the "mark as held" button: on hover it fills in the interview colour
    and its number turns into a check. */
 .app-detail button.app-dot-btn {
