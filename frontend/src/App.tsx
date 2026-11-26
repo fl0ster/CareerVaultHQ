@@ -7,6 +7,7 @@ import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
+import EmploymentPage from './work-history/EmploymentPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
@@ -58,11 +59,14 @@ function App() {
     ...(counts?.applications ? [] : (['applications'] as const)),
     ...(counts?.interviews ? [] : (['interviews'] as const)),
     ...(counts?.offers ? [] : (['offers'] as const)),
+    // Employment only while a position is held now.
+    ...(counts?.employment ? [] : (['employment'] as const)),
   ]
 
   // The Applications / Interviews / Offers list emptied out: fall back to Applications, or Jobs when there are none.
   const stageEmpty = counts != null && route.detail === null && hiddenPages.includes(page)
-  const fallbackPage: PageId = counts?.applications ? 'applications' : 'jobs'
+  const fallbackPage: PageId =
+    page === 'employment' ? 'work-history' : counts?.applications ? 'applications' : 'jobs'
   useEffect(() => {
     if (stageEmpty) window.location.hash = pageHref(fallbackPage)
   }, [stageEmpty, fallbackPage])
@@ -175,6 +179,8 @@ function App() {
             onCrumbsChange={onCareerCrumbs}
           />
         )
+      case 'employment':
+        return <EmploymentPage />
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from tests.test_applications_api import BASE, seed_cv_inputs, seed_evaluation
 from tests.test_jobs_api import seed_evaluated
@@ -13,6 +13,7 @@ def test_counts_are_zero_on_an_empty_database(client):
         "interviews": 0,
         "offers": 0,
         "work_history": 0,
+        "employment": 0,
     }
 
 
@@ -78,3 +79,23 @@ def test_work_history_count(client):
 
     client.delete(f"/api/work-history/{created.json()['id']}")
     assert client.get(URL).json()["work_history"] == 0
+
+
+def test_employment_counts_current_started_positions(client):
+    today = date.today()
+    for start, end, kind in (
+        (today - timedelta(days=30), None, "job"),  # current
+        (today - timedelta(days=90), today - timedelta(days=60), "job"),  # ended
+        (today + timedelta(days=10), None, "job"),  # not started yet
+        (today - timedelta(days=30), None, "education"),  # not a position
+    ):
+        entry = {
+            "kind": kind,
+            "date_start": start.isoformat(),
+            "date_end": end and end.isoformat(),
+            "employer": "Acme",
+            "role": "Engineer",
+            "tech": [],
+        }
+        assert client.post("/api/work-history", json=entry).status_code == 201
+    assert client.get(URL).json()["employment"] == 1

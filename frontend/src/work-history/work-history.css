@@ -1261,3 +1261,18 @@
     transition: none;
   }
 }
+
+/* Employment: the positions held now, on interview-style cards. */
+.employment-role {
+  margin: 0;
+  font-family: var(--heading);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+.employment-since {
+  margin: 0;
+  font-size: 14px;
+}

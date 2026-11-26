@@ -1,5 +1,6 @@
 import {
   Building2,
+  BadgeCheck,
   BriefcaseBusiness,
   CalendarClock,
   Coins,
@@ -23,6 +24,7 @@ export type PageId =
   | 'jobs'
   | 'candidate-profile'
   | 'work-history'
+  | 'employment'
   | 'sources'
   | 'generated-cv'
   | 'gmail'
@@ -103,7 +105,15 @@ export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
 /** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
+  [
+    {
+      id: 'employment',
+      label: 'Employment',
+      icon: BadgeCheck,
+      description: 'The positions you hold now.',
+    },
+    { id: 'work-history', label: 'My Career', icon: BriefcaseBusiness },
+  ],
   [
     { id: 'jobs', label: 'Jobs', icon: Inbox },
     { id: 'applications', label: 'Applications', icon: Send },
