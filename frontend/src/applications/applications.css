@@ -512,15 +512,15 @@
 
 .app-step-body {
   min-width: 0;
-  padding-top: 2px;
   line-height: 1.35;
 }
 
+/* As tall as the dot, so the name sits on the dot's centre line. */
 .app-step-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 22px;
+  min-height: var(--iv-dot, 24px);
 }
 
 /* Edit / remove show up on hover (always on touch screens). */
@@ -528,6 +528,8 @@
   display: inline-flex;
   gap: 2px;
   margin-left: auto;
+  /* The 26px buttons may overhang the 24px head instead of making it taller. */
+  margin-block: -1px;
   opacity: 0;
   transition: opacity 0.12s;
 
@@ -589,6 +591,91 @@
   .app-round-label {
     color: var(--text);
     text-decoration: line-through;
+  }
+}
+
+/* A planned round's name reads as plain text; a dotted underline on hover hints it can be
+   clicked to rename the round, which swaps it for an input of the same size. */
+.app-detail button.app-round-name {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: text;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border-bottom-color: var(--text);
+  }
+}
+.app-detail input.app-round-name-input {
+  width: 18ch;
+  margin: 0;
+  padding: 1px 6px;
+  font: inherit;
+}
+
+/* A planned round's dot is the "mark as held" button: on hover it fills in the interview colour
+   and its number turns into a check. */
+.app-detail button.app-dot-btn {
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+
+  /* The number and the check share the dot; only one shows at a time. */
+  .app-dot-num,
+  .app-dot-check {
+    grid-area: 1 / 1;
+    transition: opacity 0.15s;
+  }
+  .app-dot-check {
+    opacity: 0;
+  }
+
+  /* Hovering anywhere on the round hints that the dot checks it: a translucent check in place
+     of the number. */
+  .app-planned:hover &:not(:disabled, :hover, :focus-visible) {
+    border-color: var(--warn-solid);
+    color: var(--warn-fg);
+
+    .app-dot-num {
+      opacity: 0;
+    }
+    .app-dot-check {
+      opacity: 0.5;
+    }
+  }
+
+  /* On the dot itself: filled, with a solid check. */
+  &:hover:not(:disabled),
+  &:focus-visible {
+    border: 2px solid var(--warn-solid);
+    background: var(--warn-solid);
+    color: var(--on-strong);
+
+    .app-dot-num {
+      opacity: 0;
+    }
+    .app-dot-check {
+      opacity: 1;
+    }
+  }
+  &:disabled {
+    cursor: progress;
   }
 }
 
@@ -745,9 +832,9 @@
   font-size: 12px;
 
   .interview-progress-seg {
-    width: 12px;
-    height: 6px;
-    border-radius: 3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
   }
 }
 
