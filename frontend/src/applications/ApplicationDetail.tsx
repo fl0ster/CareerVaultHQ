@@ -390,20 +390,30 @@ function PlannedEventRow({
 
   return (
     <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}${current ? ' is-current' : ''}`}>
-      <span className="iv-step-dot" aria-hidden="true">
-        {index + 1}
-      </span>
+      {final ? (
+        <span className="iv-step-dot" aria-hidden="true">
+          {index + 1}
+        </span>
+      ) : (
+        // The dot itself marks the round as held: its number turns into a check on hover.
+        <button
+          type="button"
+          className="iv-step-dot app-dot-btn"
+          onClick={() => void save({ planned: false })}
+          disabled={busy}
+          title="Mark as held"
+          aria-label={`Mark round ${index + 1} as held`}
+        >
+          <span className="app-dot-num">{index + 1}</span>
+          <Check className="app-dot-check" size={12} strokeWidth={3} aria-hidden="true" />
+        </button>
+      )}
       <div className="app-step-body">
         <div className="app-step-head">
           <span className="iv-step-name">
             Round {index + 1} <span className="app-round-label">· {final ? 'not held' : 'planned'}</span>
           </span>
           <span className="app-step-actions">
-            {!final && (
-              <IconButton label="Mark as held" onClick={() => void save({ planned: false })} disabled={busy}>
-                <Check size={14} aria-hidden="true" />
-              </IconButton>
-            )}
             <IconButton label="Remove this round from the plan" onClick={remove} disabled={busy} danger>
               <Trash2 size={14} aria-hidden="true" />
             </IconButton>
