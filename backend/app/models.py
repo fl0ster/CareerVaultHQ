@@ -198,6 +198,11 @@ class JobParseResult(Base):
     ``app.services.technologies.technology_key(name)``, unique within the list, and is what
     ``match_technologies`` compares with ``WorkHistoryEntry.tech``. ``[]`` when none are
     named, ``None`` when the extraction did not run or failed."""
+    salary: Mapped[dict | None] = mapped_column(JSON)
+    """Salary stated by the job page, from the source's optional ``parse_salary`` hook or
+    else ``app.tasks.scrape.salary.salary_from_text(description)``:
+    ``{"min": 15000.0, "max": 20000.0, "currency": "PLN", "period": "month", "gross": True,
+    "raw": "..."}`` (any value may be ``None``). ``None`` when no salary was found."""
     parsed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     job: Mapped[Job] = relationship()

@@ -4,12 +4,12 @@
 Accepting an offer (``POST /api/applications/{id}/accept``) adds the position to the work
 history seeded with what is already known (company, job title, technologies parsed from the
 description) and marked ``PREFILL_QUEUED``, then queues ``prefill_work_entry(entry_id)``.
-The task gives the chat model the job description, the application's steps and notes and
-the company notes, and asks for the role, location, technologies and a short description of
-the position. It only fills what the user has not changed in the meantime: ``location`` and
-``context`` while still empty, ``role`` and ``tech`` while still the seeded values. The entry
-ends ``PREFILL_DONE``, or ``PREFILL_FAILED`` when the model cannot be reached (the entry stays
-as it was, ready to be edited by hand).
+The task gives the chat model the job title, company and description, and asks for the
+role, location, technologies and a short CV-style description of the position. It only
+fills what the user has not changed in the meantime: ``location`` and ``context`` while
+still empty, ``role`` and ``tech`` while still the seeded values. The entry ends
+``PREFILL_DONE``, or ``PREFILL_FAILED`` when the model cannot be reached (the entry stays as
+it was, ready to be edited by hand).
 """
 
 from __future__ import annotations
@@ -39,9 +39,9 @@ MAX_CONTEXT_CHARS = 2000
 MAX_TECH = 30
 NO_VALUE = frozenset({"null", "none", "n/a", "unknown", "not stated"})
 
-SYSTEM = ( """
-Act as an expert resume writer and career coach. Based on the role title and job description provided, 
-write a compelling work experience section for my CV/resume. Answer with a single JSON object and nothing else. """
+SYSTEM = (
+    "Act as an expert resume writer and career coach. Based on the role title and job description provided, "
+    "write a compelling work experience section for my CV/resume. Answer with a single JSON object and nothing else."
 )
 PROMPT = """
 Write a compelling work experience section for my CV/resume as a JSON object
@@ -52,9 +52,10 @@ Write a compelling work experience section for my CV/resume as a JSON object
   "Hybrid, <city>"), or null when not stated,
 - "tech" lists the technologies, languages, frameworks and tools the role works with, most
   important first, as short names ("Python", "PostgreSQL", "Kubernetes"),
-- "context" is 2-4 sentences, in an implied first-person perspective. Translate the listed responsibilities into concrete accomplishments rather 
-    than a passive list of duties. Focus on outcomes, efficiency, and value added. Naturally weave in the most important keywords, tools, and hard/soft 
-    skills found in the job description.
+- "context" is 2-4 sentences, in an implied first-person perspective. Translate the listed
+  responsibilities into concrete accomplishments rather than a passive list of duties. Focus
+  on outcomes, efficiency, and value added. Naturally weave in the most important keywords,
+  tools, and hard/soft skills found in the job description.
 
 Job title: {title}
 Company: {company}

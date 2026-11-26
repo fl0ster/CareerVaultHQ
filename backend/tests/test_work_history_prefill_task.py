@@ -91,8 +91,11 @@ def test_prefill_fills_the_entry_from_the_application(db_session, llm):
     assert (entry.employer, entry.date_start) == ("Acme", date(2027, 1, 4))
 
     prompt = llm["prompts"][0]
-    for text in ("We build payments", "Fintech, 200 people", "Great team", "Tech interview", "system design", "Offer"):
+    for text in ("Backend Engineer", "Acme", "We build payments"):
         assert text in prompt
+    # The prompt is built from the job posting only, not from the user's notes or steps.
+    for text in ("Fintech, 200 people", "Great team", "Tech interview", "system design"):
+        assert text not in prompt
 
 
 def test_prefill_keeps_what_the_user_changed(db_session, llm):

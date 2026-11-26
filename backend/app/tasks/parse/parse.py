@@ -7,6 +7,9 @@ field in ``FIELDS`` (currently ``title``, ``company`` and ``description``). ``ti
 ``description`` are stored verbatim in ``job_parse_results``; the raw ``company`` string is
 never stored there but resolved through ``app.services.companies.resolve_company`` to a
 canonical ``companies`` row whose id is written to ``job_parse_results.company_id``. The
+source's optional ``parse_salary(html)`` hook (or, without one,
+``app.tasks.scrape.salary.salary_from_text`` over the description) fills
+``job_parse_results.salary``; a salary parser failure only leaves it unset. The
 pending row is then marked ``COMPLETED`` with the time the parse happened. Finally
 ``app.tasks.evaluate.evaluate_parse_results`` is enqueued at the front of the queue for the
 parsed job, so it gets scored against the current candidate profile right after its parse
@@ -41,6 +44,7 @@ from app.services.companies import CompanyMatch, resolve_company
 from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService
 from app.services.technologies import dedupe_technologies, technology_key
 from app.tasks.evaluate import evaluate_parse_results
+from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources import load_source
 
 log = logging.getLogger(__name__)
@@ -395,7 +399,26 @@ def parse_fields(job: Job) -> dict[str, str]:
     return {field: parse_field(job, field, module) for field in FIELDS}
 
 
-def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[JobParseResult, CompanyMatch | None]:
+def parse_salary(job: Job, description: str, module: ModuleType | None = None) -> dict | None:
+    """Salary of ``job``: the source's ``parse_salary(html)`` hook when it defines one,
+    else the first salary stated in ``description``. Best effort: a failing parser is
+    logged and yields ``None`` rather than failing the parse."""
+    module = module or _source_module(job)
+    parser = getattr(module, "parse_salary", None)
+    try:
+        if parser is not None and job.html:
+            salary = parser(job.html)
+            if salary:
+                return salary
+        return salary_from_text(description)
+    except Exception:  # noqa: BLE001 - the salary is optional
+        log.exception("Parsing the salary of job %d failed", job.id)
+        return None
+
+
+def _save_result(
+    session: Session, job: Job, values: dict[str, str], salary: dict | None = None
+) -> tuple[JobParseResult, CompanyMatch | None]:
     """Upsert the ``JobParseResult`` of ``job``; the ``company`` value goes through the
     company ingestion pipeline and only the canonical ``company_id`` is stored."""
     result = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job.id))
@@ -404,6 +427,7 @@ def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[Jo
         session.add(result)
     for field in TEXT_FIELDS:
         setattr(result, field, values.get(field) or None)
+    result.salary = salary or None
     match = resolve_company(session, values.get("company", ""), source=job.source)
     result.company = match.company if match else None
     result.parsed_at = datetime.now(UTC)
@@ -450,6 +474,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": <id of the canonical companies row, or None>,
             "company_match": "<alias | exact | fuzzy | new, or None>",
             "description_chars": <length of the extracted description>,
+            "salary": <parsed salary dict, or None (only on a fresh parse)>,
             "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
 
@@ -485,7 +510,8 @@ def parse_job(pending_id: int) -> dict[str, Any]:
 
         try:
             values = parse_fields(job)
-            result, match = _save_result(session, job, values)
+            salary = parse_salary(job, values["description"])
+            result, match = _save_result(session, job, values, salary)
         except Exception as exc:
             session.rollback()
             pending.status = PendingJobParseRun.STATUS_FAILED
@@ -522,5 +548,6 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": company.id if company else None,
             "company_match": match.match_kind if match else None,
             "description_chars": len(values["description"]),
+            "salary": salary,
             "evaluate_job": evaluate_job_id,
         }
