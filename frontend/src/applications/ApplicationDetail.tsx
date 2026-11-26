@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { describeError, type GeneratedCv, isInProgress } from '../cv/api.ts'
-import CvActions from '../cv/CvActions.tsx'
-import CvStatusBadge from '../cv/CvStatusBadge.tsx'
-import { updateCompanyNotes } from '../companies/api.ts'
-import NotesEditor from '../notes/NotesEditor.tsx'
+import { type ReactNode, useState } from 'react'
+import { Check, ExternalLink, Flag, Pencil, Trash2, Undo2 } from 'lucide-react'
+import { describeError, isInProgress } from '../cv/api.ts'
+import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
+import '../cv/cv.css'
+import '../interviews/interviews.css'
+import TechPills from '../jobs/TechPills.tsx'
 import {
   type Application,
   type ApplicationEvent,
@@ -13,11 +14,13 @@ import {
   isFinalStatus,
   ACCEPTED_STATUS,
   APPLIED_STATUS,
+  CLOSED_STATUS,
   DECLINED_STATUS,
   INITIAL_ONLY_STATUS,
   INTERVIEW_STATUS,
   MAX_INTERVIEW_ROUNDS,
   OFFER_STATUS,
+  REJECTED_STATUS,
   pickableStatuses,
   applicationsApi,
   formatDay,
@@ -26,13 +29,13 @@ import {
   heldRounds,
   historyEvents,
   isAutoEvent,
-  nextRoundLabel,
-  notifyApplicationsChanged,
   roundLabel,
   serverDate,
   toLocalInput,
 } from './api.ts'
-import InterviewProgress from './InterviewProgress.tsx'
+import ApplicationCv from './ApplicationCv.tsx'
+import Salary from './Salary.tsx'
+import WorkMode from './WorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
@@ -40,12 +43,13 @@ import { pageHref } from '../shell/nav.ts'
 type Props = {
   application: Application
   statuses: ApplicationStatus[]
+  /** The job's technologies, shown quietly in the left column. */
+  technologies: string[]
+  /** The job's parsed description (`undefined` while loading, `null` when there is none). */
+  description: string | null | undefined
   onChange: (application: Application) => void
   /** The offer was accepted (the application is now `ACCEPTED`). */
   onAccepted: (application: Application) => void
-  onDelete: (id: number) => void
-  /** Opens the generation breakdown of the attached CV. */
-  onShowPipeline?: (cv: GeneratedCv) => void
 }
 
 /** Runs an API call, tracking busy state and turning failures into an error message. */
@@ -110,6 +114,37 @@ function DurationSelect({
   )
 }
 
+/** Small icon-only button for the actions of a step. */
+function IconButton({
+  label,
+  onClick,
+  disabled,
+  danger,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      className={`app-icon-btn${danger ? ' danger' : ''}`}
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Colour class of a step: each state's dot (and the line below it) takes the state's colour. */
+const stepTone = (key: string) => `tone-${key.toLowerCase()}`
+
 /** Earliest `datetime-local` value a state of `key` may be dated at (`undefined`: no limit):
  * not before APPLIED once it is recorded, and an interview round or APPLIED itself not before
  * SHORTLISTED. `self` is the event being edited, left out of the reference points. */
@@ -130,27 +165,99 @@ function tooEarly(when: string, min: string | undefined): string | null {
   return when && min && when < min ? `Pick a date on or after ${new Date(min).toLocaleString()}.` : null
 }
 
+/** A round's name (its custom one, or `defaultName` such as "Round 2"), clicked to rename it in
+ * place. Enter or leaving the field saves, Escape cancels; an empty name restores the default. */
+function RoundName({
+  title,
+  defaultName,
+  onSave,
+  disabled,
+}: {
+  title: string
+  defaultName: string
+  onSave: (title: string) => void
+  disabled?: boolean
+}) {
+  const [draft, setDraft] = useState(title)
+  const [renaming, setRenaming] = useState(false)
+
+  const commit = () => {
+    setRenaming(false)
+    if (draft.trim() !== title) onSave(draft.trim())
+  }
+  const cancel = () => {
+    setDraft(title)
+    setRenaming(false)
+  }
+
+  return renaming ? (
+    <input
+      type="text"
+      className="app-round-name-input"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+        else if (e.key === 'Escape') cancel()
+      }}
+      list={ROUND_TYPES_ID}
+      placeholder={defaultName}
+      aria-label={`${defaultName}: name`}
+      maxLength={128}
+      autoFocus
+    />
+  ) : (
+    <button
+      type="button"
+      className="app-round-name"
+      onClick={() => {
+        setDraft(title)
+        setRenaming(true)
+      }}
+      disabled={disabled}
+      title="Click to rename (e.g. Technical); leave empty for the default name"
+    >
+      {title || defaultName}
+    </button>
+  )
+}
+
+/** A recorded state: a filled, checked dot in the state's colour, its name and date beside it
+ * and the note under it. The latest one (the application's current state) is ringed. */
 function EventRow({
   application,
   event,
+  name,
+  roundName,
+  current,
   statuses,
   onChange,
 }: {
   application: Application
   event: ApplicationEvent
+  /** "Applied", "Technical"… */
+  name: string
+  /** For a held round, its default name ("Round 2"): the name is then renamed in place. */
+  roundName?: string
+  /** The application's current state. */
+  current: boolean
   statuses: ApplicationStatus[]
   onChange: (application: Application) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [status, setStatus] = useState(event.status.key)
   const [note, setNote] = useState(event.note)
-  const [title, setTitle] = useState(event.title)
   const [duration, setDuration] = useState(event.duration_minutes)
   const [when, setWhen] = useState(toLocalInput(event.occurred_at))
   const { busy, error, run } = useAction()
-  // SHORTLISTED is fixed for good; ACCEPTED / DECLINED can only be removed (undoing the answer).
+  // Removing a held interview round turns it back into a planned one.
+  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
+  // SHORTLISTED is fixed for good; ACCEPTED / DECLINED can only be removed (undoing the answer);
+  // a held round stays a round.
   const locked = event.status.key === INITIAL_ONLY_STATUS
-  const statusLocked = locked || event.status.key === ACCEPTED_STATUS || event.status.key === DECLINED_STATUS
+  const statusLocked =
+    locked || isHeldRound || event.status.key === ACCEPTED_STATUS || event.status.key === DECLINED_STATUS
   const isRound = status === INTERVIEW_STATUS
   const min = earliestFor(application, status, event.id)
   const dateError = when !== toLocalInput(event.occurred_at) ? tooEarly(when, min) : null
@@ -158,7 +265,6 @@ function EventRow({
   const startEdit = () => {
     setStatus(event.status.key)
     setNote(event.note)
-    setTitle(event.title)
     setDuration(event.duration_minutes)
     setWhen(toLocalInput(event.occurred_at))
     setEditing(true)
@@ -172,7 +278,6 @@ function EventRow({
       applicationsApi.updateEvent(application.id, event.id, {
         ...(statusLocked ? {} : { status }),
         note,
-        title,
         duration_minutes: duration,
         ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
       }),
@@ -183,8 +288,11 @@ function EventRow({
     }
   }
 
-  // Removing a held interview round turns it back into a planned one.
-  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
+  const rename = async (title: string) => {
+    const updated = await run(() => applicationsApi.updateEvent(application.id, event.id, { title }))
+    if (updated) onChange(updated)
+  }
+
   const remove = async () => {
     const question = isHeldRound
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`
@@ -200,96 +308,121 @@ function EventRow({
     if (updated) onChange(updated)
   }
 
+  const stepClass = `iv-step is-held is-done ${stepTone(event.status.key)}${current ? ' is-current' : ''}`
+  const dot = (
+    <span className="iv-step-dot" aria-hidden="true">
+      <Check size={12} strokeWidth={3} />
+    </span>
+  )
+
   if (editing) {
     return (
-      <li className="app-event editing">
-        <div className="app-form-row">
-          {statusLocked ? (
-            <StatusBadge status={event.status} auto={isAutoEvent(event)} />
-          ) : (
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
-            {pickableStatuses(statuses)
-              .filter(
-                (s) =>
-                  s.key !== APPLIED_STATUS ||
-                  !application.events.some((e) => e.id !== event.id && e.status.key === APPLIED_STATUS),
-              )
-              .map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          )}
-          <input type="datetime-local" value={when} min={min} onChange={(e) => setWhen(e.target.value)} />
-        </div>
-        {isRound && (
-          <div className="app-form-row app-round-fields">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              list={ROUND_TYPES_ID}
-              placeholder="Kind of round (e.g. Technical)"
-              aria-label="Kind of round"
-              maxLength={128}
-            />
-            <DurationSelect value={duration} onChange={setDuration} />
+      <li className={`${stepClass} editing`}>
+        {dot}
+        <div className="app-step-body">
+          <div className="app-form-row">
+            {statusLocked ? (
+              <StatusBadge status={event.status} auto={isAutoEvent(event)} />
+            ) : (
+              <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status">
+                {pickableStatuses(statuses)
+                  // Rounds come only from the round count, so no other state turns into one.
+                  .filter((s) => s.key !== INTERVIEW_STATUS)
+                  .filter(
+                    (s) =>
+                      s.key !== APPLIED_STATUS ||
+                      !application.events.some((e) => e.id !== event.id && e.status.key === APPLIED_STATUS),
+                  )
+                  .map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.label}
+                    </option>
+                  ))}
+              </select>
+            )}
+            <input type="datetime-local" value={when} min={min} onChange={(e) => setWhen(e.target.value)} />
           </div>
-        )}
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state" rows={3} />
-        <div className="app-buttons">
-          <button type="button" className="small" onClick={save} disabled={busy || !!dateError}>
-            {busy ? 'Saving…' : 'Save'}
-          </button>
-          <button type="button" className="secondary small" onClick={() => setEditing(false)} disabled={busy}>
-            Cancel
-          </button>
+          {isRound && (
+            <div className="app-form-row app-round-fields">
+              <DurationSelect value={duration} onChange={setDuration} />
+            </div>
+          )}
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state" rows={2} />
+          <div className="app-buttons">
+            <button type="button" className="small" onClick={save} disabled={busy || !!dateError}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="secondary small" onClick={() => setEditing(false)} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+          {(dateError || error) && <p className="error">{dateError || error}</p>}
         </div>
-        {(dateError || error) && <p className="error">{dateError || error}</p>}
       </li>
     )
   }
 
+  const dateLine = [
+    serverDate(event.occurred_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    formatDuration(event.duration_minutes),
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
-    <li className="app-event">
-      <div className="app-event-head">
-        <StatusBadge status={event.status} auto={isAutoEvent(event)} />
-        {event.title && <strong className="app-round-title">{event.title}</strong>}
-        {event.duration_minutes && <span className="muted">{formatDuration(event.duration_minutes)}</span>}
-        <span className="muted">{serverDate(event.occurred_at).toLocaleString()}</span>
-        <span className="app-buttons">
-          <button type="button" className="secondary small" onClick={startEdit} disabled={busy}>
-            Edit
-          </button>
-          {!locked && (
-            <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
-              {isHeldRound ? 'Not held' : 'Remove'}
-            </button>
-          )}
-        </span>
+    <li className={stepClass}>
+      {dot}
+      <div className="app-step-body">
+        <div className="app-step-head">
+          <span className="iv-step-name">
+            {isAutoEvent(event) && (
+              <span className="app-status-auto" title="Recorded automatically from a Gmail rejection mail">
+                ⚡
+              </span>
+            )}
+            {roundName ? (
+              <RoundName title={event.title} defaultName={roundName} onSave={(t) => void rename(t)} disabled={busy} />
+            ) : (
+              name
+            )}
+          </span>
+          {current && <span className="sr-only">(current state)</span>}
+          <span className="app-step-actions">
+            <IconButton label="Edit" onClick={startEdit} disabled={busy}>
+              <Pencil size={14} aria-hidden="true" />
+            </IconButton>
+            {!locked && (
+              <IconButton label={isHeldRound ? 'Mark as not held' : 'Remove'} onClick={remove} disabled={busy} danger>
+                {isHeldRound ? <Undo2 size={14} aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
+              </IconButton>
+            )}
+          </span>
+        </div>
+        <span className="iv-step-when">{dateLine}</span>
+        {event.note && <p className="app-note">{event.note}</p>}
+        {error && <p className="error">{error}</p>}
       </div>
-      {event.note && <p className="app-note">{event.note}</p>}
-      {error && <p className="error">{error}</p>}
     </li>
   )
 }
 
-/** A planned interview round: dashed, edited inline (each field saves when it is left;
- * the parent remounts it when the stored values change). */
+/** A planned interview round: a dashed, numbered dot, edited inline (each field saves when it
+ * is left; the parent remounts it when the stored values change). */
 function PlannedEventRow({
   application,
   event,
   index,
+  current,
   onChange,
 }: {
   application: Application
   event: PlannedRound
   /** Position among all rounds (0-based). */
   index: number
+  /** The next round to be held (never once the application is final): ringed, as in the
+   * interview card's stepper, and the only round whose dot marks it as held. */
+  current: boolean
   onChange: (application: Application) => void
 }) {
-  const [title, setTitle] = useState(event.title)
   const [note, setNote] = useState(event.note)
   const [when, setWhen] = useState(event.occurred_at ? toLocalInput(event.occurred_at) : '')
   const { busy, error, run } = useAction()
@@ -302,9 +435,7 @@ function PlannedEventRow({
     if (updated) onChange(updated)
   }
 
-  const saveTitle = () => {
-    if (title.trim() !== event.title) void save({ title: title.trim() })
-  }
+  const defaultName = `Round ${index + 1}`
   const saveNote = () => {
     if (note !== event.note) void save({ note })
   }
@@ -320,60 +451,124 @@ function PlannedEventRow({
   }
 
   return (
-    <li className={`app-event planned${final ? ' not-held' : ''}`}>
-      <div className="app-event-head">
-        <span className="app-round-label">
-          Round {index + 1} · {final ? 'not held' : 'planned'}
+    <li className={`iv-step is-upcoming app-planned${final ? ' not-held' : ''}${current ? ' is-current' : ''}`}>
+      {/* Only the next round to be held can be checked: rounds are held in order. */}
+      {!current ? (
+        <span className="iv-step-dot" aria-hidden="true">
+          {index + 1}
         </span>
-        <span className="app-buttons">
-          {!final && (
-            <button type="button" className="secondary small" onClick={() => save({ planned: false })} disabled={busy}>
-              Mark held
+      ) : (
+        // The dot itself marks the round as held: its number turns into a check on hover.
+        <button
+          type="button"
+          className="iv-step-dot app-dot-btn"
+          onClick={() => void save({ planned: false })}
+          disabled={busy}
+          title="Mark as held"
+          aria-label={`Mark round ${index + 1} as held`}
+        >
+          <span className="app-dot-num">{index + 1}</span>
+          <Check className="app-dot-check" size={12} strokeWidth={3} aria-hidden="true" />
+        </button>
+      )}
+      <div className="app-step-body">
+        <div className="app-step-head">
+          <span className="iv-step-name">
+            <RoundName
+              title={event.title}
+              defaultName={defaultName}
+              onSave={(title) => void save({ title })}
+              disabled={busy}
+            />{' '}
+            <span className="app-round-label">· {final ? 'not held' : 'planned'}</span>
+          </span>
+          <span className="app-step-actions">
+            <IconButton label="Remove this round from the plan" onClick={remove} disabled={busy} danger>
+              <Trash2 size={14} aria-hidden="true" />
+            </IconButton>
+          </span>
+        </div>
+        <div className="app-form-row app-round-fields">
+          <DurationSelect
+            value={event.duration_minutes}
+            onChange={(minutes) => void save({ duration_minutes: minutes })}
+            disabled={busy}
+          />
+          <input
+            type="datetime-local"
+            value={when}
+            min={min}
+            onChange={(e) => setWhen(e.target.value)}
+            onBlur={saveWhen}
+            aria-label={`Round ${index + 1}: scheduled for`}
+            title="Scheduled for (optional)"
+            disabled={busy}
+          />
+        </div>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onBlur={saveNote}
+          placeholder="Note (optional)"
+          aria-label={`Round ${index + 1}: note`}
+          rows={1}
+          disabled={busy}
+        />
+        {(dateError || error) && <p className="error">{dateError || error}</p>}
+      </div>
+    </li>
+  )
+}
+
+/** The states that can end the interview stage, in the order offered. */
+const OUTCOME_STATUSES = [OFFER_STATUS, REJECTED_STATUS, CLOSED_STATUS]
+
+/** After the last round is held: a closing step with a dashed dot whose buttons record how the
+ * interviews ended (Offer / Rejected / Closed). */
+function OutcomeRow({
+  application,
+  statuses,
+  onChange,
+}: {
+  application: Application
+  statuses: ApplicationStatus[]
+  onChange: (application: Application) => void
+}) {
+  const { busy, error, run } = useAction()
+  const options = OUTCOME_STATUSES.flatMap((key) => statuses.filter((s) => s.key === key))
+  if (options.length === 0) return null
+
+  const pick = async (key: string) => {
+    const updated = await run(() => applicationsApi.addEvent(application.id, { status: key }))
+    if (updated) onChange(updated)
+  }
+
+  return (
+    <li className="iv-step is-upcoming app-outcome">
+      <span className="iv-step-dot" aria-hidden="true">
+        <Flag size={12} strokeWidth={2.5} />
+      </span>
+      <div className="app-step-body">
+        <div className="app-step-head">
+          <span className="iv-step-name">
+            Outcome <span className="app-outcome-hint">· all rounds done</span>
+          </span>
+        </div>
+        <div className="app-outcome-choices" role="group" aria-label="Record the outcome">
+          {options.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`app-outcome-btn ${stepTone(s.key)}`}
+              onClick={() => void pick(s.key)}
+              disabled={busy}
+            >
+              {s.label}
             </button>
-          )}
-          <button type="button" className="secondary small danger" onClick={remove} disabled={busy}>
-            Remove round
-          </button>
-        </span>
+          ))}
+        </div>
+        {error && <p className="error">{error}</p>}
       </div>
-      <div className="app-form-row app-round-fields">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={saveTitle}
-          onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-          list={ROUND_TYPES_ID}
-          placeholder="Kind of round (e.g. Technical)"
-          aria-label={`Round ${index + 1}: kind`}
-          maxLength={128}
-          disabled={busy}
-        />
-        <DurationSelect
-          value={event.duration_minutes}
-          onChange={(minutes) => void save({ duration_minutes: minutes })}
-          disabled={busy}
-        />
-        <input
-          type="datetime-local"
-          value={when}
-          min={min}
-          onChange={(e) => setWhen(e.target.value)}
-          onBlur={saveWhen}
-          aria-label={`Round ${index + 1}: scheduled for`}
-          title="Scheduled for (optional)"
-          disabled={busy}
-        />
-      </div>
-      <textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        onBlur={saveNote}
-        placeholder="Note (optional)"
-        rows={1}
-        disabled={busy}
-      />
-      {(dateError || error) && <p className="error">{dateError || error}</p>}
     </li>
   )
 }
@@ -402,115 +597,51 @@ function InterviewPlan({
 
   return (
     <div className="app-plan">
-      <div className="app-form-row">
-        <span>Interview rounds</span>
-        <span className="app-stepper">
-          <button
-            type="button"
-            className="secondary small"
-            aria-label="One round fewer"
-            onClick={() => set(rounds - 1)}
-            disabled={busy || rounds <= held}
-          >
-            −
-          </button>
-          <input
-            type="number"
-            min={held}
-            max={MAX_INTERVIEW_ROUNDS}
-            value={draft}
-            placeholder="—"
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitDraft}
-            onKeyDown={(e) => e.key === 'Enter' && commitDraft()}
-            aria-label="Number of interview rounds"
-            disabled={busy}
-          />
-          <button
-            type="button"
-            className="secondary small"
-            aria-label="One more round"
-            onClick={() => set(rounds + 1)}
-            disabled={busy || rounds >= MAX_INTERVIEW_ROUNDS}
-          >
-            +
-          </button>
-        </span>
-        <InterviewProgress application={application} />
-        {application.planned_events.length > 0 && (
-          <button
-            type="button"
-            className="secondary small"
-            onClick={() => window.confirm('Remove every planned round?') && set(0)}
-            disabled={busy}
-          >
-            Clear plan
-          </button>
-        )}
-      </div>
-      {error && <p className="error">{error}</p>}
-    </div>
-  )
-}
-
-function AddEventForm({
-  application,
-  statuses,
-  onChange,
-}: {
-  application: Application
-  statuses: ApplicationStatus[]
-  onChange: (application: Application) => void
-}) {
-  const [status, setStatus] = useState('')
-  const [note, setNote] = useState('')
-  const [when, setWhen] = useState('')
-  const { busy, error, run } = useAction()
-  const options = pickableStatuses(statuses, application.status?.key ?? null)
-  const selected = status || options[0]?.key || ''
-  const nextRound = selected === INTERVIEW_STATUS ? nextRoundLabel(application) : undefined
-  const min = earliestFor(application, selected)
-  const dateError = tooEarly(when, min)
-
-  const add = async () => {
-    const updated = await run(() =>
-      applicationsApi.addEvent(application.id, { status: selected, note, occurred_at: fromLocalInput(when) }),
-    )
-    if (updated) {
-      onChange(updated)
-      setNote('')
-      setWhen('')
-    }
-  }
-
-  return (
-    <div className="app-add-event">
-      <div className="app-form-row">
-        <select value={selected} onChange={(e) => setStatus(e.target.value)} aria-label="New status">
-          {options.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <input
-          type="datetime-local"
-          value={when}
-          min={min}
-          onChange={(e) => setWhen(e.target.value)}
-          aria-label="When (defaults to now)"
-          title="When (defaults to now)"
-        />
-        <button type="button" className="small" onClick={add} disabled={busy || !selected || !!dateError}>
-          {busy
-            ? 'Adding…'
-            : nextRound
-              ? `Record ${nextRound}`
-              : 'Add status'}
+      <span className="app-stepper">
+        <button
+          type="button"
+          className="secondary small"
+          aria-label="One round fewer"
+          onClick={() => set(rounds - 1)}
+          disabled={busy || rounds <= held}
+        >
+          −
         </button>
-      </div>
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note for this state (optional)" rows={2} />
-      {(dateError || error) && <p className="error">{dateError || error}</p>}
+        <input
+          type="number"
+          min={held}
+          max={MAX_INTERVIEW_ROUNDS}
+          value={draft}
+          placeholder="—"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => e.key === 'Enter' && commitDraft()}
+          aria-label="Number of interview rounds"
+          disabled={busy}
+        />
+        <button
+          type="button"
+          className="secondary small"
+          aria-label="One more round"
+          onClick={() => set(rounds + 1)}
+          disabled={busy || rounds >= MAX_INTERVIEW_ROUNDS}
+        >
+          +
+        </button>
+      </span>
+      {application.planned_events.length > 0 && (
+        <IconButton
+          label="Clear the plan (remove every planned round)"
+          onClick={() => {
+            if (window.confirm('Remove every planned round?')) void set(0)
+          }}
+          disabled={busy}
+          danger
+        >
+          <Trash2 size={14} aria-hidden="true" />
+        </IconButton>
+      )}
+      {error && <p className="error">{error}</p>}
     </div>
   )
 }
@@ -565,203 +696,233 @@ function OfferBox({
   )
 }
 
+/** Free-text notes about the position: a draft saved with the Save button (or Ctrl/⌘+Enter). */
+function NotesPane({
+  application,
+  onChange,
+}: {
+  application: Application
+  onChange: (application: Application) => void
+}) {
+  const [draft, setDraft] = useState(application.notes)
+  const [saved, setSaved] = useState(false)
+  const { busy, error, run } = useAction()
+  const dirty = draft !== application.notes
+
+  const save = async () => {
+    if (!dirty) return
+    const updated = await run(() => applicationsApi.updateNotes(application.id, draft))
+    if (updated) {
+      onChange(updated)
+      setSaved(true)
+    }
+  }
+
+  return (
+    <div className="app-notes">
+      <textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setSaved(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void save()
+        }}
+        placeholder="Your notes about this position…"
+        aria-label="Notes about this position"
+        rows={10}
+        disabled={busy}
+      />
+      <div className="app-buttons">
+        <button type="button" className="small" onClick={() => void save()} disabled={busy || !dirty}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        {dirty && (
+          <button type="button" className="secondary small" onClick={() => setDraft(application.notes)} disabled={busy}>
+            Discard changes
+          </button>
+        )}
+        {saved && !dirty && <span className="muted">Saved.</span>}
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
+  )
+}
+
+/** Body of the application view: the CV, salary & work mode, the interview round count and the
+ * job's technologies in a narrow column on the left; beside it the status history (a vertical stepper),
+ * how the latest CV was generated (CV Settings), notes about the position or the job description, switched by tabs, plus a
+ * Link that opens the offer. */
 export default function ApplicationDetail({
   application,
   statuses,
+  technologies,
+  description,
   onChange,
   onAccepted,
-  onDelete,
-  onShowPipeline,
 }: Props) {
-  const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
-  const cvAction = useAction()
-  const deleteAction = useAction()
-  const cv = application.cv
-  const heldCount = heldRounds(application).length
-  const { company, company_id: companyId, company_notes: companyNotes } = application.job
+  const [pane, setPane] = useState<'history' | 'cv' | 'notes' | 'description'>('history')
+  const held = heldRounds(application)
+  const history = historyEvents(application)
+  const status = application.status
+  const final = isFinalStatus(status)
+  // As in the interview card: while rounds are planned the next one is the current step (ringed);
+  // otherwise the latest recorded state is.
+  const upcoming = !final && application.planned_events.length > 0
+  // Every round held (none left planned) and the latest state is one of them: time to record how
+  // the interviews ended.
+  const roundsDone =
+    status?.key === INTERVIEW_STATUS &&
+    held.length > 0 &&
+    application.planned_events.length === 0 &&
+    history[history.length - 1] === held[held.length - 1]
 
-  const saveNotes = async (notes: string) => {
-    onChange(await applicationsApi.updateNotes(application.id, notes))
-  }
-
-  const saveCompanyNotes = async (notes: string) => {
-    if (companyId == null) return
-    const updated = await updateCompanyNotes(companyId, notes)
-    onChange({ ...application, job: { ...application.job, company_notes: updated.notes } })
-    // Other applications to the same company show these notes too.
-    notifyApplicationsChanged()
-  }
-
-  const tab = (key: 'application' | 'company', label: string, hasNotes: boolean, disabled = false) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={notesTab === key}
-      disabled={disabled}
-      title={disabled ? 'The job has no resolved company' : undefined}
-      onClick={() => setNotesTab(key)}
-    >
-      {label}
-      {hasNotes && <span className="notes-dot" aria-label="(has notes)" />}
-    </button>
-  )
-
-  const regenerate = async () => {
-    const updated = await cvAction.run(() => applicationsApi.regenerateCv(application.id))
-    if (updated) onChange(updated)
-  }
-
-  const remove = async () => {
-    if (!window.confirm('Delete this application and its status history? The generated CV is kept.')) return
-    const ok = await deleteAction.run(() => applicationsApi.remove(application.id).then(() => true))
-    if (ok) onDelete(application.id)
+  /** "Technical" (or "Round 2" when unnamed) for a held round, the state's label otherwise. */
+  const eventName = (event: ApplicationEvent) => {
+    const round = held.indexOf(event)
+    if (round < 0) return event.status.label
+    return event.title || `Round ${round + 1}`
   }
 
   return (
     <div className="app-detail">
-      <dl className="job-facts">
-        <dt>Link</dt>
-        <dd>
-          <a href={application.job.link} target="_blank" rel="noreferrer">
-            {application.job.link}
-          </a>
-        </dd>
-        <dt>Created</dt>
-        <dd>{serverDate(application.created_at).toLocaleString()}</dd>
-      </dl>
-
-      <section className="app-section">
-        <h3>CV</h3>
-        {cv ? (
-          <div className="cv-head">
-            <div className="cv-main">
-              <div className="cv-meta">
-                <span>#{cv.id}</span>
-                {cv.headline_role && <span>{cv.headline_role}</span>}
-              </div>
-              {cv.status === 'failed' && cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
-            </div>
-            {cv.status === 'finished'
-              ? <CvActions cv={cv} />
-              : <CvStatusBadge status={cv.status} />}
-          </div>
-        ) : (
-          <p className="muted">No CV attached.</p>
+      <aside className="app-aside">
+        <ApplicationCv application={application} onChange={onChange} />
+        <Salary application={application} onChange={onChange} />
+        <WorkMode application={application} onChange={onChange} />
+        <section className="app-section app-rounds" aria-labelledby={`app-rounds-${application.id}`}>
+          <h3 id={`app-rounds-${application.id}`}>Interview rounds</h3>
+          <InterviewPlan
+            key={held.length + application.planned_events.length}
+            application={application}
+            onChange={onChange}
+          />
+        </section>
+        {technologies.length > 0 && (
+          <section className="app-section app-tech" aria-label="Technologies">
+            <h3>Technologies</h3>
+            <TechPills technologies={technologies} />
+          </section>
         )}
-        {(!cv || !isInProgress(cv)) && (
-          <div className="app-buttons">
-            {cv?.status === 'finished' && onShowPipeline && (
-              <button type="button" className="secondary small" onClick={() => onShowPipeline(cv)}>
-                How it was generated
-              </button>
+      </aside>
+
+      <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
+        <div className="app-tabs" role="tablist" aria-label="Application">
+          <button
+            type="button"
+            role="tab"
+            id={`app-history-${application.id}`}
+            aria-selected={pane === 'history'}
+            onClick={() => setPane('history')}
+          >
+            Status history
+          </button>
+          <button type="button" role="tab" aria-selected={pane === 'cv'} onClick={() => setPane('cv')}>
+            CV Settings
+          </button>
+          <button type="button" role="tab" aria-selected={pane === 'notes'} onClick={() => setPane('notes')}>
+            Notes
+            {application.notes.trim() && (
+              <span className="app-tab-dot" title="This position has notes" aria-label="(has notes)" />
             )}
-            <button type="button" className="secondary small" onClick={regenerate} disabled={cvAction.busy}>
-              {cvAction.busy ? 'Requesting…' : cv ? 'Generate again' : 'Generate CV'}
-            </button>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'description'}
+            onClick={() => setPane('description')}
+          >
+            Description
+          </button>
+          <a href={application.job.link} target="_blank" rel="noreferrer" title={`Open the job offer: ${application.job.link}`}>
+            Link <ExternalLink size={13} aria-hidden="true" />
+          </a>
+        </div>
+        {pane === 'cv' && (
+          <div className="app-cv-report" role="tabpanel">
+            {!application.cv ? (
+              <p className="muted">No CV generated for this application yet.</p>
+            ) : isInProgress(application.cv) ? (
+              <p className="muted">The CV is being generated; how it was made shows here once it is done.</p>
+            ) : (
+              <CvPipelineReport key={application.cv.id} cv={application.cv} />
+            )}
           </div>
         )}
-        {cvAction.error && <p className="error">{cvAction.error}</p>}
-      </section>
-
-      <section className="app-section">
-        <h3>Status history</h3>
-        <InterviewPlan
-          key={heldCount + application.planned_events.length}
-          application={application}
-          onChange={onChange}
-        />
+        {/* Kept mounted while other tabs show, so an unsaved draft survives. */}
+        <div hidden={pane !== 'notes'} role="tabpanel">
+          <NotesPane application={application} onChange={onChange} />
+        </div>
+        {pane === 'description' && (
+          <div className="job-desc app-description" role="tabpanel">
+            {description === undefined ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : description ? (
+              <pre className="description">{description}</pre>
+            ) : (
+              <p className="muted">No parsed description.</p>
+            )}
+          </div>
+        )}
+        {/* Kept mounted while the description shows, so drafts of planned rounds survive. */}
+        <div hidden={pane !== 'history'} role="tabpanel" aria-labelledby={`app-history-${application.id}`}>
         <datalist id={ROUND_TYPES_ID}>
           {ROUND_TYPES.map((t) => (
             <option key={t} value={t} />
           ))}
         </datalist>
-        {historyEvents(application).length === 0 && application.planned_events.length === 0 ? (
-          <p className="muted">No status recorded yet.</p>
-        ) : (
-          <ol className="app-events">
-            {historyEvents(application).map((event) => (
-              <EventRow
-                key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}:${event.title}:${event.duration_minutes}`}
-                application={application}
-                event={event}
-                statuses={statuses}
-                onChange={onChange}
-              />
-            ))}
-            {application.planned_events.map((event, i) => (
-              <PlannedEventRow
-                // Remounted (fresh field drafts) whenever the stored round changes.
-                key={`${event.id}:${event.title}:${event.note}:${event.occurred_at}`}
-                application={application}
-                event={event}
-                index={heldCount + i}
-                onChange={onChange}
-              />
-            ))}
-          </ol>
-        )}
-        {application.status?.key === OFFER_STATUS ? (
+        <ol className={`iv-stepper app-timeline${final && status ? ` ${status.key.toLowerCase()}` : ''}`}>
+          {history.map((event, i) => (
+            <EventRow
+              key={`${event.id}:${event.occurred_at}:${event.note}:${event.status.key}:${event.title}:${event.duration_minutes}`}
+              application={application}
+              event={event}
+              name={eventName(event)}
+              roundName={held.includes(event) ? `Round ${held.indexOf(event) + 1}` : undefined}
+              current={!upcoming && i === history.length - 1}
+              statuses={statuses}
+              onChange={onChange}
+            />
+          ))}
+          {application.planned_events.map((event, i) => (
+            <PlannedEventRow
+              // Remounted (fresh field drafts) whenever the stored round changes.
+              key={`${event.id}:${event.title}:${event.note}:${event.occurred_at}`}
+              application={application}
+              event={event}
+              index={held.length + i}
+              current={upcoming && i === 0}
+              onChange={onChange}
+            />
+          ))}
+          {roundsDone && <OutcomeRow application={application} statuses={statuses} onChange={onChange} />}
+        </ol>
+        {status?.key === OFFER_STATUS ? (
           <OfferBox
             key={application.start_date ?? ''}
             application={application}
             onChange={onChange}
             onAccepted={onAccepted}
           />
-        ) : application.status?.key === ACCEPTED_STATUS ? (
+        ) : status?.key === ACCEPTED_STATUS ? (
           <p className="app-accepted">
-            <span>
-              Offer accepted{application.start_date ? `, starting ${formatDay(application.start_date)}` : ''}.
-            </span>
+            <span>Offer accepted{application.start_date ? `, starting ${formatDay(application.start_date)}` : ''}.</span>
             {application.work_history_id != null ? (
               <a href={pageHref('work-history', application.work_history_id)}>View in My Career</a>
             ) : (
               <span className="muted">Its My Career entry was deleted.</span>
             )}
           </p>
-        ) : application.status?.key === DECLINED_STATUS ? (
+        ) : status?.key === DECLINED_STATUS ? (
           <p className="app-declined">
             <strong>Offer declined.</strong> Remove the “Declined” state to reopen the offer.
           </p>
-        ) : isFinalStatus(application.status) ? (
-          <p className="muted">{application.status?.label} is final — remove that state to record new ones.</p>
-        ) : (
-          <AddEventForm application={application} statuses={statuses} onChange={onChange} />
-        )}
-      </section>
-
-      <section className="app-section">
-        <h3>Notes</h3>
-        <div className="notes-switch" role="tablist" aria-label="Notes">
-          {tab('application', 'Application', !!application.notes)}
-          {tab('company', company ? `Company: ${company}` : 'Company', !!companyNotes, companyId == null)}
+        ) : final ? (
+          <p className="muted app-final-hint">{status?.label} is final — remove that state to record new ones.</p>
+        ) : null}
         </div>
-        {/* Both stay mounted so switching tabs keeps unsaved drafts. */}
-        <div hidden={notesTab !== 'application'}>
-          <NotesEditor
-            label="Application notes"
-            value={application.notes}
-            placeholder="Notes about this application"
-            onSave={saveNotes}
-          />
-        </div>
-        {companyId != null && (
-          <div hidden={notesTab !== 'company'}>
-            <NotesEditor
-              label="Company notes"
-              value={companyNotes ?? ''}
-              placeholder="Notes about this company (shared by all its applications)"
-              onSave={saveCompanyNotes}
-            />
-          </div>
-        )}
       </section>
-
-      <div className="app-buttons app-danger-zone">
-        <button type="button" className="secondary small danger" onClick={remove} disabled={deleteAction.busy}>
-          {deleteAction.busy ? 'Deleting…' : 'Delete application'}
-        </button>
-        {deleteAction.error && <span className="error">{deleteAction.error}</span>}
-      </div>
     </div>
   )
 }

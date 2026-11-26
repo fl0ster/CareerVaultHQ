@@ -1,0 +1,83 @@
+.ie-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ie-section {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px 24px;
+  padding: 18px 20px;
+
+  h2 {
+    margin: 0;
+    font-size: 17px;
+  }
+  .ie-section-text p {
+    margin: 4px 0 0;
+  }
+}
+
+.ie-actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.ie-status {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .ie-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ie-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px 24px;
+  text-align: left;
+
+  h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+  p {
+    margin: 6px 0 0;
+  }
+}
+
+.ie-choices {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ie-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+button.ie-danger {
+  color: var(--on-strong);
+  background: var(--danger-fg);
+  border-color: var(--danger-fg);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}

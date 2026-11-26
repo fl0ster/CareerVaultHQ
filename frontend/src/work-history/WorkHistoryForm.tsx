@@ -57,6 +57,9 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
   const info = KINDS[draft.kind]
   const point = draft.kind === 'certificate' && draft.current
   const previous = predecessorCandidate(entries, draft, initial?.id)
+  // What the work journal built for the position; used while the user's own fields are empty.
+  const journalContext = initial?.journal_context ?? ''
+  const journalTech = initial?.journal_tech.join(', ') ?? ''
   // A position stays a position: it can't be turned into education or a certificate, and a
   // role change is a position too.
   const kindLocked = initial?.kind === 'job' || !!seed
@@ -159,7 +162,7 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
           Technologies <span className="muted">(comma separated)</span>
           <input
             value={draft.tech}
-            placeholder="Python, FastAPI, PostgreSQL"
+            placeholder={journalTech ? `From your journal: ${journalTech}` : 'Python, FastAPI, PostgreSQL'}
             onChange={(e) => set('tech', e.target.value)}
           />
         </label>
@@ -170,9 +173,16 @@ export default function WorkHistoryForm({ initial, seed, heading, entries, onSub
         <textarea
           rows={info.showTech ? 10 : 4}
           value={draft.context}
+          placeholder={journalContext ? `From your journal: ${journalContext}` : undefined}
           onChange={(e) => set('context', e.target.value)}
         />
       </label>
+      {(journalContext || journalTech) && (
+        <p className="muted wh-journal-hint">
+          Leave {journalContext && journalTech ? 'these' : 'this'} empty to use what your work journal built; anything you
+          write here takes precedence and is never overwritten.
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 

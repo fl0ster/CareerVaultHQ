@@ -1,3 +1,4 @@
+import { BellRing } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
@@ -7,12 +8,14 @@ import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
+import EmploymentPage from './work-history/EmploymentPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
 import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import CompaniesPage from './companies/CompaniesPage.tsx'
 import DashboardPage from './dashboard/DashboardPage.tsx'
+import ImportExportPage from './import-export/ImportExportPage.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
 import Sidebar from './shell/Sidebar.tsx'
 import TopBar from './shell/TopBar.tsx'
@@ -47,6 +50,7 @@ function App() {
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
   const onCareerCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, 'work-history': c })), [])
+  const onEmploymentCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, employment: c })), [])
   const detailHeading = route.detail !== null ? crumbs[page]?.at(-1)?.heading : undefined
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const { counts, failed: countsFailed } = useNavCounts(page)
@@ -58,11 +62,14 @@ function App() {
     ...(counts?.applications ? [] : (['applications'] as const)),
     ...(counts?.interviews ? [] : (['interviews'] as const)),
     ...(counts?.offers ? [] : (['offers'] as const)),
+    // Employment only while a position is held now.
+    ...(counts?.employment ? [] : (['employment'] as const)),
   ]
 
   // The Applications / Interviews / Offers list emptied out: fall back to Applications, or Jobs when there are none.
   const stageEmpty = counts != null && route.detail === null && hiddenPages.includes(page)
-  const fallbackPage: PageId = counts?.applications ? 'applications' : 'jobs'
+  const fallbackPage: PageId =
+    page === 'employment' ? 'work-history' : counts?.applications ? 'applications' : 'jobs'
   useEffect(() => {
     if (stageEmpty) window.location.hash = pageHref(fallbackPage)
   }, [stageEmpty, fallbackPage])
@@ -175,6 +182,15 @@ function App() {
             onCrumbsChange={onCareerCrumbs}
           />
         )
+      case 'employment':
+        return (
+          <EmploymentPage
+            detailId={detailOf('employment')}
+            onOpen={openIn('employment')}
+            onBack={backTo('employment')}
+            onCrumbsChange={onEmploymentCrumbs}
+          />
+        )
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':
@@ -185,6 +201,8 @@ function App() {
         return <CostPage />
       case 'companies':
         return <CompaniesPage />
+      case 'import-export':
+        return <ImportExportPage />
     }
   }
   const item = findPage(page).item
@@ -201,6 +219,15 @@ function App() {
           jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
           interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
+          employment: {
+            count: counts?.journal_overdue ?? 0,
+            title:
+              counts?.journal_overdue === 1
+                ? 'Journal update due: 1 position without a note for a week'
+                : `Journal update due: ${counts?.journal_overdue ?? 0} positions without a note for a week`,
+            tone: 'warn',
+            icon: BellRing,
+          },
         }}
         hiddenPages={hiddenPages}
         setup={setup && !setup.complete ? setup : null}

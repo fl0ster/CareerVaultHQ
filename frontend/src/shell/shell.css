@@ -388,6 +388,17 @@
   animation: pop-in var(--t-med) var(--ease-spring);
 }
 
+/* Something is due (e.g. a journal note): warning colours, with an icon beside the count. */
+.nav-pill.warn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  box-shadow: inset 0 0 0 1px var(--warn-border);
+}
+
 .sidebar-foot {
   display: flex;
   align-items: center;
@@ -474,6 +485,10 @@
     padding: 0 4px;
     font-size: 10px;
     line-height: 16px;
+  }
+  /* No room for the icon on the rail: the warning colours carry it. */
+  .nav-pill.warn svg {
+    display: none;
   }
   .sidebar-foot {
     flex-direction: column-reverse;

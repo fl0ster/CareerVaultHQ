@@ -4,6 +4,8 @@ import {
   APPLICATIONS_CHANGED,
   type Application,
   type ApplicationStatus,
+  ACCEPTED_STATUS,
+  DECLINED_STATUS,
   OFFER_STATUS,
   applicationsApi,
   notifyApplicationsChanged,
@@ -25,6 +27,7 @@ export type ApplicationListOptions = {
   /** Changes when the menu counts change (possibly through a background task, e.g. the
    * Gmail monitor); the list is refetched then. Empty until the counts are known. */
   version: string
+  /** Leaves the open application (used by the pages' back button, not by the hook). */
   onBack: () => void
   /** Breadcrumb entries after the page name while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
@@ -52,8 +55,6 @@ export type ApplicationList = {
   replace: (updated: Application) => void
   /** An offer was accepted from the open application, which stays on screen. */
   acceptedInView: (updated: Application) => void
-  /** An application was deleted from its view. */
-  removed: (id: number) => void
   /** The application's job was re-scored from its relevance meter. */
   rescored: (fresh: EvaluatedJobDetail) => void
 }
@@ -64,7 +65,6 @@ export function useApplicationList({
   status,
   detailId,
   version,
-  onBack,
   onCrumbsChange,
 }: ApplicationListOptions): ApplicationList {
   const [applications, setApplications] = useState<Application[] | null>(null)
@@ -196,7 +196,10 @@ export function useApplicationList({
 
   const replace = (updated: Application) => {
     const before = selected?.id === updated.id ? selected : applications?.find((a) => a.id === updated.id)
-    if (updated.status?.key === OFFER_STATUS && before?.status?.key !== OFFER_STATUS) {
+    // Only moving forward into the offer stage celebrates; undoing a decline/accept
+    // (back to OFFER) does not.
+    const prior = before?.status?.key
+    if (updated.status?.key === OFFER_STATUS && prior !== OFFER_STATUS && prior !== DECLINED_STATUS && prior !== ACCEPTED_STATUS) {
       setCelebrations((n) => n + 1)
     }
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
@@ -209,12 +212,6 @@ export function useApplicationList({
   const acceptedInView = (updated: Application) => {
     setCelebrations((n) => n + 1)
     replace(updated)
-  }
-
-  const removed = (id: number) => {
-    setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
-    notifyApplicationsChanged()
-    onBack()
   }
 
   const counts = new Map<string, number>()
@@ -240,7 +237,6 @@ export function useApplicationList({
     counts,
     replace,
     acceptedInView,
-    removed,
     rescored,
   }
 }

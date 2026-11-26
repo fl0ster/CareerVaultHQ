@@ -1261,3 +1261,322 @@
     transition: none;
   }
 }
+
+/* Employment: the positions held now, on interview-style cards. */
+.employment-role {
+  margin: 0;
+  font-family: var(--heading);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+.employment-since {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Work journal: the note box and "last entry" line on the Employment cards. */
+.employment-card.overdue {
+  border-color: var(--warn-border);
+}
+.employment-journal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+
+  &.overdue {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+  }
+}
+.employment-journal-due {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.employment-journal-open {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.employment-journal-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 14px;
+  line-height: 1.5;
+
+  svg {
+    flex: none;
+    margin-top: 2px;
+  }
+  p {
+    margin: 0;
+  }
+}
+
+.journal-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+  .error {
+    margin: 0;
+  }
+}
+.journal-composer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  button[type='submit'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+}
+.journal-composer-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+
+  input {
+    padding: 3px 6px;
+  }
+}
+.journal-composer-status {
+  font-size: 13px;
+}
+.journal-composer-backdate,
+.journal-icon-button {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--accent);
+
+  &:hover {
+    text-decoration: underline;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* Work journal: the detail view of one position. */
+.journal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.journal-head {
+  h2 {
+    margin: 0;
+    font-family: var(--heading);
+  }
+  p {
+    margin: 4px 0 0;
+  }
+}
+.journal-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+  }
+}
+.journal-warnings {
+  margin: 0;
+  padding: 10px 14px 10px 30px;
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 13px;
+}
+.journal-empty {
+  margin: 0;
+}
+.journal-context,
+.journal-month {
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text);
+  }
+  p {
+    margin: 0 0 8px;
+    line-height: 1.6;
+    color: var(--text-h);
+  }
+}
+.journal-context {
+  padding: 14px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: var(--accent-bg);
+}
+.journal-month {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.journal-accomplishments {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  line-height: 1.6;
+  color: var(--text-h);
+}
+.journal-tech {
+  margin: 0 0 8px;
+}
+p.journal-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+.journal-notes {
+  margin-top: 6px;
+  font-size: 14px;
+
+  summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text);
+  }
+  ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+.journal-note {
+  padding: 8px 12px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+
+  .error {
+    margin: 6px 0 0;
+  }
+}
+.journal-note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+.journal-note-actions {
+  display: inline-flex;
+  gap: 10px;
+
+  button.small {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+.journal-icon-button {
+  color: var(--text);
+
+  &.danger:hover {
+    color: var(--danger-fg);
+  }
+}
+.journal-note-body {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  color: var(--text-h);
+}
+.journal-note-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+  }
+}
+
+/* My Career: the journal's description in place of an empty one, and the link to the journal. */
+.wh-journal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.wh-journal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+}
+.wh-journal-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+}

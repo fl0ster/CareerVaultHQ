@@ -4,12 +4,12 @@
 Accepting an offer (``POST /api/applications/{id}/accept``) adds the position to the work
 history seeded with what is already known (company, job title, technologies parsed from the
 description) and marked ``PREFILL_QUEUED``, then queues ``prefill_work_entry(entry_id)``.
-The task gives the chat model the job description, the application's steps and notes and
-the company notes, and asks for the role, location, technologies and a short description of
-the position. It only fills what the user has not changed in the meantime: ``location`` and
-``context`` while still empty, ``role`` and ``tech`` while still the seeded values. The entry
-ends ``PREFILL_DONE``, or ``PREFILL_FAILED`` when the model cannot be reached (the entry stays
-as it was, ready to be edited by hand).
+The task gives the chat model the job title, company and description, and asks for the
+role, location, technologies and a short CV-style description of the position. It only
+fills what the user has not changed in the meantime: ``location`` and ``context`` while
+still empty, ``role`` and ``tech`` while still the seeded values. The entry ends
+``PREFILL_DONE``, or ``PREFILL_FAILED`` when the model cannot be reached (the entry stays as
+it was, ready to be edited by hand).
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ MAX_TECH = 30
 NO_VALUE = frozenset({"null", "none", "n/a", "unknown", "not stated"})
 
 SYSTEM = (
-    "You fill in an entry of a candidate's work history from the job they just accepted. "
-    "Answer with a single JSON object and nothing else."
+    "Act as an expert resume writer and career coach. Based on the role title and job description provided, "
+    "write a compelling work experience section for my CV/resume. Answer with a single JSON object and nothing else."
 )
-PROMPT = """The candidate accepted the job offer below and is starting this position.
-Describe the position for their work history as a JSON object
+PROMPT = """
+Write a compelling work experience section for my CV/resume as a JSON object
 {{"role": ..., "location": ..., "tech": [...], "context": ...}} where
 - "role" is the job title as the candidate would list it on a CV (keep the job's own title
   unless it is clearly not a title),
@@ -52,19 +52,16 @@ Describe the position for their work history as a JSON object
   "Hybrid, <city>"), or null when not stated,
 - "tech" lists the technologies, languages, frameworks and tools the role works with, most
   important first, as short names ("Python", "PostgreSQL", "Kubernetes"),
-- "context" is 2-4 sentences, written without "I", describing the company, the product or
-  team and what the role is responsible for. Use only facts stated below; do not invent
-  achievements or numbers.
+- "context" is 2-4 sentences, in an implied first-person perspective. Translate the listed
+  responsibilities into concrete accomplishments rather than a passive list of duties. Focus
+  on outcomes, efficiency, and value added. Naturally weave in the most important keywords,
+  tools, and hard/soft skills found in the job description.
 
 Job title: {title}
 Company: {company}
-{company_notes}
 Job description:
 {description}
-
-Recruitment steps the candidate went through:
-{steps}
-{notes}"""
+"""
 
 
 def _strip_fences(text: str) -> str:
@@ -107,27 +104,13 @@ def parse_reply(reply: str) -> dict[str, Any]:
     }
 
 
-def _steps(application: Application) -> str:
-    lines = []
-    for event in application.history:
-        when = event.occurred_at.date().isoformat() if event.occurred_at else "?"
-        detail = " - ".join(part for part in (event.title, event.note) if part)
-        lines.append(f"- {when}: {event.status.label}" + (f" ({detail})" if detail else ""))
-    return "\n".join(lines) or "- (none recorded)"
-
-
 def build_prompt(application: Application) -> str:
     parsed = application.job_parse_result
     company = parsed.company
-    company_notes = (company.notes or "").strip() if company is not None else ""
-    notes = (application.notes or "").strip()
     return PROMPT.format(
         title=parsed.title or "(unknown)",
         company=company.name if company is not None else "(unknown)",
-        company_notes=f"Notes about the company: {company_notes}\n" if company_notes else "",
         description=(parsed.description or "(no description)")[:MAX_DESCRIPTION_CHARS],
-        steps=_steps(application),
-        notes=f"\nThe candidate's notes about the application:\n{notes}\n" if notes else "",
     )
 
 

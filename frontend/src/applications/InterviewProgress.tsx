@@ -34,9 +34,11 @@ export default function InterviewProgress({ application, compact = false }: { ap
           )
         })}
       </span>
-      <span className="interview-progress-text">
-        {held}/{rounds.length}
-      </span>
+      {!compact && (
+        <span className="interview-progress-text">
+          {held}/{rounds.length}
+        </span>
+      )}
     </span>
   )
 }

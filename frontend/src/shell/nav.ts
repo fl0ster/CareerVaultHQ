@@ -1,5 +1,7 @@
 import {
+  ArrowDownUp,
   Building2,
+  BadgeCheck,
   BriefcaseBusiness,
   CalendarClock,
   Coins,
@@ -23,11 +25,13 @@ export type PageId =
   | 'jobs'
   | 'candidate-profile'
   | 'work-history'
+  | 'employment'
   | 'sources'
   | 'generated-cv'
   | 'gmail'
   | 'cost'
   | 'companies'
+  | 'import-export'
 
 export type NavItem = {
   id: PageId
@@ -92,6 +96,12 @@ export const SETTINGS: NavGroup = {
       icon: Coins,
       description: 'What the AI model calls have cost, broken down by period, source, model and kind.',
     },
+    {
+      id: 'import-export',
+      label: 'Import & Export',
+      icon: ArrowDownUp,
+      description: 'Back up your data to a JSON file, or restore it from one.',
+    },
   ],
 }
 
@@ -103,7 +113,15 @@ export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
 /** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
 export const NAV_SECTIONS: NavNode[][] = [
-  [{ id: 'work-history', label: 'My Career', icon: BriefcaseBusiness }],
+  [
+    {
+      id: 'employment',
+      label: 'Employment',
+      icon: BadgeCheck,
+      description: 'The positions you hold now.',
+    },
+    { id: 'work-history', label: 'My Career', icon: BriefcaseBusiness },
+  ],
   [
     { id: 'jobs', label: 'Jobs', icon: Inbox },
     { id: 'applications', label: 'Applications', icon: Send },

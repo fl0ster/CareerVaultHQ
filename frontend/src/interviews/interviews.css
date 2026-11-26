@@ -76,7 +76,22 @@
 }
 
 
+/* Details and the status control (top right) share one size. */
+.iv-card-head-actions :is(.app-status-main, .app-status-more),
+.iv-card-head-actions .iv-card-details {
+  padding: 8px 10px 8px 14px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+.iv-card-head-actions .app-status-main.alone {
+  padding-right: 14px;
+}
+.iv-card-head-actions .app-status-more {
+  padding: 8px 12px 8px 10px;
+}
+
 .iv-card-head-actions {
+  align-self: center;
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
@@ -84,24 +99,12 @@
   align-items: center;
   gap: 8px;
 
-  /* The status pill as roomy as the Details button next to it. */
-  .app-status-main {
-    padding: 8px 10px 8px 14px;
-  }
-  .app-status-main.alone {
-    padding-right: 14px;
-  }
-  .app-status-more {
-    padding: 8px 12px 8px 10px;
-  }
 }
 
 .iv-card-details {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 9px 12px 9px 16px;
-  font-size: 14px;
 }
 
 /* The current step: the round being prepared for (or the last one held) and its notes. */
@@ -201,7 +204,7 @@
   }
 }
 
-/* Left column: the stepper on top, the status control at the bottom left below it. */
+/* Left column: the stepper on top, the Details button at the bottom left below it. */
 .iv-card-side {
   align-self: stretch;
   display: flex;
@@ -211,23 +214,6 @@
 
   .iv-stepper-wrap {
     flex: 1;
-  }
-}
-
-.iv-card-status {
-  margin-top: auto;
-  display: flex;
-  justify-content: flex-start;
-
-  /* A larger target than the list rows' pill. */
-  .app-status-main {
-    padding: 7px 10px 7px 14px;
-  }
-  .app-status-main.alone {
-    padding-right: 14px;
-  }
-  .app-status-more {
-    padding: 7px 12px 7px 10px;
   }
 }
 

@@ -8,7 +8,9 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.tasks.scrape._helpers import HEADERS
+from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources._helpers import html_to_text
+from app.tasks.scrape.work_mode import work_mode_from_text
 
 NAME = "Skillshot"
 BASE_URL = "https://www.skillshot.pl"
@@ -92,3 +94,33 @@ def parse_company(html: str) -> str:
 
     # TODO: apply LLM to figure this out
     return ""
+
+
+def parse_salary(html: str) -> dict | None:
+    """Salary stated in a single job page. Skillshot has no salary field: employers write
+    it in the free-text offer ("Salary starting from 6,5k PLN (net)", "wynagrodzenie rzędu
+    6 000 na rękę"), so only the offer body is scanned (not the page chrome), and an amount
+    without a currency is taken as PLN (a Polish board)."""
+    soup = BeautifulSoup(html, "html.parser")
+    el = soup.find("div", id="job_presentation")
+    return salary_from_text(html_to_text(el), default_currency="PLN") if el else None
+
+
+def parse_location(html: str) -> str:
+    """Free-text location of a single job page: what follows "w" in the job header
+    ("dla <company> w Warszawa / Zdalnie"); ``""`` when the header has none."""
+    soup = BeautifulSoup(html, "html.parser")
+    header = soup.find("div", id="job_presentation") or soup
+    marker = header.find("span", string=re.compile(r"^\s*w\s*$"))
+    if marker is None:
+        return ""
+    parts = [s.get_text(" ") if hasattr(s, "get_text") else str(s) for s in marker.next_siblings]
+    return re.sub(r"\s+", " ", "".join(parts)).strip()
+
+
+def parse_work_mode(html: str) -> str | None:
+    """Work mode of a single job page (see ``app.tasks.scrape.work_mode``). Employers state
+    it in the header's location ("Warszawa (model hybrydowy)", "zdalnie", "ON-SITE in
+    Poznań"), else maybe in the offer body ("praca stacjonarna w biurze"). ``None`` when
+    neither states it (a bare city such as "Łódź" is not taken to mean on-site)."""
+    return work_mode_from_text(parse_location(html)) or work_mode_from_text(parse_description(html))

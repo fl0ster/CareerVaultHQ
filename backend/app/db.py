@@ -54,12 +54,19 @@ def init_db(engine: Engine | None = None) -> None:
 ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "applications": {
         "start_date": "DATE",
+        "salary_override": "JSON",
+        "work_mode_override": "VARCHAR(16)",
     },
     "work_history": {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
         "prefill_state": "VARCHAR(16)",
         "kind": "VARCHAR(16) NOT NULL DEFAULT 'job'",
         "transition": "VARCHAR(16)",
+        "journal_context": "TEXT",
+        "journal_tech": "JSON",
+        "journal_hash": "VARCHAR(64)",
+        "journal_failed_hash": "VARCHAR(64)",
+        "journal_warnings": "JSON",
     },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",
@@ -69,6 +76,8 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "job_parse_results": {
         "interview_steps": "JSON",
         "technologies": "JSON",
+        "salary": "JSON",
+        "work_mode": "VARCHAR(16)",
     },
     "candidate_details": {
         "photo": "TEXT NOT NULL DEFAULT ''",

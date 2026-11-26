@@ -41,7 +41,6 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
                 />{' '}
               </span>
             )}
-            <InterviewProgress application={a} compact />
           </div>
         </div>
         {/* Clicks anywhere around the badge stay with it instead of opening the row. */}
@@ -52,6 +51,7 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
             e.preventDefault()
           }}
         >
+          <InterviewProgress application={a} compact />
           {actions}
         </div>
       </button>

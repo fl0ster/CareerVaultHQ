@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
+import { ChevronDown, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
 import ProfileCard from './ProfileCard.tsx'
 import {
   DASHBOARD_PAGE,
@@ -16,7 +16,18 @@ import {
 import type { Setup } from './useSetup.ts'
 import type { Theme } from './useTheme.ts'
 
-type Badges = Partial<Record<PageId, { count: number; title: string }>>
+type Badges = Partial<
+  Record<
+    PageId,
+    {
+      count: number
+      title: string
+      /** `warn`: something needs the user's attention (e.g. an overdue journal), with `icon` beside the count. */
+      tone?: 'warn'
+      icon?: LucideIcon
+    }
+  >
+>
 
 type Props = {
   active: PageId
@@ -78,8 +89,10 @@ function PageLink({
       <Icon className="nav-icon" size={sub ? 17 : 19} strokeWidth={1.8} aria-hidden="true" />
       <span className="nav-label">{item.label}</span>
       {badge && badge.count > 0 && (
-        <span className="nav-pill" title={badge.title} key={badge.count}>
+        <span className={`nav-pill${badge.tone ? ` ${badge.tone}` : ''}`} title={badge.title} key={badge.count}>
+          {badge.icon && <badge.icon size={11} strokeWidth={2.5} aria-hidden="true" />}
           {badge.count}
+          {badge.tone && <span className="sr-only"> {badge.title}</span>}
         </span>
       )}
     </a>

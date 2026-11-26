@@ -7,6 +7,11 @@ field in ``FIELDS`` (currently ``title``, ``company`` and ``description``). ``ti
 ``description`` are stored verbatim in ``job_parse_results``; the raw ``company`` string is
 never stored there but resolved through ``app.services.companies.resolve_company`` to a
 canonical ``companies`` row whose id is written to ``job_parse_results.company_id``. The
+source's optional ``parse_salary(html)`` hook (or, without one,
+``app.tasks.scrape.salary.salary_from_text`` over the description) fills
+``job_parse_results.salary``; a salary parser failure only leaves it unset. Likewise the
+optional ``parse_work_mode(html)`` hook (or ``app.tasks.scrape.work_mode.work_mode_from_text``
+over the description) fills ``job_parse_results.work_mode`` (remote / hybrid / office). The
 pending row is then marked ``COMPLETED`` with the time the parse happened. Finally
 ``app.tasks.evaluate.evaluate_parse_results`` is enqueued at the front of the queue for the
 parsed job, so it gets scored against the current candidate profile right after its parse
@@ -24,6 +29,7 @@ import json
 import logging
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from types import ModuleType
@@ -41,7 +47,9 @@ from app.services.companies import CompanyMatch, resolve_company
 from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService
 from app.services.technologies import dedupe_technologies, technology_key
 from app.tasks.evaluate import evaluate_parse_results
+from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources import load_source
+from app.tasks.scrape.work_mode import WORK_MODES, work_mode_from_text
 
 log = logging.getLogger(__name__)
 
@@ -395,7 +403,43 @@ def parse_fields(job: Job) -> dict[str, str]:
     return {field: parse_field(job, field, module) for field in FIELDS}
 
 
-def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[JobParseResult, CompanyMatch | None]:
+def _parse_optional(job: Job, field: str, fallback: Callable[[], Any], module: ModuleType | None) -> Any:
+    """The source's optional ``parse_<field>(html)`` hook when it defines one and it finds
+    something, else ``fallback()``. Best effort: a failing parser is logged and yields
+    ``None`` rather than failing the parse."""
+    module = module or _source_module(job)
+    parser = getattr(module, f"parse_{field}", None)
+    try:
+        if parser is not None and job.html:
+            value = parser(job.html)
+            if value:
+                return value
+        return fallback()
+    except Exception:  # noqa: BLE001 - optional fields must not fail the parse
+        log.exception("Parsing the %s of job %d failed", field, job.id)
+        return None
+
+
+def parse_salary(job: Job, description: str, module: ModuleType | None = None) -> dict | None:
+    """Salary of ``job``: the source's ``parse_salary(html)`` hook when it defines one,
+    else the first salary stated in ``description``."""
+    return _parse_optional(job, "salary", lambda: salary_from_text(description), module)
+
+
+def parse_work_mode(job: Job, description: str, module: ModuleType | None = None) -> str | None:
+    """Work mode of ``job`` (one of ``WORK_MODES``): the source's ``parse_work_mode(html)``
+    hook when it defines one, else the work mode stated in ``description``. A value outside
+    ``WORK_MODES`` is logged and dropped."""
+    mode = _parse_optional(job, "work_mode", lambda: work_mode_from_text(description), module)
+    if mode is not None and mode not in WORK_MODES:
+        log.warning("Source %r returned unknown work mode %r for job %d", job.source.key, mode, job.id)
+        return None
+    return mode
+
+
+def _save_result(
+    session: Session, job: Job, values: dict[str, str], salary: dict | None = None, work_mode: str | None = None
+) -> tuple[JobParseResult, CompanyMatch | None]:
     """Upsert the ``JobParseResult`` of ``job``; the ``company`` value goes through the
     company ingestion pipeline and only the canonical ``company_id`` is stored."""
     result = session.scalar(select(JobParseResult).where(JobParseResult.job_id == job.id))
@@ -404,6 +448,8 @@ def _save_result(session: Session, job: Job, values: dict[str, str]) -> tuple[Jo
         session.add(result)
     for field in TEXT_FIELDS:
         setattr(result, field, values.get(field) or None)
+    result.salary = salary or None
+    result.work_mode = work_mode
     match = resolve_company(session, values.get("company", ""), source=job.source)
     result.company = match.company if match else None
     result.parsed_at = datetime.now(UTC)
@@ -450,6 +496,8 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": <id of the canonical companies row, or None>,
             "company_match": "<alias | exact | fuzzy | new, or None>",
             "description_chars": <length of the extracted description>,
+            "salary": <parsed salary dict, or None (only on a fresh parse)>,
+            "work_mode": "<remote | hybrid | office, or None (only on a fresh parse)>",
             "evaluate_job": "<RQ job id of the enqueued evaluation, or None>",
         }
 
@@ -485,7 +533,10 @@ def parse_job(pending_id: int) -> dict[str, Any]:
 
         try:
             values = parse_fields(job)
-            result, match = _save_result(session, job, values)
+            module = _source_module(job)
+            salary = parse_salary(job, values["description"], module)
+            work_mode = parse_work_mode(job, values["description"], module)
+            result, match = _save_result(session, job, values, salary, work_mode)
         except Exception as exc:
             session.rollback()
             pending.status = PendingJobParseRun.STATUS_FAILED
@@ -522,5 +573,7 @@ def parse_job(pending_id: int) -> dict[str, Any]:
             "company_id": company.id if company else None,
             "company_match": match.match_kind if match else None,
             "description_chars": len(values["description"]),
+            "salary": salary,
+            "work_mode": work_mode,
             "evaluate_job": evaluate_job_id,
         }
