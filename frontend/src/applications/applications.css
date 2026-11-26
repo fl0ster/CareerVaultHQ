@@ -84,28 +84,57 @@
   }
 }
 
-/* Application view: header (title, offer link, CV), then a narrow column with the status pill,
-   the interview round count and the job's technologies on the left, the status history beside it. */
+/* Application view: header (title, CV), then a narrow column with the status pill, the interview
+   round count and the job's technologies on the left; on the right the status history or the
+   job description, switched by tabs (with a Link tab opening the offer). */
 .app-view-head {
   align-items: center;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.app-offer-link {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  color: var(--text);
+/* Status history / Description tabs (and the Link that opens the offer) over the right pane. */
+.app-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 
-  &:hover,
-  &:focus-visible {
-    color: var(--accent);
-    background: var(--accent-bg);
+  button,
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 -1px;
+    padding: 6px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--text-h);
+    }
   }
+  button[aria-selected='true'] {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+}
+
+.app-description pre.description {
+  max-height: none;
+  margin: 0;
 }
 
 /* The CV: one icon (download / generating / generate), the info button opens its breakdown. */
@@ -219,15 +248,6 @@
     text-transform: uppercase;
     color: var(--text);
   }
-}
-
-.app-section-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px 12px;
-  margin-bottom: 12px;
 }
 
 .app-aside {

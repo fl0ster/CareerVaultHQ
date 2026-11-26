@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { type Application, type ApplicationStatus } from './api.ts'
 import ApplicationCv from './ApplicationCv.tsx'
@@ -32,15 +32,21 @@ export default function ApplicationView({
 }: Props) {
   const { job, evaluation } = application
 
-  // Technologies live on the job's parse result, which only the job detail carries.
+  // Technologies and the parsed description live on the job's parse result, which only the
+  // job detail carries. `undefined`: still loading; `null`: no description (or it failed).
   const [technologies, setTechnologies] = useState<string[]>([])
+  const [description, setDescription] = useState<string | null | undefined>(undefined)
   useEffect(() => {
     const controller = new AbortController()
     jobsApi
       .get(job.id, controller.signal)
-      .then((detail) => setTechnologies(detail.technologies ?? []))
+      .then((detail) => {
+        setTechnologies(detail.technologies ?? [])
+        setDescription(detail.description)
+      })
       .catch(() => {
-        /* the pills are optional: leave them out */
+        // Both are optional: leave the pills out, show "no description".
+        if (!controller.signal.aborted) setDescription(null)
       })
     return () => controller.abort()
   }, [job.id])
@@ -64,16 +70,6 @@ export default function ApplicationView({
                 />
               )}
               <h2 id={`application-${application.id}`}>{job.title ?? 'Untitled job'}</h2>
-              <a
-                className="app-offer-link"
-                href={job.link}
-                target="_blank"
-                rel="noreferrer"
-                title={`Open the job offer: ${job.link}`}
-                aria-label="Open the job offer"
-              >
-                <ExternalLink size={16} aria-hidden="true" />
-              </a>
             </div>
             <div className="job-meta">
               {job.company && (
@@ -96,6 +92,7 @@ export default function ApplicationView({
           application={application}
           statuses={statuses}
           technologies={technologies}
+          description={description}
           onChange={onChange}
           onAccepted={onAccepted}
         />

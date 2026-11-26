@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { Check, Pencil, Trash2, Undo2 } from 'lucide-react'
+import { Check, ExternalLink, Pencil, Trash2, Undo2 } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
@@ -39,6 +39,8 @@ type Props = {
   statuses: ApplicationStatus[]
   /** The job's technologies, shown quietly in the left column. */
   technologies: string[]
+  /** The job's parsed description (`undefined` while loading, `null` when there is none). */
+  description: string | null | undefined
   onChange: (application: Application) => void
   /** The offer was accepted (the application is now `ACCEPTED`). */
   onAccepted: (application: Application) => void
@@ -568,8 +570,17 @@ function OfferBox({
 }
 
 /** Body of the application view: the status pill, the interview round count and the job's
- * technologies in a narrow column on the left, the status history as a vertical stepper beside it. */
-export default function ApplicationDetail({ application, statuses, technologies, onChange, onAccepted }: Props) {
+ * technologies in a narrow column on the left; beside it the status history (a vertical stepper)
+ * or the job description, switched by tabs, plus a Link tab that opens the offer. */
+export default function ApplicationDetail({
+  application,
+  statuses,
+  technologies,
+  description,
+  onChange,
+  onAccepted,
+}: Props) {
+  const [pane, setPane] = useState<'history' | 'description'>('history')
   const held = heldRounds(application)
   const history = historyEvents(application)
   const status = application.status
@@ -615,9 +626,41 @@ export default function ApplicationDetail({ application, statuses, technologies,
       </aside>
 
       <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
-        <div className="app-section-head">
-          <h3 id={`app-history-${application.id}`}>Status history</h3>
+        <div className="app-tabs" role="tablist" aria-label="Application">
+          <button
+            type="button"
+            role="tab"
+            id={`app-history-${application.id}`}
+            aria-selected={pane === 'history'}
+            onClick={() => setPane('history')}
+          >
+            Status history
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'description'}
+            onClick={() => setPane('description')}
+          >
+            Description
+          </button>
+          <a href={application.job.link} target="_blank" rel="noreferrer" title={`Open the job offer: ${application.job.link}`}>
+            Link <ExternalLink size={13} aria-hidden="true" />
+          </a>
         </div>
+        {pane === 'description' && (
+          <div className="job-desc app-description" role="tabpanel">
+            {description === undefined ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : description ? (
+              <pre className="description">{description}</pre>
+            ) : (
+              <p className="muted">No parsed description.</p>
+            )}
+          </div>
+        )}
+        {/* Kept mounted while the description shows, so drafts of planned rounds survive. */}
+        <div hidden={pane !== 'history'} role="tabpanel" aria-labelledby={`app-history-${application.id}`}>
         <datalist id={ROUND_TYPES_ID}>
           {ROUND_TYPES.map((t) => (
             <option key={t} value={t} />
@@ -669,6 +712,7 @@ export default function ApplicationDetail({ application, statuses, technologies,
         ) : final ? (
           <p className="muted app-final-hint">{status?.label} is final — remove that state to record new ones.</p>
         ) : null}
+        </div>
       </section>
     </div>
   )
