@@ -44,6 +44,16 @@ export type WorkHistoryEntry = {
   /** The role a position with a `transition` continues: the latest earlier position at the same
    * employer; null when there is none (the role then stands on its own). */
   previous_role_id: number | null
+  /** A position's description built from its work journal; used while `context` is blank. */
+  journal_context: string | null
+  /** The technologies from its work journal; used while `tech` is empty. */
+  journal_tech: string[]
+  /** Notes in the position's work journal. */
+  journal_count: number
+  /** The day of the latest journal note (ISO date): the day it is dated, not when it was saved. */
+  last_journal_on: string | null
+  /** A current position without a journal note for a week. */
+  journal_overdue: boolean
 }
 
 export type WorkHistoryInput = Omit<
@@ -57,6 +67,11 @@ export type WorkHistoryInput = Omit<
   | 'company_id'
   | 'company_tag'
   | 'previous_role_id'
+  | 'journal_context'
+  | 'journal_tech'
+  | 'journal_count'
+  | 'last_journal_on'
+  | 'journal_overdue'
 >
 
 /** Shape of `GET /json`; dates are `Jan 2020` style, tech is comma separated. */
@@ -124,4 +139,89 @@ export const workHistoryApi = {
     })
       .then((r) => parse<WorkHistoryEntry[]>(r))
       .then(notifyChanged),
+}
+
+/** One raw note of a position's work journal, kept exactly as written. */
+export type JournalNote = {
+  id: number
+  /** The day the work happened (ISO date). */
+  logged_on: string
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+/** The polished summary of one month of notes, generated lazily by the LLM. */
+export type JournalMonth = {
+  /** First day of the month (ISO date). */
+  month: string
+  /** Null until generated. */
+  summary: string | null
+  accomplishments: string[]
+  tech: string[]
+  generated_at: string | null
+  /** The notes changed since the summary was generated (or it never was). */
+  stale: boolean
+}
+
+export type Journal = {
+  role_id: number
+  /** Newest first. */
+  entries: JournalNote[]
+  /** One per month with notes, newest first. */
+  months: JournalMonth[]
+  journal_context: string | null
+  journal_tech: string[]
+  /** The user's own description is used instead of `journal_context`. */
+  context_overridden: boolean
+  /** The user's own technologies are used instead of `journal_tech`. */
+  tech_overridden: boolean
+  /** The description could not be built truthfully from the current summaries; tried again once the notes change. */
+  context_failed: boolean
+  /** Something needs regenerating: call `refresh`. */
+  stale: boolean
+  /** A refresh is queued or running on the worker: poll `get` until it is false. */
+  refreshing: boolean
+  /** What the last refresh could not regenerate (the previous version is kept). */
+  warnings: string[]
+}
+
+const journalUrl = (roleId: number) => `${API}/${roleId}/journal`
+
+export const journalApi = {
+  get: (roleId: number) => fetch(journalUrl(roleId)).then((r) => parse<Journal>(r)),
+  /** Queues the regeneration of the stale summaries and description on the worker; poll `get` while `refreshing`. */
+  refresh: (roleId: number) => fetch(`${journalUrl(roleId)}/refresh`, { method: 'POST' }).then((r) => parse<Journal>(r)),
+  add: (roleId: number, body: string, loggedOn?: string) =>
+    fetch(journalUrl(roleId), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body, logged_on: loggedOn || null }),
+    })
+      .then((r) => parse<JournalNote>(r))
+      .then(notifyChanged),
+  update: (roleId: number, noteId: number, changes: { body?: string; logged_on?: string }) =>
+    fetch(`${journalUrl(roleId)}/${noteId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(changes),
+    })
+      .then((r) => parse<JournalNote>(r))
+      .then(notifyChanged),
+  remove: (roleId: number, noteId: number) =>
+    fetch(`${journalUrl(roleId)}/${noteId}`, { method: 'DELETE' })
+      .then((r) => parse<void>(r))
+      .then(notifyChanged),
+}
+
+/** How long ago a day (ISO date, local) was: "today", "yesterday", "3 days ago", "2 weeks ago". */
+export function daysAgo(isoDate: string, now: Date = new Date()): string {
+  const day = new Date(`${isoDate}T00:00:00`)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const days = Math.round((today.getTime() - day.getTime()) / 86_400_000)
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  if (days < 7) return rtf.format(-Math.max(days, 0), 'day')
+  if (days < 31) return rtf.format(-Math.floor(days / 7), 'week')
+  if (days < 365) return rtf.format(-Math.floor(days / 30), 'month')
+  return rtf.format(-Math.floor(days / 365), 'year')
 }

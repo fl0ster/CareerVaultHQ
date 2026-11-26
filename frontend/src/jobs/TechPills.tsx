@@ -21,7 +21,9 @@ function useUserTech(): Set<string> {
         // Positions that have not started yet are not experience (yet); education and
         // certificates are not positions.
         const started = entries.filter((e) => e.kind === 'job' && !e.pending)
-        setKeys(new Set(started.flatMap((e) => e.tech).map(techKey).filter(Boolean)))
+        // A position's own technologies, else those from its work journal.
+        const tech = started.flatMap((e) => (e.tech.length ? e.tech : e.journal_tech))
+        setKeys(new Set(tech.map(techKey).filter(Boolean)))
       })
       .catch(() => {
         /* the highlight is optional */

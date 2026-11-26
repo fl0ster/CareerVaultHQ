@@ -44,7 +44,9 @@ export function useNavCounts(refreshKey: unknown): { counts: NavCounts | null; f
             prev.applications === next.applications &&
             prev.interviews === next.interviews &&
             prev.offers === next.offers &&
-            prev.work_history === next.work_history
+            prev.work_history === next.work_history &&
+            prev.employment === next.employment &&
+            prev.journal_overdue === next.journal_overdue
               ? prev
               : next,
           )

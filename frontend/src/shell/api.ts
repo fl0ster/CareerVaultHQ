@@ -11,6 +11,8 @@ export type NavCounts = {
   work_history: number
   /** Positions held now (started, no end date). */
   employment: number
+  /** Positions held now without a work-journal note for a week. */
+  journal_overdue: number
 }
 
 export const navApi = {

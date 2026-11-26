@@ -153,6 +153,35 @@ WORK_HISTORY_PREFILL = ChatCall(
     used_in="app.tasks.work_history.prefill",
 )
 
+# --- Work journal ---------------------------------------------------------------------------
+
+JOURNAL_MONTH_SUMMARY = ChatCall(
+    key="journal_month_summary",
+    source="services.work_journal.month",
+    model=DEFAULT_CHAT_MODEL,
+    purpose="Polish one month of a position's raw work-journal notes into a summary, accomplishments and "
+    "technologies, using only facts from the notes.",
+    used_in="app.services.work_journal",
+)
+
+JOURNAL_ROLE_CONTEXT = ChatCall(
+    key="journal_role_context",
+    source="services.work_journal.context",
+    model=DEFAULT_CHAT_MODEL,
+    purpose="Write a position's CV description from its monthly work-journal summaries (used while the user's "
+    "own description is blank).",
+    used_in="app.services.work_journal",
+)
+
+JOURNAL_FAITHFUL = DecisionCall(
+    key="journal_faithful",
+    source="services.work_journal.faithful",
+    model=DEFAULT_DECISION_MODEL,
+    purpose="Yes/no: is every statement of a generated journal summary or description supported by its "
+    "source notes? Unfaithful texts are retried, then discarded.",
+    used_in="app.services.work_journal",
+)
+
 # --- Gmail monitor --------------------------------------------------------------------------
 
 GMAIL_REJECTION = DecisionCall(
@@ -274,6 +303,9 @@ ALL_CALLS: tuple[LlmCall, ...] = (
     JOB_EVALUATION,
     JOB_SCORE_EXPLANATION,
     WORK_HISTORY_PREFILL,
+    JOURNAL_MONTH_SUMMARY,
+    JOURNAL_ROLE_CONTEXT,
+    JOURNAL_FAITHFUL,
     GMAIL_REJECTION,
     MAIL_COMPANY_AND_ROLE,
     CV_IMPORT,

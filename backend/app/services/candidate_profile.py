@@ -65,7 +65,9 @@ def _month(value: date | None) -> str | None:
 def _work_history_payload(session: Session) -> list[dict]:
     """The work history in the shape of ``GET /api/work-history/json``, newest first. Pending
     positions (starting in the future) are left out until they start, and so are education
-    and certificates (the profile describes the work experience). ``transition`` is included
+    and certificates (the profile describes the work experience). A position's context and
+    technologies are the user's own, or those built from its work journal while the user's are
+    blank (``effective_context`` / ``effective_tech``). ``transition`` is included
     only when set, so a work history without promotions keeps the hash it always had."""
     entries = session.scalars(
         select(WorkHistoryEntry)
@@ -80,8 +82,8 @@ def _work_history_payload(session: Session) -> list[dict]:
             "employer": e.employer,
             "role": e.role,
             "location": e.location,
-            "tech": ", ".join(e.tech),
-            "context": e.context,
+            "tech": ", ".join(e.effective_tech),
+            "context": e.effective_context,
         }
         if e.transition:
             item["transition"] = e.transition

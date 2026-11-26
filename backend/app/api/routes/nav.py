@@ -22,6 +22,7 @@ from app.config import Settings, get_settings
 from app.db import get_session
 from app.models import WorkHistoryEntry
 from app.services.applications import application_count, current_stage_counts
+from app.services.work_journal import overdue_role_ids
 
 router = APIRouter()
 
@@ -41,6 +42,8 @@ class NavCounts(BaseModel):
     """Entries in the work history (positions, education, certificates)."""
     employment: int
     """Positions held now: started, with no end date."""
+    journal_overdue: int
+    """Positions held now without a work-journal note for a week (see ``app.services.work_journal``)."""
 
 
 @router.get("/counts", response_model=NavCounts)
@@ -65,4 +68,5 @@ def nav_counts(
             )
         )
         or 0,
+        journal_overdue=len(overdue_role_ids(session)),
     )

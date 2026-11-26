@@ -14,6 +14,7 @@ def test_counts_are_zero_on_an_empty_database(client):
         "offers": 0,
         "work_history": 0,
         "employment": 0,
+        "journal_overdue": 0,
     }
 
 
