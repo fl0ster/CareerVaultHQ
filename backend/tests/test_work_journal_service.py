@@ -5,13 +5,14 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
+from sqlalchemy import event
 
 from app.config import Settings
 from app.models import WorkHistoryEntry, WorkJournalEntry, WorkJournalMonth
 from app.services import work_journal
 from app.services.candidate_profile import _work_history_payload
 from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService
-from app.tasks.cv.generate import load_roles
+from app.tasks.cv.generate import load_journal_roles, load_roles
 
 MONTH_REPLY = {
     "summary": "Built the payments retry queue in Python.",
@@ -282,3 +283,21 @@ def test_overdue_current_positions(db_session):
 
     assert sorted(work_journal.overdue_role_ids(db_session, today)) == sorted([stale.id, backfilled.id, never.id])
     assert work_journal.activity(db_session, [backfilled.id])[backfilled.id].last_on == today - timedelta(days=10)
+
+
+def test_cv_generation_checks_every_journal_without_a_query_per_position(db_session, engine):
+    for i in range(4):
+        role = _role(db_session, employer=f"Employer {i}")
+        _note(db_session, role, date(2026, 11, 2), f"Note {i}")
+    db_session.expunge_all()
+
+    roles = load_journal_roles(db_session)
+    statements: list[str] = []
+    listener = lambda *args: statements.append(args[2])  # noqa: E731 - (conn, cursor, statement, ...)
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        stale = [work_journal.is_stale(role) for role in roles]
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+    assert stale == [True] * 4
+    assert statements == []

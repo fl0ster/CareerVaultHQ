@@ -48,7 +48,8 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm.interfaces import ORMOption
 
 from app import llm_calls
 from app.config import Settings, get_settings
@@ -121,13 +122,28 @@ def load_roles(session: Session, today: date | None = None) -> list[Role]:
     ]
 
 
-def _started(session: Session, kind: str, today: date | None) -> Sequence[WorkHistoryEntry]:
-    """Timeline entries of ``kind`` that started by ``today``, newest first."""
+def _started(session: Session, kind: str, today: date | None, *options: ORMOption) -> Sequence[WorkHistoryEntry]:
+    """Timeline entries of ``kind`` that started by ``today``, newest first; ``options`` are
+    loader options for the query (e.g. eager loading)."""
     return session.scalars(
         select(WorkHistoryEntry)
         .where(WorkHistoryEntry.kind == kind, WorkHistoryEntry.date_start <= (today or date.today()))
         .order_by(WorkHistoryEntry.date_start.desc(), WorkHistoryEntry.id.desc())
+        .options(*options)
     ).all()
+
+
+def load_journal_roles(session: Session, today: date | None = None) -> Sequence[WorkHistoryEntry]:
+    """The started positions with their journal notes and monthly summaries loaded up front
+    (two ``SELECT ... IN`` queries in all), so checking every one for staleness does not
+    lazy-load per position."""
+    return _started(
+        session,
+        WorkHistoryEntry.KIND_JOB,
+        today,
+        selectinload(WorkHistoryEntry.journal_entries),
+        selectinload(WorkHistoryEntry.journal_months),
+    )
 
 
 def _cv_month(value: date) -> str:
@@ -558,7 +574,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         raise CvGenerationError("the parsed job has no description")
 
     # 0. work journal: bring the descriptions built from the positions' journals up to date
-    journal_roles = _started(session, WorkHistoryEntry.KIND_JOB, today)
+    journal_roles = load_journal_roles(session, today)
     warnings += refresh_stale_journals(session, journal_roles, OpenRouterService(session, settings))
 
     roles = load_roles(session, today)
