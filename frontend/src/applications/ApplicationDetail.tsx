@@ -163,20 +163,81 @@ function tooEarly(when: string, min: string | undefined): string | null {
   return when && min && when < min ? `Pick a date on or after ${new Date(min).toLocaleString()}.` : null
 }
 
+/** A round's name (its custom one, or `defaultName` such as "Round 2"), clicked to rename it in
+ * place. Enter or leaving the field saves, Escape cancels; an empty name restores the default. */
+function RoundName({
+  title,
+  defaultName,
+  onSave,
+  disabled,
+}: {
+  title: string
+  defaultName: string
+  onSave: (title: string) => void
+  disabled?: boolean
+}) {
+  const [draft, setDraft] = useState(title)
+  const [renaming, setRenaming] = useState(false)
+
+  const commit = () => {
+    setRenaming(false)
+    if (draft.trim() !== title) onSave(draft.trim())
+  }
+  const cancel = () => {
+    setDraft(title)
+    setRenaming(false)
+  }
+
+  return renaming ? (
+    <input
+      type="text"
+      className="app-round-name-input"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+        else if (e.key === 'Escape') cancel()
+      }}
+      list={ROUND_TYPES_ID}
+      placeholder={defaultName}
+      aria-label={`${defaultName}: name`}
+      maxLength={128}
+      autoFocus
+    />
+  ) : (
+    <button
+      type="button"
+      className="app-round-name"
+      onClick={() => {
+        setDraft(title)
+        setRenaming(true)
+      }}
+      disabled={disabled}
+      title="Click to rename (e.g. Technical); leave empty for the default name"
+    >
+      {title || defaultName}
+    </button>
+  )
+}
+
 /** A recorded state: a filled, checked dot in the state's colour, its name and date beside it
  * and the note under it. The latest one (the application's current state) is ringed. */
 function EventRow({
   application,
   event,
   name,
+  roundName,
   current,
   statuses,
   onChange,
 }: {
   application: Application
   event: ApplicationEvent
-  /** "Applied", "Round 2 · Technical"… */
+  /** "Applied", "Technical"… */
   name: string
+  /** For a held round, its default name ("Round 2"): the name is then renamed in place. */
+  roundName?: string
   /** The application's current state. */
   current: boolean
   statuses: ApplicationStatus[]
@@ -185,13 +246,16 @@ function EventRow({
   const [editing, setEditing] = useState(false)
   const [status, setStatus] = useState(event.status.key)
   const [note, setNote] = useState(event.note)
-  const [title, setTitle] = useState(event.title)
   const [duration, setDuration] = useState(event.duration_minutes)
   const [when, setWhen] = useState(toLocalInput(event.occurred_at))
   const { busy, error, run } = useAction()
-  // SHORTLISTED is fixed for good; ACCEPTED / DECLINED can only be removed (undoing the answer).
+  // Removing a held interview round turns it back into a planned one.
+  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
+  // SHORTLISTED is fixed for good; ACCEPTED / DECLINED can only be removed (undoing the answer);
+  // a held round stays a round.
   const locked = event.status.key === INITIAL_ONLY_STATUS
-  const statusLocked = locked || event.status.key === ACCEPTED_STATUS || event.status.key === DECLINED_STATUS
+  const statusLocked =
+    locked || isHeldRound || event.status.key === ACCEPTED_STATUS || event.status.key === DECLINED_STATUS
   const isRound = status === INTERVIEW_STATUS
   const min = earliestFor(application, status, event.id)
   const dateError = when !== toLocalInput(event.occurred_at) ? tooEarly(when, min) : null
@@ -199,7 +263,6 @@ function EventRow({
   const startEdit = () => {
     setStatus(event.status.key)
     setNote(event.note)
-    setTitle(event.title)
     setDuration(event.duration_minutes)
     setWhen(toLocalInput(event.occurred_at))
     setEditing(true)
@@ -213,7 +276,6 @@ function EventRow({
       applicationsApi.updateEvent(application.id, event.id, {
         ...(statusLocked ? {} : { status }),
         note,
-        title,
         duration_minutes: duration,
         ...(dateChanged ? { occurred_at: fromLocalInput(when) } : {}),
       }),
@@ -224,8 +286,11 @@ function EventRow({
     }
   }
 
-  // Removing a held interview round turns it back into a planned one.
-  const isHeldRound = event.status.key === INTERVIEW_STATUS && !event.stage_entry
+  const rename = async (title: string) => {
+    const updated = await run(() => applicationsApi.updateEvent(application.id, event.id, { title }))
+    if (updated) onChange(updated)
+  }
+
   const remove = async () => {
     const question = isHeldRound
       ? `Mark ${event.title ? `the "${event.title}"` : 'this'} round as not held? It goes back to the planned rounds.`
@@ -275,15 +340,6 @@ function EventRow({
           </div>
           {isRound && (
             <div className="app-form-row app-round-fields">
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                list={ROUND_TYPES_ID}
-                placeholder="Kind of round (e.g. Technical)"
-                aria-label="Kind of round"
-                maxLength={128}
-              />
               <DurationSelect value={duration} onChange={setDuration} />
             </div>
           )}
@@ -319,7 +375,11 @@ function EventRow({
                 ⚡
               </span>
             )}
-            {name}
+            {roundName ? (
+              <RoundName title={event.title} defaultName={roundName} onSave={(t) => void rename(t)} disabled={busy} />
+            ) : (
+              name
+            )}
           </span>
           {current && <span className="sr-only">(current state)</span>}
           <span className="app-step-actions">
@@ -358,8 +418,6 @@ function PlannedEventRow({
   current: boolean
   onChange: (application: Application) => void
 }) {
-  const [title, setTitle] = useState(event.title)
-  const [renaming, setRenaming] = useState(false)
   const [note, setNote] = useState(event.note)
   const [when, setWhen] = useState(event.occurred_at ? toLocalInput(event.occurred_at) : '')
   const { busy, error, run } = useAction()
@@ -372,14 +430,6 @@ function PlannedEventRow({
     if (updated) onChange(updated)
   }
 
-  const saveTitle = () => {
-    setRenaming(false)
-    if (title.trim() !== event.title) void save({ title: title.trim() })
-  }
-  const cancelRename = () => {
-    setTitle(event.title)
-    setRenaming(false)
-  }
   const defaultName = `Round ${index + 1}`
   const saveNote = () => {
     if (note !== event.note) void save({ note })
@@ -418,35 +468,12 @@ function PlannedEventRow({
       <div className="app-step-body">
         <div className="app-step-head">
           <span className="iv-step-name">
-            {renaming ? (
-              <input
-                type="text"
-                className="app-round-name-input"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={saveTitle}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveTitle()
-                  else if (e.key === 'Escape') cancelRename()
-                }}
-                list={ROUND_TYPES_ID}
-                placeholder={defaultName}
-                aria-label={`${defaultName}: name`}
-                maxLength={128}
-                autoFocus
-              />
-            ) : (
-              // The name (the custom one, or "Round N") is clicked to rename the round.
-              <button
-                type="button"
-                className="app-round-name"
-                onClick={() => setRenaming(true)}
-                disabled={busy}
-                title="Click to rename (e.g. Technical); leave empty for the default name"
-              >
-                {event.title || defaultName}
-              </button>
-            )}{' '}
+            <RoundName
+              title={event.title}
+              defaultName={defaultName}
+              onSave={(title) => void save({ title })}
+              disabled={busy}
+            />{' '}
             <span className="app-round-label">· {final ? 'not held' : 'planned'}</span>
           </span>
           <span className="app-step-actions">
@@ -745,11 +772,11 @@ export default function ApplicationDetail({
     application.planned_events.length === 0 &&
     history[history.length - 1] === held[held.length - 1]
 
-  /** "Round 2 · Technical" for a held round, the state's label otherwise. */
+  /** "Technical" (or "Round 2" when unnamed) for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
     const round = held.indexOf(event)
     if (round < 0) return event.status.label
-    return `Round ${round + 1}${event.title ? ` · ${event.title}` : ''}`
+    return event.title || `Round ${round + 1}`
   }
 
   return (
@@ -846,6 +873,7 @@ export default function ApplicationDetail({
               application={application}
               event={event}
               name={eventName(event)}
+              roundName={held.includes(event) ? `Round ${held.indexOf(event) + 1}` : undefined}
               current={!upcoming && i === history.length - 1}
               statuses={statuses}
               onChange={onChange}
