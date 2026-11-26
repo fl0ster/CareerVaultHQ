@@ -12,6 +12,7 @@ import re
 
 from bs4 import BeautifulSoup
 
+from app.tasks.scrape.salary import salary_from_jobposting, salary_from_text
 from app.tasks.scrape.sources._helpers import _name, format_jobposting, html_to_blocks, jsonld_jobposting
 
 MAX_DESCRIPTION_CHARS = 20_000
@@ -79,3 +80,9 @@ def parse_description(html: str) -> str:
             break
     container = container or soup.body or soup
     return html_to_blocks(str(container))[:MAX_DESCRIPTION_CHARS]
+
+
+def parse_salary(html: str) -> dict | None:
+    """``JobPosting.baseSalary`` when the page embeds one, else the first salary stated in
+    the page's description text (see ``app.tasks.scrape.salary``)."""
+    return salary_from_jobposting(jsonld_jobposting(html)) or salary_from_text(parse_description(html))

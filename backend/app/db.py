@@ -69,6 +69,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
     "job_parse_results": {
         "interview_steps": "JSON",
         "technologies": "JSON",
+        "salary": "JSON",
     },
     "candidate_details": {
         "photo": "TEXT NOT NULL DEFAULT ''",

@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.tasks.scrape._helpers import HEADERS
+from app.tasks.scrape.salary import salary_from_text
 from app.tasks.scrape.sources._helpers import html_to_text
 
 NAME = "Skillshot"
@@ -92,3 +93,13 @@ def parse_company(html: str) -> str:
 
     # TODO: apply LLM to figure this out
     return ""
+
+
+def parse_salary(html: str) -> dict | None:
+    """Salary stated in a single job page. Skillshot has no salary field: employers write
+    it in the free-text offer ("Salary starting from 6,5k PLN (net)", "wynagrodzenie rzędu
+    6 000 na rękę"), so only the offer body is scanned (not the page chrome), and an amount
+    without a currency is taken as PLN (a Polish board)."""
+    soup = BeautifulSoup(html, "html.parser")
+    el = soup.find("div", id="job_presentation")
+    return salary_from_text(html_to_text(el), default_currency="PLN") if el else None
