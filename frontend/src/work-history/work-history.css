@@ -1262,22 +1262,17 @@
   }
 }
 
-/* Employment: the positions held now, one card each. */
-.employment-list {
-  list-style: none;
+/* Employment: the positions held now, on interview-style cards. */
+.employment-role {
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  font-family: var(--heading);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
 }
-.employment-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
+.employment-since {
+  margin: 0;
+  font-size: 14px;
 }

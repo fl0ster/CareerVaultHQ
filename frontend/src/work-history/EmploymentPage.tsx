@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import '../interviews/interviews.css'
 import './work-history.css'
 import { WORK_HISTORY_CHANGED, type WorkHistoryEntry, workHistoryApi } from './api.ts'
 
@@ -7,8 +8,8 @@ const isCurrentPosition = (e: WorkHistoryEntry) => e.kind === 'job' && e.date_en
 
 const since = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
 
-/** The positions currently held, each opening its entry in My Career. */
-export default function EmploymentPage({ onOpen }: { onOpen: (id: number) => void }) {
+/** The positions currently held, one card each (styled like the interview cards). */
+export default function EmploymentPage() {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,17 +29,21 @@ export default function EmploymentPage({ onOpen }: { onOpen: (id: number) => voi
   if (entries.length === 0) return <p className="muted">No current positions.</p>
 
   return (
-    <ul className="employment-list">
+    <ul className="iv-grid">
       {entries.map((e) => (
         <li key={e.id}>
-          <button type="button" className="card employment-card" onClick={() => onOpen(e.id)}>
-            <strong>{e.role}</strong>
-            <span>{e.employer}</span>
-            <span className="muted">
-              Since {since(e.date_start)}
-              {e.location ? ` · ${e.location}` : ''}
-            </span>
-          </button>
+          <article className="iv-card">
+            <header className="iv-card-head">
+              <div className="iv-card-title">
+                <h3 className="employment-role">{e.role}</h3>
+                <div className="iv-card-meta">
+                  <span>{e.employer}</span>
+                  {e.location && <span className="muted">{e.location}</span>}
+                </div>
+              </div>
+            </header>
+            <p className="muted employment-since">Since {since(e.date_start)}</p>
+          </article>
         </li>
       ))}
     </ul>

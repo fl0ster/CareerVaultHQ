@@ -180,7 +180,7 @@ function App() {
           />
         )
       case 'employment':
-        return <EmploymentPage onOpen={openCareerEntry} />
+        return <EmploymentPage />
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':
