@@ -1,6 +1,8 @@
 import { type ReactNode, useState } from 'react'
 import { Check, ExternalLink, Pencil, Trash2, Undo2 } from 'lucide-react'
-import { describeError } from '../cv/api.ts'
+import { describeError, isInProgress } from '../cv/api.ts'
+import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
+import '../cv/cv.css'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
 import {
@@ -575,8 +577,9 @@ function OfferBox({
 }
 
 /** Body of the application view: the CV, salary & work mode, the interview round count and the
- * job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
- * or the job description, switched by tabs, plus a Link tab that opens the offer. */
+ * job's technologies in a narrow column on the left; beside it the status history (a vertical stepper),
+ * how the latest CV was generated (CV Settings) or the job description, switched by tabs, plus a
+ * Link that opens the offer. */
 export default function ApplicationDetail({
   application,
   statuses,
@@ -585,7 +588,7 @@ export default function ApplicationDetail({
   onChange,
   onAccepted,
 }: Props) {
-  const [pane, setPane] = useState<'history' | 'description'>('history')
+  const [pane, setPane] = useState<'history' | 'cv' | 'description'>('history')
   const held = heldRounds(application)
   const history = historyEvents(application)
   const status = application.status
@@ -634,6 +637,9 @@ export default function ApplicationDetail({
           >
             Status history
           </button>
+          <button type="button" role="tab" aria-selected={pane === 'cv'} onClick={() => setPane('cv')}>
+            CV Settings
+          </button>
           <button
             type="button"
             role="tab"
@@ -646,6 +652,17 @@ export default function ApplicationDetail({
             Link <ExternalLink size={13} aria-hidden="true" />
           </a>
         </div>
+        {pane === 'cv' && (
+          <div className="app-cv-report" role="tabpanel">
+            {!application.cv ? (
+              <p className="muted">No CV generated for this application yet.</p>
+            ) : isInProgress(application.cv) ? (
+              <p className="muted">The CV is being generated; how it was made shows here once it is done.</p>
+            ) : (
+              <CvPipelineReport key={application.cv.id} cv={application.cv} />
+            )}
+          </div>
+        )}
         {pane === 'description' && (
           <div className="job-desc app-description" role="tabpanel">
             {description === undefined ? (

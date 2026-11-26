@@ -136,6 +136,16 @@
   }
 }
 
+/* CV Settings tab: the pipeline report keeps its own headings, not the section labels'. */
+.app-history .pl-report h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-h);
+}
+
 .app-description pre.description {
   max-height: none;
   margin: 0;
