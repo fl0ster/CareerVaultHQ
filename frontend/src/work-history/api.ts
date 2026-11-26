@@ -180,7 +180,9 @@ export type Journal = {
   context_failed: boolean
   /** Something needs regenerating: call `refresh`. */
   stale: boolean
-  /** What a refresh could not regenerate (the previous version is kept). */
+  /** A refresh is queued or running on the worker: poll `get` until it is false. */
+  refreshing: boolean
+  /** What the last refresh could not regenerate (the previous version is kept). */
   warnings: string[]
 }
 
@@ -188,11 +190,8 @@ const journalUrl = (roleId: number) => `${API}/${roleId}/journal`
 
 export const journalApi = {
   get: (roleId: number) => fetch(journalUrl(roleId)).then((r) => parse<Journal>(r)),
-  /** Regenerates the stale monthly summaries and description with the LLM (may take a while). */
-  refresh: (roleId: number) =>
-    fetch(`${journalUrl(roleId)}/refresh`, { method: 'POST' })
-      .then((r) => parse<Journal>(r))
-      .then(notifyChanged),
+  /** Queues the regeneration of the stale summaries and description on the worker; poll `get` while `refreshing`. */
+  refresh: (roleId: number) => fetch(`${journalUrl(roleId)}/refresh`, { method: 'POST' }).then((r) => parse<Journal>(r)),
   add: (roleId: number, body: string, loggedOn?: string) =>
     fetch(journalUrl(roleId), {
       method: 'POST',

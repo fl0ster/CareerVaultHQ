@@ -2,7 +2,8 @@
 
 The user logs what they did at a position (``WorkJournalEntry``), as often as they like. The
 notes are never rewritten. From them the LLM builds, lazily (the first time they are
-requested after the notes changed, never on a schedule):
+requested after the notes changed, never on a schedule; in the RQ worker, see
+``app.tasks.work_history.journal``, or inside CV generation, never in an API request):
 
 * one ``WorkJournalMonth`` per month with notes: a short summary, the accomplishments and
   the technologies used that month. A month is *stale* when its notes no longer hash to the

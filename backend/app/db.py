@@ -66,6 +66,7 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "journal_tech": "JSON",
         "journal_hash": "VARCHAR(64)",
         "journal_failed_hash": "VARCHAR(64)",
+        "journal_warnings": "JSON",
     },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",

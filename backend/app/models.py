@@ -335,6 +335,8 @@ class WorkHistoryEntry(Base):
     wherever ``tech`` is empty."""
     journal_hash: Mapped[str | None] = mapped_column(String(64))
     """Hash of the monthly summaries ``journal_context`` was built from (stale when it differs)."""
+    journal_warnings: Mapped[list[str] | None] = mapped_column(JSON)
+    """What the last journal refresh (an RQ job) could not regenerate; ``None`` when all went well."""
     journal_failed_hash: Mapped[str | None] = mapped_column(String(64))
     """Hash of the monthly summaries whose description failed the truthfulness check: it is not
     retried until the summaries change."""

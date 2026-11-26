@@ -2,8 +2,18 @@ import { ArrowLeft, Check, Pencil, ShieldAlert, ShieldCheck, Sparkles, Trash2, X
 import { useCallback, useEffect, useState } from 'react'
 import '../jobs/jobs.css'
 import { pageHref } from '../shell/nav.ts'
-import { type Journal, journalApi, type JournalMonth, type JournalNote, type WorkHistoryEntry } from './api.ts'
+import {
+  type Journal,
+  journalApi,
+  type JournalMonth,
+  type JournalNote,
+  WORK_HISTORY_CHANGED,
+  type WorkHistoryEntry,
+} from './api.ts'
 import JournalComposer from './JournalComposer.tsx'
+
+/** How often the view checks on a refresh running on the worker, in ms. */
+const POLL_INTERVAL = 2_000
 
 const monthTitle = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -158,15 +168,18 @@ function Month({
 /**
  * The work journal of a position: the notes logged on it (kept as written) and the truthful,
  * polished monthly log and description the LLM builds from them. Whatever is out of date is
- * regenerated when the journal is opened.
+ * regenerated on the worker when the journal is opened.
  */
 export default function JournalView({ role, onBack }: { role: WorkHistoryEntry; onBack: () => void }) {
   const [journal, setJournal] = useState<Journal | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const roleId = role.id
+  // The worker is regenerating the summaries: the view polls until it is done.
+  const refreshing = journal?.refreshing ?? false
 
-  // Reads the journal as stored, then regenerates whatever is out of date (lazily, on opening).
+  // Reads the journal as stored and, when something is out of date, asks the worker to
+  // regenerate it (lazily: on opening and after a change, never from the polling below, so a
+  // refresh that leaves things stale is not retried in a loop).
   const load = useCallback(
     () =>
       journalApi
@@ -174,13 +187,7 @@ export default function JournalView({ role, onBack }: { role: WorkHistoryEntry; 
         .then(async (current) => {
           setJournal(current)
           setError(null)
-          if (!current.stale) return
-          setRefreshing(true)
-          try {
-            setJournal(await journalApi.refresh(roleId))
-          } finally {
-            setRefreshing(false)
-          }
+          if (current.stale && !current.refreshing) setJournal(await journalApi.refresh(roleId))
         })
         .catch((err: Error) => setError(err.message)),
     [roleId],
@@ -189,6 +196,21 @@ export default function JournalView({ role, onBack }: { role: WorkHistoryEntry; 
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!refreshing) return
+    const timer = window.setTimeout(() => {
+      journalApi
+        .get(roleId)
+        .then((current) => {
+          setJournal(current)
+          // Done: the role's description and the menu counts may have changed.
+          if (!current.refreshing) window.dispatchEvent(new Event(WORK_HISTORY_CHANGED))
+        })
+        .catch((err: Error) => setError(err.message))
+    }, POLL_INTERVAL)
+    return () => window.clearTimeout(timer)
+  }, [refreshing, journal, roleId])
 
   const overrides = [journal?.context_overridden && 'description', journal?.tech_overridden && 'technologies'].filter(
     Boolean,

@@ -3,8 +3,10 @@
 The user logs raw notes on what they did at a position; they are kept as written. The
 polished monthly summaries and the description built from them (see
 ``app.services.work_journal``) are generated lazily: ``GET`` answers at once from what is
-stored and says what is ``stale``; ``POST .../refresh`` regenerates the stale parts with the
-LLM (the UI calls it when the journal is opened and something is stale).
+stored and says what is ``stale``; ``POST .../refresh`` queues their regeneration on the RQ
+worker (``app.tasks.work_history.journal``: many sequential LLM calls, never run in a request).
+The UI calls it when the journal is opened and something is stale, then polls ``GET`` while
+``refreshing``.
 """
 
 from __future__ import annotations
@@ -15,12 +17,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from rq import Queue
 from sqlalchemy.orm import Session
 
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.models import WorkHistoryEntry, WorkJournalEntry
+from app.queue import get_queue
 from app.services import work_journal
-from app.services.openrouter import OpenRouterNotConfigured, OpenRouterService, get_openrouter
+from app.tasks.work_history.journal import enqueue_journal_refresh, is_refreshing
 
 log = logging.getLogger(__name__)
 
@@ -69,8 +74,10 @@ class JournalOut(BaseModel):
     again once the notes change."""
     stale: bool
     """Something needs regenerating: call ``POST .../refresh``."""
+    refreshing: bool
+    """A refresh is queued or running on the worker; poll ``GET`` until it is ``false``."""
     warnings: list[str] = []
-    """What a refresh could not regenerate (the previous version is kept)."""
+    """What the last refresh could not regenerate (the previous version is kept)."""
 
 
 def _note_body(value: str) -> str:
@@ -124,7 +131,7 @@ def _check_day(role: WorkHistoryEntry, day: date) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "the note must be dated within the position")
 
 
-def _journal(role: WorkHistoryEntry, warnings: list[str] | None = None) -> JournalOut:
+def _journal(role: WorkHistoryEntry, refreshing: bool) -> JournalOut:
     by_month = work_journal.notes_by_month(role.journal_entries)
     built = {m.month: m for m in role.journal_months}
     months = []
@@ -151,32 +158,47 @@ def _journal(role: WorkHistoryEntry, warnings: list[str] | None = None) -> Journ
         context_failed=role.journal_failed_hash is not None
         and role.journal_failed_hash == work_journal.months_hash(role.journal_months),
         stale=work_journal.is_stale(role),
-        warnings=warnings or [],
+        refreshing=refreshing,
+        warnings=[] if refreshing else list(role.journal_warnings or []),
     )
 
 
 @router.get("/{role_id}/journal", response_model=JournalOut)
-def get_journal(role_id: int, session: Annotated[Session, Depends(get_session)]) -> JournalOut:
-    """The position's notes and what was generated from them, as stored (no LLM call)."""
-    return _journal(_role_or_404(session, role_id))
+def get_journal(
+    role_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+) -> JournalOut:
+    """The position's notes and what was generated from them, as stored (no LLM call), and
+    whether a refresh is under way."""
+    role = _role_or_404(session, role_id)
+    return _journal(role, is_refreshing(queue, role.id))
 
 
-@router.post("/{role_id}/journal/refresh", response_model=JournalOut)
+@router.post("/{role_id}/journal/refresh", response_model=JournalOut, status_code=status.HTTP_202_ACCEPTED)
 def refresh_journal(
     role_id: int,
     session: Annotated[Session, Depends(get_session)],
-    service: Annotated[OpenRouterService, Depends(get_openrouter)],
+    queue: Annotated[Queue, Depends(get_queue)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JournalOut:
-    """Regenerate the stale monthly summaries and description with the LLM. What cannot be
-    regenerated keeps its previous version and is listed in ``warnings``. 503 when OpenRouter
-    is not configured."""
+    """Queue the regeneration of the stale monthly summaries and description on the worker
+    (one job per position: asking again while it is queued or running is a no-op) and return
+    the journal with ``refreshing`` set. Nothing is queued when nothing is stale. 503 when
+    OpenRouter is not configured or the queue is unreachable."""
     role = _role_or_404(session, role_id)
+    if not work_journal.is_stale(role):
+        return _journal(role, is_refreshing(queue, role.id))
+    if not settings.openrouter_api_key:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OPENROUTER_API_KEY is not set")
     try:
-        warnings = work_journal.refresh_journal(session, role, service)
-    except OpenRouterNotConfigured as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
-    session.refresh(role)
-    return _journal(role, warnings)
+        enqueue_journal_refresh(queue, role.id, settings)
+    except Exception as exc:
+        log.exception("Could not enqueue the journal refresh of work-history entry %d", role.id)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "the background queue is unavailable") from exc
+    role.journal_warnings = None
+    session.commit()
+    return _journal(role, True)
 
 
 @router.post("/{role_id}/journal", response_model=JournalEntryOut, status_code=status.HTTP_201_CREATED)
