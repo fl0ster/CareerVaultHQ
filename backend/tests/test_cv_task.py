@@ -272,6 +272,49 @@ def test_generate_cv_falls_back_and_warns_when_calls_fail(task_engine, requests_
         assert len(failed) == 2 * (2 + 1)  # two attempts for each of 2 contexts + 1 summary
 
 
+def test_generate_cv_first_brings_the_work_journal_up_to_date(task_engine, requests_seen):
+    """A role whose own context was cleared is described from its work journal, which is
+    summarised (lazily) before the pipeline starts."""
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        vgw = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "VGW"))
+        vgw.context = ""
+        session.add(models.WorkJournalEntry(work_history_id=vgw.id, logged_on=date(2026, 11, 2), body="App in TypeScript."))
+        session.commit()
+
+    def with_journal(request):
+        body = json.loads(request.content)
+        if request.url.path.endswith("/decisions"):
+            if "is_faithful" in body["questions"]:
+                return httpx.Response(
+                    200, json={"id": "d", "model": "jev", "answers": {"is_faithful": {"type": "noul", "noul": 0.9}}}
+                )
+            return _handler(request)
+        user = body["messages"][-1]["content"]
+        if "work-journal notes" in user:
+            content = json.dumps({"summary": "Built the app.", "accomplishments": [], "tech": ["TypeScript"]})
+        elif "monthly career log" in user:
+            content = "Built the VGW app in TypeScript."
+        else:
+            return _handler(request)
+        return httpx.Response(
+            200, json={"id": "c", "model": "m", "choices": [{"message": {"role": "assistant", "content": content}}]}
+        )
+
+    task_engine.set_handler(with_journal)
+    result = generate_task.generate_cv(cv_id)
+
+    assert result["status"] == "finished" and result["warnings"] == []
+    with session_factory(task_engine)() as session:
+        cv = session.get(models.GeneratedCV, cv_id)
+        vgw = next(e for e in cv.pipeline["main"] if e["employer"] == "VGW")
+        assert vgw["original_context"] == "Built the VGW app in TypeScript."
+        # Its own technologies are kept: the journal's are used only while they are empty.
+        assert vgw["original_tech"] == "React Native, TypeScript, Jest"
+    # month + faithful, description + faithful, then the usual pipeline
+    assert len(requests_seen) == 4 + 3 + 4 + 1 + 4
+
+
 def test_generate_cv_marks_failure_and_reraises(task_engine):
     cv_id = _seed(task_engine, details=False)
 

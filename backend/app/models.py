@@ -327,13 +327,87 @@ class WorkHistoryEntry(Base):
     PREFILL_DONE = "done"
     PREFILL_FAILED = "failed"
 
+    journal_context: Mapped[str | None] = mapped_column(Text)
+    """Role description built by the LLM from the work journal's monthly summaries (see
+    ``app.services.work_journal``); used wherever ``context`` is blank."""
+    journal_tech: Mapped[list[str] | None] = mapped_column(JSON)
+    """Technologies named in the work journal's monthly summaries, most frequent first; used
+    wherever ``tech`` is empty."""
+    journal_hash: Mapped[str | None] = mapped_column(String(64))
+    """Hash of the monthly summaries ``journal_context`` was built from (stale when it differs)."""
+
     application: Mapped[Application | None] = relationship(back_populates="work_entry")
+    journal_entries: Mapped[list[WorkJournalEntry]] = relationship(
+        back_populates="role",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="(WorkJournalEntry.logged_on.desc(), WorkJournalEntry.id.desc())",
+    )
+    journal_months: Mapped[list[WorkJournalMonth]] = relationship(
+        back_populates="role",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="WorkJournalMonth.month.desc()",
+    )
 
     @property
     def pending(self) -> bool:
         """The position has not started yet (it starts in the future). Pending positions are
         left out of CVs and the candidate profile until their start date."""
         return self.date_start > date.today()
+
+    @property
+    def effective_context(self) -> str | None:
+        """What the user wrote in ``context``; when blank, the description built from the
+        work journal. A user edit always wins and is never overwritten by the journal."""
+        if (self.context or "").strip():
+            return self.context
+        return self.journal_context
+
+    @property
+    def effective_tech(self) -> list[str]:
+        """``tech`` as the user set it; when empty, the technologies from the work journal."""
+        return list(self.tech or []) or list(self.journal_tech or [])
+
+
+class WorkJournalEntry(Base):
+    """One raw note in the work journal of a position: what the user did, in their own words.
+    Notes are never rewritten by the app; the polished ``WorkJournalMonth`` summaries are
+    built from them."""
+
+    __tablename__ = "work_journal_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    work_history_id: Mapped[int] = mapped_column(ForeignKey("work_history.id", ondelete="CASCADE"), index=True)
+    logged_on: Mapped[date] = mapped_column(Date, index=True, default=date.today)
+    """The day the work happened (defaults to the day it was logged; may be backfilled)."""
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    """When the note was logged; the "last entry" of a position is the latest of these."""
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    role: Mapped[WorkHistoryEntry] = relationship(back_populates="journal_entries")
+
+
+class WorkJournalMonth(Base):
+    """The LLM-polished summary of one month of a position's work journal. Regenerated lazily
+    (on request) when ``source_hash`` no longer matches the month's notes."""
+
+    __tablename__ = "work_journal_months"
+    __table_args__ = (UniqueConstraint("work_history_id", "month"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    work_history_id: Mapped[int] = mapped_column(ForeignKey("work_history.id", ondelete="CASCADE"), index=True)
+    month: Mapped[date] = mapped_column(Date)
+    """First day of the month summarised."""
+    summary: Mapped[str] = mapped_column(Text, default="")
+    accomplishments: Mapped[list[str]] = mapped_column(JSON, default=list)
+    tech: Mapped[list[str]] = mapped_column(JSON, default=list)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    """Hash of the notes the summary was built from (see ``app.services.work_journal``)."""
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    role: Mapped[WorkHistoryEntry] = relationship(back_populates="journal_months")
 
 
 class CandidateProfile(Base):

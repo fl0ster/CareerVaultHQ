@@ -8,6 +8,9 @@ failure as well.
 
 Pipeline (a port of the ``building_cv`` reference scripts):
 
+0. **Work journal.** Positions whose work journal changed get their monthly summaries and
+   journal-built description regenerated first (``app.services.work_journal``); a role's
+   context and technologies are the user's own, or the journal's while the user's are blank.
 1. **Relevance.** Every ``work_history`` row is scored against the job description with
    one Jev decision (``OpenRouterService.decide``) - the probability that the role is
    relevant experience for the job.
@@ -64,6 +67,7 @@ from app.services.openrouter import (
     OpenRouterNotConfigured,
     OpenRouterService,
 )
+from app.services.work_journal import refresh_stale_journals
 from app.tasks.cv import prompts
 from app.tasks.cv.history import Role, build_coherent_history
 from app.tasks.cv.render import collect_technologies, load_template, render_cv
@@ -107,8 +111,8 @@ def load_roles(session: Session, today: date | None = None) -> list[Role]:
             date_end=e.date_end,
             today=today,
             location=e.location,
-            tech=list(e.tech or []),
-            context=e.context,
+            tech=e.effective_tech,
+            context=e.effective_context,
             id=e.id,
             tenure=tenures[e.id] if e.id in in_chain else None,
             transition=e.transition if e.id in previous else None,
@@ -552,6 +556,10 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     job_description = job_description_text(parsed)
     if not job_description.strip():
         raise CvGenerationError("the parsed job has no description")
+
+    # 0. work journal: bring the descriptions built from the positions' journals up to date
+    journal_roles = _started(session, WorkHistoryEntry.KIND_JOB, today)
+    warnings += refresh_stale_journals(session, journal_roles, OpenRouterService(session, settings))
 
     roles = load_roles(session, today)
     if not roles:

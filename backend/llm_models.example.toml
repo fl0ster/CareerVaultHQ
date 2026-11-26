@@ -45,6 +45,21 @@
 # kind: chat | used in: app.tasks.work_history.prefill
 # work_history_prefill = "openai/gpt-4o-mini"
 
+# Polish one month of a position's raw work-journal notes into a summary, accomplishments and
+# technologies, using only facts from the notes.
+# kind: chat | used in: app.services.work_journal
+# journal_month_summary = "openai/gpt-4o-mini"
+
+# Write a position's CV description from its monthly work-journal summaries (used while the
+# user's own description is blank).
+# kind: chat | used in: app.services.work_journal
+# journal_role_context = "openai/gpt-4o-mini"
+
+# Yes/no: is every statement of a generated journal summary or description supported by its
+# source notes? Unfaithful texts are retried, then discarded.
+# kind: decision | used in: app.services.work_journal
+# journal_faithful = "typesafe/jev-1.14"
+
 # Probability that an e-mail is a rejection of one of the candidate's applications.
 # kind: decision | used in: app.tasks.gmail.rejections
 # gmail_rejection = "typesafe/jev-1.14"

@@ -62,6 +62,9 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "prefill_state": "VARCHAR(16)",
         "kind": "VARCHAR(16) NOT NULL DEFAULT 'job'",
         "transition": "VARCHAR(16)",
+        "journal_context": "TEXT",
+        "journal_tech": "JSON",
+        "journal_hash": "VARCHAR(64)",
     },
     "application_events": {
         "source": "VARCHAR(16) NOT NULL DEFAULT 'manual'",

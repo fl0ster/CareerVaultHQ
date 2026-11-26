@@ -16,11 +16,11 @@ saving such a position ends the previous role when it is still ongoing.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -38,6 +38,7 @@ from app.schemas.work_history import (
     _check_kind_change,
     _format_month,
 )
+from app.services import work_journal
 from app.services.career import close_previous_role, job_entries, previous_role_ids
 from app.services.companies import resolve_career_companies
 
@@ -74,15 +75,35 @@ class WorkHistoryOut(BaseModel):
     previous_role_id: int | None = None
     """The role a position with a ``transition`` continues; ``None`` when there is no earlier
     position at the same employer (the role then stands on its own)."""
+    journal_context: str | None = None
+    """The position's description built from its work journal; used while ``context`` is blank."""
+    journal_tech: list[str] = []
+    """The technologies from its work journal; used while ``tech`` is empty."""
+    journal_count: int = 0
+    """Notes in the position's work journal."""
+    last_journal_at: datetime | None = None
+    """When the latest journal note was logged."""
+    journal_overdue: bool = False
+    """A current position without a journal note for a week."""
+
+    @field_validator("journal_tech", mode="before")
+    @classmethod
+    def _no_journal_tech(cls, value: object) -> object:
+        return [] if value is None else value
 
 
 def _out(session: Session, entries: list[WorkHistoryEntry]) -> list[WorkHistoryOut]:
     """The entries as returned by the API, with their matched company."""
     companies = resolve_career_companies(session, entries)
     previous = previous_role_ids(job_entries(session))
+    journals = work_journal.activity(session, [e.id for e in entries if e.kind == WorkHistoryEntry.KIND_JOB])
+    now = datetime.now(UTC)
     out = []
     for entry in entries:
         item = WorkHistoryOut.model_validate(entry)
+        if (journal := journals.get(entry.id)) is not None:
+            item.journal_count, item.last_journal_at = journal.count, journal.last_at
+        item.journal_overdue = work_journal.is_overdue(entry, item.last_journal_at, now)
         if (company := companies.get(entry.id)) is not None:
             item.company_id, item.company_tag = company.id, company.tag
         item.previous_role_id = previous.get(entry.id)

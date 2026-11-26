@@ -1,6 +1,7 @@
-import { ArrowLeft, ArrowRightLeft, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, BookOpen, ChevronLeft, ChevronRight, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import '../jobs/jobs.css'
+import { pageHref } from '../shell/nav.ts'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import { formatDay } from '../applications/api.ts'
 import type { WorkHistoryEntry, WorkHistoryInput } from './api.ts'
@@ -186,6 +187,8 @@ export default function EntryDetail({
   const previous = tenure.find((role) => role.id === entry.previous_role_id)
   // A role change is added from the latest role at the employer.
   const canAddNext = entry.kind === 'job' && tenure[tenure.length - 1].id === entry.id
+  // The user's own technologies, else those from the work journal.
+  const tech = entry.tech.length ? entry.tech : entry.journal_tech
 
   // ← / → step to the older / newer entry (not while typing or on the timeline, which steps itself).
   useEffect(() => {
@@ -302,15 +305,25 @@ export default function EntryDetail({
               {entry.location && <span>{entry.location}</span>}
               {entry.application_id != null && <span className="wh-origin">From an accepted offer</span>}
               {previous && <TransitionChip entry={entry} previous={previous} />}
+              {entry.kind === 'job' && (entry.journal_count > 0 || (entry.date_end === null && !entry.pending)) && (
+                <a className="wh-journal-link" href={pageHref('employment', entry.id)}>
+                  <BookOpen size={13} aria-hidden="true" /> Work journal
+                  {entry.journal_count > 0 ? ` · ${entry.journal_count} note${entry.journal_count === 1 ? '' : 's'}` : ''}
+                </a>
+              )}
             </div>
 
             <PrefillStatus entry={entry} />
 
             {tenure.length > 1 && <Progression roles={tenure} current={entry.id} onOpen={onOpen} />}
 
-            {entry.tech.length > 0 && (
-              <ul className="job-tech wh-detail-tech" aria-label="Technologies">
-                {entry.tech.map((t) => (
+            {tech.length > 0 && (
+              <ul
+                className="job-tech wh-detail-tech"
+                aria-label={entry.tech.length ? 'Technologies' : 'Technologies from your work journal'}
+                title={entry.tech.length ? undefined : 'From your work journal'}
+              >
+                {tech.map((t) => (
                   <li key={t} className="badge job-tech-pill">
                     {t}
                   </li>
@@ -322,6 +335,16 @@ export default function EntryDetail({
               <section className="wh-detail-section">
                 <h3>{KINDS[entry.kind].contextLabel}</h3>
                 <p className="wh-detail-context">{entry.context}</p>
+              </section>
+            ) : entry.journal_context ? (
+              <section className="wh-detail-section">
+                <h3>
+                  {KINDS[entry.kind].contextLabel}{' '}
+                  <span className="wh-journal-chip" title="Built from your work journal; write your own to replace it">
+                    <Sparkles size={11} aria-hidden="true" /> From your journal
+                  </span>
+                </h3>
+                <p className="wh-detail-context">{entry.journal_context}</p>
               </section>
             ) : (
               !filling && (

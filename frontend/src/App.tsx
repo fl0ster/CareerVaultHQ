@@ -49,6 +49,7 @@ function App() {
   const onOfferCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, offers: c })), [])
   const onJobCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, jobs: c })), [])
   const onCareerCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, 'work-history': c })), [])
+  const onEmploymentCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, employment: c })), [])
   const detailHeading = route.detail !== null ? crumbs[page]?.at(-1)?.heading : undefined
   // Menu badges. Only the page on screen is mounted, so the shell keeps these fresh itself.
   const { counts, failed: countsFailed } = useNavCounts(page)
@@ -181,7 +182,14 @@ function App() {
           />
         )
       case 'employment':
-        return <EmploymentPage />
+        return (
+          <EmploymentPage
+            detailId={detailOf('employment')}
+            onOpen={openIn('employment')}
+            onBack={backTo('employment')}
+            onCrumbsChange={onEmploymentCrumbs}
+          />
+        )
       case 'sources':
         return <SourcesPage />
       case 'generated-cv':
@@ -210,6 +218,10 @@ function App() {
           jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
           interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
+          employment: {
+            count: counts?.journal_overdue ?? 0,
+            title: 'Positions without a journal entry for a week',
+          },
         }}
         hiddenPages={hiddenPages}
         setup={setup && !setup.complete ? setup : null}
