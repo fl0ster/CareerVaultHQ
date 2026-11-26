@@ -644,6 +644,20 @@
     opacity: 0;
   }
 
+  /* Hovering anywhere on the round hints that the dot checks it: a translucent check in place
+     of the number. */
+  .app-planned:hover &:not(:disabled, :hover, :focus-visible) {
+    border-color: var(--warn-solid);
+    color: var(--warn-fg);
+
+    .app-dot-num {
+      opacity: 0;
+    }
+    .app-dot-check {
+      opacity: 0.5;
+    }
+  }
+
   /* On the dot itself: filled, with a solid check. */
   &:hover:not(:disabled),
   &:focus-visible {
