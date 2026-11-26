@@ -27,6 +27,7 @@ export type ApplicationListOptions = {
   /** Changes when the menu counts change (possibly through a background task, e.g. the
    * Gmail monitor); the list is refetched then. Empty until the counts are known. */
   version: string
+  /** Leaves the open application (used by the pages' back button, not by the hook). */
   onBack: () => void
   /** Breadcrumb entries after the page name while a detail is open. */
   onCrumbsChange: (crumbs: Crumb[]) => void
@@ -54,8 +55,6 @@ export type ApplicationList = {
   replace: (updated: Application) => void
   /** An offer was accepted from the open application, which stays on screen. */
   acceptedInView: (updated: Application) => void
-  /** An application was deleted from its view. */
-  removed: (id: number) => void
   /** The application's job was re-scored from its relevance meter. */
   rescored: (fresh: EvaluatedJobDetail) => void
 }
@@ -66,7 +65,6 @@ export function useApplicationList({
   status,
   detailId,
   version,
-  onBack,
   onCrumbsChange,
 }: ApplicationListOptions): ApplicationList {
   const [applications, setApplications] = useState<Application[] | null>(null)
@@ -216,12 +214,6 @@ export function useApplicationList({
     replace(updated)
   }
 
-  const removed = (id: number) => {
-    setApplications((prev) => prev?.filter((a) => a.id !== id) ?? prev)
-    notifyApplicationsChanged()
-    onBack()
-  }
-
   const counts = new Map<string, number>()
   for (const a of applications ?? []) {
     const key = a.status?.key ?? ''
@@ -245,7 +237,6 @@ export function useApplicationList({
     counts,
     replace,
     acceptedInView,
-    removed,
     rescored,
   }
 }

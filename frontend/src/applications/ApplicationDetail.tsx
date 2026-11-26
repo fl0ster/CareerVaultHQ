@@ -1,10 +1,8 @@
 import { type ReactNode, useState } from 'react'
 import { Check, Pencil, Plus, Trash2, Undo2 } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
-import { updateCompanyNotes } from '../companies/api.ts'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
-import NotesEditor from '../notes/NotesEditor.tsx'
 import {
   type Application,
   type ApplicationEvent,
@@ -28,7 +26,6 @@ import {
   historyEvents,
   isAutoEvent,
   nextRoundLabel,
-  notifyApplicationsChanged,
   roundLabel,
   serverDate,
   toLocalInput,
@@ -40,12 +37,11 @@ import { pageHref } from '../shell/nav.ts'
 type Props = {
   application: Application
   statuses: ApplicationStatus[]
-  /** The job's technologies, shown quietly in the side column. */
+  /** The job's technologies, shown quietly in the left column. */
   technologies: string[]
   onChange: (application: Application) => void
   /** The offer was accepted (the application is now `ACCEPTED`). */
   onAccepted: (application: Application) => void
-  onDelete: (id: number) => void
 }
 
 /** Runs an API call, tracking busy state and turning failures into an error message. */
@@ -643,55 +639,13 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the status history as a vertical stepper on the left, notes
- * and the job's technologies in a narrower column on the right. */
-export default function ApplicationDetail({
-  application,
-  statuses,
-  technologies,
-  onChange,
-  onAccepted,
-  onDelete,
-}: Props) {
-  const [notesTab, setNotesTab] = useState<'application' | 'company'>('application')
-  const deleteAction = useAction()
+/** Body of the application view: the job's technologies in a narrow column on the left, the
+ * status history as a vertical stepper beside it. */
+export default function ApplicationDetail({ application, statuses, technologies, onChange, onAccepted }: Props) {
   const held = heldRounds(application)
   const history = historyEvents(application)
-  const { company, company_id: companyId, company_notes: companyNotes } = application.job
   const status = application.status
   const final = isFinalStatus(status)
-
-  const saveNotes = async (notes: string) => {
-    onChange(await applicationsApi.updateNotes(application.id, notes))
-  }
-
-  const saveCompanyNotes = async (notes: string) => {
-    if (companyId == null) return
-    const updated = await updateCompanyNotes(companyId, notes)
-    onChange({ ...application, job: { ...application.job, company_notes: updated.notes } })
-    // Other applications to the same company show these notes too.
-    notifyApplicationsChanged()
-  }
-
-  const tab = (key: 'application' | 'company', label: string, hasNotes: boolean, disabled = false) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={notesTab === key}
-      disabled={disabled}
-      title={disabled ? 'The job has no resolved company' : label}
-      onClick={() => setNotesTab(key)}
-    >
-      {label}
-      {hasNotes && <span className="notes-dot" aria-label="(has notes)" />}
-    </button>
-  )
-
-  const remove = async () => {
-    if (!window.confirm('Delete this application and its status history? The generated CV is kept.')) return
-    const ok = await deleteAction.run(() => applicationsApi.remove(application.id).then(() => true))
-    if (ok) onDelete(application.id)
-  }
 
   /** "Round 2 · Technical" for a held round, the state's label otherwise. */
   const eventName = (event: ApplicationEvent) => {
@@ -701,7 +655,16 @@ export default function ApplicationDetail({
   }
 
   return (
-    <div className="app-detail">
+    <div className={`app-detail${technologies.length > 0 ? ' has-aside' : ''}`}>
+      {technologies.length > 0 && (
+        <aside className="app-aside">
+          <section className="app-section app-tech" aria-label="Technologies">
+            <h3>Technologies</h3>
+            <TechPills technologies={technologies} />
+          </section>
+        </aside>
+      )}
+
       <section className="app-section app-history" aria-labelledby={`app-history-${application.id}`}>
         <div className="app-section-head">
           <h3 id={`app-history-${application.id}`}>Status history</h3>
@@ -764,53 +727,6 @@ export default function ApplicationDetail({
           <p className="muted app-final-hint">{status?.label} is final — remove that state to record new ones.</p>
         ) : null}
       </section>
-
-      <aside className="app-aside">
-        <section className="app-section app-notes" aria-label="Notes">
-          <div className="app-section-head">
-            <h3>Notes</h3>
-            <div className="notes-switch" role="tablist" aria-label="Notes">
-              {tab('application', 'Application', !!application.notes)}
-              {tab('company', company ?? 'Company', !!companyNotes, companyId == null)}
-            </div>
-          </div>
-          {/* Both stay mounted so switching tabs keeps unsaved drafts. */}
-          <div hidden={notesTab !== 'application'}>
-            <NotesEditor
-              compact
-              label="Application notes"
-              value={application.notes}
-              placeholder="Notes about this application"
-              onSave={saveNotes}
-            />
-          </div>
-          {companyId != null && (
-            <div hidden={notesTab !== 'company'}>
-              <NotesEditor
-                compact
-                label="Company notes"
-                value={companyNotes ?? ''}
-                placeholder="Notes about this company (shared by all its applications)"
-                onSave={saveCompanyNotes}
-              />
-            </div>
-          )}
-        </section>
-
-        {technologies.length > 0 && (
-          <section className="app-section app-tech" aria-label="Technologies">
-            <h3>Technologies</h3>
-            <TechPills technologies={technologies} />
-          </section>
-        )}
-
-        <div className="app-danger-zone">
-          <button type="button" className="secondary small danger" onClick={remove} disabled={deleteAction.busy}>
-            <Trash2 size={14} aria-hidden="true" /> {deleteAction.busy ? 'Deleting…' : 'Delete application'}
-          </button>
-          {deleteAction.error && <span className="error">{deleteAction.error}</span>}
-        </div>
-      </aside>
     </div>
   )
 }

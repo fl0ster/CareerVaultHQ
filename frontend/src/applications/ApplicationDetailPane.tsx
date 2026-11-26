@@ -18,7 +18,6 @@ export default function ApplicationDetailPane({ list, onOpenCompany, onBack }: P
         statuses={list.statuses}
         onChange={list.replace}
         onAccepted={list.acceptedInView}
-        onDelete={list.removed}
         onOpenCompany={onOpenCompany}
         onBack={onBack}
         onRescored={list.rescored}

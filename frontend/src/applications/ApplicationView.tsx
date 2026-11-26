@@ -14,7 +14,6 @@ type Props = {
   onChange: (application: Application) => void
   /** The offer was accepted (the application is now `ACCEPTED`). */
   onAccepted: (application: Application) => void
-  onDelete: (id: number) => void
   onOpenCompany: (companyId: number) => void
   onBack: () => void
   /** The job was re-scored from the relevance meter. */
@@ -27,7 +26,6 @@ export default function ApplicationView({
   statuses,
   onChange,
   onAccepted,
-  onDelete,
   onOpenCompany,
   onBack,
   onRescored,
@@ -100,7 +98,6 @@ export default function ApplicationView({
           technologies={technologies}
           onChange={onChange}
           onAccepted={onAccepted}
-          onDelete={onDelete}
         />
       </div>
     </article>
