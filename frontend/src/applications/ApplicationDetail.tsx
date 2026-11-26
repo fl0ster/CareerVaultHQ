@@ -30,6 +30,7 @@ import {
   toLocalInput,
 } from './api.ts'
 import ApplicationStatusControl from './ApplicationStatusControl.tsx'
+import SalaryWorkMode from './SalaryWorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from './OfferActions.tsx'
 import { pageHref } from '../shell/nav.ts'
@@ -572,8 +573,8 @@ function OfferBox({
   )
 }
 
-/** Body of the application view: the status pill, the interview round count and the job's
- * technologies in a narrow column on the left; beside it the status history (a vertical stepper)
+/** Body of the application view: the status pill, the interview round count, salary & work
+ * mode and the job's technologies in a narrow column on the left; beside it the status history (a vertical stepper)
  * or the job description, switched by tabs, plus a Link tab that opens the offer. */
 export default function ApplicationDetail({
   application,
@@ -623,6 +624,7 @@ export default function ApplicationDetail({
             onChange={onChange}
           />
         </section>
+        <SalaryWorkMode application={application} onChange={onChange} />
         {technologies.length > 0 && (
           <section className="app-section app-tech" aria-label="Technologies">
             <h3>Technologies</h3>

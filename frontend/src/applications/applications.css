@@ -266,10 +266,114 @@
 
 /* Technologies: quiet, small pills in the left column. */
 .app-tech,
-.app-rounds {
+.app-rounds,
+.app-pay {
   h3 {
     margin-bottom: 8px;
   }
+}
+
+/* Salary & work mode (parsed, or overridden for this application). */
+.app-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  h3 {
+    margin-bottom: 0;
+  }
+  .error,
+  .app-pay-hint {
+    margin: 0;
+    font-size: 12px;
+  }
+}
+.app-pay-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+}
+.app-salary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+
+  &.muted {
+    font-weight: 400;
+    color: var(--text);
+  }
+}
+.app-edited {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.app-pay-actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.app-work-mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.app-detail .app-work-mode button {
+  margin: 0;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  & + button {
+    border-left: 1px solid var(--border);
+  }
+  &[aria-checked='true'] {
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+.app-salary-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  input[type='number'] {
+    width: 0;
+    flex: 1;
+    font: inherit;
+    font-size: 13px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-h);
+  }
+  select {
+    min-width: 0;
+    flex: 1;
+    padding: 5px 2px 5px 6px;
+    font-size: 12px;
+  }
+}
+.app-salary-amounts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-detail .app-salary-currency {
+  width: 4.5em;
+  flex: none;
 }
 .app-current-status .error {
   margin: 6px 0 0;

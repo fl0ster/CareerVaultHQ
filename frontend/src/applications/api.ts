@@ -85,6 +85,52 @@ export type Application = {
   start_date: string | null
   /** The My Career entry created by accepting the offer. */
   work_history_id: number | null
+  /** Salary found by parsing the job, if any. */
+  parsed_salary: Salary | null
+  /** Salary entered for this application, replacing `parsed_salary`. */
+  salary_override: Salary | null
+  /** Work mode found by parsing the job, if any. */
+  parsed_work_mode: WorkMode | null
+  /** Work mode entered for this application, replacing `parsed_work_mode`. */
+  work_mode_override: WorkMode | null
+}
+
+export type SalaryPeriod = 'hour' | 'day' | 'week' | 'month' | 'year'
+export const SALARY_PERIODS: SalaryPeriod[] = ['hour', 'day', 'week', 'month', 'year']
+
+export type Salary = {
+  min: number | null
+  max: number | null
+  currency: string | null
+  period: SalaryPeriod | null
+  /** `true` gross, `false` net, `null` unknown. */
+  gross: boolean | null
+  /** The text a parsed salary was found in. */
+  raw?: string | null
+}
+
+export type WorkMode = 'remote' | 'hybrid' | 'office'
+export const WORK_MODES: { key: WorkMode; label: string }[] = [
+  { key: 'remote', label: 'Remote' },
+  { key: 'hybrid', label: 'Hybrid' },
+  { key: 'office', label: 'Office' },
+]
+
+/** "15 000 – 20 000 PLN / month, gross"; empty without any amount. */
+export function formatSalary(salary: Salary | null): string {
+  if (!salary || (salary.min == null && salary.max == null)) return ''
+  const n = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  const amount =
+    salary.min != null && salary.max != null && salary.min !== salary.max
+      ? `${n(salary.min)} – ${n(salary.max)}`
+      : salary.min != null && salary.max == null
+        ? `from ${n(salary.min)}`
+        : salary.min == null && salary.max != null
+          ? `up to ${n(salary.max)}`
+          : n(salary.min!)
+  const head = [amount, salary.currency].filter(Boolean).join(' ')
+  const tail = [salary.period ? `/ ${salary.period}` : '', salary.gross == null ? '' : salary.gross ? 'gross' : 'net']
+  return [head + (tail[0] ? ` ${tail[0]}` : ''), tail[1]].filter(Boolean).join(', ')
 }
 
 export type ApplicationPage = {
@@ -201,6 +247,9 @@ export const applicationsApi = {
   updateNotes: (id: number, notes: string) =>
     fetch(`${API}/${id}`, json('PATCH', { notes })).then((r) => parse<Application>(r)),
   /** Sets (or, with `null`, clears) the agreed start date of the offered position. */
+  /** Overrides the parsed salary and/or work mode (`null` falls back to the parsed one). */
+  setOverrides: (id: number, changes: { salary_override?: Salary | null; work_mode_override?: WorkMode | null }) =>
+    fetch(`${API}/${id}`, json('PATCH', changes)).then((r) => parse<Application>(r)),
   setStartDate: (id: number, startDate: string | null) =>
     fetch(`${API}/${id}`, json('PATCH', { start_date: startDate })).then((r) => parse<Application>(r)),
   /** Accepts the offer: the application becomes `ACCEPTED` and the position is added to My
