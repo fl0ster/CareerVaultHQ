@@ -143,6 +143,11 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
                     {e.location && <span className="muted">{e.location}</span>}
                   </div>
                 </div>
+                {e.journal_overdue && (
+                  <span className="employment-journal-due" title="No journal note for a week or more">
+                    <BellRing size={14} aria-hidden="true" /> Journal update due
+                  </span>
+                )}
               </header>
               <p className="muted employment-since">Since {since(e.date_start)}</p>
               <JournalStatus entry={e} />

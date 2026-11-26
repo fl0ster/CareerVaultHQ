@@ -1297,6 +1297,20 @@
     color: var(--warn-fg);
   }
 }
+.employment-journal-due {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .employment-journal-open {
   align-self: flex-start;
   display: inline-flex;
