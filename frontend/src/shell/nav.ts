@@ -1,4 +1,5 @@
 import {
+  ArrowDownUp,
   Building2,
   BadgeCheck,
   BriefcaseBusiness,
@@ -30,6 +31,7 @@ export type PageId =
   | 'gmail'
   | 'cost'
   | 'companies'
+  | 'import-export'
 
 export type NavItem = {
   id: PageId
@@ -93,6 +95,12 @@ export const SETTINGS: NavGroup = {
       label: 'Cost',
       icon: Coins,
       description: 'What the AI model calls have cost, broken down by period, source, model and kind.',
+    },
+    {
+      id: 'import-export',
+      label: 'Import & Export',
+      icon: ArrowDownUp,
+      description: 'Back up your data to a JSON file, or restore it from one.',
     },
   ],
 }
