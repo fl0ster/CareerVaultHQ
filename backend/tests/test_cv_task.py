@@ -246,13 +246,17 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
     assert len(requests_seen) == 3 + 4 + 1 + 4
 
 
-def _set_overrides(engine, cv_id: int, *, roles: dict[str, str] | None = None, **fields) -> None:
-    """Store ``overrides`` on the CV; ``roles`` maps an employer to its placement."""
+def _set_overrides(
+    engine, cv_id: int, *, roles: dict[str, str] | None = None, contexts: dict[str, str] | None = None, **fields
+) -> None:
+    """Store ``overrides`` on the CV; ``roles`` / ``contexts`` are keyed by employer."""
     with session_factory(engine)() as session:
         ids = {e.employer: e.id for e in session.scalars(select(models.WorkHistoryEntry))}
         overrides = dict(fields)
         if roles:
             overrides["roles"] = {str(ids[employer]): where for employer, where in roles.items()}
+        if contexts:
+            overrides["contexts"] = {str(ids[employer]): text for employer, text in contexts.items()}
         session.get(models.GeneratedCV, cv_id).overrides = overrides
         session.commit()
 
@@ -299,6 +303,26 @@ def test_generate_cv_condenses_a_role_the_user_moved(task_engine):
         assert [e["employer"] for e in pipeline["main"]] == ["VGW", "Old Corp"]
         assert [e["employer"] for e in pipeline["early"]] == ["Zartis"]
         assert pipeline["early"][0]["context"] == "Maintained a legacy PHP shop."
+
+
+def test_generate_cv_uses_the_descriptions_the_user_wrote(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    _set_overrides(task_engine, cv_id, contexts={"VGW": "Led the mobile team.", "Old Corp": "Kept a PHP shop alive."})
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        contexts = {e["employer"]: e["context"] for e in pipeline["main"] + pipeline["early"]}
+        assert contexts == {
+            "Zartis": "Shipped tailored features. Improved performance.",  # still tailored
+            "VGW": "Led the mobile team.",
+            "Old Corp": "Kept a PHP shop alive.",
+        }
+        assert all(e["tech"] == "TypeScript, React Native" for e in pipeline["main"])  # tech still tailored
+        assert {r["employer"]: r["context"] for r in pipeline["relevance"]}["VGW"] == "Built pipelines. Led the app."
+    # 3 decisions + 1 context + 2 tech + no early + 4 headline calls
+    assert len(requests_seen) == 3 + 3 + 4
 
 
 def test_generate_cv_uses_the_cv_settings(task_engine):

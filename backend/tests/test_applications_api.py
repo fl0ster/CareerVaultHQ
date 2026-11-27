@@ -184,13 +184,21 @@ def test_cv_overrides_are_saved_and_used_by_the_next_cv(client, db_session, fake
 
     res = client.patch(
         f"{BASE}/{app_id}",
-        json={"cv_overrides": {"headline_role": "  Mobile Lead ", "summary": " ", "roles": {"7": "drop", "3": "early"}}},
+        json={
+            "cv_overrides": {
+                "headline_role": "  Mobile Lead ",
+                "summary": " ",
+                "roles": {"7": "drop", "3": "early"},
+                "contexts": {"3": " Did things. ", "4": "  "},
+            }
+        },
     )
     assert res.status_code == 200
     saved = res.json()["cv_overrides"]
     assert saved["headline_role"] == "Mobile Lead"
     assert saved["summary"] is None  # blank: left out
     assert saved["roles"] == {"3": "early", "7": "drop"}
+    assert saved["contexts"] == {"3": "Did things."}
     assert res.json()["cv"]["overrides"] is None  # the current CV was made without them
 
     assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"1": "maybe"}}}).status_code == 422

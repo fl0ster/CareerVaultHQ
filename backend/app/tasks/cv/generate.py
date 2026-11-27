@@ -350,8 +350,22 @@ def _position_message(entry: dict, job_description: str, heading: str) -> str:
     return f"JOB DESCRIPTION:\n{job_description}\n\n{heading}:\n{json.dumps(position, indent=2, ensure_ascii=False)}"
 
 
-def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
-    """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job."""
+def _with_fixed(entries: list[dict], fixed: Sequence[str | None] | None) -> tuple[list[dict], list[str | None]]:
+    """``entries`` with the descriptions the user wrote (``fixed``, aligned with them) put in."""
+    fixed = list(fixed or [None] * len(entries))
+    return [entry | {"context": text} if text else entry for entry, text in zip(entries, fixed, strict=True)], fixed
+
+
+def tailor_main_roles(
+    llm: Llm,
+    entries: list[dict],
+    job_description: str,
+    warnings: list[str],
+    fixed: Sequence[str | None] | None = None,
+) -> list[dict]:
+    """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job. A description
+    in ``fixed`` (aligned with ``entries``) is the user's: used as is, only its tech tailored."""
+    entries, fixed = _with_fixed(entries, fixed)
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
@@ -369,13 +383,17 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
             service, prompts.TECH_SYSTEM_PROMPT, message, call=llm_calls.CV_TECH, temperature=0.3
         )
 
-    results = llm.run_all([context_call(e) for e in entries] + [tech_call(e) for e in entries])
-    contexts, techs = results[: len(entries)], results[len(entries) :]
+    to_tailor = [e for e, text in zip(entries, fixed, strict=True) if not text]
+    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in entries])
+    tailored_contexts, techs = iter(results[: len(to_tailor)]), results[len(to_tailor) :]
+    contexts = [text if text else next(tailored_contexts) for text in fixed]
     tailored = []
-    for entry, context, tech in zip(entries, contexts, techs, strict=True):
+    for entry, context, tech, mine in zip(entries, contexts, techs, fixed, strict=True):
         label = f"{entry.get('role')} @ {entry.get('employer')}"
         new_entry = dict(entry)
-        if context is None:
+        if mine:
+            pass  # already in the entry
+        elif context is None:
             warnings.append(f"context of {label} could not be tailored; kept the original")
         else:
             new_entry["context"] = _clean_line(context)
@@ -389,8 +407,16 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
     return tailored
 
 
-def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
-    """Step 3b: condense every early role's context into one sentence."""
+def condense_early_roles(
+    llm: Llm,
+    entries: list[dict],
+    job_description: str,
+    warnings: list[str],
+    fixed: Sequence[str | None] | None = None,
+) -> list[dict]:
+    """Step 3b: condense every early role's context into one sentence; a description in
+    ``fixed`` (aligned with ``entries``) is the user's and used as is."""
+    entries, fixed = _with_fixed(entries, fixed)
 
     def call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "EARLIER POSITION")
@@ -398,11 +424,14 @@ def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, wa
             service, prompts.EARLY_SYSTEM_PROMPT, message, call=llm_calls.CV_EARLY, temperature=0.3
         )
 
-    results = llm.run_all([call(e) for e in entries])
+    condensed_sentences = iter(llm.run_all([call(e) for e, text in zip(entries, fixed, strict=True) if not text]))
     condensed = []
-    for entry, sentence in zip(entries, results, strict=True):
+    for entry, mine in zip(entries, fixed, strict=True):
         new_entry = dict(entry)
-        if sentence is None:
+        sentence = None if mine else next(condensed_sentences)
+        if mine:
+            pass  # already in the entry
+        elif sentence is None:
             warnings.append(
                 f"context of {entry.get('role')} @ {entry.get('employer')} could not be condensed; kept the original"
             )
@@ -636,8 +665,11 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         log.info("timeline: %s", line)
 
     # 3. tailoring
-    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings)
-    early_entries = condense_early_roles(llm, early_entries, job_description, warnings)
+    fixed = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
+    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, [fixed.get(r.id) for r in history.main])
+    early_entries = condense_early_roles(
+        llm, early_entries, job_description, warnings, [fixed.get(r.id) for r in history.early]
+    )
 
     # Which listed roles share an employer block; added after tailoring so the ids never
     # reach the prompts.
@@ -703,6 +735,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
                 "date_start": r.date_start,
                 "date_end": r.date_end_label(today),
                 "months": r.length,
+                "context": r.context,
             }
             for r in roles
         ],

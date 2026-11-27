@@ -77,6 +77,8 @@ class CvOverrides(BaseModel):
     """Used as the summary as is, instead of the generated one."""
     roles: dict[int, RolePlacement] = {}
     """``work_history.id`` -> placement, overriding the timeline rules for that role."""
+    contexts: dict[int, Annotated[str, Field(max_length=2000)]] = {}
+    """``work_history.id`` -> the role's description in the CV, used as is (listed or condensed)."""
 
     def stored(self) -> dict | None:
         """The JSON kept on the row: blank fields left out, ``None`` when nothing is left."""
@@ -87,6 +89,9 @@ class CvOverrides(BaseModel):
                 data[key] = value
         if self.roles:
             data["roles"] = {str(k): v for k, v in sorted(self.roles.items())}
+        contexts = {str(k): v.strip() for k, v in sorted(self.contexts.items()) if v.strip()}
+        if contexts:
+            data["contexts"] = contexts
         return data or None
 
 

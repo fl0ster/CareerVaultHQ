@@ -934,3 +934,17 @@
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
+/* Under a description being edited: the work-history text it started from. */
+.pl-own {
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+
+  p {
+    margin: 0;
+    color: var(--text);
+    font-size: 13px;
+    white-space: pre-wrap;
+  }
+}

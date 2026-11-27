@@ -483,7 +483,7 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
 
   const status =
     mine && mine !== inCv ? (
-      <span className="pl-pending">→ {PLACEMENT_LABEL[mine]} after regenerating</span>
+      <span className="pl-pending">{PLACEMENT_LABEL[inCv]} in this CV · moves after regenerating</span>
     ) : !mine && wasMine ? (
       <span className="pl-pending">Back to the automatic choice after regenerating</span>
     ) : mine ? (
@@ -526,41 +526,46 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
   )
 }
 
-/** The headline or the summary: the text in the CV, clicked to edit it in place. Saving
- * replaces what the LLM wrote in the next CV (a dot by the label marks it edited); Revert
- * lets the LLM write it again. */
+/** A text of the CV (headline, summary, a role's description), clicked to edit it in place.
+ * Saving replaces what the LLM wrote in the next CV (a dot by the label marks it edited);
+ * Revert lets the LLM write it again. */
 function EditableText({
-  field,
   label,
+  mine,
   generated,
-  editing,
+  seed,
+  busy,
+  onSave,
   multiline,
   hint,
   children,
 }: {
-  field: 'headline_role' | 'summary'
-  label: string
+  label: ReactNode
+  /** The user's text (`null`: none). */
+  mine: string | null
   /** The text in this CV. */
   generated: string | null
-  editing: ReportEditing
+  /** What editing starts from when the CV has no text (a left-out role's own description). */
+  seed?: string | null
+  busy: boolean
+  onSave: (text: string | null) => void
   multiline?: boolean
   hint: string
   /** Shown after the text (the core technologies beside the headline). */
   children?: ReactNode
 }) {
-  const mine = editing.pending?.[field] ?? null
   const shown = mine ?? generated ?? ''
   const [draft, setDraft] = useState<string | null>(null)
+  const start = () => setDraft(shown || seed || '')
 
   const save = (text: string | null) => {
     setDraft(null)
     const value = text?.trim() || null
-    if (value === mine) return
-    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), [field]: value })
+    if (value !== mine) onSave(value)
   }
 
   return (
-    <div className={`pl-edit pl-edit-${field}`}>
+    <div className="pl-edit">
       <div className="pl-edit-head">
         <span className="pl-field">{label}</span>
         {mine !== null && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
@@ -569,11 +574,15 @@ function EditableText({
         <button
           type="button"
           className={`pl-edit-text${multiline ? ' cv-summary pl-summary' : ' pl-headline'}`}
-          onClick={() => setDraft(shown)}
-          disabled={editing.busy}
-          title={`Click to edit the ${label.toLowerCase()}`}
+          onClick={start}
+          disabled={busy}
+          title="Click to edit"
         >
-          {multiline ? shown || <span className="muted">(none)</span> : <strong>{shown || '—'}</strong>}
+          {multiline ? (
+            shown || <span className="muted">(not in this CV — click to write one)</span>
+          ) : (
+            <strong>{shown || '—'}</strong>
+          )}
           {children}
         </button>
       ) : (
@@ -594,7 +603,7 @@ function EditableText({
               }}
               rows={4}
               maxLength={2000}
-              aria-label={label}
+              aria-label={typeof label === 'string' ? label : 'Text'}
               autoFocus
             />
           ) : (
@@ -604,12 +613,12 @@ function EditableText({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setDraft(null)}
               maxLength={256}
-              aria-label={label}
+              aria-label={typeof label === 'string' ? label : 'Text'}
               autoFocus
             />
           )}
           <div className="pl-edit-buttons">
-            <button type="submit" className="small" disabled={editing.busy}>
+            <button type="submit" className="small" disabled={busy}>
               Save
             </button>
             <button type="button" className="secondary small" onClick={() => setDraft(null)}>
@@ -623,7 +632,7 @@ function EditableText({
                 type="button"
                 className="secondary small pl-revert"
                 onClick={() => save(null)}
-                disabled={editing.busy}
+                disabled={busy}
                 title="Drop your text: the next CV gets a generated one"
               >
                 Revert
@@ -648,9 +657,64 @@ function cardId(r: RoleReport): string {
 
 type CardEditing = { editing?: ReportEditing; applied: CvOverrides | null }
 
+const OUTCOME_OF: Record<RolePlacement, Outcome> = { main: 'listed', early: 'condensed', drop: 'dropped' }
+
+/** Where the role sits in the report: where the user put it, else where this CV has it. */
+function placedOutcome(r: RoleReport, pending: CvOverrides | null | undefined): Outcome {
+  const mine = r.role.id != null ? pending?.roles?.[String(r.role.id)] : undefined
+  return mine ? OUTCOME_OF[mine] : r.outcome
+}
+
+const DESCRIPTION_HINT: Record<Outcome, string> = {
+  listed: 'up to 3 sentences',
+  condensed: 'one sentence, about 12 words',
+  dropped: 'used if the role is put back in the CV',
+}
+
+/** The role's description in the next CV, edited in place, with the work-history
+ * description it started from below for reference. */
+function DescriptionEditor({ r, editing, where }: { r: RoleReport; editing: ReportEditing; where: Outcome }) {
+  const id = String(r.role.id)
+  const contexts = editing.pending?.contexts ?? {}
+  const mine = contexts[id] ?? null
+  const generated = r.entry?.context ?? null
+  const own = r.entry?.original_context ?? r.role.context ?? null
+
+  const save = (text: string | null) => {
+    const next = { ...contexts }
+    if (text) next[id] = text
+    else delete next[id]
+    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), contexts: next })
+  }
+
+  return (
+    <>
+      <EditableText
+        label={where === 'condensed' ? 'Description, condensed' : 'Description'}
+        mine={mine}
+        generated={generated}
+        seed={own}
+        busy={editing.busy}
+        onSave={save}
+        hint={DESCRIPTION_HINT[where]}
+        multiline
+      />
+      {own && own !== (mine ?? generated) && (
+        <div className="pl-own">
+          <span className="pl-field">
+            From your work history <span className="muted">{plural(wordCount(own), 'word')}</span>
+          </span>
+          <p>{own}</p>
+        </div>
+      )}
+    </>
+  )
+}
+
 function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds } & CardEditing) {
   const e = r.entry
   const dates = roleDates(r)
+  const where = placedOutcome(r, editing?.pending)
   const place = editing && <Placement r={r} editing={editing} applied={applied} />
   const head = (
     <>
@@ -665,27 +729,32 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
       <span className="pl-card-meta">{[dates, ...gist(r)].filter(Boolean).join('  ·  ')}</span>
     </>
   )
-  if (!e) {
+  const editable = editing && r.role.id != null
+  if (!e && !editable) {
     return (
-      <li id={cardId(r)} className={`pl-card outcome-${r.outcome}`} tabIndex={-1}>
+      <li id={cardId(r)} className={`pl-card outcome-${where}`} tabIndex={-1}>
         <div className="pl-card-static">{head}</div>
         {place}
       </li>
     )
   }
   return (
-    <li id={cardId(r)} className={`pl-card outcome-${r.outcome}`}>
+    <li id={cardId(r)} className={`pl-card outcome-${where}`}>
       <Fold id={r.key} folds={folds} title={head} byDefault={r.outcome === 'listed' && !editing}>
-        {r.trimmed && r.original && (
+        {e && r.trimmed && r.original && (
           <p className="pl-note">
             Trimmed from {formatMonth(r.original.start)} –{' '}
             {r.role.date_end === 'Present' ? 'Present' : formatMonth(r.original.end)} to avoid overlapping another
             role.
           </p>
         )}
-        <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
-        {r.outcome === 'listed' && <TechDiff entry={e} />}
-        {e.location && <p className="pl-note">Location: {e.location}</p>}
+        {editable ? (
+          <DescriptionEditor r={r} editing={editing} where={where} />
+        ) : (
+          e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
+        )}
+        {e && r.outcome === 'listed' && <TechDiff entry={e} />}
+        {e?.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
       {place}
     </li>
@@ -748,7 +817,9 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
 
   const analysis = pipeline ? analyse(pipeline) : null
   const roles = analysis?.roles ?? []
-  const group = (o: Outcome) => roles.filter((r) => r.outcome === o).sort(byRelevance)
+  // A role the user moved shows in the section it will be in after regenerating.
+  const placed = (r: RoleReport) => placedOutcome(r, editing?.pending)
+  const group = (o: Outcome) => roles.filter((r) => placed(r) === o).sort(byRelevance)
   const listed = group('listed')
   const condensed = group('condensed')
   const dropped = group('dropped')
@@ -760,7 +831,7 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
 
   /** Open the role's card (and its group) and bring it into view. */
   const select = (r: RoleReport) => {
-    setToggled((t) => ({ ...t, [r.key]: true, [`group-${r.outcome}`]: true }))
+    setToggled((t) => ({ ...t, [r.key]: true, [`group-${placed(r)}`]: true }))
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     requestAnimationFrame(() => {
       const card = document.getElementById(cardId(r))
@@ -784,19 +855,21 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
       {editing ? (
         <div className="pl-texts">
           <EditableText
-            field="headline_role"
             label="Headline"
+            mine={editing.pending?.headline_role ?? null}
             generated={cv.headline_role}
-            editing={editing}
+            busy={editing.busy}
+            onSave={(text) => editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), headline_role: text })}
             hint="a job title, up to 6 words"
           >
             {coreTech}
           </EditableText>
           <EditableText
-            field="summary"
             label="Summary"
+            mine={editing.pending?.summary ?? null}
             generated={cv.summary}
-            editing={editing}
+            busy={editing.busy}
+            onSave={(text) => editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), summary: text })}
             hint="about 50 words"
             multiline
           />
@@ -825,7 +898,7 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
               <strong>{plural(roles.length, 'role')}</strong> from your work history were scored against this job:{' '}
               <strong>{analysis.counts.listed}</strong> in full, <strong>{analysis.counts.condensed}</strong>{' '}
               condensed, <strong>{analysis.counts.dropped}</strong> left out.
-              {editing && ' Move any role below; your choices apply to this application only.'}
+              {editing && ' Move or rewrite any role below; your changes apply to this application only.'}
             </p>
           </div>
 
@@ -835,16 +908,6 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
                 <li key={w}>⚠ {w}</li>
               ))}
             </ul>
-          )}
-
-          {analysis.hasSpans ? (
-            <TimelineChart analysis={analysis} onSelect={select} />
-          ) : (
-            <figure className="chart pl-chart">
-              <figcaption>How each role scored against the job</figcaption>
-              <OutcomeLegend counts={analysis.counts} />
-              <RelevanceChart analysis={analysis} />
-            </figure>
           )}
 
           {listed.length > 0 && (
@@ -871,6 +934,17 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
                   <RoleCards roles={list} folds={folds} {...edit} />
                 </Fold>
               ),
+          )}
+
+          {/* The work history as this CV has it (not the pending edits). */}
+          {analysis.hasSpans ? (
+            <TimelineChart analysis={analysis} onSelect={select} />
+          ) : (
+            <figure className="chart pl-chart">
+              <figcaption>How each role scored against the job</figcaption>
+              <OutcomeLegend counts={analysis.counts} />
+              <RelevanceChart analysis={analysis} />
+            </figure>
           )}
 
           <div className="pl-more">

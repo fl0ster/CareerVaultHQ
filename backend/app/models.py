@@ -689,7 +689,8 @@ class Application(Base):
     ``JobParseResult.work_mode``; ``None``: use the parsed one."""
     cv_overrides: Mapped[dict | None] = mapped_column(JSON)
     """The user's edits to how this application's CV is generated:
-    ``{"headline_role"?: str, "summary"?: str, "roles"?: {"<work_history id>": "main" | "early" | "drop"}}``
+    ``{"headline_role"?: str, "summary"?: str, "roles"?: {"<work_history id>": "main" | "early" | "drop"},
+    "contexts"?: {"<work_history id>": str}}``
     (applied by ``app.tasks.cv.generate``); ``None``: no edits."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
