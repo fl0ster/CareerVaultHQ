@@ -8,6 +8,8 @@ import {
   NO_OVERRIDES,
   type PipelineEntry,
   type RolePlacement,
+  type TailoredPlacement,
+  type TailoredRole,
 } from './api.ts'
 import { formatUsd } from '../cost/format.ts'
 import '../cost/cost.css'
@@ -436,9 +438,9 @@ function TechPicker({ r, editing }: { r: RoleReport; editing: ReportEditing }) {
   const entry = r.entry
   // The work history's list; older CVs only recorded it for the roles they printed.
   const original = splitTech(entry?.original_tech ?? r.role.tech ?? entry?.tech)
-  // What the CV lists. A role not listed in full in this CV has no pick yet: its whole work
-  // history list stands in (the LLM picks from it on regenerating, unless edited here).
-  const generated = r.outcome === 'listed' && entry ? splitTech(entry.tech) : original
+  // The tailoring step's pick: this CV's, or the one made when the role was moved here (the
+  // work history's whole list until then).
+  const generated = tailoredFor(r, 'listed', editing.pending)?.tech ?? original
   const current = mine ?? generated
   const key = (t: string) => t.toLowerCase()
   const on = new Set(current.map(key))
@@ -587,6 +589,19 @@ export type ReportEditing = {
   pending: CvOverrides | null
   busy: boolean
   onChange: (next: CvOverrides) => void
+  /** Roles being tailored, as `"<work_history id>:<placement>"`. */
+  tailoring: ReadonlySet<string>
+  /** Runs the CV's tailoring step for a role moved to `placement` (its result arrives in
+   * `pending.tailored`). */
+  tailor: (roleId: number, placement: TailoredPlacement) => void
+}
+
+/** What the tailoring step made of `r` for `where`: this CV's own text when it already has
+ * the role there, else the one made when the user moved it (`undefined`: not made yet). */
+function tailoredFor(r: RoleReport, where: Outcome, pending: CvOverrides | null): TailoredRole | undefined {
+  if (where === r.outcome && r.entry) return { context: r.entry.context ?? '', tech: splitTech(r.entry.tech) }
+  if (where === 'dropped' || r.role.id == null) return undefined
+  return pending?.tailored?.[String(r.role.id)]?.[where === 'listed' ? 'main' : 'early']
 }
 
 const PLACEMENT_OF: Record<Outcome, RolePlacement> = { listed: 'main', condensed: 'early', dropped: 'drop' }
@@ -614,8 +629,13 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
     else delete roles[id]
     editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), roles })
   }
-  // Picking what the pipeline chose by itself is no edit at all.
-  const pick = (v: RolePlacement) => v !== value && save(v === inCv && !wasMine ? null : v)
+  const pick = (v: RolePlacement) => {
+    if (v === value) return
+    // Picking what the pipeline chose by itself is no edit at all.
+    save(v === inCv && !wasMine ? null : v)
+    // The first move to a place the CV has no text for runs the CV's tailoring for it.
+    if (v !== 'drop' && !tailoredFor(r, OUTCOME_OF_PLACEMENT[v], editing.pending)) editing.tailor(r.role.id!, v)
+  }
 
   // Picking the dotted (automatic) option again is how a choice is undone.
   const status = mine ? null : wasMine ? (
@@ -647,7 +667,13 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
           </button>
         ))}
       </div>
-      {status}
+      {editing.tailoring.has(`${id}:${value === 'early' ? 'early' : 'main'}`) && value !== 'drop' ? (
+        <span className="muted pl-tailoring-inline">
+          <span className="spinner" aria-hidden="true" /> Tailoring…
+        </span>
+      ) : (
+        status
+      )}
     </div>
   )
 }
@@ -808,7 +834,8 @@ function DescriptionEditor({
   const id = String(r.role.id)
   const contexts = editing.pending?.contexts ?? {}
   const mine = contexts[id] ?? null
-  const generated = r.entry?.context ?? null
+  // Rewritten for where the role goes now (the CV's text, or the one made on moving it).
+  const generated = tailoredFor(r, where, editing.pending)?.context ?? null
   const own = r.entry?.original_context ?? r.role.context ?? null
 
   const save = (text: string | null) => {
@@ -846,6 +873,7 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
   const e = r.entry
   const dates = roleDates(r)
   const where = placedOutcome(r, editing?.pending)
+  const tailoring = !!editing && editing.tailoring.has(`${r.role.id}:${where === 'listed' ? 'main' : 'early'}`)
   const place = editing && <Placement r={r} editing={editing} applied={applied} />
   const head = (
     <>
@@ -880,15 +908,23 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
             role.
           </p>
         )}
-        {editable ? (
-          <DescriptionEditor r={r} editing={editing} where={where} />
+        {editable && tailoring ? (
+          <p className="pl-tailoring">
+            <span className="spinner" aria-hidden="true" /> Tailoring the role for this job…
+          </p>
         ) : (
-          e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
+          <>
+            {editable ? (
+              <DescriptionEditor r={r} editing={editing} where={where} />
+            ) : (
+              e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
+            )}
+            {editable
+              ? // Any role going in full, also one brought in; a condensed role shows no technologies.
+                where === 'listed' && <TechPicker r={r} editing={editing} />
+              : e && r.outcome === 'listed' && <TechDiff entry={e} />}
+          </>
         )}
-        {editable
-          ? // Any role going in full, also one brought in; a condensed role shows no technologies.
-            where === 'listed' && <TechPicker r={r} editing={editing} />
-          : e && r.outcome === 'listed' && <TechDiff entry={e} />}
         {e?.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
       {place}

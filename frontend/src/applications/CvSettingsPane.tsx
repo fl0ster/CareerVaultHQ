@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { type CvOverrides, describeError, isInProgress } from '../cv/api.ts'
+import { type CvOverrides, describeError, isInProgress, type TailoredPlacement } from '../cv/api.ts'
 import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
 import { type Application, applicationsApi } from './api.ts'
 
@@ -18,6 +18,9 @@ export default function CvSettingsPane({
   const cv = application.cv
   const generating = cv != null && isInProgress(cv)
 
+  /** Roles being tailored, as `"<work_history id>:<placement>"`. */
+  const [tailoring, setTailoring] = useState<ReadonlySet<string>>(new Set())
+
   const save = async (next: CvOverrides) => {
     setBusy(true)
     setError(null)
@@ -27,6 +30,24 @@ export default function CvSettingsPane({
       setError(describeError(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  // Runs alongside other edits (the server merges its result into what is stored then).
+  const tailor = async (roleId: number, placement: TailoredPlacement) => {
+    const key = `${roleId}:${placement}`
+    setTailoring((s) => new Set(s).add(key))
+    setError(null)
+    try {
+      onChange(await applicationsApi.tailorCvRole(application.id, roleId, placement))
+    } catch (e) {
+      setError(describeError(e))
+    } finally {
+      setTailoring((s) => {
+        const next = new Set(s)
+        next.delete(key)
+        return next
+      })
     }
   }
 
@@ -46,7 +67,13 @@ export default function CvSettingsPane({
           <CvPipelineReport
             key={cv.id}
             cv={cv}
-            editing={{ pending: application.cv_overrides, busy, onChange: (next) => void save(next) }}
+            editing={{
+              pending: application.cv_overrides,
+              busy,
+              onChange: (next) => void save(next),
+              tailoring,
+              tailor: (roleId, placement) => void tailor(roleId, placement),
+            }}
           />
         </>
       )}

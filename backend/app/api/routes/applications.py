@@ -93,15 +93,19 @@ from app.services.applications import (
     reject_initial_only,
     reject_offer_decision,
     reject_out_of_order,
+    set_cv_edits,
     set_interview_rounds,
     set_job_decision,
     status_by_key,
+    store_tailored,
     unapply,
     undo_accept,
 )
 from app.services.candidate_profile import current_profile_ids
 from app.services.evaluations import newest_evaluations
+from app.services.openrouter import OpenRouterNotConfigured
 from app.services.relevance import relevance
+from app.tasks.cv.generate import CvGenerationError, tailor_role
 from app.tasks.parse.enrich import enqueue_enrichment
 from app.tasks.work_history import enqueue_prefill
 
@@ -617,7 +621,8 @@ def update_application(
     if "work_mode_override" in payload.model_fields_set:
         application.work_mode_override = payload.work_mode_override
     if "cv_overrides" in payload.model_fields_set:
-        application.cv_overrides = payload.cv_overrides.stored() if payload.cv_overrides else None
+        edits = payload.cv_overrides
+        set_cv_edits(application, edits.stored() if edits else None, clear=edits is None)
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:
@@ -693,6 +698,44 @@ def regenerate_cv(
     check_cv_inputs(session)
     cv = enqueue_cv(session, queue, settings, application.job_parse_result, application.cv_overrides)
     application.generated_cv_id = cv.id
+    session.commit()
+    return _reload_out(session, application_id, request, queue)
+
+
+class TailorRole(BaseModel):
+    work_history_id: int
+    placement: Literal["main", "early"]
+
+
+@router.post("/{application_id}/cv/tailor", response_model=ApplicationOut)
+def tailor_cv_role(
+    application_id: int,
+    payload: TailorRole,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ApplicationOut:
+    """Run the CV's tailoring step for one role the user moved (to ``main`` / ``early``), so
+    the CV Settings show its description and technologies before the CV is regenerated; the
+    next CV prints the result (``cv_overrides.tailored``). Synchronous: one or two LLM calls.
+
+    ``404`` for an unknown position, ``503`` without an OpenRouter key, ``502`` when the LLM
+    gave nothing usable."""
+    application = _get_or_404(session, application_id)
+    try:
+        made = tailor_role(
+            session, application.job_parse_result, payload.work_history_id, payload.placement, settings=settings
+        )
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except OpenRouterNotConfigured as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except CvGenerationError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not tailor the role: {exc}") from exc
+    # The edits may have changed during the LLM calls: merge into what is stored now.
+    session.refresh(application)
+    store_tailored(application, payload.work_history_id, payload.placement, made)
     session.commit()
     return _reload_out(session, application_id, request, queue)
 

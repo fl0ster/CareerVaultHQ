@@ -68,6 +68,14 @@ RolePlacement = Literal["main", "early", "drop"]
 """Where the user put a role: listed in full, condensed into the early-career block, or left out."""
 
 
+class TailoredRole(BaseModel):
+    """What the pipeline's tailoring step made of a role for one placement."""
+
+    context: str
+    tech: list[str] | None = None
+    """``main`` only."""
+
+
 class CvOverrides(BaseModel):
     """The user's edits to how one application's CV is generated (see ``Application.cv_overrides``)."""
 
@@ -81,9 +89,14 @@ class CvOverrides(BaseModel):
     """``work_history.id`` -> the role's description in the CV, used as is (listed or condensed)."""
     techs: dict[int, Annotated[list[Annotated[str, Field(max_length=128)]], Field(max_length=100)]] = {}
     """``work_history.id`` -> the technologies a listed role shows, in order, used as is."""
+    tailored: dict[int, dict[Literal["main", "early"], TailoredRole]] = {}
+    """``work_history.id`` -> placement -> the tailoring made when the user moved the role
+    there (``POST /api/applications/{id}/cv/tailor``); the next CV prints it unless the user
+    wrote their own. Kept by the server: not an edit, and ignored when sent."""
 
     def stored(self) -> dict | None:
-        """The JSON kept on the row: blank fields left out, ``None`` when nothing is left."""
+        """The user's edits as kept on the row (``tailored`` left out: the server keeps it):
+        blank fields left out, ``None`` when nothing is left."""
         data: dict[str, Any] = {}
         for key in ("headline_role", "summary"):
             value = (getattr(self, key) or "").strip()

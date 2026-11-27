@@ -590,6 +590,54 @@ def pick_core_technologies(
 PLACEMENT_LOG = {"main": "listed in full", "early": "condensed", "drop": "left out"}
 
 
+def tailor_role(
+    session: Session, parsed: JobParseResult, role_id: int, placement: str, *, settings: Settings | None = None
+) -> dict[str, Any]:
+    """Step 3 of the pipeline for one role the user moved, ahead of the next CV: the very
+    ``tailor_main_roles`` (``placement == "main"``) or ``condense_early_roles`` (``"early"``)
+    call a CV makes. Returns ``{"context": str, "tech": [str]}`` (``tech`` for ``main`` only).
+
+    Raises ``LookupError`` for an unknown role, ``OpenRouterNotConfigured`` without an API key
+    and :class:`CvGenerationError` when the LLM gave nothing usable (the pipeline would have
+    kept the original text)."""
+    today = date.today()
+    role = next((r for r in load_roles(session, today) if r.id == role_id), None)
+    if role is None:
+        raise LookupError(f"unknown position {role_id}")
+    job_description = job_description_text(parsed)
+    llm = Llm(settings or get_settings())
+    warnings: list[str] = []
+    if placement == "main":
+        [entry] = tailor_main_roles(llm, [role.to_dict(today)], job_description, warnings)
+        result: dict[str, Any] = {
+            "context": entry.get("context") or "",
+            "tech": [t.strip() for t in (entry.get("tech") or "").split(",") if t.strip()],
+        }
+    else:
+        [entry] = condense_early_roles(llm, [role.to_dict(today)], job_description, warnings)
+        result = {"context": entry.get("context") or ""}
+    if warnings:
+        raise CvGenerationError("; ".join(warnings))
+    return result
+
+
+def tailored_texts(overrides: dict, roles: list[Role], placement: str) -> tuple[list[str | None], list[list[str] | None]]:
+    """The description and technologies each of ``roles`` (all ``placement``) is printed with
+    as is: the user's own (``contexts`` / ``techs``), else what :func:`tailor_role` made for it
+    when it was moved there (``tailored``), else ``None`` for the pipeline to tailor."""
+    contexts = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
+    techs = {int(k): list(v) for k, v in (overrides.get("techs") or {}).items()}
+    tailored = {int(k): (v or {}).get(placement) or {} for k, v in (overrides.get("tailored") or {}).items()}
+    fixed: list[str | None] = []
+    fixed_tech: list[list[str] | None] = []
+    for role in roles:
+        made = tailored.get(role.id) or {}
+        fixed.append(contexts.get(role.id) or made.get("context") or None)
+        mine = techs.get(role.id)
+        fixed_tech.append(mine if mine is not None else made.get("tech"))
+    return fixed, fixed_tech
+
+
 def role_placements(overrides: dict | None) -> dict[int, str]:
     """``work_history.id`` -> ``main`` / ``early`` / ``drop`` from the CV's ``overrides``."""
     return {int(k): v for k, v in ((overrides or {}).get("roles") or {}).items() if v in PLACEMENT_LOG}
@@ -672,19 +720,10 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         log.info("timeline: %s", line)
 
     # 3. tailoring
-    fixed = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
-    fixed_tech = {int(k): list(v) for k, v in (overrides.get("techs") or {}).items()}
-    main_entries = tailor_main_roles(
-        llm,
-        main_entries,
-        job_description,
-        warnings,
-        [fixed.get(r.id) for r in history.main],
-        [fixed_tech.get(r.id) if r.id is not None else None for r in history.main],
-    )
-    early_entries = condense_early_roles(
-        llm, early_entries, job_description, warnings, [fixed.get(r.id) for r in history.early]
-    )
+    main_fixed, main_tech = tailored_texts(overrides, history.main, "main")
+    early_fixed, _ = tailored_texts(overrides, history.early, "early")
+    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, main_fixed, main_tech)
+    early_entries = condense_early_roles(llm, early_entries, job_description, warnings, early_fixed)
 
     # Which listed roles share an employer block; added after tailoring so the ids never
     # reach the prompts.
