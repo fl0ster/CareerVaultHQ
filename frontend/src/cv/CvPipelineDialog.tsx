@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { Undo2 } from 'lucide-react'
 import {
   type CvOverrides,
   type CvPipeline,
@@ -560,11 +559,9 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
   }
   // Picking what the pipeline chose by itself is no edit at all.
   const pick = (v: RolePlacement) => v !== value && save(v === inCv && !wasMine ? null : v)
-  const reset = () => save(null)
 
-  const status = mine ? (
-    <span className="pl-mine">Your choice</span>
-  ) : wasMine ? (
+  // Picking the dotted (automatic) option again is how a choice is undone.
+  const status = mine ? null : wasMine ? (
     <span className="muted">Automatic after regenerating</span>
   ) : (
     <span className="muted">Chosen automatically</span>
@@ -594,17 +591,6 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
         ))}
       </div>
       {status}
-      {mine && (
-        <button
-          type="button"
-          className="pl-link"
-          onClick={reset}
-          disabled={editing.busy}
-          title="Let the pipeline decide again"
-        >
-          <Undo2 size={13} aria-hidden="true" /> Automatic
-        </button>
-      )}
     </div>
   )
 }

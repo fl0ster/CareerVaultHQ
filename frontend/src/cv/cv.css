@@ -750,40 +750,16 @@
 
 /* ------------------------------------------------------------- editing */
 
-/* Small text button (Edit, Use generated, Automatic). */
-.pl-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--accent);
-
-  &:hover:not(:disabled) {
-    border-color: transparent;
-    background: var(--hover-tint);
-  }
-}
-
-/* Your edit, in the CV already. */
-.pl-mine {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-/* In the placement picker: the option the pipeline chose by itself, once the user picked another. */
+/* In the placement picker: the option the pipeline chose by itself, once the user picked
+   another. The same dot as an edited headline's. */
 .pl-auto-dot {
   display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-left: 5px;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
   border-radius: 50%;
-  background: currentColor;
+  background: var(--accent);
   vertical-align: middle;
-  opacity: 0.7;
 }
 
 .pl-texts {
