@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
+import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun } from 'lucide-react'
 import Magpie from '../mascot/Magpie.tsx'
 import ProfileCard from './ProfileCard.tsx'
 import {
@@ -112,7 +112,6 @@ export default function Sidebar({
   collapsed,
   onToggleCollapsed,
   mobileOpen,
-  onCloseMobile,
   theme,
   onThemeChange,
 }: Props) {
@@ -134,15 +133,6 @@ export default function Sidebar({
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
-      <div className="sidebar-brand">
-        <span className="brand-sun">
-          <Magpie head size={24} />
-        </span>
-        <span className="brand-word">pica</span>
-        <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
-          <X size={18} />
-        </button>
-      </div>
       <div className="sidebar-head">
         <ProfileCard
           dashboardActive={active === DASHBOARD_PAGE.id}

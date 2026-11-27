@@ -1,4 +1,4 @@
-import { BellRing, BookOpen, Clock } from 'lucide-react'
+import { BellRing, BookOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import '../interviews/interviews.css'
 import '../companies/tags.css'
@@ -21,29 +21,6 @@ const since = (iso: string) =>
     year: 'numeric',
   })
 
-const label = (e: WorkHistoryEntry) => (e.employer ? `${e.role} at ${e.employer}` : e.role)
-
-/** "Last entry 3 days ago" / "No journal entries yet", tinted when a week has passed. */
-function JournalStatus({ entry }: { entry: WorkHistoryEntry }) {
-  return (
-    <p className={`employment-journal-status${entry.journal_overdue ? ' overdue' : ''}`}>
-      <Clock size={13} aria-hidden="true" />
-      {entry.last_journal_on ? (
-        <span>
-          Last journal entry{' '}
-          <time
-            dateTime={entry.last_journal_on}
-            title={new Date(`${entry.last_journal_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}
-          >
-            {daysAgo(entry.last_journal_on)}
-          </time>
-        </span>
-      ) : (
-        <span>No journal entries yet</span>
-      )}
-    </p>
-  )
-}
 
 type Props = {
   /** The position whose journal is open (`#/employment/<id>`). */
@@ -98,34 +75,9 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
 
   const current = entries.filter(isCurrentPosition)
   if (current.length === 0) return <EmptyState>No current positions.</EmptyState>
-  const overdue = current.filter((e) => e.journal_overdue)
 
   return (
     <>
-      {overdue.length > 0 && (
-        <div className="employment-journal-alert" role="status">
-          <BellRing size={16} aria-hidden="true" />
-          <p>
-            {overdue.length === 1 ? (
-              <>
-                No journal entry for a week or more at <strong>{label(overdue[0])}</strong>.
-              </>
-            ) : (
-              <>
-                No journal entry for a week or more at {overdue.length} positions:{' '}
-                {overdue.map((e, i) => (
-                  <span key={e.id}>
-                    {i > 0 && ', '}
-                    <strong>{label(e)}</strong>
-                  </span>
-                ))}
-                .
-              </>
-            )}{' '}
-            A few lines on what you did keep your career log and CVs accurate.
-          </p>
-        </div>
-      )}
       <ul className="iv-grid">
         {current.map((e) => (
           <li key={e.id}>
@@ -149,12 +101,24 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
                 </div>
                 {e.journal_overdue && (
                   <span className="employment-journal-due" title="No journal note for a week or more">
-                    <BellRing size={14} aria-hidden="true" /> Journal update due
+                    <BellRing size={14} aria-hidden="true" />
+                    {e.last_journal_on ? (
+                      <span>
+                        Last journal entry{' '}
+                        <time
+                          dateTime={e.last_journal_on}
+                          title={new Date(`${e.last_journal_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}
+                        >
+                          {daysAgo(e.last_journal_on)}
+                        </time>
+                      </span>
+                    ) : (
+                      <span>No journal entries yet</span>
+                    )}
                   </span>
                 )}
               </header>
               <p className="muted employment-since">Since {since(e.date_start)}</p>
-              <JournalStatus entry={e} />
               <JournalComposer role={e} compact />
               <button type="button" className="secondary small employment-journal-open" onClick={() => onOpen(e.id)}>
                 <BookOpen size={14} aria-hidden="true" /> Open journal
