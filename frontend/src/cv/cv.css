@@ -189,35 +189,32 @@
   }
 }
 
-/* ---------------------------------------------------------------- pipeline dialog */
+/* ---------------------------------------------------------------- pipeline report */
 .cv-warning-count {
   color: var(--warn-fg);
 }
 
-.pl-dialog {
-  width: min(960px, calc(100vw - 32px));
-}
-
-/* The pipeline report: in the popup and in the application view's CV Settings tab. */
-.pl-dialog,
+/* The pipeline report, in the application view's CV Settings tab. Order of reading:
+   overview line, timeline, listed roles, then folds for everything less relevant. */
 .pl-report {
   /* Outcome colours (status palette: good / warning / critical). Marks wear them,
-     text never does: each outcome also carries an icon and a label. */
+     text never does: each outcome also carries a label. */
   --ok: var(--success-solid);
   --warn: var(--warn-solid);
   --bad: var(--danger-solid);
 
-  h2 {
-    font-size: 22px;
-  }
   h3 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 4px;
+    margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--text-h);
+  }
+  h3 .muted {
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
   }
   .cv-actions {
     justify-content: flex-start;
@@ -248,6 +245,11 @@
   flex-shrink: 0;
 }
 
+.pl-swatch-faint {
+  background: var(--text);
+  opacity: 0.25;
+}
+
 .pl-headline {
   margin: 4px 0 6px;
   font-size: 15px;
@@ -258,15 +260,29 @@
   font-size: 14px;
 }
 
-.pl-tiles {
-  margin-bottom: 16px;
+/* One sentence instead of a wall of tiles; the spend stays visible next to it. */
+.pl-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--text-h);
 
-  .cost-tile-value {
-    font-size: 24px;
+  p {
+    margin: 0;
   }
-  .cost-tile > .muted {
-    font-size: 12px;
+  strong {
+    font-variant-numeric: tabular-nums;
   }
+}
+
+.pl-overview-cost {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .pl-warnings {
@@ -278,16 +294,20 @@
 }
 
 .pl-hint {
-  margin: 0 0 10px;
+  margin: 4px 0 10px;
   font-size: 13px;
   color: var(--text);
 }
 
+/* ------------------------------------------------ charts */
 .pl-chart {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 
+  svg {
+    width: 100%;
+  }
   text {
-    font-size: 11px;
+    font-size: 12px;
   }
   .pl-label {
     fill: var(--text-h);
@@ -298,15 +318,35 @@
   }
   .pl-value {
     fill: var(--text-h);
-    font-size: 10.5px;
+    font-size: 11.5px;
   }
+}
+
+/* The timeline is the centrepiece: a touch more room than the folded charts. */
+.pl-timeline {
+  margin-bottom: 24px;
+  padding: 16px 18px 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+
+  figcaption {
+    font-size: 16px;
+  }
+}
+
+.pl-chart-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 24px;
+  margin-bottom: 8px;
 }
 
 .pl-legend {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
+  gap: 4px 16px;
   margin: 0 0 8px;
   padding: 0;
   font-size: 13px;
@@ -317,12 +357,41 @@
     align-items: center;
     gap: 6px;
   }
+  .muted {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pl-chart-keys .pl-legend {
+  margin: 0;
+}
+
+.pl-span-key {
+  color: var(--text);
+
+  .pl-swatch:not(.pl-swatch-faint) {
+    background: var(--text-h);
+    opacity: 0.7;
+  }
+}
+
+.pl-row-bg {
+  fill: transparent;
+  transition: fill var(--t-fast);
+}
+
+.pl-row.hover .pl-row-bg {
+  fill: var(--hover-tint);
+}
+
+.pl-hit {
+  cursor: pointer;
 }
 
 .pl-bar {
   fill: var(--outcome, var(--accent));
   opacity: 0.85;
-  transition: opacity 0.15s;
+  transition: opacity var(--t-fast);
 }
 
 .pl-row.hover .pl-bar {
@@ -331,7 +400,11 @@
 
 .pl-span-original {
   fill: var(--outcome, var(--accent));
-  opacity: 0.22;
+  fill-opacity: 0.22;
+  /* Outlined so a dropped role, which has no solid bar, still reads in dark mode. */
+  stroke: var(--outcome, var(--accent));
+  stroke-opacity: 0.55;
+  stroke-width: 1;
 }
 
 .pl-threshold {
@@ -354,8 +427,76 @@
   z-index: 1;
 }
 
+.pl-tip-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* ------------------------------------------------ folds */
+.pl-fold > summary {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* Condensed / dropped groups: a heading row that opens like the listed section reads. */
+.pl-group {
+  margin: 8px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+
+  > summary {
+    display: list-item;
+    color: var(--text);
+
+    h3 {
+      display: inline-flex;
+    }
+  }
+  &[open] > summary {
+    margin-bottom: 4px;
+  }
+}
+
 .pl-section {
-  margin: 20px 0;
+  margin: 0 0 16px;
+}
+
+/* Secondary material: quiet rows, closed by default. */
+.pl-more {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+
+  > h3 {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .pl-fold {
+    margin: 2px 0;
+    font-size: 14px;
+  }
+  .pl-fold > summary {
+    padding: 6px 4px;
+    color: var(--text-h);
+
+    &:hover {
+      background: var(--hover-tint);
+    }
+  }
+  .pl-fold-body {
+    padding: 4px 4px 12px 18px;
+  }
+  .pl-fold .pl-fold > summary {
+    font-size: 13px;
+  }
 }
 
 .pl-decisions {
@@ -392,21 +533,68 @@
   }
 }
 
+/* ------------------------------------------------ role cards */
 .pl-cards {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pl-card {
-  padding: 12px 14px 12px 16px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--outcome, var(--border));
   border-radius: 8px;
   font-size: 14px;
+  scroll-margin-top: 16px;
+  container-type: inline-size;
+
+  &:focus {
+    outline: none;
+  }
+  /* Picked from the timeline: a short tint so the eye lands on it. */
+  &.pl-flash {
+    animation: pl-flash 1.4s var(--ease-out);
+  }
+
+  > .pl-fold > summary,
+  > .pl-card-static {
+    display: block;
+    padding: 10px 14px 10px 14px;
+  }
+  > .pl-fold > summary {
+    list-style: none;
+    position: relative;
+    padding-right: 34px;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+    /* Chevron: points right when closed, down when open. */
+    &::after {
+      content: '';
+      position: absolute;
+      right: 14px;
+      top: 16px;
+      width: 7px;
+      height: 7px;
+      border-right: 1.5px solid var(--text);
+      border-bottom: 1.5px solid var(--text);
+      transform: rotate(-45deg);
+      transition: transform var(--t-fast) var(--ease-out);
+    }
+    &:hover {
+      background: var(--hover-tint);
+    }
+  }
+  > .pl-fold[open] > summary::after {
+    transform: rotate(45deg);
+  }
+  .pl-fold-body {
+    padding: 2px 14px 14px;
+  }
 }
 
 .pl-card-head {
@@ -436,16 +624,20 @@
 }
 
 .pl-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  margin: 2px 0 8px;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.pl-note {
+  margin: 8px 0 0;
   font-size: 13px;
   color: var(--text);
 }
 
-.pl-reason {
-  font-style: italic;
+.pl-fold-body > .pl-note:first-child {
+  margin: 0 0 10px;
 }
 
 .pl-field {
@@ -454,28 +646,40 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+
+  .muted {
+    font-weight: 400;
+  }
 }
 
 .pl-context p,
-.pl-diff p {
+.pl-diff p,
+.pl-tech p {
   margin: 0;
   color: var(--text-h);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
+/* What the CV says leads; the original sits beside it (below it in a narrow card), quieter. */
 .pl-diff {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
+}
 
-  > div:first-child p {
+.pl-diff-before {
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+
+  p {
     color: var(--text);
+    font-size: 13px;
   }
 }
 
 .pl-tech {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .pl-chips {
@@ -529,14 +733,8 @@
   }
 }
 
-.pl-raw-controls {
-  display: flex;
-  gap: 6px;
-  margin-top: 16px;
-}
-
 .pl-raw {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   padding: 12px;
   background: var(--code-bg);
   border-radius: 6px;
@@ -547,12 +745,40 @@
   color: var(--text-h);
 }
 
+@keyframes pl-flash {
+  from {
+    background: var(--accent-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-card.pl-flash {
+    animation: none;
+  }
+  .pl-card > .pl-fold > summary::after,
+  .pl-row-bg,
+  .pl-bar {
+    transition: none;
+  }
+}
+
+@container (max-width: 620px) {
+  .pl-diff {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .pl-diff-before {
+    padding: 10px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
 @media (max-width: 600px) {
-  .pl-diff,
   .pl-categories {
     grid-template-columns: 1fr;
   }
-  .pl-chart text {
-    font-size: 13px;
+  .pl-overview-cost {
+    margin-left: 0;
   }
 }
