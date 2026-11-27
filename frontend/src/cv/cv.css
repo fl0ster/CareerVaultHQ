@@ -964,6 +964,23 @@
 .pl-tech .pl-edit-head {
   margin-bottom: 6px;
 }
-.pl-tech .pl-edit-head .pl-revert {
-  margin-left: auto;
+/* "+": add a technology of your own, typed into the pill itself. */
+.pl-chips-edit .chip-plus {
+  padding: 1px 9px;
+  border-style: dashed;
+  color: var(--accent);
+  font-weight: 700;
+}
+.pl-chips-edit .pl-chip-input {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+/* Revert sits under the pills, on the right. */
+.pl-tech-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }

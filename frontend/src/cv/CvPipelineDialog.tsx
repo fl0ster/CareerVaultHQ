@@ -439,9 +439,12 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
   const key = (t: string) => t.toLowerCase()
   const on = new Set(current.map(key))
   const fromHistory = new Set(original.map(key))
+  const suggested = new Set([...generated, ...original].map(key))
   // One fixed order whatever is picked, so pills never move: the LLM's pick, then the rest
-  // of the work history's (and anything the user kept that is in neither).
+  // of the work history's, then the user's own additions.
   const shown = [...new Map([...generated, ...original, ...current].map((t) => [key(t), t])).values()]
+  /** The text of a technology being added (`null`: not adding). */
+  const [adding, setAdding] = useState<string | null>(null)
 
   const save = (list: string[]) => {
     const next = { ...all }
@@ -449,40 +452,90 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
     else next[id] = list
     editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), techs: next })
   }
-  const chip = (name: string, inCv: boolean) => (
-    <li key={key(name)}>
-      <button
-        type="button"
-        className={inCv ? (fromHistory.has(key(name)) ? 'chip-kept' : 'chip-added') : 'chip-removed'}
-        aria-pressed={inCv}
-        title={inCv ? 'In the CV: click to drop it' : 'Not in the CV: click to add it'}
-        disabled={editing.busy}
-        // The CV lists them in the order shown.
-        onClick={() => save(shown.filter((t) => (key(t) === key(name) ? !inCv : on.has(key(t)))))}
-      >
-        {name}
-      </button>
-    </li>
-  )
+  // The CV lists them in the order shown.
+  const toggle = (name: string, inCv: boolean) =>
+    save(shown.filter((t) => (key(t) === key(name) ? !inCv : on.has(key(t)))))
+  const add = () => {
+    const name = adding?.trim()
+    setAdding(null)
+    if (!name || on.has(key(name))) return
+    // One already offered is just switched on; a new one goes last.
+    save(suggested.has(key(name)) ? shown.filter((t) => on.has(key(t)) || key(t) === key(name)) : [...current, name])
+  }
+
+  const chip = (name: string, inCv: boolean) => {
+    const custom = !suggested.has(key(name))
+    return (
+      <li key={key(name)}>
+        <button
+          type="button"
+          className={inCv ? (fromHistory.has(key(name)) ? 'chip-kept' : 'chip-added') : 'chip-removed'}
+          aria-pressed={inCv}
+          title={custom ? 'Added by you: click to remove it' : inCv ? 'In the CV: click to drop it' : 'Not in the CV: click to add it'}
+          disabled={editing.busy}
+          onClick={() => toggle(name, inCv)}
+        >
+          {name}
+        </button>
+      </li>
+    )
+  }
 
   return (
     <div className="pl-tech">
       <div className="pl-edit-head">
         <span className="pl-field">Technologies</span>
         {mine && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
-        {mine && (
+      </div>
+      <ul className="pl-chips pl-chips-edit">
+        {shown.map((t) => chip(t, on.has(key(t))))}
+        <li>
+          {adding === null ? (
+            <button
+              type="button"
+              className="chip-plus"
+              onClick={() => setAdding('')}
+              disabled={editing.busy}
+              title="Add a technology"
+              aria-label="Add a technology"
+            >
+              +
+            </button>
+          ) : (
+            <input
+              type="text"
+              className="pl-chip-input"
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  add()
+                } else if (e.key === 'Escape') setAdding(null)
+              }}
+              onBlur={add}
+              placeholder="Technology"
+              aria-label="New technology"
+              maxLength={128}
+              size={Math.max(10, adding.length + 1)}
+              autoFocus
+            />
+          )}
+        </li>
+      </ul>
+      {mine && (
+        <div className="pl-tech-foot">
           <button
             type="button"
-            className="secondary small pl-revert"
+            className="secondary small"
             onClick={() => save(generated)}
             disabled={editing.busy}
-            title="Back to the technologies the LLM picked"
+            title="Back to the technologies the LLM picked (your additions are removed)"
           >
             Revert
           </button>
-        )}
-      </div>
-      <ul className="pl-chips pl-chips-edit">{shown.map((t) => chip(t, on.has(key(t))))}</ul>
+        </div>
+      )}
     </div>
   )
 }
