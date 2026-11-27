@@ -23,6 +23,7 @@ import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStore } from '../shell/store.ts'
 import { useStuck } from '../shell/useStuck.ts'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 const PAGE_SIZE = 50
 /** Rows per request while polling for newly scored jobs (the API maximum). */
@@ -642,13 +643,13 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
         )}
 
         {searching && results !== null && results.length === 0 ? (
-          <p className="muted">No jobs match your search.</p>
+          <EmptyState variant="inline">No jobs match your search.</EmptyState>
         ) : !searching && empty ? (
-          <p>
+          <EmptyState>
             {profileId === null
               ? 'Add your work history first; a candidate profile is built from it and scraped jobs are scored against it.'
               : 'No evaluated jobs yet. New jobs appear here automatically once they are scraped and scored.'}
-          </p>
+          </EmptyState>
         ) : (
           <ul className="job-list">
             {shownProcessing.map((p) => (
@@ -706,7 +707,9 @@ export default function JobsPage({ detailId, inboxCount, onOpen, onBack, onCrumb
 
         <div ref={sentinel} className="sentinel">
           {(searching ? resultsLoading : loading) && <span className="spinner" aria-hidden="true" />}
-          {!searching && !hasMore && feed.length > 0 && <span className="muted">All jobs loaded.</span>}
+          {!searching && !hasMore && feed.length > 0 && (
+            <EmptyState variant="inline">All jobs loaded.</EmptyState>
+          )}
         </div>
       </div>
 

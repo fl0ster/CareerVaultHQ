@@ -253,7 +253,7 @@ Pica is a flat, saturated field of colour, lit like the sky at either end of the
 
 It is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.
 
-The magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a glow-peach stage as the worker-status character. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.
+The magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a glow-peach stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.
 
 **Key Characteristics:**
 - Flat by rule: every shadow token is `none`; depth is tone.
@@ -392,7 +392,9 @@ A 24px-radius `surface` card in the sidebar that links to the dashboard. It hold
 One segmented band of headline numbers: tiles on `surface` with 46px display numerals and 13.5px labels, 3px canvas seams, 24px outer radius. The "Jobs to review" tile turns sun with sun-ink text when there are new jobs, and the magpie head (30px) watches from its top-right corner, peeking in with a spring and tilting on hover.
 
 ### The Magpie Signature
-The magpie head appears in three places and only these: the brand mark (the head against a 32px sun disc), the new-jobs counter (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on a glow `stage` disc, which turns pale sun when queued and rose when in error. A new appearance of the head means "something new arrived"; do not use it as decoration.
+On a sun background, the magpie head means "something new arrived" and appears in three places only: the brand mark (the head against a 32px sun disc), the new-jobs counter (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on a glow `stage` disc, which turns pale sun when queued and rose when in error.
+
+**Empty states** (`mascot/EmptyState.tsx`) are the magpie's other home, always on the glow `stage` disc, never on sun. The `page` variant puts the idling full-body magpie on an 84px disc beside the message, inside a `surface` block at the 24px radius; below 600px it stacks and centres. The `inline` variant puts the head on a 28px disc before a 14px line, for empty widgets, charts, dialog sections and the end of the jobs feed. Use them only for genuinely empty collections, never for a missing field (such as "No parsed description") or as decoration.
 
 ### Dialogs and Panels
 Dialogs: `surface`, 24px radius, `border` hairline, `backdrop` scrim, opening with a 420ms scale-and-rise. Floating panels (worker dropdown): `surface`, 24px radius, `border-strong` hairline, 380px wide, opening from their anchor corner.

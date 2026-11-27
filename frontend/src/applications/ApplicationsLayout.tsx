@@ -10,6 +10,7 @@ import ApplicationRow from './ApplicationRow.tsx'
 import ApplicationsToolbar from './ApplicationsToolbar.tsx'
 import Confetti from './Confetti.tsx'
 import type { ApplicationList } from './useApplicationList.ts'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 type Props = {
   list: ApplicationList
@@ -46,7 +47,9 @@ export default function ApplicationsLayout({ list, onOpen, onBack, filters, empt
         {list.error && <p className="error">{list.error}</p>}
 
         {applications !== null && applications.length === 0 && (
-          <p className="muted">{list.search ? 'No applications match your search.' : emptyText}</p>
+          <EmptyState variant={list.search ? 'inline' : 'page'}>
+            {list.search ? 'No applications match your search.' : emptyText}
+          </EmptyState>
         )}
 
         {renderList ? (

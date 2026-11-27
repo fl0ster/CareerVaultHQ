@@ -15,6 +15,7 @@ import { isTerminal } from '../tools/api.ts'
 import { notifyApplicationsChanged } from '../applications/api.ts'
 import { createStore, useStore } from '../shell/store.ts'
 import './gmail.css'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 function when(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—'
@@ -228,7 +229,7 @@ function describe(m: ProcessedMail): { kind: MailKind; result: string; tone: Ton
 }
 
 function Activity({ mails }: { mails: ProcessedMail[] }) {
-  if (mails.length === 0) return <p className="muted">No mails checked yet.</p>
+  if (mails.length === 0) return <EmptyState variant="inline">No mails checked yet.</EmptyState>
   return (
     <div className="gmail-mails-wrap">
       <table className="gmail-mails">

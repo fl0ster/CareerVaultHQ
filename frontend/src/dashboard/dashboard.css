@@ -97,15 +97,6 @@
   }
 }
 
-.widget-empty {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-  color: var(--text);
-  font-size: 14px;
-}
-
 /* Stat tiles: one segmented band of headline numbers; the canvas shows through the seams. */
 .stat-tiles {
   grid-column: 1 / -1;

@@ -11,6 +11,7 @@ import {
   type WorkHistoryEntry,
 } from './api.ts'
 import JournalComposer from './JournalComposer.tsx'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 /** How often the view checks on a refresh running on the worker, in ms. */
 const POLL_INTERVAL = 2_000
@@ -261,10 +262,10 @@ export default function JournalView({ role, onBack }: { role: WorkHistoryEntry; 
         )}
 
         {journal && journal.entries.length === 0 && (
-          <p className="muted journal-empty">
+          <EmptyState className="journal-empty">
             No notes yet. Log what you work on as often as you like; each month is turned into a polished, truthful
             career log, and those into this role's description for your CVs.
-          </p>
+          </EmptyState>
         )}
 
         {journal && (journal.journal_context || journal.journal_tech.length > 0) && (
