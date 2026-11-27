@@ -55,7 +55,7 @@ export default function JournalComposer({
       </label>
       <textarea
         id={id}
-        rows={compact ? 2 : 3}
+        rows={compact ? 6 : 3}
         value={body}
         placeholder="What did you work on? Tasks, results, tools, decisions…"
         onChange={(e) => {
