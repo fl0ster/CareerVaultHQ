@@ -1280,14 +1280,95 @@
   color: var(--text-h);
   overflow-wrap: anywhere;
 }
-.employment-since {
-  margin: 0;
-  font-size: 14px;
+/* Work journal on the Employment cards: a missing entry rings the card in notification sun. */
+.employment-card.overdue {
+  border: 3px solid var(--sun);
+  padding: 16px;
+
+  &:hover {
+    border-color: var(--sun-hover);
+  }
+}
+.employment-card .journal-composer textarea {
+  min-height: 140px;
 }
 
-/* Work journal: the note box and "last entry" line on the Employment cards. */
-.employment-card.overdue {
-  border-color: var(--warn-border);
+/* Left column: the latest notes as a timeline, cut off at the composer's height. */
+.employment-log-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 120px;
+
+  .employment-log {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  }
+
+  @media (max-width: 600px) {
+    min-height: 0;
+
+    .employment-log {
+      position: static;
+      max-height: 180px;
+    }
+  }
+}
+.employment-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.employment-log-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 14px 20px;
+  line-height: 1.35;
+
+  /* The dot, and the line down to the next note. */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 4px;
+    width: 10px;
+    height: 10px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: var(--surface);
+  }
+  &:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 17px;
+    bottom: 1px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--border);
+  }
+}
+.employment-log-when {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+.employment-log-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.employment-log-empty {
+  margin: 0;
+  font-size: 13px;
 }
 .employment-journal-status {
   display: inline-flex;
@@ -1307,23 +1388,17 @@
 }
 .employment-journal-due {
   flex: none;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border: 1px solid var(--warn-border);
   border-radius: 999px;
-  background: var(--warn-bg);
-  color: var(--warn-fg);
+  background: var(--sun);
+  color: var(--on-sun);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-}
-.employment-journal-open {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 .employment-journal-alert {
   display: flex;

@@ -22,7 +22,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from rq import Queue
 from rq.exceptions import NoSuchJobError
 from rq.job import Job as RqJob
@@ -64,6 +64,37 @@ class CvJobOut(BaseModel):
     source: str
 
 
+RolePlacement = Literal["main", "early", "drop"]
+"""Where the user put a role: listed in full, condensed into the early-career block, or left out."""
+
+
+class CvOverrides(BaseModel):
+    """The user's edits to how one application's CV is generated (see ``Application.cv_overrides``)."""
+
+    headline_role: str | None = Field(default=None, max_length=256)
+    """Used as the headline as is, instead of the one the LLM picks."""
+    summary: str | None = Field(default=None, max_length=2000)
+    """Used as the summary as is, instead of the generated one."""
+    roles: dict[int, RolePlacement] = {}
+    """``work_history.id`` -> placement, overriding the timeline rules for that role."""
+    contexts: dict[int, Annotated[str, Field(max_length=2000)]] = {}
+    """``work_history.id`` -> the role's description in the CV, used as is (listed or condensed)."""
+
+    def stored(self) -> dict | None:
+        """The JSON kept on the row: blank fields left out, ``None`` when nothing is left."""
+        data: dict[str, Any] = {}
+        for key in ("headline_role", "summary"):
+            value = (getattr(self, key) or "").strip()
+            if value:
+                data[key] = value
+        if self.roles:
+            data["roles"] = {str(k): v for k, v in sorted(self.roles.items())}
+        contexts = {str(k): v.strip() for k, v in sorted(self.contexts.items()) if v.strip()}
+        if contexts:
+            data["contexts"] = contexts
+        return data or None
+
+
 class GeneratedCvOut(BaseModel):
     id: int
     status: CvStatus
@@ -83,6 +114,8 @@ class GeneratedCvOut(BaseModel):
     pdf_url: str | None
     """Set once the CV is ``finished``."""
     tex_url: str | None
+    overrides: CvOverrides | None = None
+    """The user's edits the CV was generated with (``None``: none)."""
 
 
 class GeneratedCvPage(BaseModel):
@@ -161,6 +194,7 @@ def cv_out(cv: GeneratedCV, request: Request) -> GeneratedCvOut:
         ),
         pdf_url=str(request.url_for("generated_cv_pdf", cv_id=cv.id)) if finished else None,
         tex_url=str(request.url_for("generated_cv_tex", cv_id=cv.id)) if finished else None,
+        overrides=CvOverrides.model_validate(cv.overrides) if cv.overrides else None,
     )
 
 
@@ -206,10 +240,13 @@ def check_cv_inputs(session: Session) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
-def enqueue_cv(session: Session, queue: Queue, settings: Settings, parsed: JobParseResult) -> GeneratedCV:
-    """Create a ``generated_cvs`` row for ``parsed`` and queue its generation. When the
-    queue is unreachable the row is committed as ``failed`` instead of raising."""
-    cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex)
+def enqueue_cv(
+    session: Session, queue: Queue, settings: Settings, parsed: JobParseResult, overrides: dict | None = None
+) -> GeneratedCV:
+    """Create a ``generated_cvs`` row for ``parsed`` (generated with the user's ``overrides``,
+    see ``CvOverrides``) and queue its generation. When the queue is unreachable the row is
+    committed as ``failed`` instead of raising."""
+    cv = GeneratedCV(job_parse_result_id=parsed.id, rq_job_id=uuid.uuid4().hex, overrides=overrides or None)
     session.add(cv)
     session.commit()
     session.refresh(cv)

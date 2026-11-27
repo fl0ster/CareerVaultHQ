@@ -71,7 +71,7 @@ from app.services.openrouter import (
 )
 from app.services.work_journal import refresh_stale_journals
 from app.tasks.cv import prompts
-from app.tasks.cv.history import Role, build_coherent_history
+from app.tasks.cv.history import CoherentHistory, Role, build_coherent_history
 from app.tasks.cv.render import collect_technologies, load_template, render_cv
 from app.tasks.latex import compile_latex
 
@@ -350,8 +350,22 @@ def _position_message(entry: dict, job_description: str, heading: str) -> str:
     return f"JOB DESCRIPTION:\n{job_description}\n\n{heading}:\n{json.dumps(position, indent=2, ensure_ascii=False)}"
 
 
-def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
-    """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job."""
+def _with_fixed(entries: list[dict], fixed: Sequence[str | None] | None) -> tuple[list[dict], list[str | None]]:
+    """``entries`` with the descriptions the user wrote (``fixed``, aligned with them) put in."""
+    fixed = list(fixed or [None] * len(entries))
+    return [entry | {"context": text} if text else entry for entry, text in zip(entries, fixed, strict=True)], fixed
+
+
+def tailor_main_roles(
+    llm: Llm,
+    entries: list[dict],
+    job_description: str,
+    warnings: list[str],
+    fixed: Sequence[str | None] | None = None,
+) -> list[dict]:
+    """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job. A description
+    in ``fixed`` (aligned with ``entries``) is the user's: used as is, only its tech tailored."""
+    entries, fixed = _with_fixed(entries, fixed)
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
@@ -369,13 +383,17 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
             service, prompts.TECH_SYSTEM_PROMPT, message, call=llm_calls.CV_TECH, temperature=0.3
         )
 
-    results = llm.run_all([context_call(e) for e in entries] + [tech_call(e) for e in entries])
-    contexts, techs = results[: len(entries)], results[len(entries) :]
+    to_tailor = [e for e, text in zip(entries, fixed, strict=True) if not text]
+    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in entries])
+    tailored_contexts, techs = iter(results[: len(to_tailor)]), results[len(to_tailor) :]
+    contexts = [text if text else next(tailored_contexts) for text in fixed]
     tailored = []
-    for entry, context, tech in zip(entries, contexts, techs, strict=True):
+    for entry, context, tech, mine in zip(entries, contexts, techs, fixed, strict=True):
         label = f"{entry.get('role')} @ {entry.get('employer')}"
         new_entry = dict(entry)
-        if context is None:
+        if mine:
+            pass  # already in the entry
+        elif context is None:
             warnings.append(f"context of {label} could not be tailored; kept the original")
         else:
             new_entry["context"] = _clean_line(context)
@@ -389,8 +407,16 @@ def tailor_main_roles(llm: Llm, entries: list[dict], job_description: str, warni
     return tailored
 
 
-def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, warnings: list[str]) -> list[dict]:
-    """Step 3b: condense every early role's context into one sentence."""
+def condense_early_roles(
+    llm: Llm,
+    entries: list[dict],
+    job_description: str,
+    warnings: list[str],
+    fixed: Sequence[str | None] | None = None,
+) -> list[dict]:
+    """Step 3b: condense every early role's context into one sentence; a description in
+    ``fixed`` (aligned with ``entries``) is the user's and used as is."""
+    entries, fixed = _with_fixed(entries, fixed)
 
     def call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "EARLIER POSITION")
@@ -398,11 +424,14 @@ def condense_early_roles(llm: Llm, entries: list[dict], job_description: str, wa
             service, prompts.EARLY_SYSTEM_PROMPT, message, call=llm_calls.CV_EARLY, temperature=0.3
         )
 
-    results = llm.run_all([call(e) for e in entries])
+    condensed_sentences = iter(llm.run_all([call(e) for e, text in zip(entries, fixed, strict=True) if not text]))
     condensed = []
-    for entry, sentence in zip(entries, results, strict=True):
+    for entry, mine in zip(entries, fixed, strict=True):
         new_entry = dict(entry)
-        if sentence is None:
+        sentence = None if mine else next(condensed_sentences)
+        if mine:
+            pass  # already in the entry
+        elif sentence is None:
             warnings.append(
                 f"context of {entry.get('role')} @ {entry.get('employer')} could not be condensed; kept the original"
             )
@@ -548,6 +577,41 @@ def pick_core_technologies(
     return chosen
 
 
+# --------------------------------------------------------------------------- user edits
+
+
+PLACEMENT_LOG = {"main": "listed in full", "early": "condensed", "drop": "left out"}
+
+
+def role_placements(overrides: dict | None) -> dict[int, str]:
+    """``work_history.id`` -> ``main`` / ``early`` / ``drop`` from the CV's ``overrides``."""
+    return {int(k): v for k, v in ((overrides or {}).get("roles") or {}).items() if v in PLACEMENT_LOG}
+
+
+def build_history(roles: list[Role], placements: dict[int, str], rules: dict[str, Any]) -> CoherentHistory:
+    """The timeline rules applied to the roles the user did not place; those they did go
+    where they were put (``drop``: left out), bypassing the rules."""
+    if not placements:
+        return build_coherent_history(roles, **rules)
+    free = [r for r in roles if r.id not in placements]
+    history = build_coherent_history(free, **rules) if free else CoherentHistory(main=[], early=[])
+    main, early, log_lines = list(history.main), list(history.early), list(history.log)
+    for role in roles:
+        where = placements.get(role.id) if role.id is not None else None
+        if where is None:
+            continue
+        log_lines.append(f"{PLACEMENT_LOG[where]} {role.label} (your choice)")
+        if where == "main":
+            main.append(role)
+        elif where == "early":
+            early.append(role)
+
+    def newest_first(items: list[Role]) -> list[Role]:
+        return sorted(items, key=lambda r: (r.start, r.end), reverse=True)
+
+    return CoherentHistory(main=newest_first(main), early=newest_first(early), log=log_lines)
+
+
 # --------------------------------------------------------------------------- pipeline
 
 
@@ -592,30 +656,36 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     # 1. relevance
     score_relevance(llm, roles, job_description, warnings)
 
-    # 2. timeline
-    history = build_coherent_history(roles, **rules)
+    # 2. timeline (roles the user placed bypass the rules)
+    overrides = cv.overrides or {}
+    history = build_history(roles, role_placements(overrides), rules)
     main_entries = [r.to_dict(today) for r in history.main]
     early_entries = [r.to_dict(today) for r in history.early]
     for line in history.log:
         log.info("timeline: %s", line)
 
     # 3. tailoring
-    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings)
-    early_entries = condense_early_roles(llm, early_entries, job_description, warnings)
+    fixed = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
+    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, [fixed.get(r.id) for r in history.main])
+    early_entries = condense_early_roles(
+        llm, early_entries, job_description, warnings, [fixed.get(r.id) for r in history.early]
+    )
 
     # Which listed roles share an employer block; added after tailoring so the ids never
     # reach the prompts.
     main_entries = [entry | {"tenure": role.tenure} for entry, role in zip(main_entries, history.main, strict=True)]
     early_entries = [entry | {"tenure": role.tenure} for entry, role in zip(early_entries, history.early, strict=True)]
 
-    # 4. headline
+    # 4. headline (a headline / summary the user wrote is used as is)
     technologies = collect_technologies(main_entries)
     prompt_history = [{k: v for k, v in e.items() if k not in ("relevance", "tenure")} for e in main_entries]
+    fixed_summary: str | None = overrides.get("summary")
+    fixed_headline: str | None = overrides.get("headline_role")
     categories, summary, headline_role, core_technologies = llm.run_all(
         [
             lambda s: categorize_technologies(llm, s, technologies, job_description, warnings),
-            lambda s: generate_summary(llm, s, prompt_history, job_description, warnings),
-            lambda s: pick_headline_role(llm, s, prompt_history, job_description, warnings),
+            lambda s: fixed_summary or generate_summary(llm, s, prompt_history, job_description, warnings),
+            lambda s: fixed_headline or pick_headline_role(llm, s, prompt_history, job_description, warnings),
             lambda s: pick_core_technologies(llm, s, technologies, job_description, warnings),
         ]
     )
@@ -665,6 +735,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
                 "date_start": r.date_start,
                 "date_end": r.date_end_label(today),
                 "months": r.length,
+                "context": r.context,
             }
             for r in roles
         ],
@@ -673,6 +744,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         "categories": [[name, techs] for name, techs in categories],
         "timeline_log": history.log,
         "warnings": warnings,
+        "overrides": overrides or None,
     }
     (out_dir / "pipeline.json").write_text(json.dumps(pipeline, indent=2, ensure_ascii=False), encoding="utf-8")
     compiled = compile_latex(str(tex_path), out_dir=str(out_dir))

@@ -210,6 +210,16 @@
   border-left: 1px solid var(--border);
   color: var(--text);
 }
+/* Edits from CV Settings are not in this CV yet: the sun asks for a new one. */
+.app-cv-info.stale {
+  color: var(--on-sun);
+  background: var(--sun);
+
+  &:hover:not(:disabled) {
+    color: var(--on-sun);
+    background: var(--sun-hover);
+  }
+}
 .app-cv-error {
   margin: 0;
   font-size: 12px;
@@ -1405,4 +1415,9 @@ button.accept-dialog-submit {
   .app-buttons {
     align-items: center;
   }
+}
+
+.app-cv-intro {
+  margin: 0 0 14px;
+  font-size: 13px;
 }

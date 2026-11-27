@@ -216,10 +216,6 @@
     font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
-  .cv-actions {
-    justify-content: flex-start;
-    margin: 10px 0 18px;
-  }
   .spinner {
     display: inline-block;
     margin: 12px 0;
@@ -260,30 +256,6 @@
   font-size: 14px;
 }
 
-/* One sentence instead of a wall of tiles; the spend stays visible next to it. */
-.pl-overview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: var(--text-h);
-
-  p {
-    margin: 0;
-  }
-  strong {
-    font-variant-numeric: tabular-nums;
-  }
-}
-
-.pl-overview-cost {
-  margin-left: auto;
-  font-size: 13px;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
 
 .pl-warnings {
   margin: 0 0 16px;
@@ -443,12 +415,10 @@
   }
 }
 
-/* Condensed / dropped groups: a heading row that opens like the listed section reads. */
+/* Condensed / dropped groups: a section like the listed one, its heading folding it. No
+   box around it: the cards inside sit at the same level as the listed ones. */
 .pl-group {
-  margin: 8px 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  margin: 0 0 16px;
 
   > summary {
     display: list-item;
@@ -458,8 +428,8 @@
       display: inline-flex;
     }
   }
-  &[open] > summary {
-    margin-bottom: 4px;
+  > .pl-fold-body {
+    padding: 0;
   }
 }
 
@@ -776,7 +746,203 @@
   .pl-categories {
     grid-template-columns: 1fr;
   }
-  .pl-overview-cost {
-    margin-left: 0;
+}
+
+/* ------------------------------------------------------------- editing */
+
+/* Small text button (Edit, Use generated, Automatic). */
+.pl-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--accent);
+
+  &:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--hover-tint);
   }
+}
+
+/* Your edit, in the CV already. */
+.pl-mine {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Your edit, waiting for a new CV. */
+.pl-pending {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sun-bg);
+  color: var(--sun-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pl-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.pl-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+
+  .pl-field {
+    display: inline;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Edited by you: the same dot as on the tab. */
+.pl-edit-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* The text as it is in the CV, clicked to edit it. */
+.pl-edit-text {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-h);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  white-space: pre-wrap;
+
+  &.pl-headline {
+    font-size: 15px;
+  }
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+    background: var(--surface);
+  }
+  &:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.pl-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  input,
+  textarea {
+    width: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+  }
+  textarea {
+    resize: vertical;
+    line-height: 1.5;
+  }
+}
+
+.pl-edit-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+
+  .pl-revert {
+    margin-left: auto;
+  }
+}
+
+/* Where the role goes: a segmented In full / Condensed / Left out, under its card head. */
+.pl-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.pl-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+
+  button {
+    padding: 3px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: transparent;
+
+    &:hover:not(:disabled) {
+      border-color: transparent;
+      color: var(--text-h);
+    }
+    &[aria-checked='true'] {
+      color: var(--on-accent-fill);
+      background: var(--accent-fill);
+    }
+  }
+}
+
+.pl-cost {
+  margin: 22px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under a description being edited: the work-history text it started from. */
+.pl-own {
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+
+  p {
+    margin: 0;
+    color: var(--text);
+    font-size: 13px;
+    white-space: pre-wrap;
+  }
+}
+
+/* A row the user moved: drawn as the next CV will have it, outlined and lighter until the
+   CV is regenerated. */
+.pl-row.pending .pl-bar {
+  opacity: 0.45;
+  stroke: var(--outcome);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.pl-row.pending .pl-label {
+  font-style: italic;
+}
+.pl-swatch-pending {
+  background: transparent;
+  border: 1.5px dashed var(--text);
+  box-sizing: border-box;
 }

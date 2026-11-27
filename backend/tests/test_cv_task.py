@@ -246,6 +246,85 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
     assert len(requests_seen) == 3 + 4 + 1 + 4
 
 
+def _set_overrides(
+    engine, cv_id: int, *, roles: dict[str, str] | None = None, contexts: dict[str, str] | None = None, **fields
+) -> None:
+    """Store ``overrides`` on the CV; ``roles`` / ``contexts`` are keyed by employer."""
+    with session_factory(engine)() as session:
+        ids = {e.employer: e.id for e in session.scalars(select(models.WorkHistoryEntry))}
+        overrides = dict(fields)
+        if roles:
+            overrides["roles"] = {str(ids[employer]): where for employer, where in roles.items()}
+        if contexts:
+            overrides["contexts"] = {str(ids[employer]): text for employer, text in contexts.items()}
+        session.get(models.GeneratedCV, cv_id).overrides = overrides
+        session.commit()
+
+
+def test_generate_cv_applies_the_users_edits(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    _set_overrides(
+        task_engine,
+        cv_id,
+        headline_role="Mobile Lead",
+        summary="My own words.",
+        roles={"VGW": "drop", "Old Corp": "main"},
+    )
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        cv = session.get(models.GeneratedCV, cv_id)
+        assert cv.headline_role == "Mobile Lead"
+        assert cv.summary == "My own words."
+        pipeline = cv.pipeline
+        # VGW left out even though relevant; Old Corp listed in full despite its low score.
+        assert [e["employer"] for e in pipeline["main"]] == ["Zartis", "Old Corp"]
+        assert pipeline["early"] == []
+        assert {r["employer"] for r in pipeline["relevance"]} == set(RELEVANCE)  # still scored
+        assert "left out VGW / Senior Mobile Engineer (your choice)" in pipeline["timeline_log"]
+        assert "listed in full Old Corp / PHP Developer (your choice)" in pipeline["timeline_log"]
+        assert pipeline["overrides"]["summary"] == "My own words."
+        tex = open(cv.tex_path, encoding="utf-8").read()
+        assert "Mobile Lead" in tex and "My own words." in tex
+    # 3 decisions + 2x2 main + no early + 2 headline calls (no summary / role)
+    assert len(requests_seen) == 3 + 4 + 2
+
+
+def test_generate_cv_condenses_a_role_the_user_moved(task_engine):
+    cv_id = _seed(task_engine)
+    _set_overrides(task_engine, cv_id, roles={"Zartis": "early"})
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        # The rules still apply to the others (Old Corp backfilled to reach the minimum).
+        assert [e["employer"] for e in pipeline["main"]] == ["VGW", "Old Corp"]
+        assert [e["employer"] for e in pipeline["early"]] == ["Zartis"]
+        assert pipeline["early"][0]["context"] == "Maintained a legacy PHP shop."
+
+
+def test_generate_cv_uses_the_descriptions_the_user_wrote(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    _set_overrides(task_engine, cv_id, contexts={"VGW": "Led the mobile team.", "Old Corp": "Kept a PHP shop alive."})
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        contexts = {e["employer"]: e["context"] for e in pipeline["main"] + pipeline["early"]}
+        assert contexts == {
+            "Zartis": "Shipped tailored features. Improved performance.",  # still tailored
+            "VGW": "Led the mobile team.",
+            "Old Corp": "Kept a PHP shop alive.",
+        }
+        assert all(e["tech"] == "TypeScript, React Native" for e in pipeline["main"])  # tech still tailored
+        assert {r["employer"]: r["context"] for r in pipeline["relevance"]}["VGW"] == "Built pipelines. Led the app."
+    # 3 decisions + 1 context + 2 tech + no early + 4 headline calls
+    assert len(requests_seen) == 3 + 3 + 4
+
+
 def test_generate_cv_uses_the_cv_settings(task_engine):
     cv_id = _seed(task_engine)
     with session_factory(task_engine)() as session:

@@ -56,6 +56,10 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "start_date": "DATE",
         "salary_override": "JSON",
         "work_mode_override": "VARCHAR(16)",
+        "cv_overrides": "JSON",
+    },
+    "generated_cvs": {
+        "overrides": "JSON",
     },
     "work_history": {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
