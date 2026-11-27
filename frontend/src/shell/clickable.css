@@ -1,16 +1,12 @@
 /* Clickable cards and list rows share one design language: a chevron at a row's far right or
    in a card's top right means a click anywhere on the item opens it (see openOnClick.ts).
-   On hover the item takes a light tint, its title (`.item-title`) turns accent and the chevron
-   turns accent and nudges right; a card's border also firms up. Regions with a job of their
-   own (`[data-no-open]`, forms) neither open the item nor show the hover.
-   Hooks: `--item-hover` (the tint) and `--card-hover-border`. */
+   On hover the chevron turns accent and nudges right. A row also takes a light tint and its
+   title (`.item-title`) turns accent; a card stays as it is, apart from its chevron button
+   lighting up. Regions with a job of their own (`[data-no-open]`, forms) neither open the
+   item nor show the hover. Hook: `--item-hover` (the row tint). */
 .clickable-row,
 .clickable-card {
   cursor: pointer;
-  transition:
-    background-color var(--t-fast) ease,
-    box-shadow var(--t-fast) ease,
-    border-color var(--t-fast) ease;
 
   [data-no-open],
   form {
@@ -26,26 +22,28 @@
     translate var(--t-fast) ease;
 }
 
-:is(.clickable-row, .clickable-card):hover:not(:has(:is([data-no-open], form):hover)) {
-  /* An inset shadow, so the item's own background (an inbox match, the active role) shows through. */
-  box-shadow: inset 0 0 0 100vmax var(--item-hover, var(--hover-tint));
-
-  .item-title {
-    color: var(--accent);
-  }
-  .open-chevron {
-    color: var(--accent);
-    translate: 2px 0;
-  }
-  .row-chevron {
-    translate: 2px -50%;
-  }
+:is(.clickable-row, .clickable-card):hover:not(:has(:is([data-no-open], form):hover)) .open-chevron {
+  color: var(--accent);
+  translate: 2px 0;
 }
 
 /* Rows: the chevron sits at the far right, vertically centred, whatever the row's own layout
    (rows stack on phones). Each row keeps room for it with its right padding. */
 .clickable-row {
   position: relative;
+  transition: box-shadow var(--t-fast) ease;
+}
+
+.clickable-row:hover:not(:has(:is([data-no-open], form):hover)) {
+  /* An inset shadow, so the row's own background (an inbox match, the active role) shows through. */
+  box-shadow: inset 0 0 0 100vmax var(--item-hover, var(--hover-tint));
+
+  .item-title {
+    color: var(--accent);
+  }
+  .row-chevron {
+    translate: 2px -50%;
+  }
 }
 
 .row-chevron {
@@ -55,11 +53,8 @@
   translate: 0 -50%;
 }
 
-/* Cards: the chevron is the card's open button, in its top right corner. */
-.clickable-card:hover:not(:has(:is([data-no-open], form):hover)) {
-  border-color: var(--card-hover-border, var(--border-strong));
-}
-
+/* Cards: the chevron is the card's open button, in its top right corner. Hovering the card
+   lights up only this button; the card itself doesn't change. */
 button.card-open {
   flex: none;
   align-self: flex-start;
@@ -79,7 +74,6 @@ button.card-open {
 
 @media (prefers-reduced-motion: reduce) {
   .clickable-row,
-  .clickable-card,
   .open-chevron {
     transition: none;
   }

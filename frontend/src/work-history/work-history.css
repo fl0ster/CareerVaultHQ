@@ -1278,7 +1278,6 @@
 }
 /* Work journal on the Employment cards: a missing entry rings the card in notification sun. */
 .employment-card.overdue {
-  --card-hover-border: var(--sun-hover);
   border: 3px solid var(--sun);
   padding: 16px;
 }
