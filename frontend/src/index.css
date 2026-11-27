@@ -1,83 +1,102 @@
 @import '@fontsource-variable/plus-jakarta-sans';
-@import '@fontsource-variable/fraunces/full.css';
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
 
 /*
- * Design tokens. A cool "mist" palette: pale blue-green canvas, white work surfaces,
- * a deep teal accent and pastel status pairs. Every colour in the app comes from here.
+ * Design tokens. Pica is a magpie at golden hour: Sunrise (light) is a pale dawn lilac, Sunset
+ * (dark) an ink violet. Sun yellow marks what to press and what is new; feather blue marks where
+ * you are. Flat by rule: no shadows, depth only from tone steps. Every colour comes from here.
  */
 :root {
-  /* Surfaces and text */
-  --canvas: #eef3f4;
-  --surface: #ffffff;
-  --surface-2: #f5f8f9;
-  --sidebar: #e4edef;
-  --border: #dbe4e6;
-  --border-strong: #c5d2d5;
-  --text: #56636a;
-  --text-h: #1f2c33;
+  /* Surfaces and text: a pale dawn lilac */
+  --canvas: #f4f0f8;
+  --surface: #fdfcff;
+  --surface-2: #f8f5fc;
+  --sidebar: #e9e3f4;
+  --border: #e5dfef;
+  --border-strong: #d0c8e2;
+  --text: #5d5677;
+  --text-h: #1d1838;
 
-  /* Brand accent */
-  --accent: #3b7480;
-  --accent-hover: #2f616b;
-  --accent-bg: #d6eaec;
-  --accent-border: rgba(59, 116, 128, 0.45);
+  /* Feather: the magpie's iridescent blue. Where you are: links, selection, focus, current page. */
+  --accent: #3a4fc8;
+  --accent-hover: #2d3fa6;
+  --accent-bg: #e6e9fc;
+  --accent-border: rgba(58, 79, 200, 0.4);
   --on-accent: #ffffff;
+  /* Solid feather fills (the current page, the active tab) and the text on them */
+  --accent-fill: #3a4fc8;
+  --on-accent-fill: #ffffff;
 
-  /* Pastel status pairs: background, foreground (text) and solid (dots, bars) */
-  --info-bg: #e0e6f8;
-  --info-fg: #45558f;
-  --info-solid: #8ea2e0;
-  --warn-bg: #f7ecc9;
-  --warn-fg: #85621a;
-  --warn-solid: #e3bb52;
-  --warn-border: rgba(214, 170, 60, 0.5);
-  --success-bg: #d8efe2;
-  --success-fg: #2d6e4a;
-  --success-solid: #6cc196;
-  --success-strong: #3f9a6b;
-  --success-strong-hover: #337f58;
-  --danger-bg: #f7dfe0;
-  --danger-fg: #9c3d45;
-  --danger-solid: #e58e94;
-  --neutral-bg: #e8edee;
-  --neutral-fg: #66707a;
-  --neutral-solid: #b3bcc0;
-  --lavender-bg: #e8e2f6;
-  --lavender-fg: #5c4f91;
-  --peach-bg: #fae4d7;
-  --peach-fg: #92553a;
+  /* Sun: what to press and what is new. Primary actions and new-item counters only. */
+  --sun: #f6b829;
+  --sun-hover: #eea915;
+  --on-sun: #2b2006;
+  --sun-bg: #fdf0c9;
+  --sun-fg: #865a00;
+
+  /* Status pairs: background, foreground (text) and solid (dots, bars) */
+  --info-bg: #e4e8fb;
+  --info-fg: #3e4f9c;
+  --info-solid: #8597e6;
+  --warn-bg: #fde9d3;
+  --warn-fg: #8f5216;
+  --warn-solid: #ee9f4c;
+  --warn-border: rgba(238, 159, 76, 0.5);
+  --success-bg: #dcf1e6;
+  --success-fg: #22694a;
+  --success-solid: #5cbf90;
+  --success-strong: #2c8d61;
+  --success-strong-hover: #237551;
+  --danger-bg: #fbe1e6;
+  --danger-fg: #a2324a;
+  --danger-solid: #ec8598;
+  --neutral-bg: #eee9f3;
+  --neutral-fg: #676183;
+  --neutral-solid: #b8b1ca;
+  --lavender-bg: #ece4fb;
+  --lavender-fg: #5a45a0;
+  --peach-bg: #fde4d5;
+  --peach-fg: #984e2b;
   --on-strong: #ffffff;
 
-  /* Overlays and depth */
-  --hover-tint: rgba(31, 44, 51, 0.055);
-  --backdrop: rgba(31, 44, 51, 0.3);
-  --shadow-sm: 0 1px 2px rgba(31, 52, 60, 0.06), 0 1px 3px rgba(31, 52, 60, 0.04);
-  --shadow-md: 0 8px 22px -8px rgba(31, 52, 60, 0.2), 0 2px 6px rgba(31, 52, 60, 0.06);
-  --shadow-lg: 0 28px 56px -16px rgba(31, 52, 60, 0.32), 0 4px 12px rgba(31, 52, 60, 0.08);
-  --focus-ring: 0 0 0 3px rgba(59, 116, 128, 0.28);
+  /* Overlays. The world is flat: depth comes from tone steps, never from shadows. */
+  --hover-tint: rgba(29, 24, 56, 0.055);
+  --backdrop: rgba(29, 24, 56, 0.38);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --focus-ring: 0 0 0 3px rgba(58, 79, 200, 0.3);
 
   /* Mascot */
-  --mag-ink: #2d3b48;
-  --mag-ink-2: #3c4c5a;
-  --mag-white: #fbfdfd;
-  --mag-sheen: #7cc3c2;
-  --mag-sheen-2: #9fb2ea;
-  --mag-cheek: #f3b6b5;
-  --mag-feet: #8f9ca3;
-  --stage: #d6eaec;
-  --stage-warn: #f7ecc9;
-  --stage-danger: #f7dfe0;
+  --mag-ink: #1f2142;
+  --mag-ink-2: #2d305e;
+  --mag-white: #fffdfa;
+  --mag-sheen: #3557d6;
+  --mag-sheen-2: #7d5ce8;
+  --mag-cheek: #f7aaa0;
+  --mag-feet: #8a86a3;
+  /* The magpie's disc: pale feather, so the black-and-white bird and its blue sheen both read */
+  --stage: #e6e9fc;
+  --stage-warn: #fdf0c9;
+  --stage-danger: #fbe1e6;
+
+  /* Popups that stay a dark ink panel in both themes */
+  --tip-bg: #110f26;
+  --tip-fg: #cfc8ea;
+  --tip-strong: #ffffff;
+  --tip-action: #f8c64a;
+  --tip-danger: #ff9fb0;
 
   /* Legacy names still used by the feature stylesheets */
   --bg: var(--surface);
   --code-bg: var(--surface-2);
-  --shadow: var(--shadow-md);
+  --shadow: none;
 
   /* Shape and motion */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --t-fast: 140ms;
   --t-med: 240ms;
@@ -85,7 +104,7 @@
 
   /* Type */
   --sans: 'Plus Jakarta Sans Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --heading: 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;
   --mono: ui-monospace, 'SF Mono', Consolas, monospace;
 
   font: 15px/1.5 var(--sans);
@@ -98,108 +117,126 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dusk: the dark version, used with the OS dark mode unless light is forced, or when forced. */
+/* Sunset: the dark theme, used with the OS dark mode unless light is forced, or when forced. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --canvas: #141b20;
-    --surface: #1b242a;
-    --surface-2: #202b32;
-    --sidebar: #172026;
-    --border: #2b3840;
-    --border-strong: #3a4952;
-    --text: #a2b0b7;
-    --text-h: #e8eff1;
-    --accent: #8cc6cf;
-    --accent-hover: #a6d5dc;
-    --accent-bg: rgba(140, 198, 207, 0.14);
-    --accent-border: rgba(140, 198, 207, 0.42);
-    --on-accent: #10262b;
-    --info-bg: rgba(142, 162, 224, 0.16);
-    --info-fg: #b6c3f1;
-    --info-solid: #8ea2e0;
-    --warn-bg: rgba(227, 187, 82, 0.15);
-    --warn-fg: #e9d08c;
-    --warn-solid: #d6ad48;
-    --warn-border: rgba(227, 187, 82, 0.4);
-    --success-bg: rgba(108, 193, 150, 0.15);
-    --success-fg: #a0d9ba;
-    --success-solid: #6cc196;
-    --success-strong: #4fa877;
-    --success-strong-hover: #5fba88;
-    --danger-bg: rgba(229, 142, 148, 0.16);
-    --danger-fg: #f1adb2;
-    --danger-solid: #e58e94;
-    --neutral-bg: rgba(179, 188, 192, 0.12);
-    --neutral-fg: #aab4b9;
-    --neutral-solid: #77838a;
-    --lavender-bg: rgba(170, 155, 225, 0.16);
-    --lavender-fg: #c8bdf0;
-    --peach-bg: rgba(240, 170, 135, 0.15);
-    --peach-fg: #f2c1a7;
-    --hover-tint: rgba(255, 255, 255, 0.05);
-    --backdrop: rgba(4, 9, 12, 0.55);
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 10px 24px -8px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 28px 56px -12px rgba(0, 0, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.35);
-    --focus-ring: 0 0 0 3px rgba(140, 198, 207, 0.3);
-    --mag-ink: #33434f;
-    --mag-ink-2: #465865;
-    --mag-white: #f1f6f6;
-  --stage: #cfe4e7;
-  --stage-warn: #ece0b6;
-  --stage-danger: #eccdcf;
+    /* Sunset: ink violet ground, plum surfaces, lavender text */
+    --canvas: #191731;
+    --surface: #221f41;
+    --surface-2: #2a2750;
+    --sidebar: #16112a;
+    --border: #332f5b;
+    --border-strong: #4a4579;
+    --text: #b9b2da;
+    --text-h: #f5f1ff;
+    --accent: #97aaff;
+    --accent-hover: #b3c0ff;
+    --accent-bg: rgba(122, 146, 255, 0.17);
+    --accent-border: rgba(151, 170, 255, 0.45);
+    --on-accent: #111538;
+  --accent-fill: #4669ec;
+  --on-accent-fill: #ffffff;
+    --sun: #f8c64a;
+    --sun-hover: #ffd56e;
+    --on-sun: #2b2006;
+    --sun-bg: rgba(248, 198, 74, 0.15);
+    --sun-fg: #ffd77c;
+    --info-bg: rgba(122, 146, 255, 0.15);
+    --info-fg: #b8c5ff;
+    --info-solid: #8197f6;
+    --warn-bg: rgba(240, 162, 74, 0.16);
+    --warn-fg: #ffc690;
+    --warn-solid: #f0a24a;
+    --warn-border: rgba(240, 162, 74, 0.42);
+    --success-bg: rgba(92, 196, 151, 0.16);
+    --success-fg: #a3e6c6;
+    --success-solid: #5cc497;
+    --success-strong: #3fa87a;
+    --success-strong-hover: #51bb8c;
+    --danger-bg: rgba(240, 122, 144, 0.17);
+    --danger-fg: #ffb3c1;
+    --danger-solid: #f07a90;
+    --neutral-bg: rgba(185, 178, 218, 0.12);
+    --neutral-fg: #b3acd3;
+    --neutral-solid: #6f6997;
+    --lavender-bg: rgba(178, 150, 255, 0.17);
+    --lavender-fg: #cfbfff;
+    --peach-bg: rgba(255, 170, 125, 0.15);
+    --peach-fg: #ffc3a3;
+    --hover-tint: rgba(245, 241, 255, 0.065);
+    --backdrop: rgba(8, 6, 24, 0.62);
+    --focus-ring: 0 0 0 3px rgba(151, 170, 255, 0.4);
+    --mag-ink: #0f1030;
+    --mag-ink-2: #23265a;
+    --mag-white: #fbf8ff;
+    --mag-sheen: #4669ec;
+    --mag-sheen-2: #8a66f5;
+    --mag-cheek: #ffaea1;
+    --mag-feet: #8b86a8;
+    --stage: #b4c1ff;
+    --stage-warn: #4a4128;
+    --stage-danger: #4a2c47;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --canvas: #141b20;
-  --surface: #1b242a;
-  --surface-2: #202b32;
-  --sidebar: #172026;
-  --border: #2b3840;
-  --border-strong: #3a4952;
-  --text: #a2b0b7;
-  --text-h: #e8eff1;
-  --accent: #8cc6cf;
-  --accent-hover: #a6d5dc;
-  --accent-bg: rgba(140, 198, 207, 0.14);
-  --accent-border: rgba(140, 198, 207, 0.42);
-  --on-accent: #10262b;
-  --info-bg: rgba(142, 162, 224, 0.16);
-  --info-fg: #b6c3f1;
-  --info-solid: #8ea2e0;
-  --warn-bg: rgba(227, 187, 82, 0.15);
-  --warn-fg: #e9d08c;
-  --warn-solid: #d6ad48;
-  --warn-border: rgba(227, 187, 82, 0.4);
-  --success-bg: rgba(108, 193, 150, 0.15);
-  --success-fg: #a0d9ba;
-  --success-solid: #6cc196;
-  --success-strong: #4fa877;
-  --success-strong-hover: #5fba88;
-  --danger-bg: rgba(229, 142, 148, 0.16);
-  --danger-fg: #f1adb2;
-  --danger-solid: #e58e94;
-  --neutral-bg: rgba(179, 188, 192, 0.12);
-  --neutral-fg: #aab4b9;
-  --neutral-solid: #77838a;
-  --lavender-bg: rgba(170, 155, 225, 0.16);
-  --lavender-fg: #c8bdf0;
-  --peach-bg: rgba(240, 170, 135, 0.15);
-  --peach-fg: #f2c1a7;
-  --hover-tint: rgba(255, 255, 255, 0.05);
-  --backdrop: rgba(4, 9, 12, 0.55);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 10px 24px -8px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 28px 56px -12px rgba(0, 0, 0, 0.7), 0 4px 12px rgba(0, 0, 0, 0.35);
-  --focus-ring: 0 0 0 3px rgba(140, 198, 207, 0.3);
-  --mag-ink: #33434f;
-  --mag-ink-2: #465865;
-  --mag-white: #f1f6f6;
-  --stage: #cfe4e7;
-  --stage-warn: #ece0b6;
-  --stage-danger: #eccdcf;
+  /* Sunset: ink violet ground, plum surfaces, lavender text */
+  --canvas: #191731;
+  --surface: #221f41;
+  --surface-2: #2a2750;
+  --sidebar: #16112a;
+  --border: #332f5b;
+  --border-strong: #4a4579;
+  --text: #b9b2da;
+  --text-h: #f5f1ff;
+  --accent: #97aaff;
+  --accent-hover: #b3c0ff;
+  --accent-bg: rgba(122, 146, 255, 0.17);
+  --accent-border: rgba(151, 170, 255, 0.45);
+  --on-accent: #111538;
+  --accent-fill: #4669ec;
+  --on-accent-fill: #ffffff;
+  --sun: #f8c64a;
+  --sun-hover: #ffd56e;
+  --on-sun: #2b2006;
+  --sun-bg: rgba(248, 198, 74, 0.15);
+  --sun-fg: #ffd77c;
+  --info-bg: rgba(122, 146, 255, 0.15);
+  --info-fg: #b8c5ff;
+  --info-solid: #8197f6;
+  --warn-bg: rgba(240, 162, 74, 0.16);
+  --warn-fg: #ffc690;
+  --warn-solid: #f0a24a;
+  --warn-border: rgba(240, 162, 74, 0.42);
+  --success-bg: rgba(92, 196, 151, 0.16);
+  --success-fg: #a3e6c6;
+  --success-solid: #5cc497;
+  --success-strong: #3fa87a;
+  --success-strong-hover: #51bb8c;
+  --danger-bg: rgba(240, 122, 144, 0.17);
+  --danger-fg: #ffb3c1;
+  --danger-solid: #f07a90;
+  --neutral-bg: rgba(185, 178, 218, 0.12);
+  --neutral-fg: #b3acd3;
+  --neutral-solid: #6f6997;
+  --lavender-bg: rgba(178, 150, 255, 0.17);
+  --lavender-fg: #cfbfff;
+  --peach-bg: rgba(255, 170, 125, 0.15);
+  --peach-fg: #ffc3a3;
+  --hover-tint: rgba(245, 241, 255, 0.065);
+  --backdrop: rgba(8, 6, 24, 0.62);
+  --focus-ring: 0 0 0 3px rgba(151, 170, 255, 0.4);
+  --mag-ink: #0f1030;
+  --mag-ink-2: #23265a;
+  --mag-white: #fbf8ff;
+  --mag-sheen: #4669ec;
+  --mag-sheen-2: #8a66f5;
+  --mag-cheek: #ffaea1;
+  --mag-feet: #8b86a8;
+  --stage: #b4c1ff;
+  --stage-warn: #4a4128;
+  --stage-danger: #4a2c47;
   color-scheme: dark;
 }
 
@@ -237,27 +274,28 @@ h4 {
 h1,
 h2 {
   font-family: var(--heading);
-  font-variation-settings: 'SOFT' 60, 'WONK' 0;
   font-optical-sizing: auto;
-  font-weight: 520;
-  letter-spacing: -0.01em;
+  font-weight: 760;
+  text-wrap: balance;
 }
 
 h1 {
-  font-size: 32px;
-  line-height: 1.15;
+  font-size: 40px;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
   margin: 0;
 }
 
 h2 {
   font-size: 21px;
-  line-height: 1.25;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   margin: 0 0 8px;
 }
 
 h3 {
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 680;
   line-height: 1.35;
 }
 
@@ -287,8 +325,21 @@ code {
 }
 
 ::selection {
-  background: var(--accent-bg);
-  color: var(--text-h);
+  background: var(--sun);
+  color: var(--on-sun);
+}
+
+html {
+  accent-color: var(--accent);
+  caret-color: var(--accent);
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Tabular figures wherever numbers line up */
+table,
+time,
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {

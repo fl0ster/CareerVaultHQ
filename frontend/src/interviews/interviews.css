@@ -18,14 +18,12 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
   transition:
     box-shadow var(--t-fast) ease,
     border-color var(--t-fast) ease;
 
   &:hover {
     border-color: var(--border-strong);
-    box-shadow: var(--shadow-md);
   }
 
   .error {

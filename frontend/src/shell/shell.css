@@ -1,4 +1,4 @@
-/* App shell: side menu, top bar and content column (Play Console style). */
+/* App shell: side menu, top bar and content column. Flat: tone steps, no shadows. */
 
 .shell {
   --sidebar-w: 260px;
@@ -39,18 +39,54 @@
   display: flex;
   flex-direction: column;
   height: 100svh;
-  padding: 14px 12px 12px;
+  padding: 14px var(--sidebar-pad) 12px;
   box-sizing: border-box;
   background: var(--sidebar);
   overflow: hidden auto;
   scrollbar-width: thin;
 }
 
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 8px 0 10px;
+  margin-bottom: 14px;
+  color: var(--text-h);
+
+}
+
+/* The mark: the magpie against the sun */
+.brand-sun {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sun);
+  overflow: hidden;
+
+  .magpie {
+    margin: 4px 0 0 -2px;
+  }
+}
+
+.brand-word {
+  font-family: var(--heading);
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  transition: opacity var(--t-fast) ease;
+}
+
 .sidebar-head {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 /* Profile card: raised above the menu; it opens the dashboard. */
@@ -64,34 +100,23 @@
   min-height: 96px;
   padding: 14px 12px 14px 12px;
   box-sizing: border-box;
-  border-radius: 22px;
-  background:
-    radial-gradient(120% 90% at 100% 0%, var(--accent-bg) 0%, transparent 60%),
-    var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid transparent;
   color: var(--text);
   transition:
-    border-color var(--t-fast) ease,
-    box-shadow var(--t-fast) ease,
-    transform var(--t-fast) var(--ease-out),
     padding var(--t-med) var(--ease-out),
     min-height var(--t-med) var(--ease-out);
 
   &:hover:not(.active) {
     border-color: var(--accent-border);
-    transform: translateY(-1px);
   }
-  /* On the dashboard the card is the current page: accent outline and ringed avatar. */
-  &.active {
-    border-color: var(--accent);
-    box-shadow: var(--shadow-md), 0 0 0 3px var(--accent-bg);
-  }
+  /* On the dashboard the card is the current page: it becomes the bookmark (below), avatar ringed. */
   &.active .profile-avatar {
     box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
   }
   &:has(.profile-card-link:focus-visible) {
-    box-shadow: var(--shadow-md), var(--focus-ring);
+    box-shadow: var(--focus-ring);
   }
 }
 
@@ -124,8 +149,8 @@
   color: var(--accent);
   font-family: var(--heading);
   font-size: 19px;
-  font-weight: 600;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border);
+  font-weight: 800;
+  letter-spacing: -0.03em;
   transition:
     box-shadow var(--t-fast) ease,
     width var(--t-med) var(--ease-out),
@@ -146,22 +171,20 @@
   transition: opacity var(--t-fast) ease;
 }
 
-.profile-hello {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
+/* Under the name: where the card leads */
+.profile-sub {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--text);
 }
 
 .profile-name {
   display: grid;
   font-family: var(--heading);
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
   font-size: 19px;
-  font-weight: 560;
-  line-height: 1.12;
-  letter-spacing: -0.01em;
+  font-weight: 760;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   color: var(--text-h);
 
   span {
@@ -169,10 +192,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* Surname in italic for a bit of character. */
+  /* Surname lighter, so the two lines read as one name. */
   span + span {
-    font-style: italic;
-    font-weight: 480;
+    font-weight: 450;
   }
 }
 
@@ -205,27 +227,34 @@
   }
 }
 
-.nav-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  transition:
-    transform var(--t-slow) var(--ease-spring),
-    width var(--t-med) var(--ease-out),
-    height var(--t-med) var(--ease-out);
-  pointer-events: none;
+.nav-section + .nav-section {
+  margin-top: 20px;
 }
 
-.nav-divider {
-  height: 0;
-  margin: 12px 8px;
-  border: 0;
-  border-top: 1px solid var(--border);
+/* Section label, followed by the section's hairline */
+.sidebar .nav-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  padding: 0 4px 0 14px;
+  font-family: var(--heading);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+
+  span {
+    white-space: nowrap;
+    transition: opacity var(--t-fast) ease;
+  }
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-strong);
+  }
 }
 
 .nav-item {
@@ -247,18 +276,17 @@
   font-weight: 550;
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    background-color var(--t-fast) ease,
-    color var(--t-fast) ease;
+  /* No transitions: the tab shape switches instantly, so a fading fill never shows as a pill */
+  transition: none;
 
+  /* Not the global link hover: only the current page is feather */
   &:hover {
     color: var(--text-h);
-    background: var(--hover-tint);
   }
-  &.active {
+  &.active,
+  &.active:hover {
     color: var(--accent);
-    font-weight: 680;
-    background: transparent;
+    font-weight: 700;
   }
   &:focus-visible {
     outline: none;
@@ -268,11 +296,74 @@
 
 .nav-icon {
   flex: none;
-  transition: transform var(--t-med) var(--ease-spring);
 }
 
-.nav-item.active .nav-icon {
-  transform: scale(1.08);
+/*
+ * The bookmark: the current page's entry (and the profile card on the dashboard) takes the page's
+ * own colour and runs right up to it, with concave corners where it joins. It doesn't move between
+ * entries; it is simply where you are.
+ */
+.sidebar {
+  --sidebar-pad: 12px;
+  --bookmark-r: 16px;
+}
+
+/* Hover previews the same tab shape in a faint tint; the bookmark itself is the page colour. */
+.nav-item:hover {
+  --tab-fill: var(--hover-tint);
+}
+
+.nav-item.bookmark,
+.nav-item.bookmark:hover,
+.profile-card.active {
+  --tab-fill: var(--canvas);
+}
+
+.nav-item:is(.bookmark, :hover) {
+  width: calc(100% + var(--sidebar-pad));
+  margin-right: calc(-1 * var(--sidebar-pad));
+  padding-right: calc(14px + var(--sidebar-pad));
+}
+
+/* Above its neighbours, so its corners stay clean while the next entry is hovered */
+.nav-item.bookmark {
+  z-index: 1;
+}
+
+.profile-card.active {
+  margin-right: calc(-1 * var(--sidebar-pad));
+}
+
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active),
+.profile-card.active:hover {
+  background: var(--tab-fill);
+  border-color: transparent;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: var(--bookmark-r);
+  height: var(--bookmark-r);
+  pointer-events: none;
+}
+
+/* One concave corner below, where the tab joins the page; the top-right edge stays square. */
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
+  top: 100%;
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent calc(var(--bookmark-r) - 0.5px),
+    var(--tab-fill) var(--bookmark-r)
+  );
+}
+
+/* A hovered entry right above the bookmark leaves the join to the bookmark */
+li:has(+ li > .bookmark) > .nav-item:hover::after {
+  display: none;
 }
 
 /* Settings: a single entry pinned to the bottom of the menu */
@@ -297,21 +388,19 @@
     border-radius: 999px;
   }
   &::-webkit-progress-value {
-    background: var(--accent);
+    background: var(--sun);
     border-radius: 999px;
     transition: inline-size var(--t-slow) var(--ease-out);
   }
   &::-moz-progress-bar {
-    background: var(--accent);
+    background: var(--sun);
     border-radius: 999px;
   }
 }
 
 /* Groups (My profile): the parent toggles its sub-pages */
-.nav-parent {
-  &:hover:not(:disabled) {
-    background: var(--hover-tint);
-  }
+.nav-parent:disabled:hover {
+  --tab-fill: transparent;
 }
 
 .nav-chevron {
@@ -375,28 +464,54 @@
 
 .nav-pill {
   flex: none;
-  min-width: 20px;
-  padding: 0 7px;
-  box-sizing: border-box;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 11.5px;
-  font-weight: 700;
-  line-height: 20px;
-  text-align: center;
-  animation: pop-in var(--t-med) var(--ease-spring);
-}
-
-/* Something is due (e.g. a journal note): warning colours, with an icon beside the count. */
-.nav-pill.warn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 3px;
-  background: var(--warn-bg);
-  color: var(--warn-fg);
-  box-shadow: inset 0 0 0 1px var(--warn-border);
+  min-width: 22px;
+  height: 22px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation: pop-in var(--t-med) var(--ease-out);
+}
+
+/* Something for you (new jobs, an overdue journal): the magpie peeks out of a sun counter. */
+.nav-pill.finds {
+  gap: 2px;
+  padding: 0 8px 0 3px;
+  background: var(--sun);
+  color: var(--on-sun);
+
+  .magpie {
+    flex: none;
+    margin-top: -3px;
+    transform-origin: 70% 85%;
+    animation: magpie-peek 620ms var(--ease-spring) 120ms both;
+  }
+}
+
+.nav-item:hover .nav-pill.finds .magpie {
+  animation: magpie-tilt 520ms var(--ease-out);
+}
+
+@keyframes magpie-peek {
+  from {
+    transform: translateY(5px) rotate(18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes magpie-tilt {
+  40% {
+    transform: rotate(-14deg);
+  }
 }
 
 .sidebar-foot {
@@ -406,7 +521,6 @@
   gap: 8px;
   padding-top: 12px;
   margin-top: 12px;
-  border-top: 1px solid var(--border);
 }
 
 .theme-switch {
@@ -432,8 +546,7 @@
     }
     &.active {
       background: var(--surface);
-      color: var(--accent);
-      box-shadow: var(--shadow-sm);
+      color: var(--text-h);
     }
   }
 }
@@ -442,9 +555,20 @@
 .shell.rail .sidebar {
   .profile-text,
   .nav-label,
-  .nav-chevron {
+  .nav-chevron,
+  .brand-word {
     opacity: 0;
     pointer-events: none;
+  }
+  .sidebar-brand {
+    padding-left: 15px;
+  }
+  .nav-section-label {
+    gap: 0;
+    padding: 0 6px;
+  }
+  .nav-section-label span {
+    display: none;
   }
   .profile-card {
     min-height: 52px;
@@ -479,15 +603,15 @@
   }
   .nav-pill {
     position: absolute;
-    top: 3px;
+    top: 2px;
     left: 30px;
-    min-width: 16px;
+    min-width: 17px;
+    height: 17px;
     padding: 0 4px;
     font-size: 10px;
-    line-height: 16px;
   }
-  /* No room for the icon on the rail: the warning colours carry it. */
-  .nav-pill.warn svg {
+  /* No room for the magpie on the rail: the sun counter carries it. */
+  .nav-pill.finds .magpie {
     display: none;
   }
   .sidebar-foot {
@@ -516,9 +640,8 @@
   height: var(--topbar-h);
   padding: 0 32px;
   box-sizing: border-box;
-  background: color-mix(in srgb, var(--canvas) 84%, transparent);
-  backdrop-filter: blur(12px) saturate(1.3);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--canvas);
+  border-bottom: 1px solid var(--border);
 
   .worker {
     margin-left: auto;
@@ -712,12 +835,12 @@
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 28px 36px 72px;
+  padding: 36px 40px 80px;
   box-sizing: border-box;
 }
 
 .page-header {
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 
   &:not(:has(p)) {
     margin-bottom: 12px;
@@ -731,7 +854,7 @@
   }
 
   p {
-    margin-top: 6px;
+    margin-top: 8px;
     max-width: 64ch;
     color: var(--text);
   }
@@ -767,7 +890,40 @@
 
     &.open {
       transform: none;
-      box-shadow: var(--shadow-lg);
+    }
+  }
+
+  /* In the drawer there is no page beside the menu to run into: entries are pills again, and the
+     bookmark is a feather wash. */
+  .nav-item:is(.bookmark, :hover) {
+    width: 100%;
+    margin-right: 0;
+    padding-right: 14px;
+  }
+  .nav-item:hover:not(.bookmark) {
+    border-radius: 999px;
+  }
+  .profile-card.active {
+    margin-right: 0;
+  }
+  :is(.nav-item.bookmark, .profile-card.active),
+  :is(.nav-item.bookmark, .profile-card.active):hover {
+    background: var(--accent-bg);
+    border-radius: 999px;
+  }
+  .profile-card.active,
+  .profile-card.active:hover {
+    border-radius: var(--r-lg);
+  }
+  :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
+    display: none;
+  }
+  .shell.rail .sidebar .nav-section-label {
+    gap: 10px;
+    padding: 0 4px 0 14px;
+
+    span {
+      display: inline;
     }
   }
 
@@ -808,10 +964,20 @@
     }
     .nav-pill {
       position: static;
-      min-width: 20px;
-      padding: 0 7px;
-      font-size: 11.5px;
-      line-height: 20px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+    .nav-pill.finds {
+      padding-left: 3px;
+    }
+    .nav-pill.finds .magpie {
+      display: block;
+    }
+    .brand-word {
+      opacity: 1;
+      pointer-events: auto;
     }
     .sidebar-foot,
     .theme-switch {
@@ -834,7 +1000,6 @@
     inset: 0;
     z-index: 85;
     background: var(--backdrop);
-    backdrop-filter: blur(2px);
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--t-med) ease;
@@ -861,7 +1026,7 @@
   }
 
   h1 {
-    font-size: 26px;
+    font-size: 30px;
   }
 }
 
@@ -882,4 +1047,8 @@
   .worker-toggle {
     width: auto;
   }
+}
+
+.sidebar-brand .sidebar-close {
+  margin-left: auto;
 }

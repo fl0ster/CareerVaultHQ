@@ -1,8 +1,8 @@
-import { CalendarClock } from 'lucide-react'
 import { serverDate } from '../../applications/api.ts'
 import { pageHref } from '../../shell/nav.ts'
 import type { UpcomingRound } from '../api.ts'
 import Widget from '../Widget.tsx'
+import EmptyState from '../../mascot/EmptyState.tsx'
 
 function when(value: string): { day: string; time: string } {
   const d = serverDate(value)
@@ -17,10 +17,7 @@ export default function UpcomingInterviewsWidget({ rounds }: { rounds: UpcomingR
   return (
     <Widget title="Upcoming interviews" href={pageHref('interviews')}>
       {rounds.length === 0 ? (
-        <p className="widget-empty">
-          <CalendarClock size={18} aria-hidden />
-          Nothing scheduled. Planned rounds with a date show up here.
-        </p>
+        <EmptyState variant="inline">Nothing scheduled. Planned rounds with a date show up here.</EmptyState>
       ) : (
         <ul className="upcoming">
           {rounds.map((r) => {

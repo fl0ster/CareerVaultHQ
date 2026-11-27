@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CostBreakdown, CostBucket, Granularity } from './api.ts'
 import { formatBucket, formatCount, formatUsd, formatUsdTick } from './format.ts'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 /** SVG viewBox sizes; ``compact`` is for charts shown two per row so text keeps ~1:1 scale. */
 const SIZES = {
@@ -100,7 +101,7 @@ export function TimeChart({ series, granularity, metric, kind, title, size = 'wi
     return (
       <figure className="chart">
         <figcaption>{title}</figcaption>
-        <p className="muted">No calls in this range.</p>
+        <EmptyState variant="inline">No calls in this range.</EmptyState>
       </figure>
     )
   }
@@ -188,7 +189,7 @@ export function BreakdownChart({ rows, total, title, limit = 8 }: BreakdownChart
     <figure className="chart breakdown">
       <figcaption>{title}</figcaption>
       {shown.length === 0 ? (
-        <p className="muted">No calls in this range.</p>
+        <EmptyState variant="inline">No calls in this range.</EmptyState>
       ) : (
         <ol className="breakdown-rows">
           {shown.map((r) => (

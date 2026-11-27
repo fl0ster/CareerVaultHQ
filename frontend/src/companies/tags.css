@@ -19,8 +19,8 @@
   --tag-fg: var(--accent);
 }
 .tag-ghosted {
-  --tag-bg: color-mix(in srgb, #8b7fb8 18%, transparent);
-  --tag-fg: #8b7fb8;
+  --tag-bg: var(--lavender-bg);
+  --tag-fg: var(--lavender-fg);
 }
 .tag-avoid {
   --tag-bg: var(--danger-bg);
@@ -33,9 +33,8 @@
 }
 
 .badge.company-tag.none {
-  background: var(--border);
+  background: var(--neutral-bg);
   color: var(--text);
-  opacity: 0.7;
 }
 
 .company-tag-error {
@@ -60,7 +59,7 @@
 
 /* Ghosted (never heard back): a small, faded ghost in muted violet. */
 .company-app-stat.ghosted {
-  color: #8b7fb8;
+  color: var(--lavender-fg);
 
   .company-app-stat-icon {
     font-size: 10px;

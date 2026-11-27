@@ -327,7 +327,6 @@
   margin-bottom: 24px;
   padding: 16px 18px 12px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
 
   figcaption {
     font-size: 16px;
@@ -544,9 +543,8 @@
 }
 
 .pl-card {
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--outcome, var(--border));
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--outcome, var(--border)) 60%, var(--border));
+  border-radius: var(--r-sm);
   font-size: 14px;
   scroll-margin-top: 16px;
   container-type: inline-size;

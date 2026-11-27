@@ -1,4 +1,3 @@
-import { BellRing } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
@@ -213,7 +212,7 @@ function App() {
         onNavigate={navigate}
         onOpenSettings={() => navigate(settingsTab)}
         badges={{
-          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
+          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review`, magpie: true },
           interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
           employment: {
@@ -222,8 +221,7 @@ function App() {
               counts?.journal_overdue === 1
                 ? 'Journal update due: 1 position without a note for a week'
                 : `Journal update due: ${counts?.journal_overdue ?? 0} positions without a note for a week`,
-            tone: 'warn',
-            icon: BellRing,
+            magpie: true,
           },
         }}
         hiddenPages={hiddenPages}

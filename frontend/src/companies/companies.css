@@ -7,7 +7,6 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow);
   overflow: hidden;
 
   &[open] {

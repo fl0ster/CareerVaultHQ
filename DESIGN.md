@@ -2,81 +2,104 @@
 name: Pica
 description: Your job search organised. Fully Yours.
 colors:
-  canvas: "#eef3f4"
-  surface: "#ffffff"
-  surface-2: "#f5f8f9"
-  sidebar: "#e4edef"
-  border: "#dbe4e6"
-  border-strong: "#c5d2d5"
-  text: "#56636a"
-  text-h: "#1f2c33"
-  accent: "#3b7480"
-  accent-hover: "#2f616b"
-  accent-bg: "#d6eaec"
-  accent-border: "rgba(59, 116, 128, 0.45)"
-  on-accent: "#ffffff"
+  sun: "#f6b829"
+  sun-hover: "#eea915"
+  on-sun: "#2b2006"
+  sun-bg: "#fdf0c9"
+  sun-fg: "#865a00"
+  accent: "#3a4fc8"
+  accent-hover: "#2d3fa6"
+  accent-bg: "#e6e9fc"
+  accent-border: "rgba(58, 79, 200, 0.4)"
+  accent-fill: "#3a4fc8"
+  on-accent-fill: "#ffffff"
+  canvas: "#f4f0f8"
+  surface: "#fdfcff"
+  surface-2: "#f8f5fc"
+  sidebar: "#e9e3f4"
+  border: "#e5dfef"
+  border-strong: "#d0c8e2"
+  text: "#5d5677"
+  text-h: "#1d1838"
+  hover-tint: "rgba(29, 24, 56, 0.055)"
+  backdrop: "rgba(29, 24, 56, 0.38)"
+  info-bg: "#e4e8fb"
+  info-fg: "#3e4f9c"
+  info-solid: "#8597e6"
+  warn-bg: "#fde9d3"
+  warn-fg: "#8f5216"
+  warn-solid: "#ee9f4c"
+  warn-border: "rgba(238, 159, 76, 0.5)"
+  success-bg: "#dcf1e6"
+  success-fg: "#22694a"
+  success-solid: "#5cbf90"
+  success-strong: "#2c8d61"
+  danger-bg: "#fbe1e6"
+  danger-fg: "#a2324a"
+  danger-solid: "#ec8598"
+  neutral-bg: "#eee9f3"
+  neutral-fg: "#676183"
+  neutral-solid: "#b8b1ca"
+  lavender-bg: "#ece4fb"
+  lavender-fg: "#5a45a0"
+  peach-bg: "#fde4d5"
+  peach-fg: "#984e2b"
   on-strong: "#ffffff"
-  info-bg: "#e0e6f8"
-  info-fg: "#45558f"
-  info-solid: "#8ea2e0"
-  warn-bg: "#f7ecc9"
-  warn-fg: "#85621a"
-  warn-solid: "#e3bb52"
-  success-bg: "#d8efe2"
-  success-fg: "#2d6e4a"
-  success-solid: "#6cc196"
-  success-strong: "#3f9a6b"
-  danger-bg: "#f7dfe0"
-  danger-fg: "#9c3d45"
-  danger-solid: "#e58e94"
-  neutral-bg: "#e8edee"
-  neutral-fg: "#66707a"
-  neutral-solid: "#b3bcc0"
-  lavender-bg: "#e8e2f6"
-  lavender-fg: "#5c4f91"
-  peach-bg: "#fae4d7"
-  peach-fg: "#92553a"
-  hover-tint: "rgba(31, 44, 51, 0.055)"
-  backdrop: "rgba(31, 44, 51, 0.3)"
-  mag-ink: "#2d3b48"
-  mag-white: "#fbfdfd"
-  mag-sheen: "#7cc3c2"
-  mag-sheen-2: "#9fb2ea"
-  mag-cheek: "#f3b6b5"
-  stage: "#d6eaec"
-  dusk-canvas: "#141b20"
-  dusk-surface: "#1b242a"
-  dusk-surface-2: "#202b32"
-  dusk-sidebar: "#172026"
-  dusk-border: "#2b3840"
-  dusk-text: "#a2b0b7"
-  dusk-text-h: "#e8eff1"
-  dusk-accent: "#8cc6cf"
-  dusk-on-accent: "#10262b"
+  tip-bg: "#110f26"
+  tip-fg: "#cfc8ea"
+  tip-action: "#f8c64a"
+  mag-ink: "#1f2142"
+  mag-ink-2: "#2d305e"
+  mag-white: "#fffdfa"
+  mag-sheen: "#3557d6"
+  mag-sheen-2: "#7d5ce8"
+  mag-cheek: "#f7aaa0"
+  stage: "#e6e9fc"
+  stage-warn: "#fdf0c9"
+  stage-danger: "#fbe1e6"
+  sunset-canvas: "#191731"
+  sunset-surface: "#221f41"
+  sunset-surface-2: "#2a2750"
+  sunset-sidebar: "#16112a"
+  sunset-border: "#332f5b"
+  sunset-border-strong: "#4a4579"
+  sunset-text: "#b9b2da"
+  sunset-text-h: "#f5f1ff"
+  sunset-accent: "#97aaff"
+  sunset-accent-fill: "#4669ec"
+  sunset-sun: "#f8c64a"
+  sunset-sun-hover: "#ffd56e"
+  sunset-stage: "#b4c1ff"
 typography:
   display:
-    fontFamily: "Fraunces Variable, Georgia, Times New Roman, serif"
-    fontSize: "32px"
-    fontWeight: 520
-    lineHeight: 1.15
-    letterSpacing: "-0.01em"
-    fontVariation: "'SOFT' 60, 'WONK' 0"
-  headline:
-    fontFamily: "Fraunces Variable, Georgia, Times New Roman, serif"
-    fontSize: "21px"
-    fontWeight: 520
-    lineHeight: 1.25
-    letterSpacing: "-0.01em"
-    fontVariation: "'SOFT' 60, 'WONK' 0"
-  stat:
-    fontFamily: "Fraunces Variable, Georgia, Times New Roman, serif"
-    fontSize: "28px"
-    lineHeight: 1.1
+    fontFamily: "Bricolage Grotesque Variable, Plus Jakarta Sans Variable, system-ui, sans-serif"
+    fontSize: "46px"
+    fontWeight: 760
+    lineHeight: 1
+    letterSpacing: "-0.04em"
     fontFeature: "'tnum'"
+  headline:
+    fontFamily: "Bricolage Grotesque Variable, Plus Jakarta Sans Variable, system-ui, sans-serif"
+    fontSize: "40px"
+    fontWeight: 760
+    lineHeight: 1.04
+    letterSpacing: "-0.035em"
   title:
+    fontFamily: "Bricolage Grotesque Variable, Plus Jakarta Sans Variable, system-ui, sans-serif"
+    fontSize: "21px"
+    fontWeight: 760
+    lineHeight: 1.2
+    letterSpacing: "-0.02em"
+  wordmark:
+    fontFamily: "Bricolage Grotesque Variable, Plus Jakarta Sans Variable, system-ui, sans-serif"
+    fontSize: "23px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.04em"
+  subtitle:
     fontFamily: "Plus Jakarta Sans Variable, system-ui, Segoe UI, Roboto, sans-serif"
     fontSize: "15px"
-    fontWeight: 650
+    fontWeight: 680
     lineHeight: 1.35
   body:
     fontFamily: "Plus Jakarta Sans Variable, system-ui, Segoe UI, Roboto, sans-serif"
@@ -86,63 +109,70 @@ typography:
   control:
     fontFamily: "Plus Jakarta Sans Variable, system-ui, Segoe UI, Roboto, sans-serif"
     fontSize: "14px"
-    fontWeight: 600
+    fontWeight: 650
     lineHeight: 1.3
   label:
     fontFamily: "Plus Jakarta Sans Variable, system-ui, Segoe UI, Roboto, sans-serif"
-    fontSize: "12px"
-    fontWeight: 700
-    letterSpacing: "0.06em"
-  eyebrow:
+    fontSize: "13.5px"
+    fontWeight: 600
+  counter:
     fontFamily: "Plus Jakarta Sans Variable, system-ui, Segoe UI, Roboto, sans-serif"
-    fontSize: "11px"
-    fontWeight: 650
-    letterSpacing: "0.14em"
+    fontSize: "12px"
+    fontWeight: 750
+    lineHeight: 1
+    fontFeature: "'tnum'"
   mono:
     fontFamily: "ui-monospace, SF Mono, Consolas, monospace"
     fontSize: "13px"
     lineHeight: 1.35
 rounded:
-  xs: "6px"
-  sm: "8px"
-  md: "12px"
-  lg: "18px"
+  sm: "10px"
+  md: "16px"
+  lg: "24px"
   pill: "999px"
 spacing:
-  2xs: "2px"
+  hairline-gap: "3px"
   xs: "4px"
-  sm: "6px"
-  md: "8px"
-  lg: "12px"
-  xl: "16px"
-  2xl: "22px"
-  page-x: "36px"
+  sm: "8px"
+  md: "14px"
+  lg: "18px"
+  xl: "26px"
+  content-y: "36px"
+  content-x: "40px"
 components:
   button-primary:
+    backgroundColor: "{colors.sun}"
+    textColor: "{colors.on-sun}"
+    typography: "{typography.control}"
+    rounded: "{rounded.pill}"
+    padding: "7px 14px"
+  button-primary-hover:
+    backgroundColor: "{colors.sun-hover}"
+  button-primary-disabled:
+    backgroundColor: "{colors.neutral-bg}"
+    textColor: "{colors.neutral-fg}"
+  button-default:
     backgroundColor: "{colors.accent-bg}"
     textColor: "{colors.accent}"
     typography: "{typography.control}"
     rounded: "{rounded.pill}"
     padding: "7px 14px"
   button-secondary:
-    backgroundColor: "{colors.surface}"
+    backgroundColor: "transparent"
     textColor: "{colors.text-h}"
     typography: "{typography.control}"
     rounded: "{rounded.pill}"
     padding: "7px 14px"
   button-secondary-hover:
-    backgroundColor: "{colors.surface-2}"
+    backgroundColor: "{colors.hover-tint}"
   button-small:
-    padding: "4px 11px"
     rounded: "{rounded.pill}"
+    padding: "4px 11px"
   icon-button:
     backgroundColor: "transparent"
     textColor: "{colors.text}"
     rounded: "{rounded.pill}"
     size: "36px"
-  icon-button-hover:
-    backgroundColor: "{colors.hover-tint}"
-    textColor: "{colors.text-h}"
   input:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text-h}"
@@ -151,46 +181,10 @@ components:
   card:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.md}"
-  widget:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.md}"
-    padding: "16px 18px"
-  stat-tile:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.md}"
-    padding: "14px 16px"
   dialog:
     backgroundColor: "{colors.surface}"
+    textColor: "{colors.text}"
     rounded: "{rounded.lg}"
-  badge:
-    backgroundColor: "{colors.neutral-bg}"
-    textColor: "{colors.text-h}"
-    rounded: "{rounded.pill}"
-    padding: "2px 9px"
-  status-applied:
-    backgroundColor: "{colors.info-bg}"
-    textColor: "{colors.info-fg}"
-    rounded: "{rounded.pill}"
-  status-interview:
-    backgroundColor: "{colors.warn-bg}"
-    textColor: "{colors.warn-fg}"
-    rounded: "{rounded.pill}"
-  status-offer:
-    backgroundColor: "{colors.success-bg}"
-    textColor: "{colors.success-fg}"
-    rounded: "{rounded.pill}"
-  status-accepted:
-    backgroundColor: "{colors.success-strong}"
-    textColor: "{colors.on-strong}"
-    rounded: "{rounded.pill}"
-  status-rejected:
-    backgroundColor: "{colors.danger-bg}"
-    textColor: "{colors.danger-fg}"
-    rounded: "{rounded.pill}"
-  status-closed:
-    backgroundColor: "{colors.neutral-bg}"
-    textColor: "{colors.neutral-fg}"
-    rounded: "{rounded.pill}"
   nav-item:
     backgroundColor: "transparent"
     textColor: "{colors.text-h}"
@@ -198,208 +192,228 @@ components:
     height: "40px"
     padding: "0 14px"
   nav-item-active:
+    backgroundColor: "{colors.canvas}"
     textColor: "{colors.accent}"
   nav-pill:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-    rounded: "{rounded.pill}"
-    height: "20px"
-  segmented-tab:
-    backgroundColor: "transparent"
-    textColor: "{colors.text}"
-    rounded: "{rounded.pill}"
-    padding: "6px 16px"
-  segmented-tab-active:
     backgroundColor: "{colors.accent-bg}"
     textColor: "{colors.accent}"
-  worker-toggle:
+    typography: "{typography.counter}"
+    rounded: "{rounded.pill}"
+    height: "22px"
+    padding: "0 8px"
+  nav-pill-finds:
+    backgroundColor: "{colors.sun}"
+    textColor: "{colors.on-sun}"
+    typography: "{typography.counter}"
+    rounded: "{rounded.pill}"
+    height: "22px"
+    padding: "0 8px 0 3px"
+  segmented-tab-active:
+    backgroundColor: "{colors.accent-fill}"
+    textColor: "{colors.on-accent-fill}"
+    rounded: "{rounded.pill}"
+    padding: "6px 16px"
+  stat-tile:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text-h}"
+    typography: "{typography.display}"
+    padding: "18px 20px 16px"
+  stat-tile-sun:
+    backgroundColor: "{colors.sun}"
+    textColor: "{colors.on-sun}"
+  profile-card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    padding: "14px 12px"
+  profile-avatar:
+    backgroundColor: "{colors.accent-bg}"
+    textColor: "{colors.accent}"
     rounded: "{rounded.pill}"
-    padding: "4px 6px 4px 14px"
+    size: "52px"
+  brand-sun:
+    backgroundColor: "{colors.sun}"
+    rounded: "{rounded.pill}"
+    size: "32px"
+  floating-panel:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+    width: "380px"
 ---
 
 # Design System: Pica
 
 ## Overview
 
-**Creative North Star: "The Magpie's Nest"**
+**Creative North Star: "The Magpie at Golden Hour"**
 
-Pica is where one person keeps everything worth keeping from a career, and the design should feel like a cosy, well-kept nest that grew from that collecting. Everything rests on a cool mist canvas. White paper surfaces hold the work, and the few shiny things (the teal accent, a headline number, a status that just changed) are placed with care, not scattered. The magpie isn't decoration added on top. It is the system's personality, and the rest of the interface stays calm so the bird can carry the character.
+Pica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are.
 
-The mood is **calm, soft and personal**. Contrast is gentle, colour comes in pastel pairs, corners are rounded all the way to pills, and motion settles with a small spring. Headings use a soft, slightly literary serif, which gives pages the feel of a personal record. Controls and data use a friendly geometric sans so working views stay legible and quick to scan. The page density suits a daily-use tool: lists sit on white cards and rows are divided by hairlines. Nothing is cramped and nothing is padded for show.
+It is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.
 
-The visual anti-references are confirmed. It is not a generic admin template (Bootstrap or Material dashboards, grey grids, default blue). It is not a corporate HR or ATS tool (impersonal, form-heavy, stock illustration). It does not use hard, saturated colour. It is not a dark-first hacker aesthetic: Dusk, the dark theme, is a companion to Mist, not the identity.
+The magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a pale feather stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.
 
 **Key Characteristics:**
-- A cool mist canvas with white working surfaces, one deep teal accent and pastel status pairs.
-- Fraunces (with its soft axis) for page and section headings and headline numbers. Plus Jakarta Sans for everything else.
-- Pill-shaped controls: buttons, badges, nav items, segmented tabs and counters.
-- The magpie mascot is the brand mark and the live worker status, and it has its own small palette.
-- Two themes from one token set: Mist (light) and Dusk (dark), which follows the OS unless forced.
-- Springy, transform-only motion that stops completely under `prefers-reduced-motion`.
+- Flat by rule: every shadow token is `none`; depth is tone.
+- Two lights: sun yellow for action and novelty, feather blue for location and focus.
+- Heavy grotesque display type over a friendly humanist sans UI.
+- Pills for actions, curved rectangles (10 / 16 / 24px) for containers.
+- The magpie head beside anything new.
+- Two themes, Sunrise and Sunset, with the same roles and different lightness.
 
 ## Colors
 
-A cool, low-contrast mist palette. One deep teal carries the brand, and every other hue appears as a soft pastel pair that means something.
+Three roles and no more. Feather blue marks selection and where you are; the dark ink violet carries the grounds; sun yellow highlights what to press and what is new. Everything else is a soft tinted status pair or a data tone, never chrome.
 
 ### Primary
-- **Magpie Sheen Teal** (`accent`): the single brand voice, named after the teal iridescence on a magpie's wing. It's used for links, the active nav label, the active tab underline, focus outlines, progress fills, count pills and the mascot's writing lines. In Dusk it lightens to `dusk-accent` and its text flips to `dusk-on-accent`.
-- **Sheen Teal Deep** (`accent-hover`): the hover state of links and teal text.
-- **Sheen Wash** (`accent-bg`): the tonal fill behind primary buttons, the active segmented tab, avatars, the text-selection highlight and the mascot's stage. Most "teal" in the UI is this wash with teal text on it, not a solid fill.
-- **Sheen Edge** (`accent-border`): the hover border on buttons, inputs, cards and the worker toggle.
+- **Marigold Sun** (`sun`; Sunset `sunset-sun`): the one thing to press and the one thing that is new. Form submit buttons and `.primary` pills, the add-job button, the new-jobs counter in the sidebar, the "Jobs to review" stat tile when there is something to review, the brand disc behind the magpie, the setup progress bar fill, and text selection. Text on it is always **Sun Ink** (`on-sun`), never white. Hover deepens to `sun-hover` in Sunrise and brightens in Sunset.
+- **Pale Sun** (`sun-bg`) with **Amber Ink** (`sun-fg`): the tinted, non-pressable form of sun, for soft highlights that are not actions.
 
 ### Secondary
-Pastel status pairs. Each status has a background (`-bg`), a text colour (`-fg`) and usually a solid (`-solid`) for dots, bars and timeline lines.
-- **Periwinkle Info** (`info-*`): Applied, and informational notes.
-- **Honey Warn** (`warn-*`): Interview stage, and anything due (a journal reminder pill).
-- **Sage Success** (`success-*`): Offer. **Deep Sage** (`success-strong`) is the one solid status fill, reserved for Accepted.
-- **Rose Danger** (`danger-*`): Rejected, errors and destructive actions.
-- **Mist Neutral** (`neutral-*`): Closed and Declined, plus default badges.
-
-### Tertiary
-- **Lavender** (`lavender-*`) and **Peach** (`peach-*`): category tones only, never statuses. In Work history, lavender marks education and peach marks certificates. They also colour the mascot's props and the celebration confetti.
+- **Feather Cobalt** (`accent`; Sunset `sunset-accent`, a light periwinkle): where you are and where you can go. Links, focus rings and outlines, caret and checkbox accent, the active settings tab text and its underline, the current-page outline of the profile card, and the text of default (non-primary) buttons.
+- **Feather Fill** (`accent-fill` with `on-accent-fill`; Sunset `sunset-accent-fill`): solid fills for "you are here" inside the page: the active segmented-control tab and the worker job count. (The side menu marks the current page with the bookmark instead, in `canvas`.) In Sunset the fill (#4669ec) is darker than the text accent so white text on it stays legible.
+- **Feather Mist** (`accent-bg`, `accent-border`): the resting tint of default buttons and plain counters, the profile avatar disc (with `accent` initials), and the hover border of controls.
+- **Feather Stage** (`stage`; Sunset `sunset-stage`, a brighter periwinkle): the pale feather disc the mascot stands on, for the worker character and empty states. It shifts to `stage-warn` (pale sun) when the worker is queued and `stage-danger` when it errors.
 
 ### Neutral
-- **Morning Mist** (`canvas`): the page background behind everything, and the `theme-color`.
-- **Nest Mist** (`sidebar`): the side menu, one step deeper than the canvas.
-- **Paper White** (`surface`): cards, lists, widgets, inputs, dialogs, and the sliding nav indicator.
-- **Pale Mist** (`surface-2`): inline code, skeletons, and the hover state of secondary buttons.
-- **Hairline Mist** (`border`) / **Firm Hairline** (`border-strong`): card edges and row dividers, and input and secondary-button strokes.
-- **Slate Body** (`text`): body copy, labels, muted text and placeholders.
-- **Ink Slate** (`text-h`): headings, titles, input values and the current breadcrumb.
-- **Hover Tint** (`hover-tint`): the translucent wash for hovered ghost controls and progress tracks.
+- **Dawn Lilac** (`canvas`): the page ground and the top bar.
+- **Lilac Haze** (`sidebar`): the side menu, one tone step from the canvas. In Sunset it is the darkest layer (`sunset-sidebar`).
+- **Dawn Paper** (`surface`) and **Lilac Paper** (`surface-2`): cards, lists, dialogs, inputs, panels and their hover step.
+- **Lilac Hairline** (`border`) and **Violet Hairline** (`border-strong`): dividers and card edges; the strong one is for inputs, secondary buttons and floating panels.
+- **Dusk Indigo** (`text`) for body copy and **Night Indigo** (`text-h`) for headings, values and control labels.
+- **Hover Tint** (`hover-tint`): a translucent ink wash for hover on transparent controls and for trays.
+- **Backdrop** (`backdrop`): dialog and drawer scrim.
+- **Ink Tooltip** (`tip-bg`, `tip-fg`, `tip-action`): popups that stay a dark ink panel in both themes, with a sun-coloured action.
+
+### Status
+Each status is a pair (tinted `-bg` with readable `-fg`) plus a `-solid` for dots, bars and chart nodes: info (periwinkle), warn (apricot, with `warn-border`), success (sage green, with `success-strong` for solid confirm buttons), danger (rose), neutral (lilac grey) and lavender, plus a peach pair (`peach-bg`, `peach-fg`) that is a data tone only: the certificates category in work history (`.tone-peach`), never chrome. Use the pairs for badges and pills, the solids for marks.
 
 ### Mascot
-- **Magpie Ink** (`mag-ink`), **Belly White** (`mag-white`), **Wing Sheen** (`mag-sheen` → `mag-sheen-2` gradient), **Cheek Blush** (`mag-cheek`), and the circular **Stage** (`stage`, with warn and danger variants for the queued and error moods). These colours belong to the bird. Don't reuse them as UI colours.
-
-### Dusk (dark theme)
-Dusk keeps the same roles on a deep blue-slate (`dusk-canvas` → `dusk-surface` → `dusk-surface-2`). Status backgrounds become 14–16% translucent tints of their solid, and status text becomes a pale version of the same hue. Every colour is redefined under `[data-theme='dark']` and `prefers-color-scheme: dark` in `src/index.css`, and components never branch on the theme.
+The magpie is drawn only from `mag-ink`, `mag-ink-2`, `mag-white`, `mag-sheen`, `mag-sheen-2` (the cobalt-to-violet iridescence) and `mag-cheek`. It is flat-coloured; do not recolour it per surface.
 
 ### Named Rules
-**The One Sheen Rule.** Teal is the only brand colour. It shows as text, outlines, underlines and small pills, almost never as a large solid fill. Primary buttons are a teal wash with teal text, not white on teal.
+**The Two Lights Rule.** Sun yellow means "press this" or "this is new"; feather blue means "you are here". A colour never borrows the other's job: a current page is never yellow, a primary action is never blue.
 
-**The Pastel Pair Rule.** Every status uses its `-bg` / `-fg` pair, and the `-solid` is for dots, bars and lines only. Accepted is the one status that earns a solid fill.
+**The One Sun Rule.** Each page header or toolbar carries at most one sun pill. Everything else is a feather-mist default pill or a transparent secondary pill.
 
-**The Token-Only Rule.** Every colour comes from a custom property in `src/index.css`. A new colour is added there, for both themes, before any component uses it.
+**The Sun Ink Rule.** Text and icons on sun are `on-sun` dark ink, in both themes.
 
 ## Typography
 
-**Display Font:** Fraunces Variable (with Georgia, Times New Roman)
-**Body Font:** Plus Jakarta Sans Variable (with system-ui, Segoe UI, Roboto)
-**Label/Mono Font:** ui-monospace (SF Mono, Consolas) for code only
+**Display Font:** Bricolage Grotesque Variable (optical sizing on, with Plus Jakarta Sans Variable and system-ui fallback)
+**Body Font:** Plus Jakarta Sans Variable (with system-ui, Segoe UI, Roboto fallback)
+**Label/Mono Font:** ui-monospace, SF Mono, Consolas for code
 
-**Character:** A soft, slightly wonky old-style serif over a round, friendly geometric sans. The serif makes the vault feel like a personal record, and the sans keeps the working parts quick to read.
+**Character:** A heavy, slightly quirky grotesque with tight tracking for headings and numbers, over a round, friendly humanist sans for everything you read and click.
 
 ### Hierarchy
-- **Display** (Fraunces 520, 32px; 26px under 900px, line-height 1.15): one per page, the page `h1`.
-- **Headline** (Fraunces 520, 21px, 1.25): section `h2`s. Widget titles in the dashboard step down to 15px/600 sans.
-- **Stat** (Fraunces, 28px, 1.1, tabular figures): the headline numbers in dashboard stat tiles.
-- **Title** (Plus Jakarta Sans 650, 15px, 1.35): `h3`s, row titles and card titles.
-- **Body** (Plus Jakarta Sans 400, 15px, 1.5): running text. Intro paragraphs cap at 64–76ch.
-- **Control** (Plus Jakarta Sans 600, 14px, 1.3): buttons, nav items, inputs, tabs. Small text is 13–13.5px.
-- **Label** (Plus Jakarta Sans 700, 12px, 0.06em, uppercase): section labels in detail views, and tab rows that read as labels.
-- **Eyebrow** (Plus Jakarta Sans 650, 11px, 0.14em, uppercase, teal): the greeting above the name on the profile card.
+- **Display** (760, 46px, 1.0, -0.04em, tabular figures): the big numbers on stat tiles.
+- **Headline** (760, 40px, 1.04, -0.035em; 30px below 900px): page `h1`, balanced wrap.
+- **Title** (760, 21px, 1.2, -0.02em): section `h2`.
+- **Wordmark** (800, 23px, -0.04em): the "Pica" wordmark beside the brand mark. The profile name uses the same face at 19px/760, with the surname at 450.
+- **Subtitle** (Jakarta 680, 15px, 1.35): `h3` and row titles.
+- **Body** (400, 15px, 1.5): default text; intro paragraphs cap at 64 to 76ch.
+- **Control** (650, 14px, 1.3): buttons, inputs, nav items (nav at 550, active at 700).
+- **Label** (600, 13.5px): stat labels, segmented tabs, small meta.
+- **Counter** (750, 12px, tabular): nav counters.
 
 ### Named Rules
-**The Soft Serif Rule.** Fraunces runs with `'SOFT' 60, 'WONK' 0` for headings. The profile name alone goes to `'SOFT' 100, 'WONK' 1` and sets the surname in italic, which is the one place the type plays.
+**The Heavy Ink Rule.** Bricolage Grotesque is for headings, display numbers, the wordmark and the profile name only. UI text, labels and controls stay in Plus Jakarta Sans.
 
-**The Serif Is for Names and Numbers Rule.** Fraunces is for page headings, section headings, the profile name, avatar initials and headline stats. Buttons, labels, tables and form text are always sans.
+**The Lined-Up Numbers Rule.** Tables, times, counters and stat values use tabular figures.
 
 ## Layout
 
-The app shell is a two-column grid: a 260px side menu (it collapses to a 76px icon rail), then a main column with a sticky 68px top bar and a centred content column capped at 1120px (padding 28px 36px 72px). The top bar is a translucent, blurred canvas strip that holds the breadcrumb on the left and the magpie worker status on the right.
+A two-column app shell: a sticky 260px side menu (collapsible to a 76px icon rail) and a content column. The content column has a sticky 68px top bar on the canvas, with breadcrumbs on the left and the worker magpie on the right, separated from the page by one hairline. Page content is centred at a max width of 1120px with 36px top, 40px side and 80px bottom padding. Page headers sit 26px above the work area.
 
-Spacing is a small, tight scale. Gaps of 2, 4, 6, 8, 12 and 16px make up nearly all of it. Card interiors run 14–20px, and page headers sit 22px above their content. The dashboard is an auto-fill grid of 280px-minimum widgets with 16px gaps. Wide widgets span two columns, and the stat-tile row and flow chart span the full width.
+The dashboard opens with a stat band: tiles of at least 150px in an auto-fit grid, separated by 3px seams where the canvas shows through, the whole band clipped to the large radius.
 
-Responsive behaviour:
-- **≤900px:** the side menu becomes an off-canvas drawer (min(288px, 86vw)) over a blurred scrim, the rail mode turns off, the content padding tightens to 22px 16px, and `h1` drops to 26px.
-- **≤640px:** wide widgets fall back to a single column.
-- **≤600px:** buttons go full width with 10px vertical padding. Icon buttons, segmented tabs and theme-switch buttons keep their intrinsic size.
-- **Touch (`hover: none`):** the edit and remove actions on status-history steps, which only appear on hover elsewhere, are always visible.
+Spacing is compact and rhythm-based (2, 4, 8, 14, 18, 26px), suited to an operate-mode tool rather than a marketing page.
 
-`scrollbar-gutter: stable` keeps the layout from shifting when a scrollbar appears or disappears.
+Below 900px the side menu becomes an off-canvas drawer (max 288px or 86vw) over a backdrop scrim, the top bar gains a menu button, content padding drops to 22px 16px 56px, and `h1` drops to 30px. Below 600px buttons go full width.
+
+## Elevation & Depth
+
+The system is flat. `--shadow-sm`, `--shadow-md`, `--shadow-lg` and `--shadow` are all `none`, and no surface casts a shadow. Depth comes from tone steps: the sidebar, canvas, surface and surface-2 each sit at a distinct lightness, so a card reads as "on top" because it is lighter (Sunrise) or lighter-plum (Sunset) than what is behind it. Floating panels (the worker dropdown, popovers) get a `border-strong` hairline and the large radius instead of a shadow. Dialogs use a `border` hairline over a tinted `backdrop`.
+
+`box-shadow` is used only for rings, never for elevation: the focus ring (`0 0 0 3px` feather at 30 to 40% alpha), the avatar ring on the current page, and inset hairlines.
+
+### Named Rules
+**The Flat-By-Rule Rule.** No drop shadows, ever. If two layers need separating, step the tone first; add a hairline only when tone alone cannot do it.
+
+**The Ring-Not-Lift Rule.** `box-shadow` may draw a ring (focus, current state) but never an offset or blurred lift.
 
 ## Shapes
 
-The form language is round. Controls are pills, and containers are gently curved rectangles.
-
-- **Pill** (`rounded.pill`): every button, badge, status, nav item, nav indicator, segmented control and tab, count pill, theme switch and worker toggle.
-- **Circle**: avatars, icon buttons, the worker avatar and stage, spinners, and timeline dots.
-- **Gently curved** (`rounded.md`): cards, lists, widgets, stat tiles and form sections.
-- **Soft** (`rounded.sm`): inputs, selects and textareas. Inline code drops to `rounded.xs`.
-- **Generous** (`rounded.lg`): dialogs. The profile card is the one larger one-off (22px).
-
-Borders are 1px hairlines (`border`) on containers and 1px `border-strong` strokes on inputs and secondary buttons. Dashed borders mean "empty / not set", as on the no-status pill. Underlines are 3px with rounded top corners, and appear on the current settings tab.
-
-### Named Rules
-**The Pill-for-Action Rule.** Anything you press or toggle is a pill or a circle, and anything that holds content is a curved rectangle. Don't make square buttons or pill-shaped cards.
+Two shape families. Actions are pills: buttons, nav items (the bookmark keeps its left pill end), counters, segmented controls, the theme switch and progress bars all use a full radius (999px). Containers are curved rectangles on three steps: small (10px) for inputs, selects and small inner boxes; medium (16px) for cards and lists; large (24px) for dialogs, floating panels, the profile card, dashboard widgets and the stat band. Avatars, the brand disc and the mascot stages are circles. Stat tiles inside the band have a small 6px corner so the seams read as cuts in one shape.
 
 ## Components
 
 ### Buttons
-Soft and friendly: tonal, never loud.
-- **Shape:** full pill (`rounded.pill`), 7px 14px, 14px/600 sans.
-- **Primary:** Sheen Wash fill with Magpie Sheen Teal text and a transparent 1px border.
-- **Hover / Focus:** hover reveals the `accent-border` stroke. Keyboard focus shows a 3px translucent teal ring (`0 0 0 3px` of the accent at 28%) in place of an outline. Transitions are 140ms.
-- **Secondary:** Paper White with `border-strong` and Ink Slate text. On hover it moves to Pale Mist with the teal edge.
-- **Small:** 13px, 4px 11px.
-- **Icon button:** a 36px transparent circle in Slate Body that takes the Hover Tint and Ink Slate on hover.
-- **Disabled:** 50% opacity with a `not-allowed` cursor.
+Rounded, confident, and colour-coded by job.
+- **Shape:** full pill (999px), 7px 14px padding, 14px/650 text; small variant 4px 11px at 13px.
+- **Primary (sun pill):** sun background, sun-ink text, sun border. Applied by default to submit buttons that are not `.secondary`, and opted in with `.primary`. Hover goes to `sun-hover`. Disabled turns to a quiet neutral pill (`neutral-bg`, `neutral-fg`) instead of a faded yellow.
+- **Default:** feather mist background with feather text; hover adds the `accent-border`.
+- **Secondary:** transparent with a `border-strong` hairline and heading-ink text; hover adds `hover-tint`.
+- **Icon button:** 36px transparent circle in body ink; hover adds `hover-tint`.
+- **Hover / Focus:** 140ms colour transitions, a 0.97 press scale, and the feather focus ring.
 
 ### Chips
-- **Badge:** a Mist Neutral pill, 2px 9px, 12.5px/600.
-- **Status pill:** the application state in its pastel pair (Applied periwinkle, Interview honey, Offer sage, Accepted solid deep sage, Rejected rose, Closed neutral). Declined is neutral with sage text and a sage inset ring, and "no status" is a dashed outline. In the list view it's a split control: the main segment advances the state and a ⋮ segment opens the full menu.
-- **Count pill:** 20px tall in solid teal with `on-accent` text, 11.5px/700, and it pops in with a spring. The warning variant uses the honey pair with an inset honey ring and an icon.
+- **Style:** badges are 999px pills, 12.5px/600, on `neutral-bg`; status badges use the matching `-bg`/`-fg` pair.
+- **Counters:** plain nav counts (Interviews, Offers) are 22px pills on feather mist with feather text. A counter that asks for the user (new jobs to review, an overdue Employment journal) is the sun pill with the magpie head peeking out; there are no bell or warning-coloured counters.
 
 ### Cards / Containers
-- **Corner Style:** gently curved (`rounded.md`).
-- **Background:** Paper White on the Morning Mist canvas.
-- **Border:** 1px `border` hairline. Linked cards move to the teal edge on hover.
-- **Internal Padding:** 16px 18px for widgets, 14px 16px for stat tiles, 20px 22px for form sections.
-- **Lists:** a single white card that holds rows separated by hairlines. The first and last rows inherit the card's corners. An empty list hides itself.
+- **Corner Style:** medium (16px) for cards and lists, large (24px) for widgets, the profile card and panels.
+- **Background:** `surface`; hover steps to `surface-2` where the whole card is a link.
+- **Shadow Strategy:** none (see Elevation & Depth).
+- **Border:** a 1px `border` hairline; list rows are divided by hairlines inside one card.
+- **Internal Padding:** about 18 to 22px.
 
 ### Inputs / Fields
-- **Style:** Paper White, 1px `border-strong`, `rounded.sm`, 7px 11px, 14px text in Ink Slate. Placeholders are Slate Body at 70%.
-- **Focus:** the border turns teal and the 3px teal focus ring appears. There is no outline.
-- **Select:** a custom two-gradient chevron in place of the native arrow.
-- **Checkbox / Radio:** native, tinted with `accent-color: accent`.
+- **Style:** `surface` fill, 1px `border-strong`, 10px radius, 7px 11px padding, 14px heading-ink text. Selects draw their chevron from two gradient triangles in the text colour.
+- **Focus:** border turns feather and the feather focus ring appears; hover shows `accent-border`.
+- **Error / Disabled:** errors in `danger-fg`; disabled at half opacity.
 
 ### Navigation
-- **Side menu:** Nest Mist background. At the top, the profile card (avatar, a teal uppercase eyebrow greeting, the Fraunces name with the surname in italic) links to the dashboard and outlines in teal when it is the current page.
-- **Nav items:** 40px pills at 14px/550 in Ink Slate. Hover gives the Hover Tint. The active item turns teal at weight 680, its icon scales to 1.08, and a white pill indicator slides behind it on a spring.
-- **Groups:** a parent toggles sub-pages that expand smoothly (grid rows 0fr → 1fr) behind a hairline indent rule. On the icon rail, sub-pages sit on a tinted tray.
-- **Settings tabs:** an underlined tab row on a hairline. The current tab gets a 3px teal underline that slides between tabs, a hovered tab previews a soft underline, and the overflow fades at the edges.
-- **Segmented control:** a white pill tray of transparent tabs. The active tab is Sheen Wash with teal text.
-- **Mobile:** the menu becomes a drawer opened from a top-bar menu button.
+- **Side menu:** on `sidebar`. The brand mark and wordmark sit at the top, then the profile card, then 40px pill nav items (14px/550, heading ink, 13px gap to an icon). Entries are grouped into labelled sections, **Work Nest** (Employment, My Career) and **Job Search** (Jobs, Applications, Interviews, Offers). Each label is 13px/720 Bricolage in `text`, followed on the same line by a `border-strong` hairline; on the icon rail only the hairline shows. The current page is a **bookmark**: the entry takes the page's own `canvas` colour, stays pill-rounded on the left, runs flush to the menu's right edge into the page with a square top-right edge, and joins it with a single 16px concave corner below. Its label and icon turn feather (`accent`) and bold. The bookmark doesn't slide or animate between entries; it simply sits on the current page, Settings at the bottom included. Hover previews the same tab shape (flush right, square top-right, concave corner below) in `hover-tint`, with the label staying heading ink; the entry right above the bookmark leaves the join to it. Nav entries have no transitions, so the shape and fill switch instantly. In the mobile drawer there is no page beside the menu, so entries are pills again and the bookmark becomes an `accent-bg` pill. Sub-pages open under a group with a `border-strong` guide line. Settings is pinned to the bottom, with the three-way theme switch (a tinted pill tray whose active segment is `surface`) in the footer.
+- **Rail:** labels fade out; counters shrink to 17px badges on the icon corner.
+- **Top bar:** breadcrumbs in body ink with the page name in heading ink at 650.
+- **Settings tabs:** underlined text tabs; the current tab is feather with a 3px feather underline that slides; hover previews a `border-strong` underline.
+- **Segmented control:** a `surface` pill tray with a hairline; the active tab is a feather-fill pill.
 
-### Dialogs
-Every `<dialog>` is Paper White with a hairline border and generous corners (`rounded.lg`). It opens with a 420ms rise-and-scale (from 10px below and 0.97 scale) over a 30% ink backdrop blurred by 4px.
+### Profile Card
+A 24px-radius `surface` card in the sidebar that links to the dashboard. It holds a 52px feather-mist avatar (initials in the display face) and the name in Bricolage. On the dashboard the card is the current page and becomes the same bookmark as a nav entry: `canvas` fill, flush right into the page with the same square top-right edge and concave corner below, and its left side keeps the 24px card radius so it still reads as its own block. The avatar gets a feather ring.
 
-### The Magpie Worker (signature)
-The live worker status in the top bar is a white pill toggle that holds a speech-bubble title and subtitle and a 42px circular stage with the magpie inside. The bird's mood follows the RQ queue. **Idle** breathes and flicks its tail. **Working** pecks while teal lines write themselves. **Queued** leans toward its waiting letters on a honey stage. **Error** is ruffled on a rose stage. **Loading** peeks up and down. When a job finishes, it hops once with sparkles. A teal count badge with a surface-coloured ring shows the queue length. All mascot motion uses transforms only, and the head-only brand mark never animates.
+### Stat Band (signature)
+One segmented band of headline numbers: tiles on `surface` with 46px display numerals and 13.5px labels, 3px canvas seams, 24px outer radius. The "Jobs to review" tile turns sun with sun-ink text when there are new jobs, and the magpie head (30px) watches from its top-right corner, peeking in with a spring and tilting on hover.
 
-### Motion
-Two curves cover the whole system: `ease-out` (`cubic-bezier(0.2, 0.8, 0.2, 1)`) for entering and settling, and `ease-spring` (`cubic-bezier(0.34, 1.4, 0.64, 1)`) for indicators, icons and pills that should land with a small overshoot. Three durations cover it too: 140ms for colour and border changes, 240ms for reveals, 420ms for slides and dialogs. A theme switch cross-fades colours over 240ms. Reduced motion collapses every animation and transition to 1ms.
+### The Magpie Signature
+On a sun background, the magpie head means "something is here for you" and appears in these places only: the brand mark (the head against a 32px sun disc), the sun nav counters for new jobs and an overdue Employment journal (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on the pale feather `stage` disc, which turns pale sun when queued and rose when in error.
+
+**Empty states** (`mascot/EmptyState.tsx`) are the magpie's other home, always on the pale feather `stage` disc, never on sun. The `page` variant puts the idling full-body magpie on an 84px disc beside the message, inside a `surface` block at the 24px radius; below 600px it stacks and centres. The `inline` variant puts the head on a 28px disc before a 14px line, for empty widgets, charts, dialog sections and the end of the jobs feed. Use them only for genuinely empty collections, never for a missing field (such as "No parsed description") or as decoration.
+
+### Dialogs and Panels
+Dialogs: `surface`, 24px radius, `border` hairline, `backdrop` scrim, opening with a 420ms scale-and-rise. Floating panels (worker dropdown): `surface`, 24px radius, `border-strong` hairline, 380px wide, opening from their anchor corner.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** take every colour from the custom properties in `src/index.css`, and define any new token for both Mist and Dusk.
-- **Do** use the tonal primary button (Sheen Wash fill, teal text). Keep solid teal for small things: count pills, progress fills, underlines.
-- **Do** show status with its pastel `-bg` / `-fg` pair, and use `-solid` only for dots, bars and timeline lines.
-- **Do** make every pressable control a pill or a circle, and every content container a curved rectangle (`rounded.md`).
-- **Do** set page and section headings and headline numbers in Fraunces, and everything operational in Plus Jakarta Sans.
-- **Do** give every interactive element the 3px teal focus ring (or a 2px teal outline) for keyboard focus.
-- **Do** let the magpie carry the character (moods, celebrations, empty states) and keep the surrounding UI calm.
-- **Do** honour `prefers-reduced-motion`, and animate with transforms and opacity only.
+- **Do** use the sun pill (`sun` / `on-sun`) for the single primary action in a header or toolbar, and for new-item counters.
+- **Do** use feather blue (`accent`) for links and focus, and `accent-fill` / `on-accent-fill` for solid current-page and active-tab fills.
+- **Do** separate layers by tone step (canvas, sidebar, surface, surface-2) before reaching for a hairline.
+- **Do** give floating panels a `border-strong` hairline and the 24px radius.
+- **Do** set headings, display numbers and the wordmark in Bricolage Grotesque Variable at 760 to 800 with negative tracking; set all UI text in Plus Jakarta Sans.
+- **Do** make actions pills and containers curved rectangles on the 10 / 16 / 24px steps.
+- **Do** put the magpie head beside a counter only when it counts new finds.
+- **Do** keep chrome to the three roles: feather for selection, ink violet for grounds, sun for highlight. The profile avatar is feather mist (`accent-bg` / `accent`) and the mascot stands on the feather `stage`.
+- **Do** define every new colour as a token in `index.css`, in both Sunrise and Sunset.
 
 ### Don't:
-- **Don't** drift toward a generic admin template: no dense grey tables, no sharp boxed panels, no default framework blue.
-- **Don't** make it feel like a corporate HR or ATS tool: no impersonal form walls, stock illustration or recruiter-dashboard chrome.
-- **Don't** use hard, saturated colour. No neon status colours and no loud solid fills, apart from the single Accepted state.
-- **Don't** design dark-first or "hacker": no terminal greens, and no monospace outside code. Dusk follows Mist, not the other way round.
-- **Don't** use lavender or peach for statuses. They're category tones only.
-- **Don't** reuse the mascot palette (`mag-*`, `stage`) for UI chrome.
-- **Don't** hard-code hex values in feature stylesheets.
-- **Don't** set buttons, labels or form text in the serif.
+- **Don't** add drop shadows or set the shadow tokens to anything but `none`.
+- **Don't** use glossy or decorative gradients; flat colour only.
+- **Don't** colour the current page or active tab yellow, or a primary action blue.
+- **Don't** put white text on sun.
+- **Don't** put more than one sun pill in a page header or toolbar.
+- **Don't** use forest, tree, landscape or other scenery motifs.
+- **Don't** set body text, labels or controls in Bricolage Grotesque.
+- **Don't** recolour or restyle the magpie per surface.
+- **Don't** use peach (`peach-bg` / `peach-fg`) outside the work-history certificate tone, or add a fourth chrome colour for warmth.

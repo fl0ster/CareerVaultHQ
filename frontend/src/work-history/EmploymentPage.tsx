@@ -10,6 +10,7 @@ import './work-history.css'
 import { daysAgo, WORK_HISTORY_CHANGED, type WorkHistoryEntry, workHistoryApi } from './api.ts'
 import JournalComposer from './JournalComposer.tsx'
 import JournalView from './JournalView.tsx'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 /** A position held now: started, with no end date. */
 const isCurrentPosition = (e: WorkHistoryEntry) => e.kind === 'job' && e.date_end === null && !e.pending
@@ -96,7 +97,7 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
   }
 
   const current = entries.filter(isCurrentPosition)
-  if (current.length === 0) return <p className="muted">No current positions.</p>
+  if (current.length === 0) return <EmptyState>No current positions.</EmptyState>
   const overdue = current.filter((e) => e.journal_overdue)
 
   return (
