@@ -420,8 +420,22 @@ def set_cv_edits(application: Application, edits: dict | None, *, clear: bool = 
     application.cv_overrides = data or None
 
 
+TAILOR_QUEUED = "queued"
+TAILOR_DONE = "done"
+TAILOR_FAILED = "failed"
+"""``status`` of a ``cv_overrides.tailored`` entry: the worker is on it, its text is there,
+or it failed (``error``). Entries from before the worker ran it have no status: done."""
+
+
+def tailoring_status(application: Application, role_id: int, placement: str) -> str | None:
+    """``status`` of the tailoring of a role for ``placement`` (``None``: never asked for)."""
+    made = (((application.cv_overrides or {}).get("tailored") or {}).get(str(role_id)) or {}).get(placement)
+    return None if made is None else made.get("status", TAILOR_DONE)
+
+
 def store_tailored(application: Application, role_id: int, placement: str, made: dict) -> None:
-    """Keep what the tailoring step made of a role for ``placement`` (see ``set_cv_edits``)."""
+    """Keep what the tailoring step made of a role for ``placement`` (see ``set_cv_edits``),
+    or how far it got (``status``)."""
     data = dict(application.cv_overrides or {})
     tailored = dict(data.get("tailored") or {})
     tailored[str(role_id)] = {**(tailored.get(str(role_id)) or {}), placement: made}

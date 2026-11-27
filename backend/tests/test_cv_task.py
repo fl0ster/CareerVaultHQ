@@ -393,6 +393,44 @@ def test_generate_cv_prints_what_was_tailored_when_the_role_was_moved(task_engin
     assert len(requests_seen) == 3 + 4 + 4
 
 
+def test_tailor_moved_role_task_stores_its_outcome(task_engine):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        parsed_id = session.get(models.GeneratedCV, cv_id).job_parse_result_id
+        old_id = session.scalar(select(models.WorkHistoryEntry.id).where(models.WorkHistoryEntry.employer == "Old Corp"))
+        queued = {"status": "queued", "rq_job_id": "rq"}
+        application = models.Application(
+            job_parse_result_id=parsed_id,
+            cv_overrides={
+                "roles": {str(old_id): "main"},
+                "tailored": {str(old_id): {"main": queued}, "999": {"main": queued}},
+            },
+        )
+        session.add(application)
+        session.commit()
+        app_id = application.id
+
+    made = generate_task.tailor_moved_role(app_id, old_id, "main")
+    assert made["context"] == "Shipped tailored features. Improved performance."
+    with pytest.raises(generate_task.CvGenerationError, match="LookupError"):
+        generate_task.tailor_moved_role(app_id, 999, "main")  # the position is gone
+
+    with session_factory(task_engine)() as session:
+        overrides = session.get(models.Application, app_id).cv_overrides
+        assert overrides["roles"] == {str(old_id): "main"}
+        done = overrides["tailored"][str(old_id)]["main"]
+        assert done["status"] == "done" and done["context"] == made["context"] and done["calls"] == 2
+        failed = overrides["tailored"]["999"]["main"]
+        assert failed["status"] == "failed" and "unknown position 999" in failed["error"]
+
+        # Edits removed while it ran: nobody waits for the result any more, so it is dropped.
+        session.get(models.Application, app_id).cv_overrides = None
+        session.commit()
+    generate_task.tailor_moved_role(app_id, old_id, "early")
+    with session_factory(task_engine)() as session:
+        assert session.get(models.Application, app_id).cv_overrides is None
+
+
 def test_generate_cv_uses_the_cv_settings(task_engine):
     cv_id = _seed(task_engine)
     with session_factory(task_engine)() as session:

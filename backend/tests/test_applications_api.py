@@ -218,60 +218,46 @@ def test_cv_overrides_are_saved_and_used_by_the_next_cv(client, db_session, fake
     assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
 
 
-def test_tailoring_a_moved_role_is_kept_apart_from_the_edits(client, db_session, monkeypatch):
-    import app.api.routes.applications as routes
-    from app.tasks.cv.generate import CvGenerationError
+def _tailor_jobs(fake_queue):
+    return [j for j in fake_queue.jobs if j.func_name.endswith("tailor_moved_role")]
 
-    def fake_tailor(_session, _parsed, role_id, placement, **_kwargs):
-        if role_id == 404:
-            raise LookupError("unknown position 404")
-        if role_id == 502:
-            raise CvGenerationError("context could not be tailored")
-        return {"context": f"{placement} text", "tech": ["Go"]} if placement == "main" else {"context": "short"}
 
-    monkeypatch.setattr(routes, "tailor_role", fake_tailor)
+def test_tailoring_a_moved_role_is_queued_and_kept_apart_from_the_edits(client, db_session, fake_queue):
+    from app.config import get_settings
+    from app.main import app as fastapi_app
+
+    settings = fastapi_app.dependency_overrides[get_settings]()
+    fastapi_app.dependency_overrides[get_settings] = lambda: settings.model_copy(update={"openrouter_api_key": "k"})
     seed_cv_inputs(client, db_session)
+    pid = db_session.query(WorkHistoryEntry).one().id
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
-    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"3": "main"}}})
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {str(pid): "main"}}})
 
-    res = client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "main"})
-    assert res.status_code == 200
-    client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "early"})
-    overrides = client.get(f"{BASE}/{app_id}").json()["cv_overrides"]
-    assert overrides["roles"] == {"3": "main"}  # the edits are untouched
-    assert overrides["tailored"] == {
-        "3": {
-            "main": {
-                "context": "main text",
-                "tech": ["Go"],
-                "original_context": None,
-                "original_tech": [],
-                "cost": 0.0,
-                "calls": 0,
-            },
-            "early": {
-                "context": "short",
-                "tech": None,
-                "original_context": None,
-                "original_tech": [],
-                "cost": 0.0,
-                "calls": 0,
-            },
-        }
-    }
+    # Queued for the worker, not run in the request.
+    res = client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"})
+    assert res.status_code == 202
+    made = res.json()["cv_overrides"]["tailored"][str(pid)]["main"]
+    assert made["status"] == "queued" and made["context"] is None
+    [job] = _tailor_jobs(fake_queue)
+    assert job.args == (app_id, pid, "main") and job.id == made["rq_job_id"]
+    assert res.json()["cv_overrides"]["roles"] == {str(pid): "main"}  # the edits are untouched
+    # Asking again while it is queued queues nothing more.
+    client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"})
+    assert len(_tailor_jobs(fake_queue)) == 1
 
     # Saving edits keeps the tailoring (a client cannot set it); removing every edit drops it.
     res = client.patch(
         f"{BASE}/{app_id}",
         json={"cv_overrides": {"summary": "Mine.", "tailored": {"9": {"main": {"context": "forged"}}}}},
     )
-    assert set(res.json()["cv_overrides"]["tailored"]) == {"3"}
+    assert set(res.json()["cv_overrides"]["tailored"]) == {str(pid)}
     assert res.json()["cv_overrides"]["roles"] == {}
     assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
 
-    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 404, "placement": "main"}).status_code == 404
-    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 502, "placement": "main"}).status_code == 502
-    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "drop"}).status_code == 422
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 999, "placement": "main"}).status_code == 404
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "drop"}).status_code == 422
+    fastapi_app.dependency_overrides[get_settings] = lambda: settings.model_copy(update={"openrouter_api_key": ""})
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"}).status_code == 503
 
 
 def test_event_dates_are_stored_in_utc(client, db_session):

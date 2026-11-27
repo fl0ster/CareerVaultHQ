@@ -51,7 +51,12 @@ export type CvOverrides = {
 
 export type TailoredPlacement = Exclude<RolePlacement, 'drop'>
 export type TailoredRole = {
-  context: string
+  /** Run on the worker: `queued` until its text is there (`done`) or it `failed`; missing on
+   * entries made before (done). */
+  status?: 'queued' | 'done' | 'failed'
+  error?: string | null
+  /** Set once done. */
+  context: string | null
   tech: string[] | null
   /** The work history's text it was made from. */
   original_context?: string | null
@@ -62,6 +67,13 @@ export type TailoredRole = {
 }
 
 export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
+
+/** Whether the worker is still tailoring a role the user moved (poll until it is not). */
+export function isTailoring(o: CvOverrides | null | undefined): boolean {
+  return Object.values(o?.tailored ?? {}).some((byPlacement) =>
+    Object.values(byPlacement).some((made) => made?.status === 'queued'),
+  )
+}
 
 /** Number of separate edits (headline, summary, each placed role, each description). */
 export function overrideCount(o: CvOverrides | null | undefined): number {

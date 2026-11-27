@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
-import { describeError, isInProgress } from '../cv/api.ts'
+import { describeError, isInProgress, isTailoring } from '../cv/api.ts'
 import {
   APPLICATIONS_CHANGED,
   type Application,
@@ -182,10 +182,11 @@ export function useApplicationList({
     return () => window.removeEventListener(APPLICATIONS_CHANGED, reload)
   }, [reload])
 
-  // Keep polling while a CV is being generated.
+  // Keep polling while a CV is being generated, or a moved role tailored for one.
   const pending =
     (applications?.some((a) => a.cv && isInProgress(a.cv)) ?? false) ||
-    (selected?.cv != null && isInProgress(selected.cv))
+    (selected?.cv != null && isInProgress(selected.cv)) ||
+    isTailoring(selected?.cv_overrides)
   useEffect(() => {
     if (!pending) return
     const timer = window.setTimeout(reload, CV_POLL_MS)

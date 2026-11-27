@@ -1001,3 +1001,18 @@
     height: 12px;
   }
 }
+
+/* A moved role whose tailoring failed: why, and a retry. */
+.pl-tailor-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+
+  span {
+    flex: 1 1 16rem;
+    overflow-wrap: anywhere;
+  }
+}

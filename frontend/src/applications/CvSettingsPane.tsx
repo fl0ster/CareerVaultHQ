@@ -18,9 +18,6 @@ export default function CvSettingsPane({
   const cv = application.cv
   const generating = cv != null && isInProgress(cv)
 
-  /** Roles being tailored, as `"<work_history id>:<placement>"`. */
-  const [tailoring, setTailoring] = useState<ReadonlySet<string>>(new Set())
-
   const save = async (next: CvOverrides) => {
     setBusy(true)
     setError(null)
@@ -33,21 +30,14 @@ export default function CvSettingsPane({
     }
   }
 
-  // Runs alongside other edits (the server merges its result into what is stored then).
+  // Queues it on the worker: the role shows `queued` at once, and the page polls the
+  // application until its text is there.
   const tailor = async (roleId: number, placement: TailoredPlacement) => {
-    const key = `${roleId}:${placement}`
-    setTailoring((s) => new Set(s).add(key))
     setError(null)
     try {
       onChange(await applicationsApi.tailorCvRole(application.id, roleId, placement))
     } catch (e) {
       setError(describeError(e))
-    } finally {
-      setTailoring((s) => {
-        const next = new Set(s)
-        next.delete(key)
-        return next
-      })
     }
   }
 
@@ -71,7 +61,6 @@ export default function CvSettingsPane({
               pending: application.cv_overrides,
               busy,
               onChange: (next) => void save(next),
-              tailoring,
               tailor: (roleId, placement) => void tailor(roleId, placement),
             }}
           />

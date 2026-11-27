@@ -255,8 +255,8 @@ export const applicationsApi = {
   /** Replaces (or, with `null`, removes) the edits the next CV is generated with. */
   setCvOverrides: (id: number, overrides: CvOverrides | null) =>
     fetch(`${API}/${id}`, json('PATCH', { cv_overrides: overrides })).then((r) => parse<Application>(r)),
-  /** Runs the CV's tailoring step for a role moved to `placement`, ahead of the next CV
-   * (its result lands in `cv_overrides.tailored`). Takes a few seconds: LLM calls. */
+  /** Queues the CV's tailoring step for a role moved to `placement`, ahead of the next CV:
+   * its `cv_overrides.tailored` entry is `queued` until the worker stores the result. */
   tailorCvRole: (id: number, workHistoryId: number, placement: TailoredPlacement) =>
     fetch(`${API}/${id}/cv/tailor`, json('POST', { work_history_id: workHistoryId, placement })).then((r) =>
       parse<Application>(r),

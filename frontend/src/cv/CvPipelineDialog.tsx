@@ -587,19 +587,23 @@ export type ReportEditing = {
   pending: CvOverrides | null
   busy: boolean
   onChange: (next: CvOverrides) => void
-  /** Roles being tailored, as `"<work_history id>:<placement>"`. */
-  tailoring: ReadonlySet<string>
-  /** Runs the CV's tailoring step for a role moved to `placement` (its result arrives in
+  /** Queues the CV's tailoring step for a role moved to `placement` (its result arrives in
    * `pending.tailored`). */
   tailor: (roleId: number, placement: TailoredPlacement) => void
+}
+
+/** The worker's tailoring of `r` for `where`, done or not (`undefined`: never asked for). */
+function tailoringOf(r: RoleReport, where: Outcome, pending: CvOverrides | null): TailoredRole | undefined {
+  if (where === 'dropped' || r.role.id == null) return undefined
+  return pending?.tailored?.[String(r.role.id)]?.[where === 'listed' ? 'main' : 'early']
 }
 
 /** What the tailoring step made of `r` for `where`: this CV's own text when it already has
  * the role there, else the one made when the user moved it (`undefined`: not made yet). */
 function tailoredFor(r: RoleReport, where: Outcome, pending: CvOverrides | null): TailoredRole | undefined {
   if (where === r.outcome && r.entry) return { context: r.entry.context ?? '', tech: splitTech(r.entry.tech) }
-  if (where === 'dropped' || r.role.id == null) return undefined
-  return pending?.tailored?.[String(r.role.id)]?.[where === 'listed' ? 'main' : 'early']
+  const made = tailoringOf(r, where, pending)
+  return made && (made.status ?? 'done') === 'done' && made.context != null ? made : undefined
 }
 
 /** The role's description and technologies in the work history: from this CV's report, else
@@ -644,8 +648,11 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
     if (v === value) return
     // Picking what the pipeline chose by itself is no edit at all.
     save(v === inCv && !wasMine ? null : v)
-    // The first move to a place the CV has no text for runs the CV's tailoring for it.
-    if (v !== 'drop' && !tailoredFor(r, OUTCOME_OF_PLACEMENT[v], editing.pending)) editing.tailor(r.role.id!, v)
+    // The first move to a place the CV has no text for runs the CV's tailoring for it (again
+    // after a failure; not while it is queued).
+    const where = OUTCOME_OF_PLACEMENT[v]
+    if (v !== 'drop' && !tailoredFor(r, where, editing.pending) && tailoringOf(r, where, editing.pending)?.status !== 'queued')
+      editing.tailor(r.role.id!, v)
   }
 
   // Picking the dotted (automatic) option again is how a choice is undone.
@@ -678,7 +685,7 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
           </button>
         ))}
       </div>
-      {editing.tailoring.has(`${id}:${value === 'early' ? 'early' : 'main'}`) && value !== 'drop' ? (
+      {tailoringOf(r, OUTCOME_OF_PLACEMENT[value], editing.pending)?.status === 'queued' ? (
         <span className="muted pl-tailoring-inline">
           <span className="spinner" aria-hidden="true" /> Tailoring…
         </span>
@@ -884,7 +891,8 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
   const e = r.entry
   const dates = roleDates(r)
   const where = placedOutcome(r, editing?.pending)
-  const tailoring = !!editing && editing.tailoring.has(`${r.role.id}:${where === 'listed' ? 'main' : 'early'}`)
+  // The worker's tailoring for where the role goes now, unless this CV already has text there.
+  const made = editing && r.outcome !== where ? tailoringOf(r, where, editing.pending) : undefined
   const place = editing && <Placement r={r} editing={editing} applied={applied} />
   const head = (
     <>
@@ -919,12 +927,24 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
             role.
           </p>
         )}
-        {editable && tailoring ? (
+        {editable && made?.status === 'queued' ? (
           <p className="pl-tailoring">
             <span className="spinner" aria-hidden="true" /> Tailoring the role for this job…
           </p>
         ) : (
           <>
+            {editable && made?.status === 'failed' && (
+              <p className="error pl-tailor-failed">
+                <span>Could not tailor the role for this job{made.error ? `: ${made.error}` : '.'}</span>
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={() => editing.tailor(r.role.id!, where === 'listed' ? 'main' : 'early')}
+                >
+                  Try again
+                </button>
+              </p>
+            )}
             {editable ? (
               <DescriptionEditor r={r} editing={editing} where={where} />
             ) : (
