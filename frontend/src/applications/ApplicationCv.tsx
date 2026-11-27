@@ -61,7 +61,7 @@ export default function ApplicationCv({ application, onChange }: Props) {
     main = (
       <a className="app-cv-main ready" href={cvApi.pdfUrl(cv.id)} download title="Download the latest CV (PDF)">
         <FileDown size={16} aria-hidden="true" />
-        <span className="app-cv-text">Download latest</span>
+        <span className="app-cv-text">Download CV</span>
       </a>
     )
   } else {
@@ -81,7 +81,6 @@ export default function ApplicationCv({ application, onChange }: Props) {
 
   return (
     <section className="app-section app-cv" aria-labelledby={`app-cv-${application.id}`}>
-      <h3 id={`app-cv-${application.id}`}>CV</h3>
       <div className="app-cv-control">
         {main}
         {cv?.status === 'finished' && !generating && (

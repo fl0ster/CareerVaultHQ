@@ -160,6 +160,7 @@
 }
 .app-cv-control {
   display: inline-flex;
+  align-self: center;
   align-items: stretch;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -339,6 +340,14 @@
   align-items: center;
   gap: 6px;
   min-height: 26px;
+  margin-left: 8px;
+}
+.app-work-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  margin-left: 8px;
 }
 .app-salary {
   font-size: 13px;
@@ -756,6 +765,7 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
+  margin-left: 8px;
   gap: 6px;
   font-size: 13px;
 

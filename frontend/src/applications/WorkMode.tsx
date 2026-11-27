@@ -37,8 +37,22 @@ export default function WorkMode({ application, onChange }: Props) {
 
   return (
     <section className="app-section app-pay" aria-labelledby={`app-mode-${application.id}`}>
-      <h3 id={`app-mode-${application.id}`}>Work mode</h3>
-      <div className="app-pay-row">
+      <h3 id={`app-mode-${application.id}`}>
+        Work mode
+        {modeOverride && (
+            <button
+              type="button"
+              className="app-icon-btn"
+              onClick={() => void save(null)}
+              disabled={busy}
+              title={`Back to the parsed work mode${original ? `: ${original}` : ' (none)'}`}
+              aria-label="Back to the parsed work mode"
+            >
+              <Undo2 size={14} aria-hidden="true" />
+            </button>
+        )}
+      </h3>
+      <div className="app-work-mode-row">
         <div className="app-work-mode" role="radiogroup" aria-label="Work mode">
           {WORK_MODES.map((m) => (
             <button
@@ -54,20 +68,6 @@ export default function WorkMode({ application, onChange }: Props) {
             </button>
           ))}
         </div>
-        {modeOverride && (
-          <span className="app-pay-actions">
-            <button
-              type="button"
-              className="app-icon-btn"
-              onClick={() => void save(null)}
-              disabled={busy}
-              title={`Back to the parsed work mode${original ? `: ${original}` : ' (none)'}`}
-              aria-label="Back to the parsed work mode"
-            >
-              <Undo2 size={14} aria-hidden="true" />
-            </button>
-          </span>
-        )}
       </div>
       {error && <p className="error">{error}</p>}
     </section>
