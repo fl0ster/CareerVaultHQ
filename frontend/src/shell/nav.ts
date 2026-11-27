@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   Coins,
+  FileText,
   Trophy,
   Inbox,
   LayoutDashboard,
@@ -22,6 +23,7 @@ export type PageId =
   | 'applications'
   | 'jobs'
   | 'candidate-profile'
+  | 'cv-settings'
   | 'work-history'
   | 'employment'
   | 'sources'
@@ -61,6 +63,12 @@ export const SETTINGS: NavGroup = {
   items: [
     // The form has its own heading and status line, so the tab needs no introduction.
     { id: 'candidate-profile', label: 'Personal details', icon: UserRound },
+    {
+      id: 'cv-settings',
+      label: 'CV Settings',
+      icon: FileText,
+      description: 'The consent clause and the rules that decide which roles a generated CV lists in full.',
+    },
     {
       id: 'sources',
       label: 'Sources',

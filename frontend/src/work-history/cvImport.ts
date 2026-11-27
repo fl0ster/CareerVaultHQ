@@ -8,7 +8,7 @@ const POLL_MS = 2000
 
 /** `GET /api/cv-import/jobs/{id}` `result`: the parsed CV, nothing saved yet. */
 export type CvImportResult = {
-  /** Ready for `PUT /api/candidate-details` (photo and consent text are blank). */
+  /** Ready for `PUT /api/candidate-details` (the photo is blank). */
   candidate_details: CandidateDetailsInput
   /** Positions, education and certificates, ready for `POST /api/work-history/json`; newest first. */
   work_history: WorkHistoryExport[]
@@ -102,7 +102,7 @@ export function mergeDetails(
   parsed: CandidateDetailsInput,
 ): { details: CandidateDetailsInput; filled: string[] } {
   // Extra keys of a saved row (id, timestamps) are ignored by the PUT endpoint.
-  const details: CandidateDetailsInput = saved ? { ...saved } : { ...parsed, photo: '', consent_text: '' }
+  const details: CandidateDetailsInput = saved ? { ...saved } : { ...parsed, photo: '' }
   const filled: string[] = []
   for (const key of TEXT_FIELDS) {
     if (saved && saved[key].trim() !== '') continue

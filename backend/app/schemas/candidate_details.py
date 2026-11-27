@@ -27,7 +27,7 @@ class CandidateDetailsIn(BaseModel):
     photo: str = Field(default="", max_length=MAX_PHOTO_LENGTH, pattern=PHOTO_PATTERN)
     """Profile picture as a base64 image ``data:`` URL; blank = none."""
     languages: list[LanguageEntry] = Field(default_factory=list)
-    consent_text: str = ""
+    # The consent clause is a CV setting (``/api/cv-settings``), not a personal detail.
 
     def cleaned(self) -> dict:
         """Trimmed values; blank language rows are dropped."""

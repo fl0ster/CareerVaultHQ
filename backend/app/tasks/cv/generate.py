@@ -63,6 +63,7 @@ from app.models import (
     WorkHistoryEntry,
 )
 from app.services.career import previous_role_ids, tenure_ids
+from app.services.cv_settings import get_cv_settings, timeline_rules
 from app.services.openrouter import (
     OpenRouterError,
     OpenRouterNotConfigured,
@@ -192,7 +193,6 @@ def details_dict(details: CandidateDetails) -> dict[str, Any]:
         "linkedin": details.linkedin,
         "location": details.location,
         "languages": list(details.languages or []),
-        "consent_text": details.consent_text,
     }
 
 
@@ -584,20 +584,16 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     check_details(details)
     assert details is not None
 
+    cv_settings = get_cv_settings(session)
+    rules = timeline_rules(cv_settings, settings)
+
     llm = Llm(settings)
 
     # 1. relevance
     score_relevance(llm, roles, job_description, warnings)
 
     # 2. timeline
-    history = build_coherent_history(
-        roles,
-        max_entries=settings.cv_max_entries,
-        min_entries=settings.cv_min_entries,
-        high_relevance=settings.cv_high_relevance,
-        irrelevant_relevance=settings.cv_irrelevant_relevance,
-        min_months=settings.cv_min_months,
-    )
+    history = build_coherent_history(roles, **rules)
     main_entries = [r.to_dict(today) for r in history.main]
     early_entries = [r.to_dict(today) for r in history.early]
     for line in history.log:
@@ -627,7 +623,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     # 5. typesetting
     tex = render_cv(
         template=load_template(),
-        details=details_dict(details) | load_education(session, today),
+        details=details_dict(details) | {"consent_text": cv_settings.consent_text} | load_education(session, today),
         headline_role=headline_role,
         core_technologies=core_technologies,
         summary=summary,
@@ -659,13 +655,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         "job_description_chars": len(job_description),
         "cost": cost,
         "openrouter_calls": call_count,
-        "thresholds": {
-            "max_entries": settings.cv_max_entries,
-            "min_entries": settings.cv_min_entries,
-            "high_relevance": settings.cv_high_relevance,
-            "irrelevant_relevance": settings.cv_irrelevant_relevance,
-            "min_months": settings.cv_min_months,
-        },
+        "thresholds": rules,
         "relevance": [
             {
                 "id": r.id,

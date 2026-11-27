@@ -7,6 +7,7 @@ import InterviewsPage from './interviews/InterviewsPage.tsx'
 import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
+import CvSettingsPage from './cv-settings/CvSettingsPage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import EmploymentPage from './work-history/EmploymentPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
@@ -171,6 +172,8 @@ function App() {
         )
       case 'candidate-profile':
         return <CandidateProfilePage />
+      case 'cv-settings':
+        return <CvSettingsPage />
       case 'work-history':
         return (
           <WorkHistoryPage

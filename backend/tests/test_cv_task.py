@@ -246,6 +246,23 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
     assert len(requests_seen) == 3 + 4 + 1 + 4
 
 
+def test_generate_cv_uses_the_cv_settings(task_engine):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        session.add(models.CVSettings(id=1, consent_text="I agree to everything.", min_entries=3))
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        cv = session.get(models.GeneratedCV, cv_id)
+        assert cv.pipeline["thresholds"]["min_entries"] == 3  # overrides the default of 2
+        assert cv.pipeline["thresholds"]["max_entries"] == 5  # default kept
+        # three roles listed in full now, the irrelevant one backfilled
+        assert [e["employer"] for e in cv.pipeline["main"]] == ["Zartis", "VGW", "Old Corp"]
+        assert "I agree to everything." in open(cv.tex_path, encoding="utf-8").read()
+
+
 def test_generate_cv_falls_back_and_warns_when_calls_fail(task_engine, requests_seen):
     cv_id = _seed(task_engine)
 

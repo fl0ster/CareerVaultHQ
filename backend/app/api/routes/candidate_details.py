@@ -1,6 +1,6 @@
 """Candidate details: the personal data printed on a generated CV (name, contact lines,
-languages and the consent clause). Education and certifications are career timeline
-entries (``api.routes.work_history``).
+languages and photo). Education and certifications are career timeline entries
+(``api.routes.work_history``); the consent clause is a CV setting (``api.routes.cv_settings``).
 
 A singleton: ``GET`` returns the row (``null`` until it is saved once) and ``PUT`` creates
 or replaces it in full.

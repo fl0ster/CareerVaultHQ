@@ -563,8 +563,28 @@ class CandidateDetails(Base):
     languages: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"language": "English", "level": "Advanced (C1)"}, ...]``."""
     consent_text: Mapped[str] = mapped_column(Text, default="")
-    """Data-processing consent printed in small type at the end of the CV; blank = omitted."""
+    """Legacy: the consent clause now lives in ``CVSettings.consent_text``; this value only
+    seeds it when the CV settings row is first created."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CVSettings(Base):
+    """CV settings edited in Settings > CV Settings: the consent clause and overrides of the
+    timeline rules (``app.tasks.cv.history``). A single row (``id`` 1), created on first use
+    by ``app.services.cv_settings.get_cv_settings``. A ``None`` rule uses the ``cv_*``
+    default from ``app.config.Settings``."""
+
+    __tablename__ = "cv_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    consent_text: Mapped[str] = mapped_column(Text, default="")
+    """Data-processing consent printed in small type at the end of the CV; blank = omitted."""
+    max_entries: Mapped[int | None] = mapped_column(Integer)
+    min_entries: Mapped[int | None] = mapped_column(Integer)
+    high_relevance: Mapped[float | None] = mapped_column(Float)
+    irrelevant_relevance: Mapped[float | None] = mapped_column(Float)
+    min_months: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
