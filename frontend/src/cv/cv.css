@@ -750,38 +750,16 @@
 
 /* ------------------------------------------------------------- editing */
 
-/* Small text button (Edit, Use generated, Automatic). */
-.pl-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--accent);
-
-  &:hover:not(:disabled) {
-    border-color: transparent;
-    background: var(--hover-tint);
-  }
-}
-
-/* Your edit, in the CV already. */
-.pl-mine {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-/* Your edit, waiting for a new CV. */
-.pl-pending {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--sun-bg);
-  color: var(--sun-fg);
-  font-size: 12px;
-  font-weight: 600;
+/* In the placement picker: the option the pipeline chose by itself, once the user picked
+   another. The same dot as an edited headline's. */
+.pl-auto-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
 }
 
 .pl-texts {
@@ -945,4 +923,96 @@
   background: transparent;
   border: 1.5px dashed var(--text);
   box-sizing: border-box;
+}
+
+/* Technologies a listed role shows, as toggles: the pill is the button. */
+.pl-chips-edit {
+  li {
+    padding: 0;
+    border: 0;
+  }
+  button {
+    padding: 1px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-h);
+    font-size: 12px;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      border-color: var(--accent-border);
+    }
+    &.chip-added {
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+    }
+    &.chip-removed {
+      color: var(--text);
+      text-decoration: line-through;
+      border-style: dashed;
+      background: transparent;
+      opacity: 0.8;
+
+      &:hover:not(:disabled) {
+        text-decoration: none;
+        opacity: 1;
+      }
+    }
+  }
+}
+.pl-tech .pl-edit-head {
+  margin-bottom: 6px;
+}
+/* "+": add a technology of your own, typed into the pill itself. */
+.pl-chips-edit .chip-plus {
+  padding: 1px 9px;
+  border-style: dashed;
+  color: var(--accent);
+  font-weight: 700;
+}
+.pl-chips-edit .pl-chip-input {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+/* Revert sits under the pills, on the right. */
+.pl-tech-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* A moved role while the CV's tailoring step runs for it. */
+.pl-tailoring,
+.pl-tailoring-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+
+  .spinner {
+    margin: 0;
+    width: 12px;
+    height: 12px;
+  }
+}
+
+/* A moved role whose tailoring failed: why, and a retry. */
+.pl-tailor-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+
+  span {
+    flex: 1 1 16rem;
+    overflow-wrap: anywhere;
+  }
 }

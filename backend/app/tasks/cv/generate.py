@@ -56,11 +56,18 @@ from app.config import Settings, get_settings
 from app.db import init_db, session_factory
 from app.llm_calls import ChatCall, DecisionCall
 from app.models import (
+    Application,
     CandidateDetails,
     GeneratedCV,
     JobParseResult,
     OpenRouterCall,
     WorkHistoryEntry,
+)
+from app.services.applications import (
+    TAILOR_DONE,
+    TAILOR_FAILED,
+    TAILOR_QUEUED,
+    store_tailored,
 )
 from app.services.career import previous_role_ids, tenure_ids
 from app.services.cv_settings import get_cv_settings, timeline_rules
@@ -362,10 +369,13 @@ def tailor_main_roles(
     job_description: str,
     warnings: list[str],
     fixed: Sequence[str | None] | None = None,
+    fixed_tech: Sequence[list[str] | None] | None = None,
 ) -> list[dict]:
     """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job. A description
-    in ``fixed`` (aligned with ``entries``) is the user's: used as is, only its tech tailored."""
+    in ``fixed`` / a technology list in ``fixed_tech`` (both aligned with ``entries``) is the
+    user's: used as is, without its LLM call."""
     entries, fixed = _with_fixed(entries, fixed)
+    fixed_tech = list(fixed_tech or [None] * len(entries))
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
@@ -384,11 +394,13 @@ def tailor_main_roles(
         )
 
     to_tailor = [e for e, text in zip(entries, fixed, strict=True) if not text]
-    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in entries])
-    tailored_contexts, techs = iter(results[: len(to_tailor)]), results[len(to_tailor) :]
+    tech_to_tailor = [e for e, techs in zip(entries, fixed_tech, strict=True) if techs is None]
+    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in tech_to_tailor])
+    tailored_contexts, tailored_techs = iter(results[: len(to_tailor)]), iter(results[len(to_tailor) :])
     contexts = [text if text else next(tailored_contexts) for text in fixed]
+    techs = [None if mine is not None else next(tailored_techs) for mine in fixed_tech]
     tailored = []
-    for entry, context, tech, mine in zip(entries, contexts, techs, fixed, strict=True):
+    for entry, context, tech, mine, my_tech in zip(entries, contexts, techs, fixed, fixed_tech, strict=True):
         label = f"{entry.get('role')} @ {entry.get('employer')}"
         new_entry = dict(entry)
         if mine:
@@ -397,7 +409,9 @@ def tailor_main_roles(
             warnings.append(f"context of {label} could not be tailored; kept the original")
         else:
             new_entry["context"] = _clean_line(context)
-        if tech is None:
+        if my_tech is not None:
+            new_entry["tech"] = ", ".join(my_tech)
+        elif tech is None:
             warnings.append(f"technologies of {label} could not be tailored; kept the original")
         else:
             new_entry["tech"] = ", ".join(t.strip() for t in _clean_line(tech).split(",") if t.strip()) or entry.get(
@@ -583,6 +597,88 @@ def pick_core_technologies(
 PLACEMENT_LOG = {"main": "listed in full", "early": "condensed", "drop": "left out"}
 
 
+def tailor_role(
+    session: Session, parsed: JobParseResult, role_id: int, placement: str, *, settings: Settings | None = None
+) -> dict[str, Any]:
+    """Step 3 of the pipeline for one role the user moved, ahead of the next CV: the very
+    ``tailor_main_roles`` (``placement == "main"``) or ``condense_early_roles`` (``"early"``)
+    call a CV makes. Returns ``{"context": str, "tech": [str], "original_context": str | None,
+    "original_tech": [str], "cost": float, "calls": int}`` (``tech`` for ``main`` only); the
+    ``original_*`` are the work history's text it started from, for the UI to show beside it,
+    ``cost`` / ``calls`` what its OpenRouter calls cost.
+
+    Raises ``LookupError`` for an unknown role, ``OpenRouterNotConfigured`` without an API key
+    and :class:`CvGenerationError` when the LLM gave nothing usable (the pipeline would have
+    kept the original text)."""
+    today = date.today()
+    role = next((r for r in load_roles(session, today) if r.id == role_id), None)
+    if role is None:
+        raise LookupError(f"unknown position {role_id}")
+    job_description = job_description_text(parsed)
+    llm = Llm(settings or get_settings())
+    warnings: list[str] = []
+    if placement == "main":
+        [entry] = tailor_main_roles(llm, [role.to_dict(today)], job_description, warnings)
+        result: dict[str, Any] = {
+            "context": entry.get("context") or "",
+            "tech": [t.strip() for t in (entry.get("tech") or "").split(",") if t.strip()],
+        }
+    else:
+        [entry] = condense_early_roles(llm, [role.to_dict(today)], job_description, warnings)
+        result = {"context": entry.get("context") or ""}
+    if warnings:
+        raise CvGenerationError("; ".join(warnings))
+    cost, calls = llm.cost(session)
+    return result | {"original_context": role.context, "original_tech": list(role.tech), "cost": cost, "calls": calls}
+
+
+TAILOR_TIMEOUT = 300
+"""Seconds RQ lets :func:`tailor_moved_role` run (one or two LLM calls, retried once)."""
+
+
+def tailor_moved_role(application_id: int, role_id: int, placement: str) -> dict[str, Any]:
+    """RQ entry point: :func:`tailor_role` for a role the user moved, its result stored in the
+    application's ``cv_overrides.tailored`` (``status: done``), or the failure (``failed``,
+    then re-raised so RQ records it too). A result nobody waits for any more (the edits were
+    removed meanwhile) is dropped."""
+    init_db()
+    with session_factory()() as session:
+        application = session.get(Application, application_id)
+        if application is None:
+            raise ValueError(f"unknown application: {application_id}")
+        try:
+            made: dict[str, Any] = tailor_role(session, application.job_parse_result, role_id, placement)
+            outcome = made | {"status": TAILOR_DONE}
+        except Exception as exc:
+            session.rollback()
+            outcome = {"status": TAILOR_FAILED, "error": f"{type(exc).__name__}: {exc}"}
+            made = {}
+            log.exception("Tailoring position %d of application %d failed", role_id, application_id)
+        # The edits may have changed during the LLM calls: merged into what is stored now.
+        store_tailored(session, application, role_id, placement, outcome, expect=TAILOR_QUEUED)
+        session.commit()
+        if outcome["status"] == TAILOR_FAILED:
+            raise CvGenerationError(outcome["error"])
+        return made
+
+
+def tailored_texts(overrides: dict, roles: list[Role], placement: str) -> tuple[list[str | None], list[list[str] | None]]:
+    """The description and technologies each of ``roles`` (all ``placement``) is printed with
+    as is: the user's own (``contexts`` / ``techs``), else what :func:`tailor_role` made for it
+    when it was moved there (``tailored``), else ``None`` for the pipeline to tailor."""
+    contexts = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
+    techs = {int(k): list(v) for k, v in (overrides.get("techs") or {}).items()}
+    tailored = {int(k): (v or {}).get(placement) or {} for k, v in (overrides.get("tailored") or {}).items()}
+    fixed: list[str | None] = []
+    fixed_tech: list[list[str] | None] = []
+    for role in roles:
+        made = tailored.get(role.id) or {}
+        fixed.append(contexts.get(role.id) or made.get("context") or None)
+        mine = techs.get(role.id)
+        fixed_tech.append(mine if mine is not None else made.get("tech"))
+    return fixed, fixed_tech
+
+
 def role_placements(overrides: dict | None) -> dict[int, str]:
     """``work_history.id`` -> ``main`` / ``early`` / ``drop`` from the CV's ``overrides``."""
     return {int(k): v for k, v in ((overrides or {}).get("roles") or {}).items() if v in PLACEMENT_LOG}
@@ -665,11 +761,10 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         log.info("timeline: %s", line)
 
     # 3. tailoring
-    fixed = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
-    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, [fixed.get(r.id) for r in history.main])
-    early_entries = condense_early_roles(
-        llm, early_entries, job_description, warnings, [fixed.get(r.id) for r in history.early]
-    )
+    main_fixed, main_tech = tailored_texts(overrides, history.main, "main")
+    early_fixed, _ = tailored_texts(overrides, history.early, "early")
+    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, main_fixed, main_tech)
+    early_entries = condense_early_roles(llm, early_entries, job_description, warnings, early_fixed)
 
     # Which listed roles share an employer block; added after tailoring so the ids never
     # reach the prompts.
@@ -736,6 +831,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
                 "date_end": r.date_end_label(today),
                 "months": r.length,
                 "context": r.context,
+                "tech": ", ".join(r.tech),
             }
             for r in roles
         ],

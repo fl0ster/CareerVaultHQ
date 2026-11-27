@@ -42,9 +42,38 @@ export type CvOverrides = {
   roles: Record<string, RolePlacement>
   /** `work_history.id` -> the role's description in the CV, used as written. */
   contexts: Record<string, string>
+  /** `work_history.id` -> the technologies a listed role shows, in order. */
+  techs: Record<string, string[]>
+  /** `work_history.id` -> placement -> what the pipeline's tailoring step made of a role
+   * when the user moved it there. Kept by the server (not an edit; ignored when sent). */
+  tailored?: Record<string, Partial<Record<TailoredPlacement, TailoredRole>>>
 }
 
-export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {} }
+export type TailoredPlacement = Exclude<RolePlacement, 'drop'>
+export type TailoredRole = {
+  /** Run on the worker: `queued` until its text is there (`done`) or it `failed`; missing on
+   * entries made before (done). */
+  status?: 'queued' | 'done' | 'failed'
+  error?: string | null
+  /** Set once done. */
+  context: string | null
+  tech: string[] | null
+  /** The work history's text it was made from. */
+  original_context?: string | null
+  original_tech?: string[]
+  /** USD its OpenRouter calls cost, and how many it made. */
+  cost?: number
+  calls?: number
+}
+
+export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
+
+/** Whether the worker is still tailoring a role the user moved (poll until it is not). */
+export function isTailoring(o: CvOverrides | null | undefined): boolean {
+  return Object.values(o?.tailored ?? {}).some((byPlacement) =>
+    Object.values(byPlacement).some((made) => made?.status === 'queued'),
+  )
+}
 
 /** Number of separate edits (headline, summary, each placed role, each description). */
 export function overrideCount(o: CvOverrides | null | undefined): number {
@@ -53,16 +82,23 @@ export function overrideCount(o: CvOverrides | null | undefined): number {
     (o.headline_role ? 1 : 0) +
     (o.summary ? 1 : 0) +
     Object.keys(o.roles ?? {}).length +
-    Object.keys(o.contexts ?? {}).length
+    Object.keys(o.contexts ?? {}).length +
+    Object.keys(o.techs ?? {}).length
   )
 }
 
 /** Whether two sets of edits would produce the same CV. */
 export function sameOverrides(a: CvOverrides | null | undefined, b: CvOverrides | null | undefined): boolean {
-  const sorted = (m: Record<string, string> | undefined) =>
+  const sorted = (m: Record<string, unknown> | undefined) =>
     Object.entries(m ?? {}).sort(([x], [y]) => Number(x) - Number(y))
   const key = (o: CvOverrides | null | undefined) =>
-    JSON.stringify([o?.headline_role || null, o?.summary || null, sorted(o?.roles), sorted(o?.contexts)])
+    JSON.stringify([
+      o?.headline_role || null,
+      o?.summary || null,
+      sorted(o?.roles),
+      sorted(o?.contexts),
+      sorted(o?.techs),
+    ])
   return key(a) === key(b)
 }
 
@@ -86,6 +122,8 @@ export type PipelineRole = {
   months?: number
   /** The description from the work history (newer CVs only). */
   context?: string | null
+  /** The technologies from the work history, comma separated (newer CVs only). */
+  tech?: string
 }
 
 /** A role as it ends up in the CV: ``main`` entries are tailored, ``early`` ones condensed.

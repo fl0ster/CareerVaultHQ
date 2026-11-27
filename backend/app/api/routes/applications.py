@@ -62,7 +62,9 @@ from app.api.routes.cv import (
     check_cv_inputs,
     cv_out,
     enqueue_cv,
+    enqueue_tailoring,
     reconcile_cv,
+    reconcile_tailoring,
 )
 from app.config import Settings, get_settings
 from app.db import get_session
@@ -75,12 +77,14 @@ from app.models import (
     JobDecision,
     JobEvaluation,
     JobParseResult,
+    WorkHistoryEntry,
 )
 from app.queue import get_queue
 from app.services.applications import (
     ACCEPTED_STATUS,
     APPLIED_STATUS,
     INTERVIEW_STATUS,
+    TAILOR_QUEUED,
     EventRejected,
     accept_offer,
     decline_offer,
@@ -93,9 +97,11 @@ from app.services.applications import (
     reject_initial_only,
     reject_offer_decision,
     reject_out_of_order,
+    set_cv_edits,
     set_interview_rounds,
     set_job_decision,
     status_by_key,
+    tailoring_status,
     unapply,
     undo_accept,
 )
@@ -431,6 +437,7 @@ def _to_out(
         if cv_row is not None:
             reconcile_cv(session, queue, cv_row)
             cv = cv_out(cv_row, request)
+    reconcile_tailoring(session, queue, application)
     return ApplicationOut(
         id=application.id,
         notes=application.notes or "",
@@ -617,7 +624,8 @@ def update_application(
     if "work_mode_override" in payload.model_fields_set:
         application.work_mode_override = payload.work_mode_override
     if "cv_overrides" in payload.model_fields_set:
-        application.cv_overrides = payload.cv_overrides.stored() if payload.cv_overrides else None
+        edits = payload.cv_overrides
+        set_cv_edits(session, application, edits.stored() if edits else None, clear=edits is None)
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:
@@ -694,6 +702,38 @@ def regenerate_cv(
     cv = enqueue_cv(session, queue, settings, application.job_parse_result, application.cv_overrides)
     application.generated_cv_id = cv.id
     session.commit()
+    return _reload_out(session, application_id, request, queue)
+
+
+class TailorRole(BaseModel):
+    work_history_id: int
+    placement: Literal["main", "early"]
+
+
+@router.post("/{application_id}/cv/tailor", response_model=ApplicationOut, status_code=status.HTTP_202_ACCEPTED)
+def tailor_cv_role(
+    application_id: int,
+    payload: TailorRole,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    queue: Annotated[Queue, Depends(get_queue)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ApplicationOut:
+    """Queue the CV's tailoring step for one role the user moved (to ``main`` / ``early``),
+    so the CV Settings show its description and technologies before the CV is regenerated;
+    the next CV prints the result. ``202`` with the role's ``cv_overrides.tailored`` entry
+    ``queued``: poll the application until it is ``done`` (or ``failed``).
+
+    ``404`` for an unknown position, ``503`` without an OpenRouter key; asking again while
+    one is queued changes nothing."""
+    application = _get_or_404(session, application_id)
+    position = session.get(WorkHistoryEntry, payload.work_history_id)
+    if position is None or position.kind != WorkHistoryEntry.KIND_JOB:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"unknown position {payload.work_history_id}")
+    if not settings.openrouter_api_key:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "OPENROUTER_API_KEY is not set")
+    if tailoring_status(application, payload.work_history_id, payload.placement) != TAILOR_QUEUED:
+        enqueue_tailoring(session, queue, settings, application, payload.work_history_id, payload.placement)
     return _reload_out(session, application_id, request, queue)
 
 

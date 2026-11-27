@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { Undo2 } from 'lucide-react'
 import {
   type CvOverrides,
   type CvPipeline,
@@ -9,6 +8,8 @@ import {
   NO_OVERRIDES,
   type PipelineEntry,
   type RolePlacement,
+  type TailoredPlacement,
+  type TailoredRole,
 } from './api.ts'
 import { formatUsd } from '../cost/format.ts'
 import '../cost/cost.css'
@@ -16,6 +17,7 @@ import {
   analyse,
   type Analysis,
   diffTech,
+  splitTech,
   formatMonth,
   OUTCOME_ICON,
   OUTCOME_LABEL,
@@ -426,6 +428,122 @@ function TechDiff({ entry }: { entry: PipelineEntry }) {
   )
 }
 
+/** The technologies of a listed role as clickable pills: a lit one is in the CV (click to
+ * drop it), a struck-through one is not (click to add it back); pills keep their place. Choosing exactly
+ * what the CV already shows is no edit at all. */
+function TechPicker({ r, editing }: { r: RoleReport; editing: ReportEditing }) {
+  const id = String(r.role.id)
+  const all = editing.pending?.techs ?? {}
+  const mine = all[id] ?? null
+  const original = workHistoryOf(r, editing.pending).tech
+  // The tailoring step's pick: this CV's, or the one made when the role was moved here (the
+  // work history's whole list until then).
+  const generated = tailoredFor(r, 'listed', editing.pending)?.tech ?? original
+  const current = mine ?? generated
+  const key = (t: string) => t.toLowerCase()
+  const on = new Set(current.map(key))
+  const fromHistory = new Set(original.map(key))
+  const suggested = new Set([...generated, ...original].map(key))
+  // One fixed order whatever is picked, so pills never move: the LLM's pick, then the rest
+  // of the work history's, then the user's own additions.
+  const shown = [...new Map([...generated, ...original, ...current].map((t) => [key(t), t])).values()]
+  /** The text of a technology being added (`null`: not adding). */
+  const [adding, setAdding] = useState<string | null>(null)
+
+  const save = (list: string[]) => {
+    const next = { ...all }
+    if (list.length === generated.length && list.every((t, i) => t === generated[i])) delete next[id]
+    else next[id] = list
+    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), techs: next })
+  }
+  // The CV lists them in the order shown.
+  const toggle = (name: string, inCv: boolean) =>
+    save(shown.filter((t) => (key(t) === key(name) ? !inCv : on.has(key(t)))))
+  const add = () => {
+    const name = adding?.trim()
+    setAdding(null)
+    if (!name || on.has(key(name))) return
+    // One already offered is just switched on; a new one goes last.
+    save(suggested.has(key(name)) ? shown.filter((t) => on.has(key(t)) || key(t) === key(name)) : [...current, name])
+  }
+
+  const chip = (name: string, inCv: boolean) => {
+    const custom = !suggested.has(key(name))
+    return (
+      <li key={key(name)}>
+        <button
+          type="button"
+          className={inCv ? (fromHistory.has(key(name)) ? 'chip-kept' : 'chip-added') : 'chip-removed'}
+          aria-pressed={inCv}
+          title={custom ? 'Added by you: click to remove it' : inCv ? 'In the CV: click to drop it' : 'Not in the CV: click to add it'}
+          disabled={editing.busy}
+          onClick={() => toggle(name, inCv)}
+        >
+          {name}
+        </button>
+      </li>
+    )
+  }
+
+  return (
+    <div className="pl-tech">
+      <div className="pl-edit-head">
+        <span className="pl-field">Technologies</span>
+        {mine && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
+      </div>
+      <ul className="pl-chips pl-chips-edit">
+        {shown.map((t) => chip(t, on.has(key(t))))}
+        <li>
+          {adding === null ? (
+            <button
+              type="button"
+              className="chip-plus"
+              onClick={() => setAdding('')}
+              disabled={editing.busy}
+              title="Add a technology"
+              aria-label="Add a technology"
+            >
+              +
+            </button>
+          ) : (
+            <input
+              type="text"
+              className="pl-chip-input"
+              value={adding}
+              onChange={(e) => setAdding(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  add()
+                } else if (e.key === 'Escape') setAdding(null)
+              }}
+              onBlur={add}
+              placeholder="Technology"
+              aria-label="New technology"
+              maxLength={128}
+              size={Math.max(10, adding.length + 1)}
+              autoFocus
+            />
+          )}
+        </li>
+      </ul>
+      {mine && (
+        <div className="pl-tech-foot">
+          <button
+            type="button"
+            className="secondary small"
+            onClick={() => save(generated)}
+            disabled={editing.busy}
+            title="Back to the technologies the LLM picked (your additions are removed)"
+          >
+            Revert
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ContextDiff({ entry, condensed }: { entry: PipelineEntry; condensed: boolean }) {
   const empty = <span className="muted">(no description)</span>
   if (entry.original_context === undefined) {
@@ -469,6 +587,36 @@ export type ReportEditing = {
   pending: CvOverrides | null
   busy: boolean
   onChange: (next: CvOverrides) => void
+  /** Queues the CV's tailoring step for a role moved to `placement` (its result arrives in
+   * `pending.tailored`). */
+  tailor: (roleId: number, placement: TailoredPlacement) => void
+}
+
+/** The worker's tailoring of `r` for `where`, done or not (`undefined`: never asked for). */
+function tailoringOf(r: RoleReport, where: Outcome, pending: CvOverrides | null): TailoredRole | undefined {
+  if (where === 'dropped' || r.role.id == null) return undefined
+  return pending?.tailored?.[String(r.role.id)]?.[where === 'listed' ? 'main' : 'early']
+}
+
+/** What the tailoring step made of `r` for `where`: this CV's own text when it already has
+ * the role there, else the one made when the user moved it (`undefined`: not made yet). */
+function tailoredFor(r: RoleReport, where: Outcome, pending: CvOverrides | null): TailoredRole | undefined {
+  if (where === r.outcome && r.entry) return { context: r.entry.context ?? '', tech: splitTech(r.entry.tech) }
+  const made = tailoringOf(r, where, pending)
+  return made && (made.status ?? 'done') === 'done' && made.context != null ? made : undefined
+}
+
+/** The role's description and technologies in the work history: from this CV's report, else
+ * from a tailoring made when the role was moved (older CVs recorded them only for the roles
+ * they printed). */
+function workHistoryOf(r: RoleReport, pending: CvOverrides | null): { context: string | null; tech: string[] } {
+  const made = r.role.id != null ? Object.values(pending?.tailored?.[String(r.role.id)] ?? {}) : []
+  const context = r.entry?.original_context ?? r.role.context ?? made.find((m) => m?.original_context)?.original_context
+  const tech = r.entry?.original_tech ?? r.role.tech ?? r.entry?.tech
+  return {
+    context: context ?? null,
+    tech: tech !== undefined ? splitTech(tech) : (made.find((m) => m?.original_tech?.length)?.original_tech ?? []),
+  }
 }
 
 const PLACEMENT_OF: Record<Outcome, RolePlacement> = { listed: 'main', condensed: 'early', dropped: 'drop' }
@@ -477,7 +625,6 @@ const PLACEMENTS: { value: RolePlacement; label: string; hint: string }[] = [
   { value: 'early', label: 'Condensed', hint: 'One sentence in the “Additional experience” block' },
   { value: 'drop', label: 'Left out', hint: 'Leave the role out of this CV' },
 ]
-const PLACEMENT_LABEL = Object.fromEntries(PLACEMENTS.map((p) => [p.value, p.label])) as Record<RolePlacement, string>
 
 /** Where the role goes in the next CV: In full / Condensed / Left out, plus what the choice
  * changes once the CV is regenerated. */
@@ -497,20 +644,25 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
     else delete roles[id]
     editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), roles })
   }
-  // Picking what the pipeline chose by itself is no edit at all.
-  const pick = (v: RolePlacement) => v !== value && save(v === inCv && !wasMine ? null : v)
-  const reset = () => save(null)
+  const pick = (v: RolePlacement) => {
+    if (v === value) return
+    // Picking what the pipeline chose by itself is no edit at all.
+    save(v === inCv && !wasMine ? null : v)
+    // The first move to a place the CV has no text for runs the CV's tailoring for it (again
+    // after a failure; not while it is queued).
+    const where = OUTCOME_OF_PLACEMENT[v]
+    if (v !== 'drop' && !tailoredFor(r, where, editing.pending) && tailoringOf(r, where, editing.pending)?.status !== 'queued')
+      editing.tailor(r.role.id!, v)
+  }
 
-  const status =
-    mine && mine !== inCv ? (
-      <span className="pl-pending">{PLACEMENT_LABEL[inCv]} in this CV · moves after regenerating</span>
-    ) : !mine && wasMine ? (
-      <span className="pl-pending">Back to the automatic choice after regenerating</span>
-    ) : mine ? (
-      <span className="pl-mine">Your choice</span>
-    ) : (
-      <span className="muted">Chosen automatically</span>
-    )
+  // Picking the dotted (automatic) option again is how a choice is undone.
+  const status = mine ? null : wasMine ? (
+    <span className="muted">Automatic after regenerating</span>
+  ) : (
+    <span className="muted">Chosen automatically</span>
+  )
+  // Once the user picks something else, a dot keeps the pipeline's own choice in view.
+  const auto = mine && !wasMine ? inCv : null
 
   return (
     <div className="pl-place">
@@ -522,25 +674,23 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
             role="radio"
             aria-checked={value === p.value}
             className={`place-${p.value}`}
-            title={p.hint}
+            title={auto === p.value ? `${p.hint} (chosen automatically)` : p.hint}
             disabled={editing.busy}
             onClick={() => pick(p.value)}
           >
             {p.label}
+            {auto === p.value && (
+              <span className="pl-auto-dot" aria-label="(chosen automatically)" />
+            )}
           </button>
         ))}
       </div>
-      {status}
-      {mine && (
-        <button
-          type="button"
-          className="pl-link"
-          onClick={reset}
-          disabled={editing.busy}
-          title="Let the pipeline decide again"
-        >
-          <Undo2 size={13} aria-hidden="true" /> Automatic
-        </button>
+      {tailoringOf(r, OUTCOME_OF_PLACEMENT[value], editing.pending)?.status === 'queued' ? (
+        <span className="muted pl-tailoring-inline">
+          <span className="spinner" aria-hidden="true" /> Tailoring…
+        </span>
+      ) : (
+        status
       )}
     </div>
   )
@@ -618,7 +768,10 @@ function EditableText({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save(draft)
+                // Not while another edit is saving: this one is built on the edits before it.
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  if (!busy) save(draft)
+                }
                 else if (e.key === 'Escape') setDraft(null)
               }}
               rows={4}
@@ -702,8 +855,9 @@ function DescriptionEditor({
   const id = String(r.role.id)
   const contexts = editing.pending?.contexts ?? {}
   const mine = contexts[id] ?? null
-  const generated = r.entry?.context ?? null
-  const own = r.entry?.original_context ?? r.role.context ?? null
+  // Rewritten for where the role goes now (the CV's text, or the one made on moving it).
+  const generated = tailoredFor(r, where, editing.pending)?.context ?? null
+  const own = workHistoryOf(r, editing.pending).context
 
   const save = (text: string | null) => {
     const next = { ...contexts }
@@ -740,6 +894,8 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
   const e = r.entry
   const dates = roleDates(r)
   const where = placedOutcome(r, editing?.pending)
+  // The worker's tailoring for where the role goes now, unless this CV already has text there.
+  const made = editing && r.outcome !== where ? tailoringOf(r, where, editing.pending) : undefined
   const place = editing && <Placement r={r} editing={editing} applied={applied} />
   const head = (
     <>
@@ -774,12 +930,35 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
             role.
           </p>
         )}
-        {editable ? (
-          <DescriptionEditor r={r} editing={editing} where={where} />
+        {editable && made?.status === 'queued' ? (
+          <p className="pl-tailoring">
+            <span className="spinner" aria-hidden="true" /> Tailoring the role for this job…
+          </p>
         ) : (
-          e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
+          <>
+            {editable && made?.status === 'failed' && (
+              <p className="error pl-tailor-failed">
+                <span>Could not tailor the role for this job{made.error ? `: ${made.error}` : '.'}</span>
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={() => editing.tailor(r.role.id!, where === 'listed' ? 'main' : 'early')}
+                >
+                  Try again
+                </button>
+              </p>
+            )}
+            {editable ? (
+              <DescriptionEditor r={r} editing={editing} where={where} />
+            ) : (
+              e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
+            )}
+            {editable
+              ? // Any role going in full, also one brought in; a condensed role shows no technologies.
+                where === 'listed' && <TechPicker r={r} editing={editing} />
+              : e && r.outcome === 'listed' && <TechDiff entry={e} />}
+          </>
         )}
-        {e && r.outcome === 'listed' && <TechDiff entry={e} />}
         {e?.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
       {place}
@@ -853,6 +1032,11 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
   const decisions = analysis?.log.filter((l) => l.kind !== 'listing' && !(l.kind === 'moved' && l.label)) ?? []
   const cost = pipeline?.cost ?? cv.cost
   const calls = pipeline?.openrouter_calls ?? cv.openrouter_calls
+  // Plus what tailoring the roles the user moved cost (a regenerated CV reuses that text
+  // without calling again, so it is counted here rather than in its own cost).
+  const edits = Object.values(editing?.pending?.tailored ?? {})
+    .flatMap((made) => Object.values(made))
+    .reduce((sum, m) => ({ cost: sum.cost + (m?.cost ?? 0), calls: sum.calls + (m?.calls ?? 0) }), { cost: 0, calls: 0 })
   const warnings = pipeline?.warnings ?? cv.warnings
   const empty = pipeline !== null && roles.length === 0
 
@@ -1045,8 +1229,9 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
 
       {pipeline && (
         <p className="pl-cost">
-          {cost === null || cost === undefined ? 'Cost unknown' : `Generated for ${formatUsd(cost)}`} ·{' '}
-          {plural(calls ?? 0, 'OpenRouter call')}
+          {cost === null || cost === undefined ? 'Cost unknown' : `Generated for ${formatUsd(cost + edits.cost)}`} ·{' '}
+          {plural((calls ?? 0) + edits.calls, 'OpenRouter call')}
+          {edits.calls > 0 && ` (${edits.calls} for tailoring moved roles)`}
         </p>
       )}
     </div>

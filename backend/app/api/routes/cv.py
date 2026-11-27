@@ -31,10 +31,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.models import CandidateDetails, Company, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
+from app.models import Application, CandidateDetails, Company, GeneratedCV, Job, JobParseResult, WorkHistoryEntry
 from app.queue import get_queue
+from app.services.applications import TAILOR_FAILED, TAILOR_QUEUED, store_tailored
 from app.tasks.cv import generate_cv
-from app.tasks.cv.generate import CvGenerationError, check_details, cv_dir
+from app.tasks.cv.generate import TAILOR_TIMEOUT, CvGenerationError, check_details, cv_dir, tailor_moved_role
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,28 @@ RolePlacement = Literal["main", "early", "drop"]
 """Where the user put a role: listed in full, condensed into the early-career block, or left out."""
 
 
+class TailoredRole(BaseModel):
+    """What the pipeline's tailoring step made of a role for one placement (run on the
+    worker: ``status`` says how far it got)."""
+
+    status: Literal["queued", "done", "failed"] = "done"
+    error: str | None = None
+    """Why it failed."""
+    rq_job_id: str | None = None
+    context: str | None = None
+    """Set once ``done``."""
+    tech: list[str] | None = None
+    """``main`` only."""
+    original_context: str | None = None
+    """The work history's description it was made from."""
+    original_tech: list[str] = []
+    """The work history's technologies it was made from."""
+    cost: float = 0.0
+    """USD its OpenRouter calls cost."""
+    calls: int = 0
+    """Number of OpenRouter calls it made."""
+
+
 class CvOverrides(BaseModel):
     """The user's edits to how one application's CV is generated (see ``Application.cv_overrides``)."""
 
@@ -79,9 +102,16 @@ class CvOverrides(BaseModel):
     """``work_history.id`` -> placement, overriding the timeline rules for that role."""
     contexts: dict[int, Annotated[str, Field(max_length=2000)]] = {}
     """``work_history.id`` -> the role's description in the CV, used as is (listed or condensed)."""
+    techs: dict[int, Annotated[list[Annotated[str, Field(max_length=128)]], Field(max_length=100)]] = {}
+    """``work_history.id`` -> the technologies a listed role shows, in order, used as is."""
+    tailored: dict[int, dict[Literal["main", "early"], TailoredRole]] = {}
+    """``work_history.id`` -> placement -> the tailoring made when the user moved the role
+    there (``POST /api/applications/{id}/cv/tailor``); the next CV prints it unless the user
+    wrote their own. Kept by the server: not an edit, and ignored when sent."""
 
     def stored(self) -> dict | None:
-        """The JSON kept on the row: blank fields left out, ``None`` when nothing is left."""
+        """The user's edits as kept on the row (``tailored`` left out: the server keeps it):
+        blank fields left out, ``None`` when nothing is left."""
         data: dict[str, Any] = {}
         for key in ("headline_role", "summary"):
             value = (getattr(self, key) or "").strip()
@@ -92,6 +122,9 @@ class CvOverrides(BaseModel):
         contexts = {str(k): v.strip() for k, v in sorted(self.contexts.items()) if v.strip()}
         if contexts:
             data["contexts"] = contexts
+        techs = {str(k): list(dict.fromkeys(t.strip() for t in v if t.strip())) for k, v in sorted(self.techs.items())}
+        if techs:
+            data["techs"] = techs  # an empty list is kept: the user removed every technology
         return data or None
 
 
@@ -238,6 +271,64 @@ def check_cv_inputs(session: Session) -> None:
         check_details(details)
     except CvGenerationError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+def enqueue_tailoring(
+    session: Session, queue: Queue, settings: Settings, application: Application, role_id: int, placement: str
+) -> None:
+    """Mark the tailoring of a moved role ``queued`` on the application and queue
+    ``tailor_moved_role`` for it; when the queue is unreachable it is marked ``failed``
+    instead of raising. Commits."""
+    rq_job_id = uuid.uuid4().hex
+    store_tailored(session, application, role_id, placement, {"status": TAILOR_QUEUED, "rq_job_id": rq_job_id})
+    session.commit()
+    try:
+        queue.enqueue(
+            tailor_moved_role,
+            application.id,
+            role_id,
+            placement,
+            job_id=rq_job_id,
+            job_timeout=TAILOR_TIMEOUT,
+            result_ttl=settings.job_result_ttl,
+            failure_ttl=settings.job_result_ttl,
+            meta={"application_id": application.id, "work_history_id": role_id},
+            description=f"tailor position {role_id} ({placement}) for application {application.id}",
+        )
+    except Exception as exc:
+        log.exception("Could not enqueue tailoring position %d for application %d", role_id, application.id)
+        store_tailored(
+            session,
+            application,
+            role_id,
+            placement,
+            {"status": TAILOR_FAILED, "error": f"could not enqueue it: {exc}"},
+            expect=TAILOR_QUEUED,
+        )
+        session.commit()
+
+
+def reconcile_tailoring(session: Session, queue: Queue, application: Application) -> None:
+    """A tailoring the worker lost (killed by the RQ timeout, worker crashed) stays ``queued``
+    in the database; pick the failure up from RQ when it is visible there (see ``reconcile_cv``)."""
+    for role_id, by_placement in ((application.cv_overrides or {}).get("tailored") or {}).items():
+        for placement, made in (by_placement or {}).items():
+            if (made or {}).get("status") != TAILOR_QUEUED or not made.get("rq_job_id"):
+                continue
+            try:
+                rq_job = RqJob.fetch(made["rq_job_id"], connection=queue.connection)
+            except NoSuchJobError:
+                continue
+            except Exception:  # Redis unreachable: show what the database knows
+                log.debug("Could not fetch RQ job %s", made["rq_job_id"], exc_info=True)
+                return
+            if rq_job.get_status(refresh=False) == "failed":
+                latest = rq_job.latest_result()
+                trace = (latest.exc_string if latest is not None else None) or ""
+                error = (trace.strip().splitlines() or ["worker failed"])[-1]  # the exception, not the traceback
+                failed = {"status": TAILOR_FAILED, "error": error}
+                store_tailored(session, application, int(role_id), placement, failed, expect=TAILOR_QUEUED)
+                session.commit()
 
 
 def enqueue_cv(

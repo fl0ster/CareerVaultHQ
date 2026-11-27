@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { type CvOverrides, describeError, isInProgress } from '../cv/api.ts'
+import { useRef, useState } from 'react'
+import { type CvOverrides, describeError, isInProgress, type TailoredPlacement } from '../cv/api.ts'
 import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
 import { type Application, applicationsApi } from './api.ts'
 
@@ -18,17 +18,33 @@ export default function CvSettingsPane({
   const cv = application.cv
   const generating = cv != null && isInProgress(cv)
 
+  // Both requests rewrite the whole `cv_overrides` on the server, so they run one after the
+  // other: sent together (moving a role saves its placement and asks for its tailoring), the
+  // later one would write back the overrides from before the other and undo it.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const inOrder = (request: () => Promise<Application>) => {
+    const run = queue.current.then(async () => {
+      setError(null)
+      try {
+        onChange(await request())
+      } catch (e) {
+        setError(describeError(e))
+      }
+    })
+    queue.current = run
+    return run
+  }
+
   const save = async (next: CvOverrides) => {
     setBusy(true)
-    setError(null)
-    try {
-      onChange(await applicationsApi.setCvOverrides(application.id, next))
-    } catch (e) {
-      setError(describeError(e))
-    } finally {
-      setBusy(false)
-    }
+    await inOrder(() => applicationsApi.setCvOverrides(application.id, next))
+    setBusy(false)
   }
+
+  // Queues it on the worker: the role shows `queued` at once, and the page polls the
+  // application until its text is there.
+  const tailor = (roleId: number, placement: TailoredPlacement) =>
+    inOrder(() => applicationsApi.tailorCvRole(application.id, roleId, placement))
 
   return (
     <div className="app-cv-report" role="tabpanel">
@@ -38,17 +54,16 @@ export default function CvSettingsPane({
       ) : generating ? (
         <p className="muted">The CV is being generated; how it was made shows here once it is done.</p>
       ) : (
-        <>
-          <p className="muted app-cv-intro">
-            Change the headline, the summary or where any role goes, then regenerate the CV. Edits apply to this
-            application only.
-          </p>
-          <CvPipelineReport
-            key={cv.id}
-            cv={cv}
-            editing={{ pending: application.cv_overrides, busy, onChange: (next) => void save(next) }}
-          />
-        </>
+        <CvPipelineReport
+          key={cv.id}
+          cv={cv}
+          editing={{
+            pending: application.cv_overrides,
+            busy,
+            onChange: (next) => void save(next),
+            tailor: (roleId, placement) => void tailor(roleId, placement),
+          }}
+        />
       )}
     </div>
   )
