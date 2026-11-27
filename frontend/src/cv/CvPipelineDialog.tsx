@@ -539,7 +539,6 @@ const PLACEMENTS: { value: RolePlacement; label: string; hint: string }[] = [
   { value: 'early', label: 'Condensed', hint: 'One sentence in the “Additional experience” block' },
   { value: 'drop', label: 'Left out', hint: 'Leave the role out of this CV' },
 ]
-const PLACEMENT_LABEL = Object.fromEntries(PLACEMENTS.map((p) => [p.value, p.label])) as Record<RolePlacement, string>
 
 /** Where the role goes in the next CV: In full / Condensed / Left out, plus what the choice
  * changes once the CV is regenerated. */
@@ -563,16 +562,15 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
   const pick = (v: RolePlacement) => v !== value && save(v === inCv && !wasMine ? null : v)
   const reset = () => save(null)
 
-  const status =
-    mine && mine !== inCv ? (
-      <span className="pl-pending">{PLACEMENT_LABEL[inCv]} in this CV · moves after regenerating</span>
-    ) : !mine && wasMine ? (
-      <span className="pl-pending">Back to the automatic choice after regenerating</span>
-    ) : mine ? (
-      <span className="pl-mine">Your choice</span>
-    ) : (
-      <span className="muted">Chosen automatically</span>
-    )
+  const status = mine ? (
+    <span className="pl-mine">Your choice</span>
+  ) : wasMine ? (
+    <span className="muted">Automatic after regenerating</span>
+  ) : (
+    <span className="muted">Chosen automatically</span>
+  )
+  // Once the user picks something else, a dot keeps the pipeline's own choice in view.
+  const auto = mine && !wasMine ? inCv : null
 
   return (
     <div className="pl-place">
@@ -584,11 +582,14 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
             role="radio"
             aria-checked={value === p.value}
             className={`place-${p.value}`}
-            title={p.hint}
+            title={auto === p.value ? `${p.hint} (chosen automatically)` : p.hint}
             disabled={editing.busy}
             onClick={() => pick(p.value)}
           >
             {p.label}
+            {auto === p.value && (
+              <span className="pl-auto-dot" aria-label="(chosen automatically)" />
+            )}
           </button>
         ))}
       </div>

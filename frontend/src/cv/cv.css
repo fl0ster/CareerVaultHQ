@@ -774,14 +774,16 @@
   color: var(--accent);
 }
 
-/* Your edit, waiting for a new CV. */
-.pl-pending {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--sun-bg);
-  color: var(--sun-fg);
-  font-size: 12px;
-  font-weight: 600;
+/* In the placement picker: the option the pipeline chose by itself, once the user picked another. */
+.pl-auto-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0.7;
 }
 
 .pl-texts {
