@@ -218,6 +218,45 @@ def test_cv_overrides_are_saved_and_used_by_the_next_cv(client, db_session, fake
     assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
 
 
+def test_tailoring_a_moved_role_is_kept_apart_from_the_edits(client, db_session, monkeypatch):
+    import app.api.routes.applications as routes
+    from app.tasks.cv.generate import CvGenerationError
+
+    def fake_tailor(_session, _parsed, role_id, placement, **_kwargs):
+        if role_id == 404:
+            raise LookupError("unknown position 404")
+        if role_id == 502:
+            raise CvGenerationError("context could not be tailored")
+        return {"context": f"{placement} text", "tech": ["Go"]} if placement == "main" else {"context": "short"}
+
+    monkeypatch.setattr(routes, "tailor_role", fake_tailor)
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"3": "main"}}})
+
+    res = client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "main"})
+    assert res.status_code == 200
+    client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "early"})
+    overrides = client.get(f"{BASE}/{app_id}").json()["cv_overrides"]
+    assert overrides["roles"] == {"3": "main"}  # the edits are untouched
+    assert overrides["tailored"] == {
+        "3": {"main": {"context": "main text", "tech": ["Go"]}, "early": {"context": "short", "tech": None}}
+    }
+
+    # Saving edits keeps the tailoring (a client cannot set it); removing every edit drops it.
+    res = client.patch(
+        f"{BASE}/{app_id}",
+        json={"cv_overrides": {"summary": "Mine.", "tailored": {"9": {"main": {"context": "forged"}}}}},
+    )
+    assert set(res.json()["cv_overrides"]["tailored"]) == {"3"}
+    assert res.json()["cv_overrides"]["roles"] == {}
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
+
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 404, "placement": "main"}).status_code == 404
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 502, "placement": "main"}).status_code == 502
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 3, "placement": "drop"}).status_code == 422
+
+
 def test_event_dates_are_stored_in_utc(client, db_session):
     seed_cv_inputs(client, db_session)
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]

@@ -344,6 +344,43 @@ def test_generate_cv_uses_the_technologies_the_user_picked(task_engine, requests
     assert len(requests_seen) == 3 + 3 + 1 + 4
 
 
+def test_tailor_role_runs_the_pipelines_own_step(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        parsed = session.get(models.GeneratedCV, cv_id).job_parse_result
+        old = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "Old Corp"))
+
+        made = generate_task.tailor_role(session, parsed, old.id, "main")
+        assert made == {
+            "context": "Shipped tailored features. Improved performance.",
+            "tech": ["TypeScript", "React Native"],
+        }
+        assert generate_task.tailor_role(session, parsed, old.id, "early") == {"context": "Maintained a legacy PHP shop."}
+        with pytest.raises(LookupError):
+            generate_task.tailor_role(session, parsed, 999_999, "main")
+    assert len(requests_seen) == 2 + 1  # context + tech, then one condense call
+
+
+def test_generate_cv_prints_what_was_tailored_when_the_role_was_moved(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        old = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "Old Corp"))
+        session.get(models.GeneratedCV, cv_id).overrides = {
+            "roles": {str(old.id): "main"},
+            "tailored": {str(old.id): {"main": {"context": "Seen in the preview.", "tech": ["PHP"]}}},
+        }
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        main = session.get(models.GeneratedCV, cv_id).pipeline["main"]
+        old_corp = next(e for e in main if e["employer"] == "Old Corp")
+        assert (old_corp["context"], old_corp["tech"]) == ("Seen in the preview.", "PHP")
+    # 3 decisions + 2x2 for the other two listed roles (none for Old Corp) + 4 headline calls
+    assert len(requests_seen) == 3 + 4 + 4
+
+
 def test_generate_cv_uses_the_cv_settings(task_engine):
     cv_id = _seed(task_engine)
     with session_factory(task_engine)() as session:

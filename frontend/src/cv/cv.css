@@ -984,3 +984,20 @@
   justify-content: flex-end;
   margin-top: 8px;
 }
+
+/* A moved role while the CV's tailoring step runs for it. */
+.pl-tailoring,
+.pl-tailoring-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+
+  .spinner {
+    margin: 0;
+    width: 12px;
+    height: 12px;
+  }
+}

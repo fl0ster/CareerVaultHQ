@@ -44,7 +44,13 @@ export type CvOverrides = {
   contexts: Record<string, string>
   /** `work_history.id` -> the technologies a listed role shows, in order. */
   techs: Record<string, string[]>
+  /** `work_history.id` -> placement -> what the pipeline's tailoring step made of a role
+   * when the user moved it there. Kept by the server (not an edit; ignored when sent). */
+  tailored?: Record<string, Partial<Record<TailoredPlacement, TailoredRole>>>
 }
+
+export type TailoredPlacement = Exclude<RolePlacement, 'drop'>
+export type TailoredRole = { context: string; tech: string[] | null }
 
 export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
 

@@ -404,3 +404,26 @@ def current_stage_counts(session: Session) -> dict[str, int]:
         .group_by(ApplicationStatus.key)
     ).all()
     return dict(rows)
+
+
+# --------------------------------------------------------------------------- CV edits
+
+
+def set_cv_edits(application: Application, edits: dict | None, *, clear: bool = False) -> None:
+    """Replace the user's CV edits (``CvOverrides.stored()``; ``None``: none left) while the
+    tailoring made for moved roles (``tailored``, the server's own) is kept, unless ``clear``
+    removes everything."""
+    tailored = None if clear else (application.cv_overrides or {}).get("tailored")
+    data = dict(edits or {})
+    if tailored:
+        data["tailored"] = tailored
+    application.cv_overrides = data or None
+
+
+def store_tailored(application: Application, role_id: int, placement: str, made: dict) -> None:
+    """Keep what the tailoring step made of a role for ``placement`` (see ``set_cv_edits``)."""
+    data = dict(application.cv_overrides or {})
+    tailored = dict(data.get("tailored") or {})
+    tailored[str(role_id)] = {**(tailored.get(str(role_id)) or {}), placement: made}
+    data["tailored"] = tailored
+    application.cv_overrides = data
