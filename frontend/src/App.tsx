@@ -213,7 +213,7 @@ function App() {
         onNavigate={navigate}
         onOpenSettings={() => navigate(settingsTab)}
         badges={{
-          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
+          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review`, magpie: true },
           interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
           employment: {

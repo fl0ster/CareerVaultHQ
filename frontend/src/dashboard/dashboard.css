@@ -13,11 +13,9 @@
 /* Widget frame */
 .widget {
   min-width: 0;
-  padding: 16px 18px;
+  padding: 20px 22px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--r-lg);
 }
 
 .widget--wide {
@@ -37,7 +35,6 @@
 .widget--skeleton {
   min-height: 160px;
   background: var(--surface-2);
-  box-shadow: none;
 }
 
 .widget--skeleton.widget--flow {
@@ -55,12 +52,13 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 
   h2 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 720;
+    letter-spacing: -0.02em;
     color: var(--text-h);
   }
 }
@@ -90,7 +88,10 @@
   color: var(--text);
 
   strong {
-    font-size: 22px;
+    font-family: var(--heading);
+    font-size: 30px;
+    font-weight: 760;
+    letter-spacing: -0.03em;
     color: var(--text-h);
     font-variant-numeric: tabular-nums;
   }
@@ -105,50 +106,78 @@
   font-size: 14px;
 }
 
-/* Stat tiles: full-width row of headline numbers */
+/* Stat tiles: one segmented band of headline numbers; the canvas shows through the seams. */
 .stat-tiles {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
+  gap: 3px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
 }
 
 .stat-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 14px 16px;
+  gap: 4px;
+  min-height: 118px;
+  padding: 18px 20px 16px;
+  box-sizing: border-box;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
+  border-radius: 6px;
   color: inherit;
   text-decoration: none;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+  transition: background-color var(--t-fast) ease;
 }
 
 a.stat-tile:hover {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow-md);
+  background: var(--surface-2);
 }
 
 a.stat-tile:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: inset var(--focus-ring);
+}
+
+/* New finds: the sun tile, with the magpie keeping watch while there is something to review. */
+.stat-tile.sun {
+  background: var(--sun);
+  color: var(--on-sun);
+
+  .stat-value,
+  .stat-label {
+    color: var(--on-sun);
+  }
+  &:hover {
+    background: var(--sun-hover);
+  }
+  .magpie {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    transform-origin: 70% 85%;
+    animation: magpie-peek 620ms var(--ease-spring) 200ms both;
+  }
+  &:hover .magpie {
+    animation: magpie-tilt 520ms var(--ease-out);
+  }
 }
 
 .stat-value {
+  margin-top: auto;
   font-family: var(--heading);
-  font-size: 28px;
-  line-height: 1.1;
+  font-size: 46px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: -0.04em;
   color: var(--text-h);
   font-variant-numeric: tabular-nums;
 }
 
 .stat-label {
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -164,17 +193,7 @@ a.stat-tile:focus-visible {
   --sankey-accepted: var(--success-solid);
   --sankey-pending: var(--info-solid);
   --sankey-rejected: var(--danger-solid);
-  --sankey-drop: #737d83;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .dashboard {
-    --sankey-drop: #5d686e;
-  }
-}
-
-:root[data-theme='dark'] .dashboard {
-  --sankey-drop: #5d686e;
+  --sankey-drop: var(--neutral-solid);
 }
 
 .sankey {
@@ -249,7 +268,6 @@ a.stat-tile:focus-visible {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-  box-shadow: var(--shadow-md);
   font-size: 12px;
   color: var(--text);
   white-space: nowrap;
@@ -384,7 +402,6 @@ a.stat-tile:focus-visible {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .onboarding-head {
@@ -501,4 +518,11 @@ a.onboarding-step {
 .onboarding-go {
   flex: none;
   color: var(--text);
+}
+
+/* Narrow screens: a lone last tile spans the band instead of leaving a hole */
+@media (max-width: 640px) {
+  .stat-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }

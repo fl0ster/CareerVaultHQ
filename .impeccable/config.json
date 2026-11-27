@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/shell/shell.css"
+        ],
+        "createdAt": "2026-11-27T16:08:25.117Z",
+        "reason": "agent triage: L735 is the settings tab's bottom hover underline, a standard tab affordance and not a bar down the side of a rounded box"
+      }
+    ]
+  }
+}

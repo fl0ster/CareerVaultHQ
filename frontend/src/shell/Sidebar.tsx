@@ -1,5 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
+import Magpie from '../mascot/Magpie.tsx'
 import ProfileCard from './ProfileCard.tsx'
 import {
   DASHBOARD_PAGE,
@@ -25,6 +26,8 @@ type Badges = Partial<
       /** `warn`: something needs the user's attention (e.g. an overdue journal), with `icon` beside the count. */
       tone?: 'warn'
       icon?: LucideIcon
+      /** New finds (the jobs inbox): a sun counter with the magpie peeking out of it. */
+      magpie?: boolean
     }
   >
 >
@@ -89,7 +92,12 @@ function PageLink({
       <Icon className="nav-icon" size={sub ? 17 : 19} strokeWidth={1.8} aria-hidden="true" />
       <span className="nav-label">{item.label}</span>
       {badge && badge.count > 0 && (
-        <span className={`nav-pill${badge.tone ? ` ${badge.tone}` : ''}`} title={badge.title} key={badge.count}>
+        <span
+          className={`nav-pill${badge.tone ? ` ${badge.tone}` : ''}${badge.magpie ? ' finds' : ''}`}
+          title={badge.title}
+          key={badge.count}
+        >
+          {badge.magpie && <Magpie head size={19} />}
           {badge.icon && <badge.icon size={11} strokeWidth={2.5} aria-hidden="true" />}
           {badge.count}
           {badge.tone && <span className="sr-only"> {badge.title}</span>}
@@ -159,6 +167,15 @@ export default function Sidebar({
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
+      <div className="sidebar-brand">
+        <span className="brand-sun">
+          <Magpie head size={24} />
+        </span>
+        <span className="brand-word">pica</span>
+        <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
+          <X size={18} />
+        </button>
+      </div>
       <div className="sidebar-head">
         <ProfileCard
           dashboardActive={active === DASHBOARD_PAGE.id}
@@ -166,9 +183,6 @@ export default function Sidebar({
           setup={setup}
           onNavigate={onNavigate}
         />
-        <button type="button" className="icon-button sidebar-close" onClick={onCloseMobile} aria-label="Close menu">
-          <X size={18} />
-        </button>
       </div>
 
       <nav className="sidebar-nav" ref={navRef}>

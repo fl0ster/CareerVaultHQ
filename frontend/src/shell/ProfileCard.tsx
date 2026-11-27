@@ -68,7 +68,6 @@ export default function ProfileCard({ dashboardActive, collapsed, setup, onNavig
         </span>
       ) : (
         <span className="profile-text">
-          <span className="profile-hello">{complete || loading ? 'Hello,' : 'Hello there'}</span>
           {complete ? (
             <span className="profile-name">
               <span>{details!.first_name.trim()}</span>
@@ -79,6 +78,7 @@ export default function ProfileCard({ dashboardActive, collapsed, setup, onNavig
               <span>{loading ? ' ' : name}</span>
             </span>
           )}
+          <span className="profile-sub">Dashboard</span>
         </span>
       )}
     </div>

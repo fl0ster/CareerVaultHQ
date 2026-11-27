@@ -88,7 +88,6 @@
 .job-item.match {
   z-index: 1;
   background: var(--accent-bg);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .job-title {
@@ -107,7 +106,6 @@
   align-items: center;
   justify-content: center;
   width: 14px;
-  background: var(--success-bg);
   color: var(--success-fg);
 }
 
@@ -220,12 +218,6 @@
    <body> with fixed positioning (see RelevanceMeter) so no list row can clip it. A plain
    dark panel in both themes, so it stands apart from the light or dark page. */
 .relevance-tip {
-  --tip-bg: #11171a;
-  --tip-fg: #c9d3d8;
-  --tip-strong: #ffffff;
-  --tip-action: #7fd3c4;
-  --tip-danger: #ff9b8f;
-
   position: fixed;
   z-index: 1000;
   display: flex;
@@ -236,7 +228,6 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: var(--tip-bg);
-  box-shadow: var(--shadow-md);
   color: var(--tip-fg);
   font-size: 12.5px;
   font-weight: 400;
@@ -301,7 +292,6 @@
   border-radius: 10px;
   background: var(--bg);
   color: var(--text);
-  box-shadow: var(--shadow);
 
   &::backdrop {
     background: var(--backdrop);
@@ -432,7 +422,6 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
   text-align: left;
 
   h2 {
@@ -555,11 +544,13 @@
 }
 
 /* Below the relevance threshold: still clickable, just quieter. */
-.job-item.dimmed .job-row-wrap {
-  opacity: 0.5;
+/* Quieter by weight and colour, not opacity, so every line keeps full text contrast. */
+.job-item.dimmed .job-title {
+  color: var(--text);
+  font-weight: 500;
 }
-.job-item.dimmed:hover .job-row-wrap {
-  opacity: 0.85;
+.job-item.dimmed:hover .job-title {
+  color: var(--text-h);
 }
 
 /* Dismissed with ✕: crossed out, but can still be opened and applied to. */
@@ -619,8 +610,9 @@
   width: 56px;
   height: 56px;
   border-radius: 28px;
-  background: var(--accent);
-  box-shadow: var(--shadow-lg);
+  background: var(--sun);
+  border: 1px solid transparent;
+  box-sizing: border-box;
   overflow: hidden;
   transition:
     width 0.32s var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)),
@@ -634,6 +626,7 @@
   height: min(520px, calc(100vh - 96px));
   border-radius: var(--r-lg) var(--r-lg) var(--r-md) var(--r-md);
   background: var(--surface);
+  border-color: var(--border-strong);
 }
 
 .add-job-fab {
@@ -645,12 +638,12 @@
   border: 0;
   border-radius: inherit;
   background: transparent;
-  color: var(--on-accent);
+  color: var(--on-sun);
   cursor: pointer;
   transition: opacity 0.15s ease;
 
   &:hover {
-    background: var(--accent-hover);
+    background: var(--sun-hover);
   }
 }
 
