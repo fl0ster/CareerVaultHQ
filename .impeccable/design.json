@@ -1,0 +1,1317 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T16:15:04+00:00",
+  "title": "Design System: Pica",
+  "extensions": {
+    "colorMeta": {
+      "sun": {
+        "role": "primary",
+        "displayName": "Marigold Sun",
+        "canonical": "#f6b829",
+        "oklch": "oklch(81.8% 0.159 82.3)",
+        "tonalRamp": [
+          "#180600",
+          "#3e1e00",
+          "#693800",
+          "#925800",
+          "#b87c00",
+          "#d6a543",
+          "#efcc8a",
+          "#ffebbf"
+        ]
+      },
+      "sun-hover": {
+        "role": "primary",
+        "displayName": "Deep Marigold",
+        "canonical": "#eea915",
+        "oklch": "oklch(78.1% 0.159 78.4)",
+        "tonalRamp": [
+          "#190600",
+          "#401c00",
+          "#6c3600",
+          "#965500",
+          "#bc7a00",
+          "#d9a345",
+          "#f2ca8b",
+          "#ffeabf"
+        ]
+      },
+      "on-sun": {
+        "role": "primary",
+        "displayName": "Sun Ink",
+        "canonical": "#2b2006",
+        "oklch": "oklch(25.1% 0.043 85.8)",
+        "tonalRamp": [
+          "#0e0b04",
+          "#2c2616",
+          "#4e442d",
+          "#716549",
+          "#95886b",
+          "#b8ad96",
+          "#d8d0bf",
+          "#f4eee2"
+        ]
+      },
+      "sun-bg": {
+        "role": "primary",
+        "displayName": "Pale Sun",
+        "canonical": "#fdf0c9",
+        "oklch": "oklch(95.6% 0.053 91.8)",
+        "tonalRamp": [
+          "#0e0b03",
+          "#2c2612",
+          "#4e4427",
+          "#716543",
+          "#958965",
+          "#b7ae90",
+          "#d8d1bb",
+          "#f3eedf"
+        ]
+      },
+      "sun-fg": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "canonical": "#865a00",
+        "oklch": "oklch(50.3% 0.106 75.9)",
+        "tonalRamp": [
+          "#150800",
+          "#392000",
+          "#613c00",
+          "#885c04",
+          "#ae8037",
+          "#cda770",
+          "#e9cca5",
+          "#ffebd0"
+        ]
+      },
+      "accent": {
+        "role": "secondary",
+        "displayName": "Feather Cobalt",
+        "canonical": "#3a4fc8",
+        "oklch": "oklch(48.7% 0.189 270.2)",
+        "tonalRamp": [
+          "#03052a",
+          "#131b60",
+          "#27359c",
+          "#4056d0",
+          "#5f7cf9",
+          "#8aa7ff",
+          "#b5ceff",
+          "#dbedff"
+        ]
+      },
+      "accent-hover": {
+        "role": "secondary",
+        "displayName": "Deep Feather",
+        "canonical": "#2d3fa6",
+        "oklch": "oklch(42.1% 0.166 270.0)",
+        "tonalRamp": [
+          "#040626",
+          "#141e59",
+          "#293992",
+          "#435ac4",
+          "#6380ec",
+          "#8da9ff",
+          "#b8ceff",
+          "#ddedff"
+        ]
+      },
+      "accent-bg": {
+        "role": "secondary",
+        "displayName": "Feather Mist",
+        "canonical": "#e6e9fc",
+        "oklch": "oklch(93.7% 0.026 278.7)",
+        "tonalRamp": [
+          "#0a0b10",
+          "#24262f",
+          "#424451",
+          "#626575",
+          "#858899",
+          "#abadbb",
+          "#ced0db",
+          "#edeef6"
+        ]
+      },
+      "accent-border": {
+        "role": "secondary",
+        "displayName": "Feather Edge",
+        "canonical": "rgba(58, 79, 200, 0.4)"
+      },
+      "accent-fill": {
+        "role": "secondary",
+        "displayName": "Feather Fill",
+        "canonical": "#3a4fc8",
+        "oklch": "oklch(48.7% 0.189 270.2)",
+        "tonalRamp": [
+          "#03052a",
+          "#131b60",
+          "#27359c",
+          "#4056d0",
+          "#5f7cf9",
+          "#8aa7ff",
+          "#b5ceff",
+          "#dbedff"
+        ]
+      },
+      "on-accent-fill": {
+        "role": "secondary",
+        "displayName": "On Feather Fill",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#454545",
+          "#666666",
+          "#898989",
+          "#aeaeae",
+          "#d1d1d1",
+          "#eeeeee"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Dawn Lilac",
+        "canonical": "#f4f0f8",
+        "oklch": "oklch(96.1% 0.011 308.3)",
+        "tonalRamp": [
+          "#0c0b0c",
+          "#272628",
+          "#464448",
+          "#67656a",
+          "#8b888e",
+          "#afacb2",
+          "#d2d0d4",
+          "#efeef1"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Dawn Paper",
+        "canonical": "#fdfcff",
+        "oklch": "oklch(99.3% 0.004 301.4)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#262627",
+          "#454546",
+          "#666667",
+          "#89898b",
+          "#aeadb0",
+          "#d1d0d2",
+          "#eeeeef"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Lilac Paper",
+        "canonical": "#f8f5fc",
+        "oklch": "oklch(97.4% 0.010 305.4)",
+        "tonalRamp": [
+          "#0b0b0c",
+          "#272628",
+          "#464448",
+          "#676569",
+          "#8a888d",
+          "#afadb2",
+          "#d2d0d4",
+          "#efeef1"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Lilac Haze",
+        "canonical": "#e9e3f4",
+        "oklch": "oklch(92.6% 0.024 301.9)",
+        "tonalRamp": [
+          "#0c0a0e",
+          "#27252b",
+          "#46434c",
+          "#68646f",
+          "#8b8694",
+          "#b0abb8",
+          "#d2cfd9",
+          "#efedf4"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Lilac Hairline",
+        "canonical": "#e5dfef",
+        "oklch": "oklch(91.3% 0.022 302.9)",
+        "tonalRamp": [
+          "#0c0a0e",
+          "#27252b",
+          "#46434b",
+          "#68646e",
+          "#8b8793",
+          "#b0abb8",
+          "#d2cfd8",
+          "#efedf4"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Violet Hairline",
+        "canonical": "#d0c8e2",
+        "oklch": "oklch(84.7% 0.037 299.7)",
+        "tonalRamp": [
+          "#0c0a0f",
+          "#27252d",
+          "#47434f",
+          "#686374",
+          "#8c859a",
+          "#b0aabe",
+          "#d3cede",
+          "#f0ecf7"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Dusk Indigo",
+        "canonical": "#5d5677",
+        "oklch": "oklch(47.3% 0.053 294.0)",
+        "tonalRamp": [
+          "#0c0913",
+          "#272336",
+          "#46405c",
+          "#676082",
+          "#8a83a7",
+          "#afa9c7",
+          "#d2cee4",
+          "#efecfc"
+        ]
+      },
+      "text-h": {
+        "role": "neutral",
+        "displayName": "Night Indigo",
+        "canonical": "#1d1838",
+        "oklch": "oklch(23.4% 0.060 288.0)",
+        "tonalRamp": [
+          "#0b0915",
+          "#252338",
+          "#434060",
+          "#646187",
+          "#8784ac",
+          "#acaacb",
+          "#cfcee7",
+          "#edecfe"
+        ]
+      },
+      "hover-tint": {
+        "role": "neutral",
+        "displayName": "Hover Tint",
+        "canonical": "rgba(29, 24, 56, 0.055)"
+      },
+      "backdrop": {
+        "role": "neutral",
+        "displayName": "Backdrop",
+        "canonical": "rgba(29, 24, 56, 0.38)"
+      },
+      "info-bg": {
+        "role": "status",
+        "displayName": "Info Tint",
+        "canonical": "#e4e8fb",
+        "oklch": "oklch(93.4% 0.026 276.4)",
+        "tonalRamp": [
+          "#0a0b10",
+          "#24262f",
+          "#414452",
+          "#626575",
+          "#858899",
+          "#aaadbb",
+          "#ced0db",
+          "#eceef6"
+        ]
+      },
+      "info-fg": {
+        "role": "status",
+        "displayName": "Info Ink",
+        "canonical": "#3e4f9c",
+        "oklch": "oklch(45.5% 0.126 271.2)",
+        "tonalRamp": [
+          "#050820",
+          "#19224d",
+          "#303e80",
+          "#4c5fae",
+          "#6e83d5",
+          "#96aaee",
+          "#bfcfff",
+          "#e2edff"
+        ]
+      },
+      "info-solid": {
+        "role": "status",
+        "displayName": "Info Solid",
+        "canonical": "#8597e6",
+        "oklch": "oklch(69.5% 0.118 273.2)",
+        "tonalRamp": [
+          "#06081f",
+          "#1b224b",
+          "#343e7c",
+          "#515fa9",
+          "#7283d0",
+          "#9aaaea",
+          "#c2cfff",
+          "#e4edff"
+        ]
+      },
+      "warn-bg": {
+        "role": "status",
+        "displayName": "Warn Tint",
+        "canonical": "#fde9d3",
+        "oklch": "oklch(94.4% 0.036 70.0)",
+        "tonalRamp": [
+          "#0f0a05",
+          "#2e251a",
+          "#504232",
+          "#746350",
+          "#988672",
+          "#baab9b",
+          "#dacfc3",
+          "#f5ede4"
+        ]
+      },
+      "warn-fg": {
+        "role": "status",
+        "displayName": "Warn Ink",
+        "canonical": "#8f5216",
+        "oklch": "oklch(50.0% 0.107 59.4)",
+        "tonalRamp": [
+          "#180600",
+          "#3e1c00",
+          "#693600",
+          "#92551a",
+          "#b97841",
+          "#d7a176",
+          "#f1c8a9",
+          "#ffe8d3"
+        ]
+      },
+      "warn-solid": {
+        "role": "status",
+        "displayName": "Warn Solid",
+        "canonical": "#ee9f4c",
+        "oklch": "oklch(76.6% 0.136 64.5)",
+        "tonalRamp": [
+          "#1a0500",
+          "#421a00",
+          "#6f3200",
+          "#995100",
+          "#c07516",
+          "#de9f61",
+          "#f6c79b",
+          "#ffe8c9"
+        ]
+      },
+      "warn-border": {
+        "role": "status",
+        "displayName": "Warn Edge",
+        "canonical": "rgba(238, 159, 76, 0.5)"
+      },
+      "success-bg": {
+        "role": "status",
+        "displayName": "Success Tint",
+        "canonical": "#dcf1e6",
+        "oklch": "oklch(94.0% 0.027 163.2)",
+        "tonalRamp": [
+          "#070d0a",
+          "#1f2924",
+          "#3a4941",
+          "#596b62",
+          "#7b8e85",
+          "#a3b2aa",
+          "#c8d4ce",
+          "#e8f1ec"
+        ]
+      },
+      "success-fg": {
+        "role": "status",
+        "displayName": "Success Ink",
+        "canonical": "#22694a",
+        "oklch": "oklch(46.8% 0.087 161.0)",
+        "tonalRamp": [
+          "#000f07",
+          "#042f1d",
+          "#135137",
+          "#307556",
+          "#559a78",
+          "#86bca0",
+          "#b5dcc6",
+          "#dbf6e7"
+        ]
+      },
+      "success-solid": {
+        "role": "status",
+        "displayName": "Success Solid",
+        "canonical": "#5cbf90",
+        "oklch": "oklch(73.2% 0.117 160.9)",
+        "tonalRamp": [
+          "#001105",
+          "#00311a",
+          "#005532",
+          "#007a4f",
+          "#389f72",
+          "#76c19b",
+          "#aadfc3",
+          "#d4f9e4"
+        ]
+      },
+      "success-strong": {
+        "role": "status",
+        "displayName": "Success Strong",
+        "canonical": "#2c8d61",
+        "oklch": "oklch(57.6% 0.113 159.6)",
+        "tonalRamp": [
+          "#001005",
+          "#003119",
+          "#005431",
+          "#0b794f",
+          "#409e71",
+          "#7ac09a",
+          "#addfc2",
+          "#d6f8e4"
+        ]
+      },
+      "danger-bg": {
+        "role": "status",
+        "displayName": "Danger Tint",
+        "canonical": "#fbe1e6",
+        "oklch": "oklch(93.2% 0.029 4.5)",
+        "tonalRamp": [
+          "#10090a",
+          "#2f2325",
+          "#523f43",
+          "#755f64",
+          "#9a8287",
+          "#bca8ac",
+          "#dbcdcf",
+          "#f6ebed"
+        ]
+      },
+      "danger-fg": {
+        "role": "status",
+        "displayName": "Danger Ink",
+        "canonical": "#a2324a",
+        "oklch": "oklch(49.0% 0.147 11.8)",
+        "tonalRamp": [
+          "#1e0005",
+          "#4a091a",
+          "#7b1b32",
+          "#a93850",
+          "#d25e71",
+          "#ee8e9a",
+          "#ffbac2",
+          "#ffdfe4"
+        ]
+      },
+      "danger-solid": {
+        "role": "status",
+        "displayName": "Danger Solid",
+        "canonical": "#ec8598",
+        "oklch": "oklch(73.3% 0.127 8.9)",
+        "tonalRamp": [
+          "#1b0207",
+          "#45101e",
+          "#742538",
+          "#a04257",
+          "#c96579",
+          "#e693a1",
+          "#fdbec7",
+          "#ffe1e7"
+        ]
+      },
+      "neutral-bg": {
+        "role": "status",
+        "displayName": "Neutral Tint",
+        "canonical": "#eee9f3",
+        "oklch": "oklch(94.1% 0.014 308.3)",
+        "tonalRamp": [
+          "#0c0b0d",
+          "#28252a",
+          "#47434a",
+          "#68646d",
+          "#8b8790",
+          "#b0acb4",
+          "#d2d0d5",
+          "#efedf1"
+        ]
+      },
+      "neutral-fg": {
+        "role": "status",
+        "displayName": "Neutral Ink",
+        "canonical": "#676183",
+        "oklch": "oklch(51.1% 0.054 292.5)",
+        "tonalRamp": [
+          "#0b0913",
+          "#272336",
+          "#46405c",
+          "#676183",
+          "#8a84a7",
+          "#aea9c7",
+          "#d1cee4",
+          "#eeecfc"
+        ]
+      },
+      "neutral-solid": {
+        "role": "status",
+        "displayName": "Neutral Solid",
+        "canonical": "#b8b1ca",
+        "oklch": "oklch(77.4% 0.036 298.4)",
+        "tonalRamp": [
+          "#0c0a10",
+          "#282430",
+          "#474254",
+          "#686278",
+          "#8c859d",
+          "#b0aabe",
+          "#d2cedd",
+          "#efedf7"
+        ]
+      },
+      "lavender-bg": {
+        "role": "status",
+        "displayName": "Lavender Tint",
+        "canonical": "#ece4fb",
+        "oklch": "oklch(93.2% 0.032 301.6)",
+        "tonalRamp": [
+          "#0c0a10",
+          "#28242f",
+          "#484252",
+          "#696276",
+          "#8c859a",
+          "#b1aabc",
+          "#d3cedb",
+          "#f0edf6"
+        ]
+      },
+      "lavender-fg": {
+        "role": "status",
+        "displayName": "Lavender Ink",
+        "canonical": "#5a45a0",
+        "oklch": "oklch(46.1% 0.141 290.4)",
+        "tonalRamp": [
+          "#0c0521",
+          "#281b4e",
+          "#473481",
+          "#6754b0",
+          "#8a78d8",
+          "#ada1f1",
+          "#d0c8ff",
+          "#ede9ff"
+        ]
+      },
+      "peach-bg": {
+        "role": "status",
+        "displayName": "Peach Tint (data tone)",
+        "canonical": "#fde4d5",
+        "oklch": "oklch(93.5% 0.034 53.1)",
+        "tonalRamp": [
+          "#100a06",
+          "#2f241d",
+          "#524136",
+          "#766154",
+          "#9a8476",
+          "#bdaa9e",
+          "#dccec5",
+          "#f6ece6"
+        ]
+      },
+      "peach-fg": {
+        "role": "status",
+        "displayName": "Peach Ink (data tone)",
+        "canonical": "#984e2b",
+        "oklch": "oklch(50.8% 0.110 44.6)",
+        "tonalRamp": [
+          "#190400",
+          "#411904",
+          "#6e3111",
+          "#994f2c",
+          "#c0724f",
+          "#de9c80",
+          "#f6c4af",
+          "#ffe6d7"
+        ]
+      },
+      "on-strong": {
+        "role": "neutral",
+        "displayName": "On Strong",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#262626",
+          "#454545",
+          "#666666",
+          "#898989",
+          "#aeaeae",
+          "#d1d1d1",
+          "#eeeeee"
+        ]
+      },
+      "tip-bg": {
+        "role": "neutral",
+        "displayName": "Ink Tooltip",
+        "canonical": "#110f26",
+        "oklch": "oklch(18.5% 0.046 285.0)",
+        "tonalRamp": [
+          "#0a0a13",
+          "#252434",
+          "#42425a",
+          "#636380",
+          "#8686a4",
+          "#ababc5",
+          "#cfcfe2",
+          "#ededfb"
+        ]
+      },
+      "tip-fg": {
+        "role": "neutral",
+        "displayName": "Tooltip Lavender",
+        "canonical": "#cfc8ea",
+        "oklch": "oklch(84.9% 0.047 294.8)",
+        "tonalRamp": [
+          "#0c0a12",
+          "#272434",
+          "#464159",
+          "#68617f",
+          "#8b84a3",
+          "#afaac4",
+          "#d2cee2",
+          "#efecfa"
+        ]
+      },
+      "tip-action": {
+        "role": "primary",
+        "displayName": "Tooltip Sun",
+        "canonical": "#f8c64a",
+        "oklch": "oklch(84.9% 0.148 86.3)",
+        "tonalRamp": [
+          "#160800",
+          "#3a2000",
+          "#633c00",
+          "#8b5d00",
+          "#b08100",
+          "#cfa84d",
+          "#eace8f",
+          "#ffedc2"
+        ]
+      },
+      "mag-ink": {
+        "role": "tertiary",
+        "displayName": "Magpie Ink",
+        "canonical": "#1f2142",
+        "oklch": "oklch(26.4% 0.061 278.7)",
+        "tonalRamp": [
+          "#090a15",
+          "#222439",
+          "#3f4262",
+          "#5e6389",
+          "#8186ae",
+          "#a7abcd",
+          "#cbcfe9",
+          "#eaedff"
+        ]
+      },
+      "mag-ink-2": {
+        "role": "tertiary",
+        "displayName": "Magpie Ink 2",
+        "canonical": "#2d305e",
+        "oklch": "oklch(33.1% 0.080 278.2)",
+        "tonalRamp": [
+          "#080918",
+          "#21233f",
+          "#3c416a",
+          "#5b6194",
+          "#7e84ba",
+          "#a4abd7",
+          "#c9cff0",
+          "#e9edff"
+        ]
+      },
+      "mag-white": {
+        "role": "tertiary",
+        "displayName": "Magpie White",
+        "canonical": "#fffdfa",
+        "oklch": "oklch(99.5% 0.005 78.3)",
+        "tonalRamp": [
+          "#0c0b0a",
+          "#272625",
+          "#464543",
+          "#676663",
+          "#8b8986",
+          "#afaeab",
+          "#d2d1cf",
+          "#efeeed"
+        ]
+      },
+      "mag-sheen": {
+        "role": "tertiary",
+        "displayName": "Magpie Sheen",
+        "canonical": "#3557d6",
+        "oklch": "oklch(51.1% 0.199 267.3)",
+        "tonalRamp": [
+          "#02052c",
+          "#0c1b63",
+          "#1d35a0",
+          "#3557d6",
+          "#547dff",
+          "#81a8ff",
+          "#afcfff",
+          "#d7eeff"
+        ]
+      },
+      "mag-sheen-2": {
+        "role": "tertiary",
+        "displayName": "Magpie Sheen 2",
+        "canonical": "#7d5ce8",
+        "oklch": "oklch(58.3% 0.202 289.5)",
+        "tonalRamp": [
+          "#0d012a",
+          "#290f5f",
+          "#49249b",
+          "#6944cf",
+          "#8a6bf9",
+          "#ad9aff",
+          "#cfc4ff",
+          "#ece6ff"
+        ]
+      },
+      "mag-cheek": {
+        "role": "tertiary",
+        "displayName": "Magpie Cheek",
+        "canonical": "#f7aaa0",
+        "oklch": "oklch(81.0% 0.093 27.5)",
+        "tonalRamp": [
+          "#180504",
+          "#3f1916",
+          "#6a322c",
+          "#945048",
+          "#bb736a",
+          "#d99c94",
+          "#f2c4be",
+          "#ffe6e1"
+        ]
+      },
+      "stage": {
+        "role": "secondary",
+        "displayName": "Feather Stage",
+        "canonical": "#e6e9fc",
+        "oklch": "oklch(93.7% 0.026 278.7)",
+        "tonalRamp": [
+          "#0a0b10",
+          "#24262f",
+          "#424451",
+          "#626575",
+          "#858899",
+          "#abadbb",
+          "#ced0db",
+          "#edeef6"
+        ]
+      },
+      "stage-warn": {
+        "role": "tertiary",
+        "displayName": "Sun Stage",
+        "canonical": "#fdf0c9",
+        "oklch": "oklch(95.6% 0.053 91.8)",
+        "tonalRamp": [
+          "#0e0b03",
+          "#2c2612",
+          "#4e4427",
+          "#716543",
+          "#958965",
+          "#b7ae90",
+          "#d8d1bb",
+          "#f3eedf"
+        ]
+      },
+      "stage-danger": {
+        "role": "tertiary",
+        "displayName": "Rose Stage",
+        "canonical": "#fbe1e6",
+        "oklch": "oklch(93.2% 0.029 4.5)",
+        "tonalRamp": [
+          "#10090a",
+          "#2f2325",
+          "#523f43",
+          "#755f64",
+          "#9a8287",
+          "#bca8ac",
+          "#dbcdcf",
+          "#f6ebed"
+        ]
+      },
+      "sunset-canvas": {
+        "role": "neutral",
+        "displayName": "Sunset Canvas",
+        "canonical": "#191731",
+        "oklch": "oklch(22.2% 0.050 285.1)",
+        "tonalRamp": [
+          "#0a0a13",
+          "#252436",
+          "#42425c",
+          "#636282",
+          "#8685a7",
+          "#ababc7",
+          "#cecfe4",
+          "#ededfc"
+        ]
+      },
+      "sunset-surface": {
+        "role": "neutral",
+        "displayName": "Sunset Surface",
+        "canonical": "#221f41",
+        "oklch": "oklch(26.2% 0.062 285.3)",
+        "tonalRamp": [
+          "#0a0a15",
+          "#242439",
+          "#424161",
+          "#626189",
+          "#8584ae",
+          "#aaaacd",
+          "#cecee8",
+          "#ecedff"
+        ]
+      },
+      "sunset-surface-2": {
+        "role": "neutral",
+        "displayName": "Sunset Surface 2",
+        "canonical": "#2a2750",
+        "oklch": "oklch(29.9% 0.073 284.4)",
+        "tonalRamp": [
+          "#0a0917",
+          "#24233c",
+          "#414066",
+          "#61608e",
+          "#8483b4",
+          "#a9aad2",
+          "#cdceec",
+          "#ececff"
+        ]
+      },
+      "sunset-sidebar": {
+        "role": "neutral",
+        "displayName": "Sunset Sidebar",
+        "canonical": "#16112a",
+        "oklch": "oklch(19.9% 0.049 290.5)",
+        "tonalRamp": [
+          "#0b0a13",
+          "#262435",
+          "#45415b",
+          "#666281",
+          "#8884a5",
+          "#adaac6",
+          "#d0cee3",
+          "#eeedfb"
+        ]
+      },
+      "sunset-border": {
+        "role": "neutral",
+        "displayName": "Sunset Border",
+        "canonical": "#332f5b",
+        "oklch": "oklch(33.3% 0.076 285.6)",
+        "tonalRamp": [
+          "#0a0917",
+          "#24233d",
+          "#423f67",
+          "#626090",
+          "#8583b6",
+          "#aaa9d3",
+          "#cecded",
+          "#ececff"
+        ]
+      },
+      "sunset-border-strong": {
+        "role": "neutral",
+        "displayName": "Sunset Border Strong",
+        "canonical": "#4a4579",
+        "oklch": "oklch(42.0% 0.085 286.5)",
+        "tonalRamp": [
+          "#0a0919",
+          "#252240",
+          "#423e6b",
+          "#625e95",
+          "#8581ba",
+          "#aaa8d8",
+          "#cecdf1",
+          "#ececff"
+        ]
+      },
+      "sunset-text": {
+        "role": "neutral",
+        "displayName": "Sunset Text",
+        "canonical": "#b9b2da",
+        "oklch": "oklch(78.3% 0.057 293.1)",
+        "tonalRamp": [
+          "#0b0914",
+          "#272337",
+          "#46405e",
+          "#676084",
+          "#8a83a9",
+          "#aea9c9",
+          "#d1cde5",
+          "#efecfd"
+        ]
+      },
+      "sunset-text-h": {
+        "role": "neutral",
+        "displayName": "Sunset Text H",
+        "canonical": "#f5f1ff",
+        "oklch": "oklch(96.5% 0.019 299.1)",
+        "tonalRamp": [
+          "#0c0a0e",
+          "#27252c",
+          "#46434d",
+          "#676470",
+          "#8a8793",
+          "#afacb6",
+          "#d2cfd7",
+          "#efedf3"
+        ]
+      },
+      "sunset-accent": {
+        "role": "secondary",
+        "displayName": "Sunset Accent",
+        "canonical": "#97aaff",
+        "oklch": "oklch(75.7% 0.124 273.5)",
+        "tonalRamp": [
+          "#060820",
+          "#1b214d",
+          "#333e7f",
+          "#505eac",
+          "#7182d4",
+          "#9aaaed",
+          "#c1ceff",
+          "#e3edff"
+        ]
+      },
+      "sunset-accent-fill": {
+        "role": "secondary",
+        "displayName": "Sunset Accent Fill",
+        "canonical": "#4669ec",
+        "oklch": "oklch(57.0% 0.201 268.0)",
+        "tonalRamp": [
+          "#02042c",
+          "#0e1a64",
+          "#1f34a2",
+          "#3755d7",
+          "#567cff",
+          "#82a8ff",
+          "#b0ceff",
+          "#d7edff"
+        ]
+      },
+      "sunset-sun": {
+        "role": "primary",
+        "displayName": "Sunset Sun",
+        "canonical": "#f8c64a",
+        "oklch": "oklch(84.9% 0.148 86.3)",
+        "tonalRamp": [
+          "#160800",
+          "#3a2000",
+          "#633c00",
+          "#8b5d00",
+          "#b08100",
+          "#cfa84d",
+          "#eace8f",
+          "#ffedc2"
+        ]
+      },
+      "sunset-sun-hover": {
+        "role": "primary",
+        "displayName": "Sunset Sun Hover",
+        "canonical": "#ffd56e",
+        "oklch": "oklch(88.9% 0.130 87.4)",
+        "tonalRamp": [
+          "#140900",
+          "#372200",
+          "#5f3f00",
+          "#855f00",
+          "#aa8300",
+          "#caaa5c",
+          "#e6cf98",
+          "#fdedc7"
+        ]
+      },
+      "sunset-stage": {
+        "role": "secondary",
+        "displayName": "Sunset Feather Stage",
+        "canonical": "#b4c1ff",
+        "oklch": "oklch(82.3% 0.089 275.1)",
+        "tonalRamp": [
+          "#080a16",
+          "#21253a",
+          "#3d4362",
+          "#5b638c",
+          "#7c86b7",
+          "#a1abdb",
+          "#c6cff5",
+          "#eaeeff"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Stat-tile numerals."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page h1; 30px below 900px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Section h2."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The Pica wordmark; the profile name uses the face at 19px/760."
+      },
+      "subtitle": {
+        "displayName": "Subtitle",
+        "purpose": "h3 and row titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Buttons, inputs, nav items."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Stat labels, segmented tabs, meta."
+      },
+      "counter": {
+        "displayName": "Counter",
+        "purpose": "Nav counters, tabular."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Inline code."
+      }
+    },
+    "themes": {
+      "light": {
+        "name": "Sunrise",
+        "selector": ":root"
+      },
+      "dark": {
+        "name": "Sunset",
+        "selector": "@media (prefers-color-scheme: dark) :root:not([data-theme='light']), :root[data-theme='dark']"
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-sm / shadow-md / shadow-lg / shadow",
+        "value": "none",
+        "purpose": "Flat by rule: no elevation shadows. Depth comes from tone steps."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px rgba(58, 79, 200, 0.3)",
+        "purpose": "Focus ring on controls (Sunset: rgba(151, 170, 255, 0.4))."
+      },
+      {
+        "name": "current-ring",
+        "value": "0 0 0 2px var(--surface), 0 0 0 4px var(--accent)",
+        "purpose": "Avatar ring on the current page."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Default easing for state, panel and dialog transitions."
+      },
+      {
+        "name": "ease-spring",
+        "value": "cubic-bezier(0.34, 1.4, 0.64, 1)",
+        "purpose": "Counter pop-in, magpie peek."
+      },
+      {
+        "name": "t-fast",
+        "value": "140ms",
+        "purpose": "Hover and colour changes."
+      },
+      {
+        "name": "t-med",
+        "value": "240ms",
+        "purpose": "Panels, nav groups, theme cross-fade."
+      },
+      {
+        "name": "t-slow",
+        "value": "420ms",
+        "purpose": "Dialogs, drawer."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "1ms",
+        "purpose": "All animation and transition durations collapse under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "drawer",
+        "value": "900px"
+      },
+      {
+        "name": "phone",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Sun Pill (primary)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one thing to press: submits, .primary, add job.",
+      "html": "<button class=\"ds-btn-sun\">Add job</button>",
+      "css": ".ds-btn-sun{font:650 14px/1.3 'Plus Jakarta Sans Variable', system-ui, sans-serif;padding:7px 14px;border-radius:999px;border:1px solid var(--sun);background:var(--sun);color:var(--on-sun);cursor:pointer;transition:background-color 140ms ease,border-color 140ms ease,transform 140ms cubic-bezier(0.16,1,0.3,1)} .ds-btn-sun:hover{background:var(--sun-hover);border-color:var(--sun-hover)} .ds-btn-sun:active{transform:scale(0.97)} .ds-btn-sun:focus-visible{outline:none;box-shadow:var(--focus-ring)} .ds-btn-sun:disabled{background:var(--neutral-bg);color:var(--neutral-fg);border-color:transparent}"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Ordinary actions on feather mist.",
+      "html": "<button class=\"ds-btn\">Re-evaluate</button>",
+      "css": ".ds-btn{font:650 14px/1.3 'Plus Jakarta Sans Variable', system-ui, sans-serif;padding:7px 14px;border-radius:999px;border:1px solid transparent;background:var(--accent-bg);color:var(--accent);cursor:pointer;transition:border-color 140ms ease,transform 140ms cubic-bezier(0.16,1,0.3,1)} .ds-btn:hover{border-color:var(--accent-border)} .ds-btn:active{transform:scale(0.97)} .ds-btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Transparent pill with a strong hairline.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary{font:650 14px/1.3 'Plus Jakarta Sans Variable', system-ui, sans-serif;padding:7px 14px;border-radius:999px;border:1px solid var(--border-strong);background:transparent;color:var(--text-h);cursor:pointer;transition:background-color 140ms ease,border-color 140ms ease} .ds-btn-secondary:hover{background:var(--hover-tint);border-color:var(--accent-border)} .ds-btn-secondary:focus-visible{outline:none;box-shadow:var(--focus-ring)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Surface field, strong hairline, feather focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Search jobs\">",
+      "css": ".ds-input{font:400 14px 'Plus Jakarta Sans Variable', system-ui, sans-serif;padding:7px 11px;color:var(--text-h);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;transition:border-color 140ms ease,box-shadow 140ms ease} .ds-input:hover{border-color:var(--accent-border)} .ds-input:focus{outline:none;border-color:var(--accent);box-shadow:var(--focus-ring)} .ds-input::placeholder{color:var(--text);opacity:.75}"
+    },
+    {
+      "name": "Side Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Pill nav items under labelled sections; the current page is a bookmark in the page colour running flush into the page; the sun counter carries the magpie head for new jobs.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-active\" href=\"#\">Dashboard</a><a class=\"ds-nav-item\" href=\"#\">Jobs<span class=\"ds-pill ds-finds\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"13\" r=\"8\" fill=\"var(--mag-ink)\"/><circle cx=\"15\" cy=\"16\" r=\"4\" fill=\"var(--mag-white)\"/><circle cx=\"13\" cy=\"11\" r=\"1.4\" fill=\"var(--mag-white)\"/><path d=\"M19 12l4 1.5-4 1.5z\" fill=\"var(--mag-ink)\"/></svg>12</span></a><a class=\"ds-nav-item\" href=\"#\">Applications<span class=\"ds-pill\">4</span></a></nav>",
+      "css": ".ds-nav{display:grid;gap:2px;width:236px;padding:12px;background:var(--sidebar);border-radius:16px} .ds-nav-item{display:flex;align-items:center;gap:13px;height:40px;padding:0 14px;border-radius:999px;color:var(--text-h);font:550 14px/1.3 'Plus Jakarta Sans Variable', system-ui, sans-serif;text-decoration:none;transition:background-color 140ms ease} .ds-nav-item:hover{background:var(--hover-tint)} .ds-nav-item.ds-active{background:var(--canvas);color:var(--accent);font-weight:700;margin-right:-12px;border-radius:999px 0 0 999px} .ds-nav-item:focus-visible{outline:none;box-shadow:var(--focus-ring)} .ds-pill{margin-left:auto;display:inline-flex;align-items:center;gap:2px;height:22px;min-width:22px;padding:0 8px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font:750 12px/1 'Plus Jakarta Sans Variable', system-ui, sans-serif;font-variant-numeric:tabular-nums} .ds-pill.ds-finds{padding-left:3px;background:var(--sun);color:var(--on-sun)} .ds-pill.ds-finds svg{margin-top:-3px}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "segmented-tab-active",
+      "description": "Pill tray; feather fill marks the active tab.",
+      "html": "<div class=\"ds-seg\"><button class=\"ds-tab ds-on\">Pending</button><button class=\"ds-tab\">Offers</button></div>",
+      "css": ".ds-seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface);border:1px solid var(--border)} .ds-tab{font:650 13.5px/1.3 'Plus Jakarta Sans Variable', system-ui, sans-serif;padding:6px 16px;border:0;border-radius:999px;background:transparent;color:var(--text);cursor:pointer} .ds-tab:hover{background:var(--hover-tint);color:var(--text-h)} .ds-tab.ds-on{background:var(--accent-fill);color:var(--on-accent-fill)} .ds-tab:focus-visible{outline:none;box-shadow:var(--focus-ring)}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "card",
+      "description": "Tinted pairs for status.",
+      "html": "<span class=\"ds-badge ds-ok\">Offer</span> <span class=\"ds-badge ds-warn\">Due</span> <span class=\"ds-badge ds-bad\">Rejected</span> <span class=\"ds-badge\">Draft</span>",
+      "css": ".ds-badge{display:inline-flex;padding:2px 10px;border-radius:999px;font:600 12.5px/1.5 'Plus Jakarta Sans Variable', system-ui, sans-serif;background:var(--neutral-bg);color:var(--text-h)} .ds-ok{background:var(--success-bg);color:var(--success-fg)} .ds-warn{background:var(--warn-bg);color:var(--warn-fg)} .ds-bad{background:var(--danger-bg);color:var(--danger-fg)}"
+    },
+    {
+      "name": "Stat Band",
+      "kind": "custom",
+      "refersTo": "stat-tile",
+      "description": "Signature: tonal tiles with display numerals; the sun tile carries the magpie when jobs await review.",
+      "html": "<section class=\"ds-stats\"><a class=\"ds-tile ds-sun\" href=\"#\"><svg width=\"30\" height=\"30\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"13\" r=\"8\" fill=\"var(--mag-ink)\"/><circle cx=\"15\" cy=\"16\" r=\"4\" fill=\"var(--mag-white)\"/><circle cx=\"13\" cy=\"11\" r=\"1.4\" fill=\"var(--mag-white)\"/><path d=\"M19 12l4 1.5-4 1.5z\" fill=\"var(--mag-ink)\"/></svg><span class=\"ds-val\">12</span><span class=\"ds-lab\">Jobs to review</span></a><a class=\"ds-tile\" href=\"#\"><span class=\"ds-val\">7</span><span class=\"ds-lab\">Active applications</span></a><div class=\"ds-tile\"><span class=\"ds-val\">38%</span><span class=\"ds-lab\">Response rate</span></div></section>",
+      "css": ".ds-stats{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:3px;border-radius:24px;overflow:hidden;background:var(--canvas)} .ds-tile{position:relative;display:flex;flex-direction:column;gap:4px;min-height:118px;padding:18px 20px 16px;background:var(--surface);border-radius:6px;color:inherit;text-decoration:none;transition:background-color 140ms ease} a.ds-tile:hover{background:var(--surface-2)} a.ds-tile:focus-visible{outline:none;box-shadow:inset var(--focus-ring)} .ds-tile svg{position:absolute;top:14px;right:14px} .ds-val{margin-top:auto;font:760 46px/1 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.04em;color:var(--text-h);font-variant-numeric:tabular-nums} .ds-lab{font:600 13.5px 'Plus Jakarta Sans Variable', system-ui, sans-serif;color:var(--text)} .ds-sun{background:var(--sun)} .ds-sun:hover{background:var(--sun-hover)} .ds-sun .ds-val,.ds-sun .ds-lab{color:var(--on-sun)}"
+    },
+    {
+      "name": "Profile Card",
+      "kind": "card",
+      "refersTo": "profile-card",
+      "description": "Sidebar card with a feather-mist avatar and Bricolage name.",
+      "html": "<a class=\"ds-profile\" href=\"#\"><span class=\"ds-avatar\">AK</span><span class=\"ds-pname\">Anna<br><span>Kowalska</span></span></a>",
+      "css": ".ds-profile{display:flex;align-items:center;gap:13px;width:236px;min-height:96px;padding:14px 12px;box-sizing:border-box;border-radius:24px;background:var(--surface);border:1px solid transparent;text-decoration:none;transition:border-color 140ms ease} .ds-profile:hover{border-color:var(--accent-border)} .ds-profile:focus-visible{outline:none;box-shadow:var(--focus-ring)} .ds-avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font:800 19px 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.03em} .ds-pname{font:760 19px/1.08 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.025em;color:var(--text-h)} .ds-pname span{font-weight:450}"
+    },
+    {
+      "name": "Brand Mark",
+      "kind": "custom",
+      "refersTo": "brand-sun",
+      "description": "The magpie head against a sun disc, with the Bricolage wordmark.",
+      "html": "<div class=\"ds-brand\"><span class=\"ds-disc\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"13\" r=\"8\" fill=\"var(--mag-ink)\"/><circle cx=\"15\" cy=\"16\" r=\"4\" fill=\"var(--mag-white)\"/><circle cx=\"13\" cy=\"11\" r=\"1.4\" fill=\"var(--mag-white)\"/><path d=\"M19 12l4 1.5-4 1.5z\" fill=\"var(--mag-ink)\"/></svg></span><span class=\"ds-word\">Pica</span></div>",
+      "css": ".ds-brand{display:flex;align-items:center;gap:9px;color:var(--text-h)} .ds-disc{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--sun);overflow:hidden} .ds-disc svg{margin:4px 0 0 -2px} .ds-word{font:800 23px/1 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.04em}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Magpie at Golden Hour",
+    "overview": "**Creative North Star: \"The Magpie at Golden Hour\"**\n\nPica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are.\n\nIt is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.\n\nThe magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a pale feather stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.",
+    "keyCharacteristics": [
+      "Flat by rule: every shadow token is `none`; depth is tone.",
+      "Two lights: sun yellow for action and novelty, feather blue for location and focus.",
+      "Heavy grotesque display type over a friendly humanist sans UI.",
+      "Pills for actions, curved rectangles (10 / 16 / 24px) for containers.",
+      "The magpie head beside anything new.",
+      "Two themes, Sunrise and Sunset, with the same roles and different lightness."
+    ],
+    "rules": [
+      {
+        "name": "The Two Lights Rule",
+        "body": "Sun yellow means \"press this\" or \"this is new\"; feather blue means \"you are here\". A colour never borrows the other's job: a current page is never yellow, a primary action is never blue.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Sun Rule",
+        "body": "Each page header or toolbar carries at most one sun pill. Everything else is a feather-mist default pill or a transparent secondary pill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sun Ink Rule",
+        "body": "Text and icons on sun are `on-sun` dark ink, in both themes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Heavy Ink Rule",
+        "body": "Bricolage Grotesque is for headings, display numbers, the wordmark and the profile name only. UI text, labels and controls stay in Plus Jakarta Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Lined-Up Numbers Rule",
+        "body": "Tables, times, counters and stat values use tabular figures.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Rule Rule",
+        "body": "No drop shadows, ever. If two layers need separating, step the tone first; add a hairline only when tone alone cannot do it.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ring-Not-Lift Rule",
+        "body": "`box-shadow` may draw a ring (focus, current state) but never an offset or blurred lift.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the sun pill (`sun` / `on-sun`) for the single primary action in a header or toolbar, and for new-item counters.",
+      "**Do** use feather blue (`accent`) for links and focus, and `accent-fill` / `on-accent-fill` for solid current-page and active-tab fills.",
+      "**Do** separate layers by tone step (canvas, sidebar, surface, surface-2) before reaching for a hairline.",
+      "**Do** give floating panels a `border-strong` hairline and the 24px radius.",
+      "**Do** set headings, display numbers and the wordmark in Bricolage Grotesque Variable at 760 to 800 with negative tracking; set all UI text in Plus Jakarta Sans.",
+      "**Do** make actions pills and containers curved rectangles on the 10 / 16 / 24px steps.",
+      "**Do** put the magpie head beside a counter only when it counts new finds.",
+      "**Do** keep chrome to the three roles: feather for selection, ink violet for grounds, sun for highlight. The profile avatar is feather mist (`accent-bg` / `accent`) and the mascot stands on the feather `stage`.",
+      "**Do** define every new colour as a token in `index.css`, in both Sunrise and Sunset."
+    ],
+    "donts": [
+      "**Don't** add drop shadows or set the shadow tokens to anything but `none`.",
+      "**Don't** use glossy or decorative gradients; flat colour only.",
+      "**Don't** colour the current page or active tab yellow, or a primary action blue.",
+      "**Don't** put white text on sun.",
+      "**Don't** put more than one sun pill in a page header or toolbar.",
+      "**Don't** use forest, tree, landscape or other scenery motifs.",
+      "**Don't** set body text, labels or controls in Bricolage Grotesque.",
+      "**Don't** recolour or restyle the magpie per surface.",
+      "**Don't** use peach (`peach-bg` / `peach-fg`) outside the work-history certificate tone, or add a fourth chrome colour for warmth."
+    ]
+  }
+}

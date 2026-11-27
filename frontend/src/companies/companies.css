@@ -1,75 +1,3 @@
-/* Companies page */
-.company-search {
-  width: 100%;
-  box-sizing: border-box;
-  margin: 8px 0 12px;
-  padding: 8px 12px;
-  font: inherit;
-  color: var(--text-h);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.company-search:focus {
-  outline: none;
-  border-color: var(--accent-border);
-}
-
-.company-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.company-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding-left: 4px;
-  border-bottom: 1px solid var(--border);
-
-  .company-row {
-    flex: 1;
-    min-width: 0;
-    border-bottom: 0;
-  }
-}
-
-.company-row {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 8px;
-  font: inherit;
-  text-align: left;
-  color: var(--text-h);
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  cursor: pointer;
-}
-
-.company-row:hover,
-.company-row:focus-visible {
-  background: var(--accent-bg);
-  outline: none;
-}
-
-.company-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.company-jobs-count {
-  flex: none;
-  font-size: 13px;
-  color: var(--text);
-}
-
 /* Detail popup: a fixed header with the close button, and a body that scrolls. */
 .company-dialog {
   width: min(600px, calc(100vw - 32px));
@@ -79,7 +7,6 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow);
   overflow: hidden;
 
   &[open] {

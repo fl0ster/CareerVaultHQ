@@ -26,6 +26,80 @@ export type GeneratedCv = {
   job: CvJob
   pdf_url: string | null
   tex_url: string | null
+  /** The user's edits this CV was generated with (`null`: none). */
+  overrides: CvOverrides | null
+}
+
+/** Where the user put a role: listed in full, condensed, or left out. */
+export type RolePlacement = 'main' | 'early' | 'drop'
+
+/** The user's edits to how one application's CV is generated; `null` fields and missing
+ * roles are left to the pipeline. */
+export type CvOverrides = {
+  headline_role: string | null
+  summary: string | null
+  /** `work_history.id` -> placement. */
+  roles: Record<string, RolePlacement>
+  /** `work_history.id` -> the role's description in the CV, used as written. */
+  contexts: Record<string, string>
+  /** `work_history.id` -> the technologies a listed role shows, in order. */
+  techs: Record<string, string[]>
+  /** `work_history.id` -> placement -> what the pipeline's tailoring step made of a role
+   * when the user moved it there. Kept by the server (not an edit; ignored when sent). */
+  tailored?: Record<string, Partial<Record<TailoredPlacement, TailoredRole>>>
+}
+
+export type TailoredPlacement = Exclude<RolePlacement, 'drop'>
+export type TailoredRole = {
+  /** Run on the worker: `queued` until its text is there (`done`) or it `failed`; missing on
+   * entries made before (done). */
+  status?: 'queued' | 'done' | 'failed'
+  error?: string | null
+  /** Set once done. */
+  context: string | null
+  tech: string[] | null
+  /** The work history's text it was made from. */
+  original_context?: string | null
+  original_tech?: string[]
+  /** USD its OpenRouter calls cost, and how many it made. */
+  cost?: number
+  calls?: number
+}
+
+export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
+
+/** Whether the worker is still tailoring a role the user moved (poll until it is not). */
+export function isTailoring(o: CvOverrides | null | undefined): boolean {
+  return Object.values(o?.tailored ?? {}).some((byPlacement) =>
+    Object.values(byPlacement).some((made) => made?.status === 'queued'),
+  )
+}
+
+/** Number of separate edits (headline, summary, each placed role, each description). */
+export function overrideCount(o: CvOverrides | null | undefined): number {
+  if (!o) return 0
+  return (
+    (o.headline_role ? 1 : 0) +
+    (o.summary ? 1 : 0) +
+    Object.keys(o.roles ?? {}).length +
+    Object.keys(o.contexts ?? {}).length +
+    Object.keys(o.techs ?? {}).length
+  )
+}
+
+/** Whether two sets of edits would produce the same CV. */
+export function sameOverrides(a: CvOverrides | null | undefined, b: CvOverrides | null | undefined): boolean {
+  const sorted = (m: Record<string, unknown> | undefined) =>
+    Object.entries(m ?? {}).sort(([x], [y]) => Number(x) - Number(y))
+  const key = (o: CvOverrides | null | undefined) =>
+    JSON.stringify([
+      o?.headline_role || null,
+      o?.summary || null,
+      sorted(o?.roles),
+      sorted(o?.contexts),
+      sorted(o?.techs),
+    ])
+  return key(a) === key(b)
 }
 
 export type GeneratedCvPage = {
@@ -46,6 +120,10 @@ export type PipelineRole = {
   date_start?: string
   date_end?: string
   months?: number
+  /** The description from the work history (newer CVs only). */
+  context?: string | null
+  /** The technologies from the work history, comma separated (newer CVs only). */
+  tech?: string
 }
 
 /** A role as it ends up in the CV: ``main`` entries are tailored, ``early`` ones condensed.
@@ -144,7 +222,6 @@ export const cvApi = {
     fetch(`${API}/${id}`, { signal }).then((r) => parse<GeneratedCv>(r)),
   pipeline: (id: number, signal?: AbortSignal) =>
     fetch(`${API}/${id}/pipeline`, { signal }).then((r) => parse<CvPipeline>(r)),
-  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
   pdfUrl: (id: number) => `${API}/${id}/pdf`,
   texUrl: (id: number) => `${API}/${id}/tex`,
 }

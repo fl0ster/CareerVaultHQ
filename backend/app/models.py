@@ -543,9 +543,9 @@ class JobEvaluationFailure(Base):
 
 
 class CandidateDetails(Base):
-    """Personal details printed on a generated CV (name, contact lines, languages and the
-    consent clause). A singleton: at most one row exists and ``PUT /api/candidate-details``
-    upserts it. Education and certifications are career events in ``WorkHistoryEntry``."""
+    """Personal details printed on a generated CV (name, contact lines, languages and
+    photo); the consent clause is in ``CVSettings``. A singleton: at most one row exists
+    and ``PUT /api/candidate-details`` upserts it. Education and certifications are career events in ``WorkHistoryEntry``."""
 
     __tablename__ = "candidate_details"
 
@@ -562,9 +562,26 @@ class CandidateDetails(Base):
     """Profile picture as a ``data:image/...;base64,`` URL (scaled down in the browser); blank = none."""
     languages: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"language": "English", "level": "Advanced (C1)"}, ...]``."""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CVSettings(Base):
+    """CV settings edited in Settings > CV Settings: the consent clause and overrides of the
+    timeline rules (``app.tasks.cv.history``). A single row (``id`` 1), created on first use
+    by ``app.services.cv_settings.get_cv_settings``. A ``None`` rule uses the ``cv_*``
+    default from ``app.config.Settings``."""
+
+    __tablename__ = "cv_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     consent_text: Mapped[str] = mapped_column(Text, default="")
     """Data-processing consent printed in small type at the end of the CV; blank = omitted."""
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    max_entries: Mapped[int | None] = mapped_column(Integer)
+    min_entries: Mapped[int | None] = mapped_column(Integer)
+    high_relevance: Mapped[float | None] = mapped_column(Float)
+    irrelevant_relevance: Mapped[float | None] = mapped_column(Float)
+    min_months: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
@@ -602,6 +619,9 @@ class GeneratedCV(Base):
     pipeline: Mapped[dict | None] = mapped_column(JSON)
     """What the pipeline did: relevance per role, which roles were listed or condensed,
     the timeline log and any warnings (steps that fell back to the original text)."""
+    overrides: Mapped[dict | None] = mapped_column(JSON)
+    """The user's edits this CV was generated with (``Application.cv_overrides`` when it was
+    queued); ``None``: none."""
 
     job_parse_result: Mapped[JobParseResult] = relationship()
 
@@ -667,6 +687,11 @@ class Application(Base):
     work_mode_override: Mapped[str | None] = mapped_column(String(16))
     """Work mode entered by the user (one of ``WORK_MODES``), replacing the parsed
     ``JobParseResult.work_mode``; ``None``: use the parsed one."""
+    cv_overrides: Mapped[dict | None] = mapped_column(JSON)
+    """The user's edits to how this application's CV is generated:
+    ``{"headline_role"?: str, "summary"?: str, "roles"?: {"<work_history id>": "main" | "early" | "drop"},
+    "contexts"?: {"<work_history id>": str}, "techs"?: {"<work_history id>": [str]}}``
+    (applied by ``app.tasks.cv.generate``); ``None``: no edits."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

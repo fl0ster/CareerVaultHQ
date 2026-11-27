@@ -177,6 +177,119 @@ def test_regenerate_cv(client, db_session, fake_queue):
     assert len(_cv_jobs(fake_queue)) == 2
 
 
+def test_cv_overrides_are_saved_and_used_by_the_next_cv(client, db_session, fake_queue):
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    assert client.get(f"{BASE}/{app_id}").json()["cv_overrides"] is None
+
+    res = client.patch(
+        f"{BASE}/{app_id}",
+        json={
+            "cv_overrides": {
+                "headline_role": "  Mobile Lead ",
+                "summary": " ",
+                "roles": {"7": "drop", "3": "early"},
+                "contexts": {"3": " Did things. ", "4": "  "},
+                "techs": {"3": [" Go ", "Go", "", "Rust"], "5": []},
+            }
+        },
+    )
+    assert res.status_code == 200
+    saved = res.json()["cv_overrides"]
+    assert saved["headline_role"] == "Mobile Lead"
+    assert saved["summary"] is None  # blank: left out
+    assert saved["roles"] == {"3": "early", "7": "drop"}
+    assert saved["contexts"] == {"3": "Did things."}
+    assert saved["techs"] == {"3": ["Go", "Rust"], "5": []}  # trimmed, deduplicated; "none" kept
+    assert res.json()["cv"]["overrides"] is None  # the current CV was made without them
+
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"1": "maybe"}}}).status_code == 422
+
+    cv = db_session.query(GeneratedCV).one()
+    cv.status = GeneratedCV.STATUS_FINISHED
+    db_session.commit()
+    new_cv = client.post(f"{BASE}/{app_id}/cv").json()["cv"]
+    assert new_cv["overrides"]["headline_role"] == "Mobile Lead"
+    assert new_cv["overrides"]["roles"] == {"3": "early", "7": "drop"}
+
+    # Removing every edit (or sending only blanks) clears them.
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"summary": ""}}).json()["cv_overrides"] is None
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"summary": "x"}})
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
+
+
+def _tailor_jobs(fake_queue):
+    return [j for j in fake_queue.jobs if j.func_name.endswith("tailor_moved_role")]
+
+
+def test_tailoring_a_moved_role_is_queued_and_kept_apart_from_the_edits(client, db_session, fake_queue):
+    from app.config import get_settings
+    from app.main import app as fastapi_app
+
+    settings = fastapi_app.dependency_overrides[get_settings]()
+    fastapi_app.dependency_overrides[get_settings] = lambda: settings.model_copy(update={"openrouter_api_key": "k"})
+    seed_cv_inputs(client, db_session)
+    pid = db_session.query(WorkHistoryEntry).one().id
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {str(pid): "main"}}})
+
+    # Queued for the worker, not run in the request.
+    res = client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"})
+    assert res.status_code == 202
+    made = res.json()["cv_overrides"]["tailored"][str(pid)]["main"]
+    assert made["status"] == "queued" and made["context"] is None
+    [job] = _tailor_jobs(fake_queue)
+    assert job.args == (app_id, pid, "main") and job.id == made["rq_job_id"]
+    assert res.json()["cv_overrides"]["roles"] == {str(pid): "main"}  # the edits are untouched
+    # Asking again while it is queued queues nothing more.
+    client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"})
+    assert len(_tailor_jobs(fake_queue)) == 1
+
+    # Saving edits keeps the tailoring (a client cannot set it); removing every edit drops it.
+    res = client.patch(
+        f"{BASE}/{app_id}",
+        json={"cv_overrides": {"summary": "Mine.", "tailored": {"9": {"main": {"context": "forged"}}}}},
+    )
+    assert set(res.json()["cv_overrides"]["tailored"]) == {str(pid)}
+    assert res.json()["cv_overrides"]["roles"] == {}
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
+
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": 999, "placement": "main"}).status_code == 404
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "drop"}).status_code == 422
+    fastapi_app.dependency_overrides[get_settings] = lambda: settings.model_copy(update={"openrouter_api_key": ""})
+    assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"}).status_code == 503
+
+
+def test_cv_edits_and_a_tailoring_result_do_not_undo_each_other(client, db_session, engine):
+    """The API and the worker both rewrite ``cv_overrides``: each must build on what is
+    stored when it writes, not on what it read earlier."""
+    from app.db import session_factory
+    from app.services.applications import set_cv_edits, store_tailored
+
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"7": "main"}}})
+    with session_factory(engine)() as api, session_factory(engine)() as worker:
+        store_tailored(worker, worker.get(Application, app_id), 7, "main", {"status": "queued"})
+        worker.commit()
+        stale = api.get(Application, app_id)  # the API reads it while the role is queued
+        assert stale.cv_overrides["tailored"]["7"]["main"]["status"] == "queued"
+
+        done = {"status": "done", "context": "Tailored.", "tech": []}
+        assert store_tailored(worker, worker.get(Application, app_id), 7, "main", done, expect="queued")
+        worker.commit()
+        set_cv_edits(api, stale, {"roles": {"7": "main"}, "summary": "Mine."})
+        api.commit()
+
+        # The worker finishing after the API read it changes nothing more.
+        assert not store_tailored(worker, worker.get(Application, app_id), 7, "main", {"status": "failed"}, expect="queued")
+        worker.commit()
+
+    stored = client.get(f"{BASE}/{app_id}").json()["cv_overrides"]
+    assert stored["summary"] == "Mine."
+    assert stored["tailored"]["7"]["main"]["status"] == "done"
+
+
 def test_event_dates_are_stored_in_utc(client, db_session):
     seed_cv_inputs(client, db_session)
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]

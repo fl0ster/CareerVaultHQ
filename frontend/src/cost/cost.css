@@ -164,7 +164,6 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: var(--shadow);
   pointer-events: none;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

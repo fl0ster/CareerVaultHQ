@@ -51,7 +51,6 @@ export type CandidateDetailsInput = {
   /** Profile picture as an image `data:` URL; empty when none is set. */
   photo: string
   languages: LanguageEntry[]
-  consent_text: string
 }
 
 export type CandidateDetails = CandidateDetailsInput & {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarClock, ChevronRight } from 'lucide-react'
+import { CalendarClock } from 'lucide-react'
 import { describeError } from '../cv/api.ts'
 import {
   type Application,
@@ -11,6 +11,8 @@ import {
 } from '../applications/api.ts'
 import ApplicationStatusControl from '../applications/ApplicationStatusControl.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import { CardOpenButton } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 import InterviewStepper from './InterviewStepper.tsx'
 import { type Round, formatWhen, interviewRounds, relativeDay } from './interviewRounds.ts'
 
@@ -46,10 +48,10 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
   }
 
   return (
-    <article className="iv-card">
+    <article className="iv-card clickable-card" onClick={openOnClick(() => onOpen(a.id))}>
       <header className="iv-card-head">
         <div className="iv-card-title">
-          <button type="button" className="iv-card-job" onClick={() => onOpen(a.id)}>
+          <button type="button" className="iv-card-job item-title" onClick={() => onOpen(a.id)}>
             {a.job.title ?? a.job.link}
           </button>
           <div className="iv-card-meta">
@@ -64,10 +66,8 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
           </div>
         </div>
         <div className="iv-card-head-actions">
-          <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
-            Details <ChevronRight size={16} aria-hidden="true" />
-          </button>
           <ApplicationStatusControl application={a} statuses={statuses} onChange={onChange} onError={setError} />
+          <CardOpenButton label="Open application" onOpen={() => onOpen(a.id)} />
         </div>
       </header>
 
@@ -94,7 +94,6 @@ export default function InterviewCard({ application: a, statuses, onOpen, onOpen
       </div>
 
       {error && <p className="error">{error}</p>}
-
     </article>
   )
 }
@@ -125,7 +124,7 @@ function CurrentStep({
   }
 
   return (
-    <section className={`iv-current${round.held ? ' held' : ''}`} aria-label="Current interview step">
+    <section className={`iv-current${round.held ? ' held' : ''}`} aria-label="Current interview step" data-no-open>
       <div className="iv-current-head">
         <span className="iv-current-eyebrow">
           {round.held ? 'Last round' : 'Next round'} · {round.index + 1} of {total}

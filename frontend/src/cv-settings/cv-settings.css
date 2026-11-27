@@ -1,0 +1,18 @@
+/* CV settings: the timeline rules, two per row on wide screens */
+.cs-rules {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px 12px;
+}
+
+.cs-hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+@media (max-width: 600px) {
+  .cs-rules {
+    grid-template-columns: 1fr;
+  }
+}

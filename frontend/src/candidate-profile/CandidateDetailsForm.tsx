@@ -2,10 +2,6 @@ import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'r
 import { ImageUp, Trash2, UserRound } from 'lucide-react'
 import { type CandidateDetails, type CandidateDetailsInput, candidateDetailsApi, type LanguageEntry } from './api.ts'
 import { candidateDetailsStore } from './store.ts'
-import { pageHref } from '../shell/nav.ts'
-
-const DEFAULT_CONSENT =
-  'I consent to the processing of my personal data for recruitment purposes in accordance with GDPR (Regulation (EU) 2016/679).'
 
 type Draft = CandidateDetailsInput
 
@@ -23,7 +19,6 @@ function toDraft(details: CandidateDetails | null): Draft {
     location: details?.location ?? '',
     photo: details?.photo ?? '',
     languages: details?.languages.map((l) => ({ ...EMPTY_LANGUAGE, ...l })) ?? [],
-    consent_text: details ? details.consent_text : DEFAULT_CONSENT,
   }
 }
 
@@ -210,11 +205,6 @@ export default function CandidateDetailsForm() {
         </label>
       </div>
 
-      <p className="cd-note">
-        Education and certifications are part of your career timeline: add them in{' '}
-        <a href={pageHref('work-history')}>My Career</a>.
-      </p>
-
       <fieldset className="cd-fieldset">
         <legend>Languages</legend>
         {draft.languages.map((entry, i) => (
@@ -244,11 +234,6 @@ export default function CandidateDetailsForm() {
           Add language
         </button>
       </fieldset>
-
-      <label>
-        Consent clause (printed at the end of the CV; leave empty to omit)
-        <textarea rows={4} value={draft.consent_text} onChange={(e) => set('consent_text', e.target.value)} />
-      </label>
 
       {saveError && <p className="error">{saveError}</p>}
 

@@ -2,6 +2,7 @@ import { type PointerEvent, useMemo, useRef, useState } from 'react'
 import type { Flow } from '../api.ts'
 import Widget from '../Widget.tsx'
 import { type LaidLink, type LaidNode, SANKEY, layoutSankey } from './sankey.ts'
+import EmptyState from '../../mascot/EmptyState.tsx'
 
 type Tip = { x: number; y: number; title: string; detail: string }
 
@@ -41,7 +42,7 @@ export default function SankeyWidget({ flow }: { flow: Flow }) {
   return (
     <Widget title="Where your job search goes" span="full" href="#/applications" linkLabel="Applications">
       {flow.links.length === 0 ? (
-        <p className="widget-empty">The flow appears once jobs have been scored.</p>
+        <EmptyState variant="inline">The flow appears once jobs have been scored.</EmptyState>
       ) : (
         <div className="sankey" ref={wrap} onPointerLeave={hide}>
           <svg

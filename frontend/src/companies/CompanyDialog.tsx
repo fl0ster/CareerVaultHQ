@@ -5,6 +5,7 @@ import { CompanyTagBadge } from './CompanyTag.tsx'
 import './companies.css'
 import './tags.css'
 import { getCompany, updateCompanyNotes, type CompanyDetail } from './api.ts'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 const JOBS_LIMIT = 10
 
@@ -93,7 +94,7 @@ export default function CompanyDialog({ companyId, onClose }: Props) {
             <section>
               <h3>Recent jobs</h3>
               {detail.jobs.length === 0 ? (
-                <p className="muted">No parsed jobs yet.</p>
+                <EmptyState variant="inline">No parsed jobs yet.</EmptyState>
               ) : (
                 <ul className="company-jobs">
                   {detail.jobs.map((job) => (

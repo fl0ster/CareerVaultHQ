@@ -1,4 +1,3 @@
-import { BellRing } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
@@ -7,13 +6,12 @@ import InterviewsPage from './interviews/InterviewsPage.tsx'
 import OffersPage from './offers/OffersPage.tsx'
 import JobsPage from './jobs/JobsPage.tsx'
 import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
+import CvSettingsPage from './cv-settings/CvSettingsPage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import EmploymentPage from './work-history/EmploymentPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
-import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
-import CompaniesPage from './companies/CompaniesPage.tsx'
 import DashboardPage from './dashboard/DashboardPage.tsx'
 import ImportExportPage from './import-export/ImportExportPage.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
@@ -173,6 +171,8 @@ function App() {
         )
       case 'candidate-profile':
         return <CandidateProfilePage />
+      case 'cv-settings':
+        return <CvSettingsPage />
       case 'work-history':
         return (
           <WorkHistoryPage
@@ -193,14 +193,10 @@ function App() {
         )
       case 'sources':
         return <SourcesPage />
-      case 'generated-cv':
-        return <GeneratedCvPage />
       case 'gmail':
         return <GmailMonitorPage onOpenDetails={() => navigate('candidate-profile')} />
       case 'cost':
         return <CostPage />
-      case 'companies':
-        return <CompaniesPage />
       case 'import-export':
         return <ImportExportPage />
     }
@@ -216,7 +212,7 @@ function App() {
         onNavigate={navigate}
         onOpenSettings={() => navigate(settingsTab)}
         badges={{
-          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review` },
+          jobs: { count: jobsInbox, title: `${jobsInbox} relevant jobs to review`, magpie: true },
           interviews: { count: counts?.interviews ?? 0, title: 'Applications in the interview stage' },
           offers: { count: counts?.offers ?? 0, title: 'Applications with an offer' },
           employment: {
@@ -225,8 +221,7 @@ function App() {
               counts?.journal_overdue === 1
                 ? 'Journal update due: 1 position without a note for a week'
                 : `Journal update due: ${counts?.journal_overdue ?? 0} positions without a note for a week`,
-            tone: 'warn',
-            icon: BellRing,
+            magpie: true,
           },
         }}
         hiddenPages={hiddenPages}

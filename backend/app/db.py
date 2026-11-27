@@ -56,6 +56,10 @@ ADDED_COLUMNS: dict[str, dict[str, str]] = {
         "start_date": "DATE",
         "salary_override": "JSON",
         "work_mode_override": "VARCHAR(16)",
+        "cv_overrides": "JSON",
+    },
+    "generated_cvs": {
+        "overrides": "JSON",
     },
     "work_history": {
         "application_id": "INTEGER REFERENCES applications(id) ON DELETE SET NULL",
@@ -105,12 +109,12 @@ def _missing_columns(engine: Engine) -> list[str]:
 
 
 DROPPED_COLUMNS: dict[str, list[str]] = {
-    "candidate_details": ["education", "certifications"],
+    "candidate_details": ["education", "certifications", "consent_text"],
     "gmail_monitor_settings": ["email"],
 }
 """Columns no longer in the models; dropped from existing databases with ``ALTER TABLE``.
 Education and certifications moved to ``work_history`` (``kind``); the Gmail monitor uses
-the e-mail of the personal details."""
+the e-mail of the personal details; the consent clause is in ``cv_settings``."""
 
 
 def _obsolete_columns(engine: Engine) -> list[str]:

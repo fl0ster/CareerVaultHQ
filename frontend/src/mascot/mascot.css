@@ -368,7 +368,6 @@
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
   color: var(--text-h);
   text-align: left;
   font-weight: 500;
@@ -456,8 +455,8 @@
   padding: 0 5px;
   box-sizing: border-box;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--accent-fill);
+  color: var(--on-accent-fill);
   font-size: 11px;
   font-weight: 700;
   line-height: 18px;
@@ -487,9 +486,8 @@
   width: 380px;
   max-width: calc(100vw - 24px);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
   overflow: hidden;
   transform-origin: top right;
   animation: panel-in var(--t-med) var(--ease-out);
@@ -507,7 +505,7 @@
   align-items: center;
   gap: 14px;
   padding: 16px 18px 12px;
-  background: linear-gradient(180deg, var(--accent-bg), transparent);
+  background: var(--accent-bg);
 
   h2 {
     margin: 0;
@@ -520,10 +518,10 @@
 }
 
 .worker.mood-error .worker-panel-head {
-  background: linear-gradient(180deg, var(--danger-bg), transparent);
+  background: var(--danger-bg);
 }
 .worker.mood-queued .worker-panel-head {
-  background: linear-gradient(180deg, var(--warn-bg), transparent);
+  background: var(--warn-bg);
 }
 
 .worker-panel-body {
@@ -622,5 +620,59 @@
   }
   .worker-toggle {
     padding: 3px;
+  }
+}
+
+/* Empty states: the magpie keeps an empty spot company, always on its pale feather stage disc. */
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 28px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+
+  p {
+    max-width: 58ch;
+  }
+  .empty-stage {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: var(--stage);
+    overflow: hidden;
+
+    .magpie {
+      margin-top: 10px;
+    }
+  }
+}
+
+.empty-state.inline {
+  gap: 10px;
+  margin: 8px 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 14px;
+
+  .empty-stage {
+    width: 28px;
+    height: 28px;
+
+    .magpie {
+      margin: 3px 0 0 -1px;
+    }
+  }
+}
+
+@media (max-width: 600px) {
+  .empty-state:not(.inline) {
+    flex-direction: column;
+    text-align: center;
   }
 }

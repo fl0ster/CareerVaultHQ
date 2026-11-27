@@ -1,5 +1,5 @@
 import { refreshCompanyApplicationStats } from '../companies/applicationStats.ts'
-import type { GeneratedCv } from '../cv/api.ts'
+import type { CvOverrides, GeneratedCv, TailoredPlacement } from '../cv/api.ts'
 
 const API = '/api/applications'
 
@@ -93,6 +93,8 @@ export type Application = {
   parsed_work_mode: WorkMode | null
   /** Work mode entered for this application, replacing `parsed_work_mode`. */
   work_mode_override: WorkMode | null
+  /** The user's edits to how this application's CV is generated (used by the next one). */
+  cv_overrides: CvOverrides | null
 }
 
 export type SalaryPeriod = 'hour' | 'day' | 'week' | 'month' | 'year'
@@ -250,6 +252,15 @@ export const applicationsApi = {
   /** Overrides the parsed salary and/or work mode (`null` falls back to the parsed one). */
   setOverrides: (id: number, changes: { salary_override?: Salary | null; work_mode_override?: WorkMode | null }) =>
     fetch(`${API}/${id}`, json('PATCH', changes)).then((r) => parse<Application>(r)),
+  /** Replaces (or, with `null`, removes) the edits the next CV is generated with. */
+  setCvOverrides: (id: number, overrides: CvOverrides | null) =>
+    fetch(`${API}/${id}`, json('PATCH', { cv_overrides: overrides })).then((r) => parse<Application>(r)),
+  /** Queues the CV's tailoring step for a role moved to `placement`, ahead of the next CV:
+   * its `cv_overrides.tailored` entry is `queued` until the worker stores the result. */
+  tailorCvRole: (id: number, workHistoryId: number, placement: TailoredPlacement) =>
+    fetch(`${API}/${id}/cv/tailor`, json('POST', { work_history_id: workHistoryId, placement })).then((r) =>
+      parse<Application>(r),
+    ),
   setStartDate: (id: number, startDate: string | null) =>
     fetch(`${API}/${id}`, json('PATCH', { start_date: startDate })).then((r) => parse<Application>(r)),
   /** Accepts the offer: the application becomes `ACCEPTED` and the position is added to My

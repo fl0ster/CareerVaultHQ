@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MIN_SCRAPE_INTERVAL_SECONDS, sourcesApi, type Source, type SourceUpdate } from './api.ts'
 import { useScrapeJob } from '../tools/useScrapeJob.ts'
 import './sources.css'
+import EmptyState from '../mascot/EmptyState.tsx'
 
 const HEALTH_LABEL: Record<Source['health'], string> = {
   unknown: 'never run',
@@ -214,7 +215,7 @@ export default function SourcesPage() {
       {shownError && <p className="error">{shownError}</p>}
 
       {loaded && sources.length === 0 ? (
-        <p>No sources found. Add a module to the sources package and refresh.</p>
+        <EmptyState>No sources found. Add a module to the sources package and refresh.</EmptyState>
       ) : (
         <table className="sources">
           <thead>

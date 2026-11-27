@@ -1,0 +1,80 @@
+/* Clickable cards and list rows share one design language: a chevron at a row's far right or
+   in a card's top right means a click anywhere on the item opens it (see openOnClick.ts).
+   On hover the chevron turns accent and nudges right. A row also takes a light tint and its
+   title (`.item-title`) turns accent; a card stays as it is, apart from its chevron button
+   lighting up. Regions with a job of their own (`[data-no-open]`, forms) neither open the
+   item nor show the hover. Hook: `--item-hover` (the row tint). */
+.clickable-row,
+.clickable-card {
+  cursor: pointer;
+
+  [data-no-open],
+  form {
+    cursor: auto;
+  }
+}
+
+.open-chevron {
+  flex: none;
+  color: var(--text);
+  transition:
+    color var(--t-fast) ease,
+    translate var(--t-fast) ease;
+}
+
+:is(.clickable-row, .clickable-card):hover:not(:has(:is([data-no-open], form):hover)) .open-chevron {
+  color: var(--accent);
+  translate: 2px 0;
+}
+
+/* Rows: the chevron sits at the far right, vertically centred, whatever the row's own layout
+   (rows stack on phones). Each row keeps room for it with its right padding. */
+.clickable-row {
+  position: relative;
+  transition: box-shadow var(--t-fast) ease;
+}
+
+.clickable-row:hover:not(:has(:is([data-no-open], form):hover)) {
+  /* An inset shadow, so the row's own background (an inbox match, the active role) shows through. */
+  box-shadow: inset 0 0 0 100vmax var(--item-hover, var(--hover-tint));
+
+  .item-title {
+    color: var(--accent);
+  }
+  .row-chevron {
+    translate: 2px -50%;
+  }
+}
+
+.row-chevron {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  translate: 0 -50%;
+}
+
+/* Cards: the chevron is the card's open button, in its top right corner. Hovering the card
+   lights up only this button; the card itself doesn't change. */
+button.card-open {
+  flex: none;
+  align-self: flex-start;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -6px;
+  padding: 0;
+  background: transparent;
+
+  .clickable-card:hover:not(:has(:is([data-no-open], form):hover)) &,
+  &:focus-visible {
+    background: var(--accent-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clickable-row,
+  .open-chevron {
+    transition: none;
+  }
+}

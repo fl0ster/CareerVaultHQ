@@ -1,6 +1,6 @@
 /** Pure derivations over ``pipeline.json`` for the CV details dialog: which role ended up
  * where, why, and how its text and dates changed. No React, no I/O. */
-import type { CvPipeline, PipelineEntry, PipelineRole, PipelineThresholds } from './api.ts'
+import type { CvPipeline, PipelineEntry, PipelineRole, PipelineThresholds, RolePlacement } from './api.ts'
 
 export type Outcome = 'listed' | 'condensed' | 'dropped'
 
@@ -55,6 +55,8 @@ export type RoleReport = {
   /** Why it was condensed / dropped / trimmed, or listed despite a poor fit, taken from
    * the timeline log. */
   reason: string | null
+  /** Moved by the user's pending edits (see `withPlacements`): not yet so in this CV. */
+  pending?: boolean
 }
 
 /** Match a scored role to its tailored entry: by id when both sides have one (newer
@@ -190,6 +192,32 @@ export function analyse(p: CvPipeline): Analysis {
     log,
     hasSpans: roles.length > 0 && roles.every((r) => r.original !== null),
   }
+}
+
+export const OUTCOME_OF_PLACEMENT: Record<RolePlacement, Outcome> = {
+  main: 'listed',
+  early: 'condensed',
+  drop: 'dropped',
+}
+
+/** `analysis` as the next CV will have it once the user's `placements` (`work_history.id` ->
+ * placement) are applied: a role brought in prints its whole period (placed roles bypass
+ * the overlap rules), a role left out prints nothing. Moved roles are marked `pending`. */
+export function withPlacements(analysis: Analysis, placements: Record<string, RolePlacement> | undefined): Analysis {
+  if (!placements || Object.keys(placements).length === 0) return analysis
+  let changed = false
+  const roles = analysis.roles.map((r): RoleReport => {
+    const placement = r.role.id != null ? placements[String(r.role.id)] : undefined
+    const outcome = placement ? OUTCOME_OF_PLACEMENT[placement] : r.outcome
+    if (outcome === r.outcome) return r
+    changed = true
+    const kept = outcome === 'dropped' ? null : (r.kept ?? r.original)
+    return { ...r, outcome, kept, trimmed: !!r.kept && r.trimmed, reason: 'your choice', pending: true }
+  })
+  if (!changed) return analysis
+  const counts = { ...analysis.counts, listed: 0, condensed: 0, dropped: 0 }
+  for (const r of roles) counts[r.outcome]++
+  return { ...analysis, roles, counts }
 }
 
 /** Comma separated technology list -> trimmed, non-empty names. */

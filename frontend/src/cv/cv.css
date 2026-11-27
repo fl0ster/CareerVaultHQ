@@ -189,39 +189,32 @@
   }
 }
 
-/* ---------------------------------------------------------------- pipeline dialog */
+/* ---------------------------------------------------------------- pipeline report */
 .cv-warning-count {
   color: var(--warn-fg);
 }
 
-.pl-dialog {
-  width: min(960px, calc(100vw - 32px));
-}
-
-/* The pipeline report: in the popup and in the application view's CV Settings tab. */
-.pl-dialog,
+/* The pipeline report, in the application view's CV Settings tab. Order of reading:
+   overview line, timeline, listed roles, then folds for everything less relevant. */
 .pl-report {
   /* Outcome colours (status palette: good / warning / critical). Marks wear them,
-     text never does: each outcome also carries an icon and a label. */
+     text never does: each outcome also carries a label. */
   --ok: var(--success-solid);
   --warn: var(--warn-solid);
   --bad: var(--danger-solid);
 
-  h2 {
-    font-size: 22px;
-  }
   h3 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 4px;
+    margin: 0;
     font-size: 16px;
     font-weight: 600;
     color: var(--text-h);
   }
-  .cv-actions {
-    justify-content: flex-start;
-    margin: 10px 0 18px;
+  h3 .muted {
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
   }
   .spinner {
     display: inline-block;
@@ -248,6 +241,11 @@
   flex-shrink: 0;
 }
 
+.pl-swatch-faint {
+  background: var(--text);
+  opacity: 0.25;
+}
+
 .pl-headline {
   margin: 4px 0 6px;
   font-size: 15px;
@@ -258,16 +256,6 @@
   font-size: 14px;
 }
 
-.pl-tiles {
-  margin-bottom: 16px;
-
-  .cost-tile-value {
-    font-size: 24px;
-  }
-  .cost-tile > .muted {
-    font-size: 12px;
-  }
-}
 
 .pl-warnings {
   margin: 0 0 16px;
@@ -278,16 +266,20 @@
 }
 
 .pl-hint {
-  margin: 0 0 10px;
+  margin: 4px 0 10px;
   font-size: 13px;
   color: var(--text);
 }
 
+/* ------------------------------------------------ charts */
 .pl-chart {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 
+  svg {
+    width: 100%;
+  }
   text {
-    font-size: 11px;
+    font-size: 12px;
   }
   .pl-label {
     fill: var(--text-h);
@@ -298,15 +290,34 @@
   }
   .pl-value {
     fill: var(--text-h);
-    font-size: 10.5px;
+    font-size: 11.5px;
   }
+}
+
+/* The timeline is the centrepiece: a touch more room than the folded charts. */
+.pl-timeline {
+  margin-bottom: 24px;
+  padding: 16px 18px 12px;
+  background: var(--surface);
+
+  figcaption {
+    font-size: 16px;
+  }
+}
+
+.pl-chart-keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 24px;
+  margin-bottom: 8px;
 }
 
 .pl-legend {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 18px;
+  gap: 4px 16px;
   margin: 0 0 8px;
   padding: 0;
   font-size: 13px;
@@ -317,12 +328,41 @@
     align-items: center;
     gap: 6px;
   }
+  .muted {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pl-chart-keys .pl-legend {
+  margin: 0;
+}
+
+.pl-span-key {
+  color: var(--text);
+
+  .pl-swatch:not(.pl-swatch-faint) {
+    background: var(--text-h);
+    opacity: 0.7;
+  }
+}
+
+.pl-row-bg {
+  fill: transparent;
+  transition: fill var(--t-fast);
+}
+
+.pl-row.hover .pl-row-bg {
+  fill: var(--hover-tint);
+}
+
+.pl-hit {
+  cursor: pointer;
 }
 
 .pl-bar {
   fill: var(--outcome, var(--accent));
   opacity: 0.85;
-  transition: opacity 0.15s;
+  transition: opacity var(--t-fast);
 }
 
 .pl-row.hover .pl-bar {
@@ -331,7 +371,11 @@
 
 .pl-span-original {
   fill: var(--outcome, var(--accent));
-  opacity: 0.22;
+  fill-opacity: 0.22;
+  /* Outlined so a dropped role, which has no solid bar, still reads in dark mode. */
+  stroke: var(--outcome, var(--accent));
+  stroke-opacity: 0.55;
+  stroke-width: 1;
 }
 
 .pl-threshold {
@@ -354,8 +398,74 @@
   z-index: 1;
 }
 
+.pl-tip-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* ------------------------------------------------ folds */
+.pl-fold > summary {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}
+
+/* Condensed / dropped groups: a section like the listed one, its heading folding it. No
+   box around it: the cards inside sit at the same level as the listed ones. */
+.pl-group {
+  margin: 0 0 16px;
+
+  > summary {
+    display: list-item;
+    color: var(--text);
+
+    h3 {
+      display: inline-flex;
+    }
+  }
+  > .pl-fold-body {
+    padding: 0;
+  }
+}
+
 .pl-section {
-  margin: 20px 0;
+  margin: 0 0 16px;
+}
+
+/* Secondary material: quiet rows, closed by default. */
+.pl-more {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+
+  > h3 {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .pl-fold {
+    margin: 2px 0;
+    font-size: 14px;
+  }
+  .pl-fold > summary {
+    padding: 6px 4px;
+    color: var(--text-h);
+
+    &:hover {
+      background: var(--hover-tint);
+    }
+  }
+  .pl-fold-body {
+    padding: 4px 4px 12px 18px;
+  }
+  .pl-fold .pl-fold > summary {
+    font-size: 13px;
+  }
 }
 
 .pl-decisions {
@@ -392,21 +502,67 @@
   }
 }
 
+/* ------------------------------------------------ role cards */
 .pl-cards {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pl-card {
-  padding: 12px 14px 12px 16px;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--outcome, var(--border));
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--outcome, var(--border)) 60%, var(--border));
+  border-radius: var(--r-sm);
   font-size: 14px;
+  scroll-margin-top: 16px;
+  container-type: inline-size;
+
+  &:focus {
+    outline: none;
+  }
+  /* Picked from the timeline: a short tint so the eye lands on it. */
+  &.pl-flash {
+    animation: pl-flash 1.4s var(--ease-out);
+  }
+
+  > .pl-fold > summary,
+  > .pl-card-static {
+    display: block;
+    padding: 10px 14px 10px 14px;
+  }
+  > .pl-fold > summary {
+    list-style: none;
+    position: relative;
+    padding-right: 34px;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+    /* Chevron: points right when closed, down when open. */
+    &::after {
+      content: '';
+      position: absolute;
+      right: 14px;
+      top: 16px;
+      width: 7px;
+      height: 7px;
+      border-right: 1.5px solid var(--text);
+      border-bottom: 1.5px solid var(--text);
+      transform: rotate(-45deg);
+      transition: transform var(--t-fast) var(--ease-out);
+    }
+    &:hover {
+      background: var(--hover-tint);
+    }
+  }
+  > .pl-fold[open] > summary::after {
+    transform: rotate(45deg);
+  }
+  .pl-fold-body {
+    padding: 2px 14px 14px;
+  }
 }
 
 .pl-card-head {
@@ -436,16 +592,20 @@
 }
 
 .pl-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  margin: 2px 0 8px;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.pl-note {
+  margin: 8px 0 0;
   font-size: 13px;
   color: var(--text);
 }
 
-.pl-reason {
-  font-style: italic;
+.pl-fold-body > .pl-note:first-child {
+  margin: 0 0 10px;
 }
 
 .pl-field {
@@ -454,28 +614,40 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
+
+  .muted {
+    font-weight: 400;
+  }
 }
 
 .pl-context p,
-.pl-diff p {
+.pl-diff p,
+.pl-tech p {
   margin: 0;
   color: var(--text-h);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
+/* What the CV says leads; the original sits beside it (below it in a narrow card), quieter. */
 .pl-diff {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 16px;
+}
 
-  > div:first-child p {
+.pl-diff-before {
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+
+  p {
     color: var(--text);
+    font-size: 13px;
   }
 }
 
 .pl-tech {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .pl-chips {
@@ -529,14 +701,8 @@
   }
 }
 
-.pl-raw-controls {
-  display: flex;
-  gap: 6px;
-  margin-top: 16px;
-}
-
 .pl-raw {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   padding: 12px;
   background: var(--code-bg);
   border-radius: 6px;
@@ -547,12 +713,306 @@
   color: var(--text-h);
 }
 
+@keyframes pl-flash {
+  from {
+    background: var(--accent-bg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-card.pl-flash {
+    animation: none;
+  }
+  .pl-card > .pl-fold > summary::after,
+  .pl-row-bg,
+  .pl-bar {
+    transition: none;
+  }
+}
+
+@container (max-width: 620px) {
+  .pl-diff {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .pl-diff-before {
+    padding: 10px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
 @media (max-width: 600px) {
-  .pl-diff,
   .pl-categories {
     grid-template-columns: 1fr;
   }
-  .pl-chart text {
+}
+
+/* ------------------------------------------------------------- editing */
+
+/* In the placement picker: the option the pipeline chose by itself, once the user picked
+   another. The same dot as an edited headline's. */
+.pl-auto-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+
+.pl-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.pl-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+
+  .pl-field {
+    display: inline;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Edited by you: the same dot as on the tab. */
+.pl-edit-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* The text as it is in the CV, clicked to edit it. */
+.pl-edit-text {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-h);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  white-space: pre-wrap;
+
+  &.pl-headline {
+    font-size: 15px;
+  }
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+    background: var(--surface);
+  }
+  &:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.pl-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  input,
+  textarea {
+    width: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+  }
+  textarea {
+    resize: vertical;
+    line-height: 1.5;
+  }
+}
+
+.pl-edit-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+
+  .pl-revert {
+    margin-left: auto;
+  }
+}
+
+/* Where the role goes: a segmented In full / Condensed / Left out, under its card head. */
+.pl-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.pl-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+
+  button {
+    padding: 3px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: transparent;
+
+    &:hover:not(:disabled) {
+      border-color: transparent;
+      color: var(--text-h);
+    }
+    &[aria-checked='true'] {
+      color: var(--on-accent-fill);
+      background: var(--accent-fill);
+    }
+  }
+}
+
+.pl-cost {
+  margin: 22px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under a description being edited: the work-history text it started from. */
+.pl-own {
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+
+  p {
+    margin: 0;
+    color: var(--text);
     font-size: 13px;
+    white-space: pre-wrap;
+  }
+}
+
+/* A row the user moved: drawn as the next CV will have it, outlined and lighter until the
+   CV is regenerated. */
+.pl-row.pending .pl-bar {
+  opacity: 0.45;
+  stroke: var(--outcome);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.pl-row.pending .pl-label {
+  font-style: italic;
+}
+.pl-swatch-pending {
+  background: transparent;
+  border: 1.5px dashed var(--text);
+  box-sizing: border-box;
+}
+
+/* Technologies a listed role shows, as toggles: the pill is the button. */
+.pl-chips-edit {
+  li {
+    padding: 0;
+    border: 0;
+  }
+  button {
+    padding: 1px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-h);
+    font-size: 12px;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      border-color: var(--accent-border);
+    }
+    &.chip-added {
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+    }
+    &.chip-removed {
+      color: var(--text);
+      text-decoration: line-through;
+      border-style: dashed;
+      background: transparent;
+      opacity: 0.8;
+
+      &:hover:not(:disabled) {
+        text-decoration: none;
+        opacity: 1;
+      }
+    }
+  }
+}
+.pl-tech .pl-edit-head {
+  margin-bottom: 6px;
+}
+/* "+": add a technology of your own, typed into the pill itself. */
+.pl-chips-edit .chip-plus {
+  padding: 1px 9px;
+  border-style: dashed;
+  color: var(--accent);
+  font-weight: 700;
+}
+.pl-chips-edit .pl-chip-input {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+/* Revert sits under the pills, on the right. */
+.pl-tech-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* A moved role while the CV's tailoring step runs for it. */
+.pl-tailoring,
+.pl-tailoring-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+
+  .spinner {
+    margin: 0;
+    width: 12px;
+    height: 12px;
+  }
+}
+
+/* A moved role whose tailoring failed: why, and a retry. */
+.pl-tailor-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+
+  span {
+    flex: 1 1 16rem;
+    overflow-wrap: anywhere;
   }
 }

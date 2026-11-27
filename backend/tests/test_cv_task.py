@@ -246,6 +246,208 @@ def test_generate_cv_runs_the_whole_pipeline(task_engine, requests_seen):
     assert len(requests_seen) == 3 + 4 + 1 + 4
 
 
+def _set_overrides(
+    engine, cv_id: int, *, roles: dict[str, str] | None = None, contexts: dict[str, str] | None = None, **fields
+) -> None:
+    """Store ``overrides`` on the CV; ``roles`` / ``contexts`` are keyed by employer."""
+    with session_factory(engine)() as session:
+        ids = {e.employer: e.id for e in session.scalars(select(models.WorkHistoryEntry))}
+        overrides = dict(fields)
+        if roles:
+            overrides["roles"] = {str(ids[employer]): where for employer, where in roles.items()}
+        if contexts:
+            overrides["contexts"] = {str(ids[employer]): text for employer, text in contexts.items()}
+        session.get(models.GeneratedCV, cv_id).overrides = overrides
+        session.commit()
+
+
+def test_generate_cv_applies_the_users_edits(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    _set_overrides(
+        task_engine,
+        cv_id,
+        headline_role="Mobile Lead",
+        summary="My own words.",
+        roles={"VGW": "drop", "Old Corp": "main"},
+    )
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        cv = session.get(models.GeneratedCV, cv_id)
+        assert cv.headline_role == "Mobile Lead"
+        assert cv.summary == "My own words."
+        pipeline = cv.pipeline
+        # VGW left out even though relevant; Old Corp listed in full despite its low score.
+        assert [e["employer"] for e in pipeline["main"]] == ["Zartis", "Old Corp"]
+        assert pipeline["early"] == []
+        assert {r["employer"] for r in pipeline["relevance"]} == set(RELEVANCE)  # still scored
+        assert "left out VGW / Senior Mobile Engineer (your choice)" in pipeline["timeline_log"]
+        assert "listed in full Old Corp / PHP Developer (your choice)" in pipeline["timeline_log"]
+        assert pipeline["overrides"]["summary"] == "My own words."
+        tex = open(cv.tex_path, encoding="utf-8").read()
+        assert "Mobile Lead" in tex and "My own words." in tex
+    # 3 decisions + 2x2 main + no early + 2 headline calls (no summary / role)
+    assert len(requests_seen) == 3 + 4 + 2
+
+
+def test_generate_cv_condenses_a_role_the_user_moved(task_engine):
+    cv_id = _seed(task_engine)
+    _set_overrides(task_engine, cv_id, roles={"Zartis": "early"})
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        # The rules still apply to the others (Old Corp backfilled to reach the minimum).
+        assert [e["employer"] for e in pipeline["main"]] == ["VGW", "Old Corp"]
+        assert [e["employer"] for e in pipeline["early"]] == ["Zartis"]
+        assert pipeline["early"][0]["context"] == "Maintained a legacy PHP shop."
+
+
+def test_generate_cv_uses_the_descriptions_the_user_wrote(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    _set_overrides(task_engine, cv_id, contexts={"VGW": "Led the mobile team.", "Old Corp": "Kept a PHP shop alive."})
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        contexts = {e["employer"]: e["context"] for e in pipeline["main"] + pipeline["early"]}
+        assert contexts == {
+            "Zartis": "Shipped tailored features. Improved performance.",  # still tailored
+            "VGW": "Led the mobile team.",
+            "Old Corp": "Kept a PHP shop alive.",
+        }
+        assert all(e["tech"] == "TypeScript, React Native" for e in pipeline["main"])  # tech still tailored
+        vgw = next(r for r in pipeline["relevance"] if r["employer"] == "VGW")
+        assert vgw["context"] == "Built pipelines. Led the app."
+        assert vgw["tech"] == "React Native, TypeScript, Jest"  # the work history's, for the editor
+    # 3 decisions + 1 context + 2 tech + no early + 4 headline calls
+    assert len(requests_seen) == 3 + 3 + 4
+
+
+def test_generate_cv_uses_the_technologies_the_user_picked(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        vgw = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "VGW"))
+        session.get(models.GeneratedCV, cv_id).overrides = {"techs": {str(vgw.id): ["Jest", "React Native"]}}
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        techs = {e["employer"]: e["tech"] for e in pipeline["main"]}
+        assert techs == {"Zartis": "TypeScript, React Native", "VGW": "Jest, React Native"}
+    # 3 decisions + 2 context + 1 tech + 1 early + 4 headline calls
+    assert len(requests_seen) == 3 + 3 + 1 + 4
+
+
+def test_tailor_role_runs_the_pipelines_own_step(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        parsed = session.get(models.GeneratedCV, cv_id).job_parse_result
+        old = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "Old Corp"))
+
+        made = generate_task.tailor_role(session, parsed, old.id, "main")
+        work_history = {
+            "original_context": "Legacy shop. Nothing relevant, left because of complaints.",
+            "original_tech": ["PHP"],
+        }
+        assert made.pop("cost") == pytest.approx(2 * 0.0002)  # context + tech call
+        assert made.pop("calls") == 2
+        assert (
+            made
+            == {
+                "context": "Shipped tailored features. Improved performance.",
+                "tech": ["TypeScript", "React Native"],
+            }
+            | work_history
+        )
+        early = generate_task.tailor_role(session, parsed, old.id, "early")
+        assert (early.pop("cost"), early.pop("calls")) == (pytest.approx(0.0002), 1)
+        assert early == {"context": "Maintained a legacy PHP shop."} | work_history
+        with pytest.raises(LookupError):
+            generate_task.tailor_role(session, parsed, 999_999, "main")
+    assert len(requests_seen) == 2 + 1  # context + tech, then one condense call
+
+
+def test_generate_cv_prints_what_was_tailored_when_the_role_was_moved(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        old = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "Old Corp"))
+        session.get(models.GeneratedCV, cv_id).overrides = {
+            "roles": {str(old.id): "main"},
+            "tailored": {str(old.id): {"main": {"context": "Seen in the preview.", "tech": ["PHP"]}}},
+        }
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        main = session.get(models.GeneratedCV, cv_id).pipeline["main"]
+        old_corp = next(e for e in main if e["employer"] == "Old Corp")
+        assert (old_corp["context"], old_corp["tech"]) == ("Seen in the preview.", "PHP")
+    # 3 decisions + 2x2 for the other two listed roles (none for Old Corp) + 4 headline calls
+    assert len(requests_seen) == 3 + 4 + 4
+
+
+def test_tailor_moved_role_task_stores_its_outcome(task_engine):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        parsed_id = session.get(models.GeneratedCV, cv_id).job_parse_result_id
+        old_id = session.scalar(select(models.WorkHistoryEntry.id).where(models.WorkHistoryEntry.employer == "Old Corp"))
+        queued = {"status": "queued", "rq_job_id": "rq"}
+        application = models.Application(
+            job_parse_result_id=parsed_id,
+            cv_overrides={
+                "roles": {str(old_id): "main"},
+                "tailored": {str(old_id): {"main": queued}, "999": {"main": queued}},
+            },
+        )
+        session.add(application)
+        session.commit()
+        app_id = application.id
+
+    made = generate_task.tailor_moved_role(app_id, old_id, "main")
+    assert made["context"] == "Shipped tailored features. Improved performance."
+    with pytest.raises(generate_task.CvGenerationError, match="LookupError"):
+        generate_task.tailor_moved_role(app_id, 999, "main")  # the position is gone
+
+    with session_factory(task_engine)() as session:
+        overrides = session.get(models.Application, app_id).cv_overrides
+        assert overrides["roles"] == {str(old_id): "main"}
+        done = overrides["tailored"][str(old_id)]["main"]
+        assert done["status"] == "done" and done["context"] == made["context"] and done["calls"] == 2
+        failed = overrides["tailored"]["999"]["main"]
+        assert failed["status"] == "failed" and "unknown position 999" in failed["error"]
+
+        # Edits removed while it ran: nobody waits for the result any more, so it is dropped.
+        session.get(models.Application, app_id).cv_overrides = None
+        session.commit()
+    generate_task.tailor_moved_role(app_id, old_id, "early")
+    with session_factory(task_engine)() as session:
+        assert session.get(models.Application, app_id).cv_overrides is None
+
+
+def test_generate_cv_uses_the_cv_settings(task_engine):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        session.add(models.CVSettings(id=1, consent_text="I agree to everything.", min_entries=3))
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        cv = session.get(models.GeneratedCV, cv_id)
+        assert cv.pipeline["thresholds"]["min_entries"] == 3  # overrides the default of 2
+        assert cv.pipeline["thresholds"]["max_entries"] == 5  # default kept
+        # three roles listed in full now, the irrelevant one backfilled
+        assert [e["employer"] for e in cv.pipeline["main"]] == ["Zartis", "VGW", "Old Corp"]
+        assert "I agree to everything." in open(cv.tex_path, encoding="utf-8").read()
+
+
 def test_generate_cv_falls_back_and_warns_when_calls_fail(task_engine, requests_seen):
     cv_id = _seed(task_engine)
 
