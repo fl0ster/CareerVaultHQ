@@ -351,11 +351,20 @@ def test_tailor_role_runs_the_pipelines_own_step(task_engine, requests_seen):
         old = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "Old Corp"))
 
         made = generate_task.tailor_role(session, parsed, old.id, "main")
-        assert made == {
-            "context": "Shipped tailored features. Improved performance.",
-            "tech": ["TypeScript", "React Native"],
+        work_history = {
+            "original_context": "Legacy shop. Nothing relevant, left because of complaints.",
+            "original_tech": ["PHP"],
         }
-        assert generate_task.tailor_role(session, parsed, old.id, "early") == {"context": "Maintained a legacy PHP shop."}
+        assert (
+            made
+            == {
+                "context": "Shipped tailored features. Improved performance.",
+                "tech": ["TypeScript", "React Native"],
+            }
+            | work_history
+        )
+        early = generate_task.tailor_role(session, parsed, old.id, "early")
+        assert early == {"context": "Maintained a legacy PHP shop."} | work_history
         with pytest.raises(LookupError):
             generate_task.tailor_role(session, parsed, 999_999, "main")
     assert len(requests_seen) == 2 + 1  # context + tech, then one condense call

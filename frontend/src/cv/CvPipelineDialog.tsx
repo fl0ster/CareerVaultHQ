@@ -435,9 +435,7 @@ function TechPicker({ r, editing }: { r: RoleReport; editing: ReportEditing }) {
   const id = String(r.role.id)
   const all = editing.pending?.techs ?? {}
   const mine = all[id] ?? null
-  const entry = r.entry
-  // The work history's list; older CVs only recorded it for the roles they printed.
-  const original = splitTech(entry?.original_tech ?? r.role.tech ?? entry?.tech)
+  const original = workHistoryOf(r, editing.pending).tech
   // The tailoring step's pick: this CV's, or the one made when the role was moved here (the
   // work history's whole list until then).
   const generated = tailoredFor(r, 'listed', editing.pending)?.tech ?? original
@@ -602,6 +600,19 @@ function tailoredFor(r: RoleReport, where: Outcome, pending: CvOverrides | null)
   if (where === r.outcome && r.entry) return { context: r.entry.context ?? '', tech: splitTech(r.entry.tech) }
   if (where === 'dropped' || r.role.id == null) return undefined
   return pending?.tailored?.[String(r.role.id)]?.[where === 'listed' ? 'main' : 'early']
+}
+
+/** The role's description and technologies in the work history: from this CV's report, else
+ * from a tailoring made when the role was moved (older CVs recorded them only for the roles
+ * they printed). */
+function workHistoryOf(r: RoleReport, pending: CvOverrides | null): { context: string | null; tech: string[] } {
+  const made = r.role.id != null ? Object.values(pending?.tailored?.[String(r.role.id)] ?? {}) : []
+  const context = r.entry?.original_context ?? r.role.context ?? made.find((m) => m?.original_context)?.original_context
+  const tech = r.entry?.original_tech ?? r.role.tech ?? r.entry?.tech
+  return {
+    context: context ?? null,
+    tech: tech !== undefined ? splitTech(tech) : (made.find((m) => m?.original_tech?.length)?.original_tech ?? []),
+  }
 }
 
 const PLACEMENT_OF: Record<Outcome, RolePlacement> = { listed: 'main', condensed: 'early', dropped: 'drop' }
@@ -836,7 +847,7 @@ function DescriptionEditor({
   const mine = contexts[id] ?? null
   // Rewritten for where the role goes now (the CV's text, or the one made on moving it).
   const generated = tailoredFor(r, where, editing.pending)?.context ?? null
-  const own = r.entry?.original_context ?? r.role.context ?? null
+  const own = workHistoryOf(r, editing.pending).context
 
   const save = (text: string | null) => {
     const next = { ...contexts }

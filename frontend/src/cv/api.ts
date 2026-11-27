@@ -50,7 +50,13 @@ export type CvOverrides = {
 }
 
 export type TailoredPlacement = Exclude<RolePlacement, 'drop'>
-export type TailoredRole = { context: string; tech: string[] | null }
+export type TailoredRole = {
+  context: string
+  tech: string[] | null
+  /** The work history's text it was made from. */
+  original_context?: string | null
+  original_tech?: string[]
+}
 
 export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
 

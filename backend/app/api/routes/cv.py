@@ -74,6 +74,10 @@ class TailoredRole(BaseModel):
     context: str
     tech: list[str] | None = None
     """``main`` only."""
+    original_context: str | None = None
+    """The work history's description it was made from."""
+    original_tech: list[str] = []
+    """The work history's technologies it was made from."""
 
 
 class CvOverrides(BaseModel):
