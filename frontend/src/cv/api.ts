@@ -95,6 +95,8 @@ export type PipelineRole = {
   months?: number
   /** The description from the work history (newer CVs only). */
   context?: string | null
+  /** The technologies from the work history, comma separated (newer CVs only). */
+  tech?: string
 }
 
 /** A role as it ends up in the CV: ``main`` entries are tailored, ``early`` ones condensed.

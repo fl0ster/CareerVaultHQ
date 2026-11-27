@@ -751,6 +751,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
                 "date_end": r.date_end_label(today),
                 "months": r.length,
                 "context": r.context,
+                "tech": ", ".join(r.tech),
             }
             for r in roles
         ],
