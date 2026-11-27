@@ -629,18 +629,6 @@ function InterviewPlan({
           +
         </button>
       </span>
-      {application.planned_events.length > 0 && (
-        <IconButton
-          label="Clear the plan (remove every planned round)"
-          onClick={() => {
-            if (window.confirm('Remove every planned round?')) void set(0)
-          }}
-          disabled={busy}
-          danger
-        >
-          <Trash2 size={14} aria-hidden="true" />
-        </IconButton>
-      )}
       {error && <p className="error">{error}</p>}
     </div>
   )
