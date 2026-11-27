@@ -80,9 +80,11 @@
   &:hover:not(:disabled) {
     border-color: transparent;
   }
-  &:hover .job-title {
-    color: var(--accent);
-  }
+}
+
+/* Room for the open chevron at the far right (shell/clickable.css). */
+.job-item.clickable-row {
+  padding-right: 44px;
 }
 
 .job-item.match {
@@ -94,6 +96,7 @@
   font-weight: 600;
   color: var(--text-h);
   overflow-wrap: anywhere;
+  transition: color var(--t-fast) ease;
 }
 
 /* Applied: a full-height strip flush with the row's left edge, inside its padding. */
@@ -548,9 +551,6 @@
 .job-item.dimmed .job-title {
   color: var(--text);
   font-weight: 500;
-}
-.job-item.dimmed:hover .job-title {
-  color: var(--text-h);
 }
 
 /* Dismissed with ✕: crossed out, but can still be opened and applied to. */

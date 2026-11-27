@@ -5,14 +5,10 @@
   padding: 0;
 }
 
+/* A clickable row (shell/clickable.css), with room for the open chevron at its far right. */
 .app-item {
-  padding: 0 18px;
+  padding: 0 44px 0 18px;
   border-bottom: 1px solid var(--border);
-  transition: background-color var(--t-fast) ease;
-
-  &:hover {
-    background: var(--surface-2);
-  }
 }
 
 .app-row {
@@ -31,9 +27,6 @@
 
   &:hover:not(:disabled) {
     border-color: transparent;
-  }
-  &:hover:not(:disabled) .job-title {
-    color: var(--accent);
   }
 }
 

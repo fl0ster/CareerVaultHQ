@@ -22,6 +22,8 @@ import { describeError } from '../cv/api.ts'
 import type { Crumb } from '../shell/nav.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import { useStore } from '../shell/store.ts'
+import { RowChevron } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 import { useStuck } from '../shell/useStuck.ts'
 import EmptyState from '../mascot/EmptyState.tsx'
 
@@ -84,14 +86,14 @@ function JobRow({
   onRescored: (job: EvaluatedJobDetail) => void
   onOpenCompany: (companyId: number) => void
 }) {
-  const classes = ['job-item']
+  const classes = ['job-item', 'clickable-row']
   if (inbox) classes.push('match')
   else if (!isRelevant(job.evaluation)) classes.push('dimmed')
   if (!inbox && job.decision === 'rejected') classes.push('rejected')
   if (job.application_id != null) classes.push('applied')
 
   return (
-    <li className={classes.join(' ')}>
+    <li className={classes.join(' ')} onClick={openOnClick(() => onSelect(job))}>
       {job.application_id != null && (
         <span className="job-applied-strip" title="Application created" aria-label="Application created">
           <Send size={11} aria-hidden="true" />
@@ -107,7 +109,7 @@ function JobRow({
               jobId={job.id}
               onRescored={onRescored}
             />
-            <span className="job-title" style={{ marginLeft: '10px' }}>
+            <span className="job-title item-title" style={{ marginLeft: '10px' }}>
               {job.title ?? job.link}
             </span>
             <div className="job-meta">
@@ -131,7 +133,7 @@ function JobRow({
           </div>
         </button>
         {inbox && (
-          <div className="job-side">
+          <div className="job-side" data-no-open>
             <div className="job-decide">
               <button
                 type="button"
@@ -158,6 +160,7 @@ function JobRow({
         )}
       </div>
       {error && <p className="error">{error}</p>}
+      <RowChevron />
     </li>
   )
 }

@@ -1,9 +1,11 @@
-import { CalendarDays, ChevronRight } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import { type Application, type ApplicationStatus, OFFER_STATUS, formatDay } from '../applications/api.ts'
 import ApplicationStatusControl from '../applications/ApplicationStatusControl.tsx'
 import InterviewProgress from '../applications/InterviewProgress.tsx'
 import { AcceptOfferButton, DeclineOfferButton } from '../applications/OfferActions.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
+import { CardOpenButton } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 
 type Props = {
   application: Application
@@ -30,10 +32,10 @@ export default function OfferCard({
   const isOffer = a.status?.key === OFFER_STATUS
 
   return (
-    <article className="iv-card offer-card">
+    <article className="iv-card offer-card clickable-card" onClick={openOnClick(() => onOpen(a.id))}>
       <header className="iv-card-head">
         <div className="iv-card-title">
-          <button type="button" className="iv-card-job" onClick={() => onOpen(a.id)}>
+          <button type="button" className="iv-card-job item-title" onClick={() => onOpen(a.id)}>
             {a.job.title ?? a.job.link}
           </button>
           <div className="iv-card-meta">
@@ -48,9 +50,7 @@ export default function OfferCard({
             <InterviewProgress application={a} compact />
           </div>
         </div>
-        <button type="button" className="secondary iv-card-details" onClick={() => onOpen(a.id)}>
-          Details <ChevronRight size={16} aria-hidden="true" />
-        </button>
+        <CardOpenButton label="Open application" onOpen={() => onOpen(a.id)} />
       </header>
 
       <p className="offer-card-start">
@@ -63,7 +63,7 @@ export default function OfferCard({
       </p>
 
       {/* The decision sits at the bottom of every card, so it is plain there is one to make. */}
-      <footer className="offer-card-decision">
+      <footer className="offer-card-decision" data-no-open>
         {isOffer ? (
           <>
             <span className="offer-card-prompt">Your decision</span>
