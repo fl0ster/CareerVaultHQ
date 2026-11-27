@@ -1,0 +1,1002 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-27T14:04:26+00:00",
+  "title": "Design System: Pica",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Morning Mist",
+        "canonical": "#eef3f4",
+        "oklch": "oklch(96.1% 0.006 211.0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#232425",
+          "#404343",
+          "#606465",
+          "#838788",
+          "#a8abac",
+          "#cccece",
+          "#eeefef"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Pale Mist",
+        "canonical": "#f5f8f9",
+        "oklch": "oklch(97.7% 0.003 219.5)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#232424",
+          "#414343",
+          "#616464",
+          "#848787",
+          "#a9abac",
+          "#cdcece",
+          "#eeeeef"
+        ]
+      },
+      "sidebar": {
+        "role": "neutral",
+        "displayName": "Nest Mist",
+        "canonical": "#e4edef",
+        "oklch": "oklch(94.0% 0.010 212.5)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222525",
+          "#3e4345",
+          "#5d6567",
+          "#80888a",
+          "#a6acad",
+          "#cbcecf",
+          "#edefef"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline Mist",
+        "canonical": "#dbe4e6",
+        "oklch": "oklch(91.3% 0.010 212.5)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222525",
+          "#3e4345",
+          "#5d6567",
+          "#80888a",
+          "#a6acad",
+          "#cbcecf",
+          "#edefef"
+        ]
+      },
+      "border-strong": {
+        "role": "neutral",
+        "displayName": "Firm Hairline",
+        "canonical": "#c5d2d5",
+        "oklch": "oklch(85.5% 0.015 213.1)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#212526",
+          "#3c4446",
+          "#5a6668",
+          "#7d898b",
+          "#a4adae",
+          "#cacfd0",
+          "#ecefef"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Slate Body",
+        "canonical": "#56636a",
+        "oklch": "oklch(49.1% 0.020 231.3)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#202527",
+          "#3b4449",
+          "#58666d",
+          "#7b8890",
+          "#a3acb2",
+          "#c9cfd2",
+          "#eceff0"
+        ]
+      },
+      "text-h": {
+        "role": "neutral",
+        "displayName": "Ink Slate",
+        "canonical": "#1f2c33",
+        "oklch": "oklch(28.4% 0.022 232.0)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#202528",
+          "#3a4449",
+          "#57666e",
+          "#7a8991",
+          "#a2adb3",
+          "#c9cfd2",
+          "#eceff1"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Magpie Sheen Teal",
+        "canonical": "#3b7480",
+        "oklch": "oklch(52.5% 0.063 213.1)",
+        "tonalRamp": [
+          "#060c0e",
+          "#15272b",
+          "#234951",
+          "#336d79",
+          "#59909c",
+          "#8db2bb",
+          "#bdd2d7",
+          "#e6f1f3"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Sheen Teal Deep",
+        "canonical": "#2f616b",
+        "oklch": "oklch(46.2% 0.056 212.3)",
+        "tonalRamp": [
+          "#070c0e",
+          "#17272b",
+          "#27484f",
+          "#3a6c76",
+          "#5f8f99",
+          "#91b2b9",
+          "#bfd2d6",
+          "#e7f0f2"
+        ]
+      },
+      "accent-bg": {
+        "role": "primary",
+        "displayName": "Sheen Wash",
+        "canonical": "#d6eaec",
+        "oklch": "oklch(92.3% 0.021 204.0)",
+        "tonalRamp": [
+          "#090c0c",
+          "#1f2526",
+          "#394546",
+          "#566769",
+          "#788a8c",
+          "#a1aeaf",
+          "#c8cfd0",
+          "#eceff0"
+        ]
+      },
+      "accent-border": {
+        "role": "primary",
+        "displayName": "Sheen Edge",
+        "canonical": "rgba(59, 116, 128, 0.45)"
+      },
+      "on-accent": {
+        "role": "primary",
+        "displayName": "On Sheen",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "on-strong": {
+        "role": "secondary",
+        "displayName": "On Deep Sage",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "info-bg": {
+        "role": "secondary",
+        "displayName": "Periwinkle Wash",
+        "canonical": "#e0e6f8",
+        "oklch": "oklch(92.6% 0.025 271.1)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#222429",
+          "#3f424c",
+          "#5e6372",
+          "#808695",
+          "#a7aab6",
+          "#cbcdd4",
+          "#edeef2"
+        ]
+      },
+      "info-fg": {
+        "role": "secondary",
+        "displayName": "Periwinkle Ink",
+        "canonical": "#45558f",
+        "oklch": "oklch(46.4% 0.096 270.6)",
+        "tonalRamp": [
+          "#080b13",
+          "#1d2337",
+          "#354067",
+          "#4f5f9a",
+          "#7183bf",
+          "#9ba9d4",
+          "#c4cde7",
+          "#eaeefb"
+        ]
+      },
+      "info-solid": {
+        "role": "secondary",
+        "displayName": "Periwinkle",
+        "canonical": "#8ea2e0",
+        "oklch": "oklch(72.0% 0.094 270.2)",
+        "tonalRamp": [
+          "#080b12",
+          "#1d2337",
+          "#354066",
+          "#4f6099",
+          "#7183bd",
+          "#9baad3",
+          "#c4cde6",
+          "#eaeefa"
+        ]
+      },
+      "warn-bg": {
+        "role": "secondary",
+        "displayName": "Honey Wash",
+        "canonical": "#f7ecc9",
+        "oklch": "oklch(94.3% 0.047 92.6)",
+        "tonalRamp": [
+          "#0c0b07",
+          "#272419",
+          "#49422e",
+          "#6d6344",
+          "#908667",
+          "#b2ab95",
+          "#d2cec1",
+          "#f0eee8"
+        ]
+      },
+      "warn-fg": {
+        "role": "secondary",
+        "displayName": "Honey Ink",
+        "canonical": "#85621a",
+        "oklch": "oklch(51.9% 0.096 80.9)",
+        "tonalRamp": [
+          "#0f0a04",
+          "#2e220c",
+          "#553e0f",
+          "#7f5c12",
+          "#a3803f",
+          "#c0a77d",
+          "#daccb3",
+          "#f5eee2"
+        ]
+      },
+      "warn-solid": {
+        "role": "secondary",
+        "displayName": "Honey",
+        "canonical": "#e3bb52",
+        "oklch": "oklch(80.8% 0.130 88.2)",
+        "tonalRamp": [
+          "#0f0b02",
+          "#2f2200",
+          "#573e00",
+          "#825d00",
+          "#a68100",
+          "#c1a869",
+          "#dbcda9",
+          "#f5eedd"
+        ]
+      },
+      "success-bg": {
+        "role": "secondary",
+        "displayName": "Sage Wash",
+        "canonical": "#d8efe2",
+        "oklch": "oklch(93.2% 0.030 161.1)",
+        "tonalRamp": [
+          "#090c0a",
+          "#1f2622",
+          "#39463f",
+          "#55695e",
+          "#778c81",
+          "#a1afa7",
+          "#c8d0cb",
+          "#ebf0ed"
+        ]
+      },
+      "success-fg": {
+        "role": "secondary",
+        "displayName": "Sage Ink",
+        "canonical": "#2d6e4a",
+        "oklch": "oklch(48.6% 0.089 156.5)",
+        "tonalRamp": [
+          "#060d08",
+          "#14291d",
+          "#224c34",
+          "#32724e",
+          "#589671",
+          "#8db69c",
+          "#bdd5c5",
+          "#e6f2ea"
+        ]
+      },
+      "success-solid": {
+        "role": "secondary",
+        "displayName": "Sage",
+        "canonical": "#6cc196",
+        "oklch": "oklch(74.5% 0.105 160.3)",
+        "tonalRamp": [
+          "#050e08",
+          "#0e2a1d",
+          "#134e35",
+          "#16754e",
+          "#469971",
+          "#84b99c",
+          "#b8d6c5",
+          "#e4f3ea"
+        ]
+      },
+      "success-strong": {
+        "role": "secondary",
+        "displayName": "Deep Sage",
+        "canonical": "#3f9a6b",
+        "oklch": "oklch(61.8% 0.113 157.9)",
+        "tonalRamp": [
+          "#050e08",
+          "#0d2b1b",
+          "#0f4f31",
+          "#0d7649",
+          "#439a6c",
+          "#82ba99",
+          "#b7d7c3",
+          "#e4f3e9"
+        ]
+      },
+      "danger-bg": {
+        "role": "secondary",
+        "displayName": "Rose Wash",
+        "canonical": "#f7dfe0",
+        "oklch": "oklch(92.3% 0.027 14.8)",
+        "tonalRamp": [
+          "#0d0a0a",
+          "#292222",
+          "#4c3e3f",
+          "#725d5e",
+          "#958081",
+          "#b6a7a7",
+          "#d4cbcb",
+          "#f2eded"
+        ]
+      },
+      "danger-fg": {
+        "role": "secondary",
+        "displayName": "Rose Ink",
+        "canonical": "#9c3d45",
+        "oklch": "oklch(49.2% 0.127 18.0)",
+        "tonalRamp": [
+          "#140708",
+          "#39191a",
+          "#6a2b30",
+          "#9f3f47",
+          "#c5656a",
+          "#db9597",
+          "#ecc2c2",
+          "#fee9e9"
+        ]
+      },
+      "danger-solid": {
+        "role": "secondary",
+        "displayName": "Rose",
+        "canonical": "#e58e94",
+        "oklch": "oklch(73.8% 0.106 15.5)",
+        "tonalRamp": [
+          "#120809",
+          "#361b1d",
+          "#643035",
+          "#96474f",
+          "#bc6b71",
+          "#d4999c",
+          "#e7c4c5",
+          "#fbeaea"
+        ]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Mist Neutral Wash",
+        "canonical": "#e8edee",
+        "oklch": "oklch(94.3% 0.006 211.0)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#232425",
+          "#404343",
+          "#606465",
+          "#838788",
+          "#a8abac",
+          "#cccece",
+          "#eeefef"
+        ]
+      },
+      "neutral-fg": {
+        "role": "neutral",
+        "displayName": "Mist Neutral Ink",
+        "canonical": "#66707a",
+        "oklch": "oklch(54.0% 0.020 248.2)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#212428",
+          "#3d434a",
+          "#5b646e",
+          "#7d8792",
+          "#a5acb3",
+          "#caced3",
+          "#edeff1"
+        ]
+      },
+      "neutral-solid": {
+        "role": "neutral",
+        "displayName": "Mist Neutral",
+        "canonical": "#b3bcc0",
+        "oklch": "oklch(78.9% 0.012 226.0)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222426",
+          "#3e4346",
+          "#5d6568",
+          "#7f888b",
+          "#a6acae",
+          "#cbced0",
+          "#edefef"
+        ]
+      },
+      "lavender-bg": {
+        "role": "tertiary",
+        "displayName": "Lavender Wash",
+        "canonical": "#e8e2f6",
+        "oklch": "oklch(92.3% 0.028 299.5)",
+        "tonalRamp": [
+          "#0b0b0d",
+          "#252329",
+          "#44404c",
+          "#656071",
+          "#888394",
+          "#aca8b5",
+          "#ceccd4",
+          "#efeef1"
+        ]
+      },
+      "lavender-fg": {
+        "role": "tertiary",
+        "displayName": "Lavender Ink",
+        "canonical": "#5c4f91",
+        "oklch": "oklch(47.1% 0.105 290.9)",
+        "tonalRamp": [
+          "#0b0a13",
+          "#242037",
+          "#433a67",
+          "#64579a",
+          "#867bbf",
+          "#aaa4d4",
+          "#cdcae7",
+          "#eeedfb"
+        ]
+      },
+      "peach-bg": {
+        "role": "tertiary",
+        "displayName": "Peach Wash",
+        "canonical": "#fae4d7",
+        "oklch": "oklch(93.3% 0.030 52.7)",
+        "tonalRamp": [
+          "#0d0b09",
+          "#29221f",
+          "#4c3f38",
+          "#725f54",
+          "#958276",
+          "#b6a8a0",
+          "#d4ccc7",
+          "#f2edeb"
+        ]
+      },
+      "peach-fg": {
+        "role": "tertiary",
+        "displayName": "Peach Ink",
+        "canonical": "#92553a",
+        "oklch": "oklch(51.4% 0.091 44.2)",
+        "tonalRamp": [
+          "#110906",
+          "#331e15",
+          "#5f3625",
+          "#8e5136",
+          "#b3755a",
+          "#cc9f8c",
+          "#e2c7bc",
+          "#f9ebe6"
+        ]
+      },
+      "hover-tint": {
+        "role": "neutral",
+        "displayName": "Hover Tint",
+        "canonical": "rgba(31, 44, 51, 0.055)"
+      },
+      "backdrop": {
+        "role": "neutral",
+        "displayName": "Ink Backdrop",
+        "canonical": "rgba(31, 44, 51, 0.3)"
+      },
+      "mag-ink": {
+        "role": "mascot",
+        "displayName": "Magpie Ink",
+        "canonical": "#2d3b48",
+        "oklch": "oklch(34.5% 0.029 246.8)",
+        "tonalRamp": [
+          "#090b0d",
+          "#1f252a",
+          "#3a444d",
+          "#566573",
+          "#798897",
+          "#a1acb7",
+          "#c8cfd5",
+          "#eceff2"
+        ]
+      },
+      "mag-white": {
+        "role": "mascot",
+        "displayName": "Belly White",
+        "canonical": "#fbfdfd",
+        "oklch": "oklch(99.3% 0.002 197.1)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#232424",
+          "#414343",
+          "#626464",
+          "#858686",
+          "#aaabab",
+          "#cdcece",
+          "#eeeeee"
+        ]
+      },
+      "mag-sheen": {
+        "role": "mascot",
+        "displayName": "Wing Sheen",
+        "canonical": "#7cc3c2",
+        "oklch": "oklch(77.0% 0.071 194.6)",
+        "tonalRamp": [
+          "#050d0d",
+          "#112828",
+          "#1b4b4b",
+          "#267070",
+          "#4f9393",
+          "#88b5b4",
+          "#bad4d3",
+          "#e5f1f1"
+        ]
+      },
+      "mag-sheen-2": {
+        "role": "mascot",
+        "displayName": "Wing Sheen Violet",
+        "canonical": "#9fb2ea",
+        "oklch": "oklch(76.9% 0.083 269.9)",
+        "tonalRamp": [
+          "#090b12",
+          "#1d2335",
+          "#364162",
+          "#516093",
+          "#7384b8",
+          "#9daacf",
+          "#c5cde3",
+          "#eaeef9"
+        ]
+      },
+      "mag-cheek": {
+        "role": "mascot",
+        "displayName": "Cheek Blush",
+        "canonical": "#f3b6b5",
+        "oklch": "oklch(83.2% 0.071 19.8)",
+        "tonalRamp": [
+          "#100909",
+          "#311e1e",
+          "#5b3737",
+          "#875252",
+          "#ac7575",
+          "#c79f9f",
+          "#dfc7c6",
+          "#f7ebeb"
+        ]
+      },
+      "stage": {
+        "role": "mascot",
+        "displayName": "Stage",
+        "canonical": "#d6eaec",
+        "oklch": "oklch(92.3% 0.021 204.0)",
+        "tonalRamp": [
+          "#090c0c",
+          "#1f2526",
+          "#394546",
+          "#566769",
+          "#788a8c",
+          "#a1aeaf",
+          "#c8cfd0",
+          "#eceff0"
+        ]
+      },
+      "dusk-canvas": {
+        "role": "neutral",
+        "displayName": "Dusk Morning Mist",
+        "canonical": "#141b20",
+        "oklch": "oklch(21.7% 0.014 239.4)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#222427",
+          "#3e4347",
+          "#5c656b",
+          "#7f878e",
+          "#a6acb0",
+          "#cbced1",
+          "#edeff0"
+        ]
+      },
+      "dusk-surface": {
+        "role": "neutral",
+        "displayName": "Dusk Paper White",
+        "canonical": "#1b242a",
+        "oklch": "oklch(25.4% 0.017 237.5)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#212527",
+          "#3d4348",
+          "#5a656c",
+          "#7d888f",
+          "#a4acb1",
+          "#caced1",
+          "#edeff0"
+        ]
+      },
+      "dusk-surface-2": {
+        "role": "neutral",
+        "displayName": "Dusk Pale Mist",
+        "canonical": "#202b32",
+        "oklch": "oklch(28.2% 0.020 236.3)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#202527",
+          "#3b4449",
+          "#59656d",
+          "#7c8890",
+          "#a3acb2",
+          "#c9cfd2",
+          "#eceff0"
+        ]
+      },
+      "dusk-sidebar": {
+        "role": "neutral",
+        "displayName": "Dusk Nest Mist",
+        "canonical": "#172026",
+        "oklch": "oklch(23.8% 0.017 237.7)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#212527",
+          "#3c4348",
+          "#5a656c",
+          "#7d888f",
+          "#a4acb1",
+          "#caced2",
+          "#edeff0"
+        ]
+      },
+      "dusk-border": {
+        "role": "neutral",
+        "displayName": "Dusk Hairline Mist",
+        "canonical": "#2b3840",
+        "oklch": "oklch(33.2% 0.022 235.4)",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#202528",
+          "#3a444a",
+          "#57666e",
+          "#7a8992",
+          "#a2adb3",
+          "#c9cfd3",
+          "#eceff1"
+        ]
+      },
+      "dusk-text": {
+        "role": "neutral",
+        "displayName": "Dusk Slate Body",
+        "canonical": "#a2b0b7",
+        "oklch": "oklch(74.8% 0.019 229.1)",
+        "tonalRamp": [
+          "#0a0b0c",
+          "#202527",
+          "#3b4448",
+          "#59666c",
+          "#7b898f",
+          "#a3acb1",
+          "#c9cfd1",
+          "#eceff0"
+        ]
+      },
+      "dusk-text-h": {
+        "role": "neutral",
+        "displayName": "Dusk Ink Slate",
+        "canonical": "#e8eff1",
+        "oklch": "oklch(94.7% 0.008 216.6)",
+        "tonalRamp": [
+          "#0a0b0b",
+          "#222425",
+          "#3f4344",
+          "#5e6466",
+          "#818789",
+          "#a7acad",
+          "#cccecf",
+          "#edefef"
+        ]
+      },
+      "dusk-accent": {
+        "role": "primary",
+        "displayName": "Dusk Magpie Sheen Teal",
+        "canonical": "#8cc6cf",
+        "oklch": "oklch(79.0% 0.061 208.1)",
+        "tonalRamp": [
+          "#060c0e",
+          "#15272a",
+          "#24494f",
+          "#346d75",
+          "#5a9099",
+          "#8eb2b8",
+          "#bdd2d6",
+          "#e7f1f2"
+        ]
+      },
+      "dusk-on-accent": {
+        "role": "primary",
+        "displayName": "Dusk On Sheen",
+        "canonical": "#10262b",
+        "oklch": "oklch(25.3% 0.029 214.2)",
+        "tonalRamp": [
+          "#090c0c",
+          "#1e2628",
+          "#364549",
+          "#50686e",
+          "#738b91",
+          "#9eaeb2",
+          "#c6d0d2",
+          "#ebeff1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The page h1, one per page (26px under 900px)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section h2s."
+      },
+      "stat": {
+        "displayName": "Stat",
+        "purpose": "Headline numbers in dashboard stat tiles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "h3s, row and card titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text; intros capped at 64-76ch."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Buttons, nav items, inputs, tabs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase section labels in detail views."
+      },
+      "eyebrow": {
+        "displayName": "Eyebrow",
+        "purpose": "Teal uppercase greeting on the profile card."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Inline code only."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Entering and settling: reveals, drawers, dialogs."
+      },
+      {
+        "name": "ease-spring",
+        "value": "cubic-bezier(0.34, 1.4, 0.64, 1)",
+        "purpose": "Indicators, icons and pills that land with a small overshoot."
+      },
+      {
+        "name": "t-fast",
+        "value": "140ms",
+        "purpose": "Colour and border changes on hover/focus."
+      },
+      {
+        "name": "t-med",
+        "value": "240ms",
+        "purpose": "Reveals, expanding groups, theme cross-fade."
+      },
+      {
+        "name": "t-slow",
+        "value": "420ms",
+        "purpose": "Sliding nav indicator, drawer, dialog entrance."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "drawer",
+        "value": "900px"
+      },
+      {
+        "name": "single-column-widgets",
+        "value": "640px"
+      },
+      {
+        "name": "phone",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Tonal pill: teal wash with teal text. The default action.",
+      "html": "<button class=\"ds-btn-primary\">Generate CV</button>",
+      "css": ".ds-btn-primary { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; font-size: 14px; font-weight: 600; line-height: 1.3; padding: 7px 14px; border-radius: 999px; color: var(--accent, #3b7480); background: var(--accent-bg, #d6eaec); border: 1px solid transparent; cursor: pointer; transition: border-color 140ms ease, box-shadow 140ms ease; } .ds-btn-primary:hover { border-color: var(--accent-border, rgba(59,116,128,0.45)); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "White pill with a firm hairline, for secondary actions.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; font-size: 14px; font-weight: 600; line-height: 1.3; padding: 7px 14px; border-radius: 999px; color: var(--text-h, #1f2c33); background: var(--surface, #fff); border: 1px solid var(--border-strong, #c5d2d5); cursor: pointer; transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease; } .ds-btn-secondary:hover { background: var(--surface-2, #f5f8f9); border-color: var(--accent-border, rgba(59,116,128,0.45)); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "36px transparent circle for toolbar and menu actions.",
+      "html": "<button class=\"ds-icon-btn\" aria-label=\"Menu\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M4 6h16M4 12h16M4 18h16\"/></svg></button>",
+      "css": ".ds-icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text, #56636a); cursor: pointer; transition: background-color 140ms ease, color 140ms ease; } .ds-icon-btn:hover { background: var(--hover-tint, rgba(31,44,51,0.055)); color: var(--text-h, #1f2c33); } .ds-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "White field, soft corners, teal border and ring on focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Search applications\" />",
+      "css": ".ds-input { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; font-size: 14px; padding: 7px 11px; color: var(--text-h, #1f2c33); background: var(--surface, #fff); border: 1px solid var(--border-strong, #c5d2d5); border-radius: 8px; transition: border-color 140ms ease, box-shadow 140ms ease; } .ds-input::placeholder { color: var(--text, #56636a); opacity: 0.7; } .ds-input:hover { border-color: var(--accent-border, rgba(59,116,128,0.45)); } .ds-input:focus { outline: none; border-color: var(--accent, #3b7480); box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "40px pill in the side menu; active turns teal on a white indicator, with a teal count pill.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-active\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/></svg><span class=\"ds-nav-label\">Applications</span><span class=\"ds-nav-pill\">4</span></a><a class=\"ds-nav-item\" href=\"#\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-3.5-3.5\"/></svg><span class=\"ds-nav-label\">Jobs</span></a></nav>",
+      "css": ".ds-nav { display: grid; gap: 2px; width: 236px; padding: 12px; background: var(--sidebar, #e4edef); border-radius: 12px; } .ds-nav-item { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; display: flex; align-items: center; gap: 13px; height: 40px; padding: 0 14px; border-radius: 999px; color: var(--text-h, #1f2c33); font-size: 14px; font-weight: 550; text-decoration: none; transition: background-color 140ms ease, color 140ms ease; } .ds-nav-item:hover { background: var(--hover-tint, rgba(31,44,51,0.055)); } .ds-nav-item.ds-active { background: var(--surface, #fff); color: var(--accent, #3b7480); font-weight: 680; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); } .ds-nav-label { flex: 1; } .ds-nav-pill { min-width: 20px; padding: 0 7px; box-sizing: border-box; border-radius: 999px; background: var(--accent, #3b7480); color: var(--on-accent, #fff); font-size: 11.5px; font-weight: 700; line-height: 20px; text-align: center; }"
+    },
+    {
+      "name": "Status Pills",
+      "kind": "chip",
+      "refersTo": "status-applied",
+      "description": "Application states in their pastel pairs; Accepted is the one solid fill.",
+      "html": "<div class=\"ds-status-row\"><span class=\"ds-status ds-applied\">Applied</span><span class=\"ds-status ds-interview\">Interview</span><span class=\"ds-status ds-offer\">Offer</span><span class=\"ds-status ds-accepted\">Accepted</span><span class=\"ds-status ds-rejected\">Rejected</span><span class=\"ds-status ds-closed\">Closed</span><span class=\"ds-status ds-none\">No status</span></div>",
+      "css": ".ds-status-row { display: flex; flex-wrap: wrap; gap: 6px; } .ds-status { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 600; line-height: 1.5; } .ds-applied { background: var(--info-bg, #e0e6f8); color: var(--info-fg, #45558f); } .ds-interview { background: var(--warn-bg, #f7ecc9); color: var(--warn-fg, #85621a); } .ds-offer { background: var(--success-bg, #d8efe2); color: var(--success-fg, #2d6e4a); } .ds-accepted { background: var(--success-strong, #3f9a6b); color: var(--on-strong, #fff); } .ds-rejected { background: var(--danger-bg, #f7dfe0); color: var(--danger-fg, #9c3d45); } .ds-closed { background: var(--neutral-bg, #e8edee); color: var(--neutral-fg, #66707a); } .ds-none { background: transparent; border: 1px dashed var(--border, #dbe4e6); color: var(--text, #56636a); }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "nav",
+      "refersTo": "segmented-tab-active",
+      "description": "White pill tray; the active tab is a teal wash.",
+      "html": "<div class=\"ds-segmented\" role=\"tablist\"><button class=\"ds-seg-tab ds-active\" role=\"tab\" aria-selected=\"true\">Pending</button><button class=\"ds-seg-tab\" role=\"tab\" aria-selected=\"false\">Offers</button></div>",
+      "css": ".ds-segmented { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface, #fff); border: 1px solid var(--border, #dbe4e6); } .ds-seg-tab { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; padding: 6px 16px; font-size: 13.5px; font-weight: 600; border: 0; border-radius: 999px; background: transparent; color: var(--text, #56636a); cursor: pointer; transition: background-color 140ms ease, color 140ms ease; } .ds-seg-tab:hover { color: var(--text-h, #1f2c33); background: var(--hover-tint, rgba(31,44,51,0.055)); } .ds-seg-tab.ds-active { color: var(--accent, #3b7480); background: var(--accent-bg, #d6eaec); } .ds-seg-tab:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); }"
+    },
+    {
+      "name": "Stat Tile",
+      "kind": "card",
+      "refersTo": "stat-tile",
+      "description": "Dashboard headline number in Fraunces on a white curved card.",
+      "html": "<a class=\"ds-stat-tile\" href=\"#\"><span class=\"ds-stat-value\">12</span><span class=\"ds-stat-label\">Active applications</span><span class=\"ds-stat-hint\">3 in interview</span></a>",
+      "css": ".ds-stat-tile { font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif; display: flex; flex-direction: column; gap: 2px; width: 180px; padding: 14px 16px; background: var(--surface, #fff); border: 1px solid var(--border, #dbe4e6); border-radius: 12px; color: var(--text, #56636a); text-decoration: none; transition: border-color 150ms ease; } .ds-stat-tile:hover { border-color: var(--accent-border, rgba(59,116,128,0.45)); } .ds-stat-tile:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59, 116, 128, 0.28); } .ds-stat-value { font-family: 'Fraunces Variable', Georgia, serif; font-variation-settings: 'SOFT' 60, 'WONK' 0; font-size: 28px; line-height: 1.1; color: var(--text-h, #1f2c33); font-variant-numeric: tabular-nums; } .ds-stat-label { font-size: 13px; } .ds-stat-hint { font-size: 12px; opacity: 0.8; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Magpie's Nest",
+    "overview": "**Creative North Star: \"The Magpie's Nest\"**\n\nPica is where one person keeps everything worth keeping from a career, and the design should feel like a cosy, well-kept nest that grew from that collecting. Everything rests on a cool mist canvas. White paper surfaces hold the work, and the few shiny things (the teal accent, a headline number, a status that just changed) are placed with care, not scattered. The magpie isn't decoration added on top. It is the system's personality, and the rest of the interface stays calm so the bird can carry the character.\n\nThe mood is **calm, soft and personal**. Contrast is gentle, colour comes in pastel pairs, corners are rounded all the way to pills, and motion settles with a small spring. Headings use a soft, slightly literary serif, which gives pages the feel of a personal record. Controls and data use a friendly geometric sans so working views stay legible and quick to scan. The page density suits a daily-use tool: lists sit on white cards and rows are divided by hairlines. Nothing is cramped and nothing is padded for show.\n\nThe visual anti-references are confirmed. It is not a generic admin template (Bootstrap or Material dashboards, grey grids, default blue). It is not a corporate HR or ATS tool (impersonal, form-heavy, stock illustration). It does not use hard, saturated colour. It is not a dark-first hacker aesthetic: Dusk, the dark theme, is a companion to Mist, not the identity.",
+    "keyCharacteristics": [
+      "A cool mist canvas with white working surfaces, one deep teal accent and pastel status pairs.",
+      "Fraunces (with its soft axis) for page and section headings and headline numbers. Plus Jakarta Sans for everything else.",
+      "Pill-shaped controls: buttons, badges, nav items, segmented tabs and counters.",
+      "The magpie mascot is the brand mark and the live worker status, and it has its own small palette.",
+      "Two themes from one token set: Mist (light) and Dusk (dark), which follows the OS unless forced.",
+      "Springy, transform-only motion that stops completely under `prefers-reduced-motion`."
+    ],
+    "rules": [
+      {
+        "name": "The One Sheen Rule",
+        "body": "Teal is the only brand colour. It shows as text, outlines, underlines and small pills, almost never as a large solid fill. Primary buttons are a teal wash with teal text, not white on teal.",
+        "section": "colors"
+      },
+      {
+        "name": "The Pastel Pair Rule",
+        "body": "Every status uses its `-bg` / `-fg` pair, and the `-solid` is for dots, bars and lines only. Accepted is the one status that earns a solid fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Token-Only Rule",
+        "body": "Every colour comes from a custom property in `src/index.css`. A new colour is added there, for both themes, before any component uses it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Soft Serif Rule",
+        "body": "Fraunces runs with `'SOFT' 60, 'WONK' 0` for headings. The profile name alone goes to `'SOFT' 100, 'WONK' 1` and sets the surname in italic, which is the one place the type plays.",
+        "section": "typography"
+      },
+      {
+        "name": "The Serif Is for Names and Numbers Rule",
+        "body": "Fraunces is for page headings, section headings, the profile name, avatar initials and headline stats. Buttons, labels, tables and form text are always sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Pill-for-Action Rule",
+        "body": "Anything you press or toggle is a pill or a circle, and anything that holds content is a curved rectangle. Don't make square buttons or pill-shaped cards.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** take every colour from the custom properties in `src/index.css`, and define any new token for both Mist and Dusk.",
+      "**Do** use the tonal primary button (Sheen Wash fill, teal text). Keep solid teal for small things: count pills, progress fills, underlines.",
+      "**Do** show status with its pastel `-bg` / `-fg` pair, and use `-solid` only for dots, bars and timeline lines.",
+      "**Do** make every pressable control a pill or a circle, and every content container a curved rectangle (`rounded.md`).",
+      "**Do** set page and section headings and headline numbers in Fraunces, and everything operational in Plus Jakarta Sans.",
+      "**Do** give every interactive element the 3px teal focus ring (or a 2px teal outline) for keyboard focus.",
+      "**Do** let the magpie carry the character (moods, celebrations, empty states) and keep the surrounding UI calm.",
+      "**Do** honour `prefers-reduced-motion`, and animate with transforms and opacity only."
+    ],
+    "donts": [
+      "**Don't** drift toward a generic admin template: no dense grey tables, no sharp boxed panels, no default framework blue.",
+      "**Don't** make it feel like a corporate HR or ATS tool: no impersonal form walls, stock illustration or recruiter-dashboard chrome.",
+      "**Don't** use hard, saturated colour. No neon status colours and no loud solid fills, apart from the single Accepted state.",
+      "**Don't** design dark-first or \"hacker\": no terminal greens, and no monospace outside code. Dusk follows Mist, not the other way round.",
+      "**Don't** use lavender or peach for statuses. They're category tones only.",
+      "**Don't** reuse the mascot palette (`mag-*`, `stage`) for UI chrome.",
+      "**Don't** hard-code hex values in feature stylesheets.",
+      "**Don't** set buttons, labels or form text in the serif."
+    ]
+  }
+}
