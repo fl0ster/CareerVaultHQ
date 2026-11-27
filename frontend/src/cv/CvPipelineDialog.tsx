@@ -19,8 +19,10 @@ import {
   formatMonth,
   OUTCOME_ICON,
   OUTCOME_LABEL,
+  OUTCOME_OF_PLACEMENT,
   type Outcome,
   type RoleReport,
+  withPlacements,
   wordCount,
 } from './pipeline.ts'
 
@@ -97,7 +99,8 @@ function RoleTip({ r, hint }: { r: RoleReport; hint?: string }) {
       <strong>{r.role.employer}</strong>
       <span>{r.role.role}</span>
       <span>
-        {OUTCOME_ICON[r.outcome]} {OUTCOME_LABEL[r.outcome]} · relevance {pct(r.role.relevance)}
+        {OUTCOME_ICON[r.outcome]} {OUTCOME_LABEL[r.outcome]}
+        {r.pending && ' after regenerating'} · relevance {pct(r.role.relevance)}
       </span>
       {r.original && (
         <span className="muted">
@@ -162,6 +165,7 @@ function TimelineChart({ analysis, onSelect }: { analysis: Analysis; onSelect: (
     .filter((r) => r.original)
     .sort((a, b) => b.original!.start - a.original!.start || b.original!.end - a.original!.end)
   if (rows.length === 0) return null
+  const pending = rows.some((r) => r.pending)
   const min = Math.min(...rows.map((r) => r.original!.start))
   const max = Math.max(...rows.map((r) => r.original!.end))
   const top = 20
@@ -176,7 +180,9 @@ function TimelineChart({ analysis, onSelect }: { analysis: Analysis; onSelect: (
 
   return (
     <figure className="chart pl-chart pl-timeline">
-      <figcaption>Your work history, as this CV tells it</figcaption>
+      <figcaption>
+        {pending ? 'Your work history, as the regenerated CV will tell it' : 'Your work history, as this CV tells it'}
+      </figcaption>
       <div className="pl-chart-keys">
         <OutcomeLegend counts={analysis.counts} />
         <ul className="pl-legend pl-span-key" aria-label="Bar legend">
@@ -186,6 +192,11 @@ function TimelineChart({ analysis, onSelect }: { analysis: Analysis; onSelect: (
           <li>
             <span className="pl-swatch" aria-hidden="true" /> printed in the CV
           </li>
+          {pending && (
+            <li>
+              <span className="pl-swatch pl-swatch-pending" aria-hidden="true" /> moved by you
+            </li>
+          )}
         </ul>
       </div>
       <div className="chart-plot" ref={ref}>
@@ -211,7 +222,7 @@ function TimelineChart({ analysis, onSelect }: { analysis: Analysis; onSelect: (
             const o = r.original!
             const k = r.kept
             return (
-              <g key={r.key} className={`pl-row outcome-${r.outcome}${tip?.index === i ? ' hover' : ''}`}>
+              <g key={r.key} className={`pl-row outcome-${r.outcome}${r.pending ? ' pending' : ''}${tip?.index === i ? ' hover' : ''}`}>
                 <rect className="pl-row-bg" x={0} y={rowY} width={W} height={ROW_H} rx={4} />
                 <RowLabel r={r} x={plotX - 10} y={y + BAR_H / 2} W={W} />
                 <rect
@@ -306,7 +317,7 @@ function RelevanceChart({ analysis }: { analysis: Analysis }) {
             const y = top + i * ROW_H
             const w = Math.max(2, x(r.role.relevance) - plotX)
             return (
-              <g key={r.key} className={`pl-row outcome-${r.outcome}${tip?.index === i ? ' hover' : ''}`}>
+              <g key={r.key} className={`pl-row outcome-${r.outcome}${r.pending ? ' pending' : ''}${tip?.index === i ? ' hover' : ''}`}>
                 <RowLabel r={r} x={plotX - 10} y={y + ROW_H / 2} W={W} />
                 <rect className="pl-bar" x={plotX} y={y + (ROW_H - BAR_H) / 2} width={w} height={BAR_H} rx={4} />
                 {/* square the bar at the baseline */}
@@ -657,12 +668,10 @@ function cardId(r: RoleReport): string {
 
 type CardEditing = { editing?: ReportEditing; applied: CvOverrides | null }
 
-const OUTCOME_OF: Record<RolePlacement, Outcome> = { main: 'listed', early: 'condensed', drop: 'dropped' }
-
 /** Where the role sits in the report: where the user put it, else where this CV has it. */
 function placedOutcome(r: RoleReport, pending: CvOverrides | null | undefined): Outcome {
   const mine = r.role.id != null ? pending?.roles?.[String(r.role.id)] : undefined
-  return mine ? OUTCOME_OF[mine] : r.outcome
+  return mine ? OUTCOME_OF_PLACEMENT[mine] : r.outcome
 }
 
 const DESCRIPTION_HINT: Record<Outcome, string> = {
@@ -816,6 +825,7 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
   }
 
   const analysis = pipeline ? analyse(pipeline) : null
+  const planned = analysis && withPlacements(analysis, editing?.pending?.roles)
   const roles = analysis?.roles ?? []
   // A role the user moved shows in the section it will be in after regenerating.
   const placed = (r: RoleReport) => placedOutcome(r, editing?.pending)
@@ -936,16 +946,17 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
               ),
           )}
 
-          {/* The work history as this CV has it (not the pending edits). */}
-          {analysis.hasSpans ? (
-            <TimelineChart analysis={analysis} onSelect={select} />
-          ) : (
-            <figure className="chart pl-chart">
-              <figcaption>How each role scored against the job</figcaption>
-              <OutcomeLegend counts={analysis.counts} />
-              <RelevanceChart analysis={analysis} />
-            </figure>
-          )}
+          {/* The work history as the next CV will have it: the pending placements applied. */}
+          {planned &&
+            (planned.hasSpans ? (
+              <TimelineChart analysis={planned} onSelect={select} />
+            ) : (
+              <figure className="chart pl-chart">
+                <figcaption>How each role scored against the job</figcaption>
+                <OutcomeLegend counts={planned.counts} />
+                <RelevanceChart analysis={planned} />
+              </figure>
+            ))}
 
           <div className="pl-more">
             <h3>Behind the scenes</h3>

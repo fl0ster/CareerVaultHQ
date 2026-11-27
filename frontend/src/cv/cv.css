@@ -948,3 +948,20 @@
     white-space: pre-wrap;
   }
 }
+
+/* A row the user moved: drawn as the next CV will have it, outlined and lighter until the
+   CV is regenerated. */
+.pl-row.pending .pl-bar {
+  opacity: 0.45;
+  stroke: var(--outcome);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+.pl-row.pending .pl-label {
+  font-style: italic;
+}
+.pl-swatch-pending {
+  background: transparent;
+  border: 1.5px dashed var(--text);
+  box-sizing: border-box;
+}
