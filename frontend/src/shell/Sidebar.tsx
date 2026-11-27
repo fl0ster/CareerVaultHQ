@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
+import { ChevronDown, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
 import Magpie from '../mascot/Magpie.tsx'
 import ProfileCard from './ProfileCard.tsx'
 import {
@@ -23,10 +23,7 @@ type Badges = Partial<
     {
       count: number
       title: string
-      /** `warn`: something needs the user's attention (e.g. an overdue journal), with `icon` beside the count. */
-      tone?: 'warn'
-      icon?: LucideIcon
-      /** New finds (the jobs inbox): a sun counter with the magpie peeking out of it. */
+      /** Something for the user (new jobs to review, an overdue journal): a sun counter with the magpie peeking out. */
       magpie?: boolean
     }
   >
@@ -92,14 +89,13 @@ function PageLink({
       <span className="nav-label">{item.label}</span>
       {badge && badge.count > 0 && (
         <span
-          className={`nav-pill${badge.tone ? ` ${badge.tone}` : ''}${badge.magpie ? ' finds' : ''}`}
+          className={`nav-pill${badge.magpie ? ' finds' : ''}`}
           title={badge.title}
           key={badge.count}
         >
           {badge.magpie && <Magpie head size={19} />}
-          {badge.icon && <badge.icon size={11} strokeWidth={2.5} aria-hidden="true" />}
           {badge.count}
-          {badge.tone && <span className="sr-only"> {badge.title}</span>}
+          {badge.magpie && <span className="sr-only"> {badge.title}</span>}
         </span>
       )}
     </a>

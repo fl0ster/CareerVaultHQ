@@ -359,7 +359,7 @@ Rounded, confident, and colour-coded by job.
 
 ### Chips
 - **Style:** badges are 999px pills, 12.5px/600, on `neutral-bg`; status badges use the matching `-bg`/`-fg` pair.
-- **Counters:** nav counters are 22px pills on feather mist; on the current page's feather fill they invert to a white pill with feather text. Warning counters use the warn pair with a `warn-border` and an icon.
+- **Counters:** plain nav counts (Interviews, Offers) are 22px pills on feather mist with feather text. A counter that asks for the user (new jobs to review, an overdue Employment journal) is the sun pill with the magpie head peeking out; there are no bell or warning-coloured counters.
 
 ### Cards / Containers
 - **Corner Style:** medium (16px) for cards and lists, large (24px) for widgets, the profile card and panels.
@@ -387,7 +387,7 @@ A 24px-radius `surface` card in the sidebar that links to the dashboard. It hold
 One segmented band of headline numbers: tiles on `surface` with 46px display numerals and 13.5px labels, 3px canvas seams, 24px outer radius. The "Jobs to review" tile turns sun with sun-ink text when there are new jobs, and the magpie head (30px) watches from its top-right corner, peeking in with a spring and tilting on hover.
 
 ### The Magpie Signature
-On a sun background, the magpie head means "something new arrived" and appears in three places only: the brand mark (the head against a 32px sun disc), the new-jobs counter (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on the pale feather `stage` disc, which turns pale sun when queued and rose when in error.
+On a sun background, the magpie head means "something is here for you" and appears in these places only: the brand mark (the head against a 32px sun disc), the sun nav counters for new jobs and an overdue Employment journal (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on the pale feather `stage` disc, which turns pale sun when queued and rose when in error.
 
 **Empty states** (`mascot/EmptyState.tsx`) are the magpie's other home, always on the pale feather `stage` disc, never on sun. The `page` variant puts the idling full-body magpie on an 84px disc beside the message, inside a `surface` block at the 24px radius; below 600px it stacks and centres. The `inline` variant puts the head on a 28px disc before a 14px line, for empty widgets, charts, dialog sections and the end of the jobs feed. Use them only for genuinely empty collections, never for a missing field (such as "No parsed description") or as decoration.
 

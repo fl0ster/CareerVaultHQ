@@ -482,7 +482,7 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   animation: pop-in var(--t-med) var(--ease-out);
 }
 
-/* New jobs: the magpie peeks out of a sun counter, black and white against the sun. */
+/* Something for you (new jobs, an overdue journal): the magpie peeks out of a sun counter. */
 .nav-pill.finds {
   gap: 2px;
   padding: 0 8px 0 3px;
@@ -512,17 +512,6 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   40% {
     transform: rotate(-14deg);
   }
-}
-
-/* Something is due (e.g. a journal note): warning colours, with an icon beside the count. */
-.nav-pill.warn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  background: var(--warn-bg);
-  color: var(--warn-fg);
-  border: 1px solid var(--warn-border);
 }
 
 .sidebar-foot {
@@ -623,10 +612,6 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   }
   /* No room for the magpie on the rail: the sun counter carries it. */
   .nav-pill.finds .magpie {
-    display: none;
-  }
-  /* No room for the icon on the rail: the warning colours carry it. */
-  .nav-pill.warn svg {
     display: none;
   }
   .sidebar-foot {

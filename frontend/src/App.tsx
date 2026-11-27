@@ -1,4 +1,3 @@
-import { BellRing } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import './App.css'
 import './shell/shell.css'
@@ -222,8 +221,7 @@ function App() {
               counts?.journal_overdue === 1
                 ? 'Journal update due: 1 position without a note for a week'
                 : `Journal update due: ${counts?.journal_overdue ?? 0} positions without a note for a week`,
-            tone: 'warn',
-            icon: BellRing,
+            magpie: true,
           },
         }}
         hiddenPages={hiddenPages}
