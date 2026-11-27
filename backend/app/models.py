@@ -543,9 +543,9 @@ class JobEvaluationFailure(Base):
 
 
 class CandidateDetails(Base):
-    """Personal details printed on a generated CV (name, contact lines, languages and the
-    consent clause). A singleton: at most one row exists and ``PUT /api/candidate-details``
-    upserts it. Education and certifications are career events in ``WorkHistoryEntry``."""
+    """Personal details printed on a generated CV (name, contact lines, languages and
+    photo); the consent clause is in ``CVSettings``. A singleton: at most one row exists
+    and ``PUT /api/candidate-details`` upserts it. Education and certifications are career events in ``WorkHistoryEntry``."""
 
     __tablename__ = "candidate_details"
 
@@ -562,9 +562,6 @@ class CandidateDetails(Base):
     """Profile picture as a ``data:image/...;base64,`` URL (scaled down in the browser); blank = none."""
     languages: Mapped[list[dict]] = mapped_column(JSON, default=list)
     """``[{"language": "English", "level": "Advanced (C1)"}, ...]``."""
-    consent_text: Mapped[str] = mapped_column(Text, default="")
-    """Legacy: the consent clause now lives in ``CVSettings.consent_text``; this value only
-    seeds it when the CV settings row is first created."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

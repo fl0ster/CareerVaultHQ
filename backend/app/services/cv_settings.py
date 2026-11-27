@@ -5,11 +5,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import CandidateDetails, CVSettings
+from app.models import CVSettings
 
 SETTINGS_ID = 1
 
@@ -23,12 +22,11 @@ TIMELINE_FIELDS = ("max_entries", "min_entries", "high_relevance", "irrelevant_r
 
 
 def get_cv_settings(session: Session) -> CVSettings:
-    """The settings row, created on first use. Its consent clause starts as the one saved
-    with the personal details (where it used to live), or the default clause."""
+    """The settings row, created on first use with the default consent clause and no rule
+    overrides."""
     row = session.get(CVSettings, SETTINGS_ID)
     if row is None:
-        legacy = session.scalar(select(CandidateDetails).order_by(CandidateDetails.id.desc()).limit(1))
-        row = CVSettings(id=SETTINGS_ID, consent_text=legacy.consent_text if legacy else DEFAULT_CONSENT)
+        row = CVSettings(id=SETTINGS_ID, consent_text=DEFAULT_CONSENT)
         session.add(row)
         session.commit()
     return row

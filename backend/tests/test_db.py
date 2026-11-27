@@ -10,7 +10,7 @@ def test_init_db_moves_education_off_the_candidate_details(tmp_path):
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "CREATE TABLE candidate_details (id INTEGER PRIMARY KEY, first_name VARCHAR(128) NOT NULL DEFAULT '',"
-            " education JSON, certifications JSON)"
+            " education JSON, certifications JSON, consent_text TEXT)"
         )
         conn.exec_driver_sql("INSERT INTO candidate_details (first_name, education) VALUES ('Jane', '[]')")
         conn.exec_driver_sql(
@@ -26,7 +26,7 @@ def test_init_db_moves_education_off_the_candidate_details(tmp_path):
     init_db(engine)  # idempotent
 
     columns = {c["name"] for c in inspect(engine).get_columns("candidate_details")}
-    assert "education" not in columns and "certifications" not in columns
+    assert not {"education", "certifications", "consent_text"} & columns
     assert {"first_name", "photo"} <= columns
     with engine.connect() as conn:
         assert conn.exec_driver_sql("SELECT first_name FROM candidate_details").scalar() == "Jane"

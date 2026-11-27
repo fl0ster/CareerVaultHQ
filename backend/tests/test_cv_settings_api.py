@@ -1,5 +1,3 @@
-from app import models
-
 BASE = "/api/cv-settings"
 
 DEFAULTS = {"max_entries": 5, "min_entries": 3, "high_relevance": 0.6, "irrelevant_relevance": 0.25, "min_months": 3}
@@ -11,12 +9,6 @@ def test_starts_with_the_defaults_and_the_default_consent(client):
     assert body["defaults"] == DEFAULTS
     assert body["overridden"] == []
     assert body["consent_text"].startswith("I consent to the processing of my personal data")
-
-
-def test_consent_is_seeded_from_the_personal_details(client, db_session):
-    db_session.add(models.CandidateDetails(first_name="Jane", consent_text="Legacy clause."))
-    db_session.commit()
-    assert client.get(BASE).json()["consent_text"] == "Legacy clause."
 
 
 def test_put_overrides_and_resets_rules(client):

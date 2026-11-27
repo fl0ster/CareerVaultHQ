@@ -10,7 +10,6 @@ DETAILS = {
     "linkedin": "",
     "location": "Kraków",
     "languages": [{"language": "Polish", "level": "Native"}, {"language": "", "level": "B2"}],
-    "consent_text": "I consent.",
 }
 
 
