@@ -355,6 +355,8 @@ def test_tailor_role_runs_the_pipelines_own_step(task_engine, requests_seen):
             "original_context": "Legacy shop. Nothing relevant, left because of complaints.",
             "original_tech": ["PHP"],
         }
+        assert made.pop("cost") == pytest.approx(2 * 0.0002)  # context + tech call
+        assert made.pop("calls") == 2
         assert (
             made
             == {
@@ -364,6 +366,7 @@ def test_tailor_role_runs_the_pipelines_own_step(task_engine, requests_seen):
             | work_history
         )
         early = generate_task.tailor_role(session, parsed, old.id, "early")
+        assert (early.pop("cost"), early.pop("calls")) == (pytest.approx(0.0002), 1)
         assert early == {"context": "Maintained a legacy PHP shop."} | work_history
         with pytest.raises(LookupError):
             generate_task.tailor_role(session, parsed, 999_999, "main")

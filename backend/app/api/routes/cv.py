@@ -78,6 +78,10 @@ class TailoredRole(BaseModel):
     """The work history's description it was made from."""
     original_tech: list[str] = []
     """The work history's technologies it was made from."""
+    cost: float = 0.0
+    """USD its OpenRouter calls cost."""
+    calls: int = 0
+    """Number of OpenRouter calls it made."""
 
 
 class CvOverrides(BaseModel):

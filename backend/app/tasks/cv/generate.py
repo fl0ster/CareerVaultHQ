@@ -596,8 +596,9 @@ def tailor_role(
     """Step 3 of the pipeline for one role the user moved, ahead of the next CV: the very
     ``tailor_main_roles`` (``placement == "main"``) or ``condense_early_roles`` (``"early"``)
     call a CV makes. Returns ``{"context": str, "tech": [str], "original_context": str | None,
-    "original_tech": [str]}`` (``tech`` for ``main`` only); the ``original_*`` are the work
-    history's text it started from, for the UI to show beside it.
+    "original_tech": [str], "cost": float, "calls": int}`` (``tech`` for ``main`` only); the
+    ``original_*`` are the work history's text it started from, for the UI to show beside it,
+    ``cost`` / ``calls`` what its OpenRouter calls cost.
 
     Raises ``LookupError`` for an unknown role, ``OpenRouterNotConfigured`` without an API key
     and :class:`CvGenerationError` when the LLM gave nothing usable (the pipeline would have
@@ -620,7 +621,8 @@ def tailor_role(
         result = {"context": entry.get("context") or ""}
     if warnings:
         raise CvGenerationError("; ".join(warnings))
-    return result | {"original_context": role.context, "original_tech": list(role.tech)}
+    cost, calls = llm.cost(session)
+    return result | {"original_context": role.context, "original_tech": list(role.tech), "cost": cost, "calls": calls}
 
 
 def tailored_texts(overrides: dict, roles: list[Role], placement: str) -> tuple[list[str | None], list[list[str] | None]]:

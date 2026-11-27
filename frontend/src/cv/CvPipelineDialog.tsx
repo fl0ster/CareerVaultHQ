@@ -1009,6 +1009,11 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
   const decisions = analysis?.log.filter((l) => l.kind !== 'listing' && !(l.kind === 'moved' && l.label)) ?? []
   const cost = pipeline?.cost ?? cv.cost
   const calls = pipeline?.openrouter_calls ?? cv.openrouter_calls
+  // Plus what tailoring the roles the user moved cost (a regenerated CV reuses that text
+  // without calling again, so it is counted here rather than in its own cost).
+  const edits = Object.values(editing?.pending?.tailored ?? {})
+    .flatMap((made) => Object.values(made))
+    .reduce((sum, m) => ({ cost: sum.cost + (m?.cost ?? 0), calls: sum.calls + (m?.calls ?? 0) }), { cost: 0, calls: 0 })
   const warnings = pipeline?.warnings ?? cv.warnings
   const empty = pipeline !== null && roles.length === 0
 
@@ -1201,8 +1206,9 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
 
       {pipeline && (
         <p className="pl-cost">
-          {cost === null || cost === undefined ? 'Cost unknown' : `Generated for ${formatUsd(cost)}`} ·{' '}
-          {plural(calls ?? 0, 'OpenRouter call')}
+          {cost === null || cost === undefined ? 'Cost unknown' : `Generated for ${formatUsd(cost + edits.cost)}`} ·{' '}
+          {plural((calls ?? 0) + edits.calls, 'OpenRouter call')}
+          {edits.calls > 0 && ` (${edits.calls} for tailoring moved roles)`}
         </p>
       )}
     </div>

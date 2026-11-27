@@ -241,8 +241,22 @@ def test_tailoring_a_moved_role_is_kept_apart_from_the_edits(client, db_session,
     assert overrides["roles"] == {"3": "main"}  # the edits are untouched
     assert overrides["tailored"] == {
         "3": {
-            "main": {"context": "main text", "tech": ["Go"], "original_context": None, "original_tech": []},
-            "early": {"context": "short", "tech": None, "original_context": None, "original_tech": []},
+            "main": {
+                "context": "main text",
+                "tech": ["Go"],
+                "original_context": None,
+                "original_tech": [],
+                "cost": 0.0,
+                "calls": 0,
+            },
+            "early": {
+                "context": "short",
+                "tech": None,
+                "original_context": None,
+                "original_tech": [],
+                "cost": 0.0,
+                "calls": 0,
+            },
         }
     }
 

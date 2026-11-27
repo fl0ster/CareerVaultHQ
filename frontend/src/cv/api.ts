@@ -56,6 +56,9 @@ export type TailoredRole = {
   /** The work history's text it was made from. */
   original_context?: string | null
   original_tech?: string[]
+  /** USD its OpenRouter calls cost, and how many it made. */
+  cost?: number
+  calls?: number
 }
 
 export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
