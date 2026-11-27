@@ -13,14 +13,12 @@ colors:
   accent-border: "rgba(58, 79, 200, 0.4)"
   accent-fill: "#3a4fc8"
   on-accent-fill: "#ffffff"
-  glow: "#ffcfb2"
-  on-glow: "#3a1d0c"
-  canvas: "#f7eef0"
-  surface: "#fffcfb"
-  surface-2: "#fbf3f2"
-  sidebar: "#efdfe6"
-  border: "#ecdfe3"
-  border-strong: "#d9c6cf"
+  canvas: "#f4f0f8"
+  surface: "#fdfcff"
+  surface-2: "#f8f5fc"
+  sidebar: "#e9e3f4"
+  border: "#e5dfef"
+  border-strong: "#d0c8e2"
   text: "#5d5677"
   text-h: "#1d1838"
   hover-tint: "rgba(29, 24, 56, 0.055)"
@@ -56,7 +54,7 @@ colors:
   mag-sheen: "#3557d6"
   mag-sheen-2: "#7d5ce8"
   mag-cheek: "#f7aaa0"
-  stage: "#ffcfb2"
+  stage: "#e6e9fc"
   stage-warn: "#fdf0c9"
   stage-danger: "#fbe1e6"
   sunset-canvas: "#191731"
@@ -71,8 +69,7 @@ colors:
   sunset-accent-fill: "#4669ec"
   sunset-sun: "#f8c64a"
   sunset-sun-hover: "#ffd56e"
-  sunset-glow: "#f3a882"
-  sunset-stage: "#f3a882"
+  sunset-stage: "#b4c1ff"
 typography:
   display:
     fontFamily: "Bricolage Grotesque Variable, Plus Jakarta Sans Variable, system-ui, sans-serif"
@@ -229,8 +226,8 @@ components:
     rounded: "{rounded.lg}"
     padding: "14px 12px"
   profile-avatar:
-    backgroundColor: "{colors.glow}"
-    textColor: "{colors.on-glow}"
+    backgroundColor: "{colors.accent-bg}"
+    textColor: "{colors.accent}"
     rounded: "{rounded.pill}"
     size: "52px"
   brand-sun:
@@ -249,11 +246,11 @@ components:
 
 **Creative North Star: "The Magpie at Golden Hour"**
 
-Pica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac warmed toward peach with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are. Glow, the low sun's peach, adds warmth where a person or the bird sits.
+Pica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are.
 
 It is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.
 
-The magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a glow-peach stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.
+The magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a pale feather stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.
 
 **Key Characteristics:**
 - Flat by rule: every shadow token is `none`; depth is tone.
@@ -265,7 +262,7 @@ The magpie is the brand. It appears as a head against a sun disc in the brand ma
 
 ## Colors
 
-A warm violet field with two saturated lights (sun and feather) and peach for warmth; status colours are soft tinted pairs.
+Three roles and no more. Feather blue marks selection and where you are; the dark ink violet carries the grounds; sun yellow highlights what to press and what is new. Everything else is a soft tinted status pair or a data tone, never chrome.
 
 ### Primary
 - **Marigold Sun** (`sun`; Sunset `sunset-sun`): the one thing to press and the one thing that is new. Form submit buttons and `.primary` pills, the add-job button, the new-jobs counter in the sidebar, the "Jobs to review" stat tile when there is something to review, the brand disc behind the magpie, the setup progress bar fill, and text selection. Text on it is always **Sun Ink** (`on-sun`), never white. Hover deepens to `sun-hover` in Sunrise and brightens in Sunset.
@@ -274,23 +271,21 @@ A warm violet field with two saturated lights (sun and feather) and peach for wa
 ### Secondary
 - **Feather Cobalt** (`accent`; Sunset `sunset-accent`, a light periwinkle): where you are and where you can go. Links, focus rings and outlines, caret and checkbox accent, the active settings tab text and its underline, the current-page outline of the profile card, and the text of default (non-primary) buttons.
 - **Feather Fill** (`accent-fill` with `on-accent-fill`; Sunset `sunset-accent-fill`): solid fills for "you are here": the sliding nav indicator behind the current page, the active segmented-control tab, the worker job count. In Sunset the fill (#4669ec) is darker than the text accent so white text on it stays legible.
-- **Feather Mist** (`accent-bg`, `accent-border`): the resting tint of default buttons and plain counters, and the hover border of controls.
-
-### Tertiary
-- **Low-Sun Glow** (`glow` with `on-glow`; Sunset `sunset-glow`, a deeper apricot): warmth for people and the bird, and only those. The profile avatar disc with its dark-ink initials, and the mascot's stage (`stage` resolves to `glow` in both themes). The stage shifts to `stage-warn` (pale sun) when the worker is queued and `stage-danger` when it errors.
+- **Feather Mist** (`accent-bg`, `accent-border`): the resting tint of default buttons and plain counters, the profile avatar disc (with `accent` initials), and the hover border of controls.
+- **Feather Stage** (`stage`; Sunset `sunset-stage`, a brighter periwinkle): the pale feather disc the mascot stands on, for the worker character and empty states. It shifts to `stage-warn` (pale sun) when the worker is queued and `stage-danger` when it errors.
 
 ### Neutral
 - **Dawn Lilac** (`canvas`): the page ground and the top bar.
 - **Lilac Haze** (`sidebar`): the side menu, one tone step from the canvas. In Sunset it is the darkest layer (`sunset-sidebar`).
-- **Warm Paper** (`surface`) and **Blush Paper** (`surface-2`): cards, lists, dialogs, inputs, panels and their hover step.
-- **Rose Hairline** (`border`) and **Mauve Hairline** (`border-strong`): dividers and card edges; the strong one is for inputs, secondary buttons and floating panels.
+- **Dawn Paper** (`surface`) and **Lilac Paper** (`surface-2`): cards, lists, dialogs, inputs, panels and their hover step.
+- **Lilac Hairline** (`border`) and **Violet Hairline** (`border-strong`): dividers and card edges; the strong one is for inputs, secondary buttons and floating panels.
 - **Dusk Indigo** (`text`) for body copy and **Night Indigo** (`text-h`) for headings, values and control labels.
 - **Hover Tint** (`hover-tint`): a translucent ink wash for hover on transparent controls and for trays.
 - **Backdrop** (`backdrop`): dialog and drawer scrim.
 - **Ink Tooltip** (`tip-bg`, `tip-fg`, `tip-action`): popups that stay a dark ink panel in both themes, with a sun-coloured action.
 
 ### Status
-Each status is a pair (tinted `-bg` with readable `-fg`) plus a `-solid` for dots, bars and chart nodes: info (periwinkle), warn (apricot, with `warn-border`), success (sage green, with `success-strong` for solid confirm buttons), danger (rose), neutral (lilac grey) and lavender, plus a peach pair (`peach-bg`, `peach-fg`) used as a category tone in work history. Use the pairs for badges and pills, the solids for marks.
+Each status is a pair (tinted `-bg` with readable `-fg`) plus a `-solid` for dots, bars and chart nodes: info (periwinkle), warn (apricot, with `warn-border`), success (sage green, with `success-strong` for solid confirm buttons), danger (rose), neutral (lilac grey) and lavender, plus a peach pair (`peach-bg`, `peach-fg`) that is a data tone only: the certificates category in work history (`.tone-peach`), never chrome. Use the pairs for badges and pills, the solids for marks.
 
 ### Mascot
 The magpie is drawn only from `mag-ink`, `mag-ink-2`, `mag-white`, `mag-sheen`, `mag-sheen-2` (the cobalt-to-violet iridescence) and `mag-cheek`. It is flat-coloured; do not recolour it per surface.
@@ -386,15 +381,15 @@ Rounded, confident, and colour-coded by job.
 - **Segmented control:** a `surface` pill tray with a hairline; the active tab is a feather-fill pill.
 
 ### Profile Card
-A 24px-radius `surface` card in the sidebar that links to the dashboard. It holds a 52px glow avatar (initials in the display face) and the name in Bricolage. On the dashboard the card gets a feather border and the avatar a feather ring.
+A 24px-radius `surface` card in the sidebar that links to the dashboard. It holds a 52px feather-mist avatar (initials in the display face) and the name in Bricolage. On the dashboard the card gets a feather border and the avatar a feather ring.
 
 ### Stat Band (signature)
 One segmented band of headline numbers: tiles on `surface` with 46px display numerals and 13.5px labels, 3px canvas seams, 24px outer radius. The "Jobs to review" tile turns sun with sun-ink text when there are new jobs, and the magpie head (30px) watches from its top-right corner, peeking in with a spring and tilting on hover.
 
 ### The Magpie Signature
-On a sun background, the magpie head means "something new arrived" and appears in three places only: the brand mark (the head against a 32px sun disc), the new-jobs counter (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on a glow `stage` disc, which turns pale sun when queued and rose when in error.
+On a sun background, the magpie head means "something new arrived" and appears in three places only: the brand mark (the head against a 32px sun disc), the new-jobs counter (a sun pill with the head peeking out at its left edge, hidden on the rail), and the sun stat tile. The full-bodied magpie is the worker-status character on the pale feather `stage` disc, which turns pale sun when queued and rose when in error.
 
-**Empty states** (`mascot/EmptyState.tsx`) are the magpie's other home, always on the glow `stage` disc, never on sun. The `page` variant puts the idling full-body magpie on an 84px disc beside the message, inside a `surface` block at the 24px radius; below 600px it stacks and centres. The `inline` variant puts the head on a 28px disc before a 14px line, for empty widgets, charts, dialog sections and the end of the jobs feed. Use them only for genuinely empty collections, never for a missing field (such as "No parsed description") or as decoration.
+**Empty states** (`mascot/EmptyState.tsx`) are the magpie's other home, always on the pale feather `stage` disc, never on sun. The `page` variant puts the idling full-body magpie on an 84px disc beside the message, inside a `surface` block at the 24px radius; below 600px it stacks and centres. The `inline` variant puts the head on a 28px disc before a 14px line, for empty widgets, charts, dialog sections and the end of the jobs feed. Use them only for genuinely empty collections, never for a missing field (such as "No parsed description") or as decoration.
 
 ### Dialogs and Panels
 Dialogs: `surface`, 24px radius, `border` hairline, `backdrop` scrim, opening with a 420ms scale-and-rise. Floating panels (worker dropdown): `surface`, 24px radius, `border-strong` hairline, 380px wide, opening from their anchor corner.
@@ -409,7 +404,7 @@ Dialogs: `surface`, 24px radius, `border` hairline, `backdrop` scrim, opening wi
 - **Do** set headings, display numbers and the wordmark in Bricolage Grotesque Variable at 760 to 800 with negative tracking; set all UI text in Plus Jakarta Sans.
 - **Do** make actions pills and containers curved rectangles on the 10 / 16 / 24px steps.
 - **Do** put the magpie head beside a counter only when it counts new finds.
-- **Do** use glow (`glow` / `on-glow`) for the profile avatar and the mascot stage, and nowhere else.
+- **Do** keep chrome to the three roles: feather for selection, ink violet for grounds, sun for highlight. The profile avatar is feather mist (`accent-bg` / `accent`) and the mascot stands on the feather `stage`.
 - **Do** define every new colour as a token in `index.css`, in both Sunrise and Sunset.
 
 ### Don't:
@@ -421,3 +416,4 @@ Dialogs: `surface`, 24px radius, `border` hairline, `backdrop` scrim, opening wi
 - **Don't** use forest, tree, landscape or other scenery motifs.
 - **Don't** set body text, labels or controls in Bricolage Grotesque.
 - **Don't** recolour or restyle the magpie per surface.
+- **Don't** use peach (`peach-bg` / `peach-fg`) outside the work-history certificate tone, or add a fourth chrome colour for warmth.

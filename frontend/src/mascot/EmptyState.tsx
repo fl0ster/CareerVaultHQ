@@ -4,7 +4,7 @@ import Magpie from './Magpie.tsx'
 type Props = {
   children: ReactNode
   /**
-   * `page`: an empty list or page, with the whole magpie idling on its glow disc.
+   * `page`: an empty list or page, with the whole magpie idling on its stage disc.
    * `inline`: a small empty widget, chart or list end, with the magpie's head in front of the line.
    */
   variant?: 'page' | 'inline'

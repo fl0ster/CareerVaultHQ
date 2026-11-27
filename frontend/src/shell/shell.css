@@ -151,8 +151,8 @@
   height: 52px;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--glow);
-  color: var(--on-glow);
+  background: var(--accent-bg);
+  color: var(--accent);
   font-family: var(--heading);
   font-size: 19px;
   font-weight: 800;

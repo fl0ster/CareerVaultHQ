@@ -169,132 +169,100 @@
           "#eeeeee"
         ]
       },
-      "glow": {
-        "role": "tertiary",
-        "displayName": "Low-Sun Glow",
-        "canonical": "#ffcfb2",
-        "oklch": "oklch(88.9% 0.067 52.7)",
-        "tonalRamp": [
-          "#140803",
-          "#372012",
-          "#5e3c26",
-          "#855b41",
-          "#aa7e63",
-          "#caa58f",
-          "#e6cbba",
-          "#feeade"
-        ]
-      },
-      "on-glow": {
-        "role": "tertiary",
-        "displayName": "Glow Ink",
-        "canonical": "#3a1d0c",
-        "oklch": "oklch(26.7% 0.053 49.3)",
-        "tonalRamp": [
-          "#120804",
-          "#342117",
-          "#5a3e2e",
-          "#7f5d4b",
-          "#a4806d",
-          "#c5a797",
-          "#e3ccc0",
-          "#fbebe2"
-        ]
-      },
       "canvas": {
         "role": "neutral",
         "displayName": "Dawn Lilac",
-        "canonical": "#f7eef0",
-        "oklch": "oklch(95.7% 0.010 2.0)",
+        "canonical": "#f4f0f8",
+        "oklch": "oklch(96.1% 0.011 308.3)",
         "tonalRamp": [
-          "#0d0a0b",
-          "#292526",
-          "#494345",
-          "#6b6465",
-          "#8f8789",
-          "#b3acad",
-          "#d4cfd0",
-          "#f1edee"
+          "#0c0b0c",
+          "#272628",
+          "#464448",
+          "#67656a",
+          "#8b888e",
+          "#afacb2",
+          "#d2d0d4",
+          "#efeef1"
         ]
       },
       "surface": {
         "role": "neutral",
-        "displayName": "Warm Paper",
-        "canonical": "#fffcfb",
-        "oklch": "oklch(99.3% 0.003 39.5)",
+        "displayName": "Dawn Paper",
+        "canonical": "#fdfcff",
+        "oklch": "oklch(99.3% 0.004 301.4)",
         "tonalRamp": [
-          "#0c0b0b",
-          "#272626",
-          "#464444",
-          "#686565",
-          "#8b8887",
-          "#afadac",
-          "#d2d0d0",
-          "#efeeee"
+          "#0b0b0c",
+          "#262627",
+          "#454546",
+          "#666667",
+          "#89898b",
+          "#aeadb0",
+          "#d1d0d2",
+          "#eeeeef"
         ]
       },
       "surface-2": {
         "role": "neutral",
-        "displayName": "Blush Paper",
-        "canonical": "#fbf3f2",
-        "oklch": "oklch(97.0% 0.009 26.0)",
+        "displayName": "Lilac Paper",
+        "canonical": "#f8f5fc",
+        "oklch": "oklch(97.4% 0.010 305.4)",
         "tonalRamp": [
-          "#0d0b0a",
-          "#292525",
-          "#494343",
-          "#6b6463",
-          "#8e8786",
-          "#b2acac",
-          "#d4d0cf",
-          "#f1eeed"
+          "#0b0b0c",
+          "#272628",
+          "#464448",
+          "#676569",
+          "#8a888d",
+          "#afadb2",
+          "#d2d0d4",
+          "#efeef1"
         ]
       },
       "sidebar": {
         "role": "neutral",
         "displayName": "Lilac Haze",
-        "canonical": "#efdfe6",
-        "oklch": "oklch(91.8% 0.020 349.1)",
+        "canonical": "#e9e3f4",
+        "oklch": "oklch(92.6% 0.024 301.9)",
         "tonalRamp": [
-          "#0e0a0c",
-          "#2b2427",
-          "#4d4146",
-          "#6f6268",
-          "#93858b",
-          "#b6aaaf",
-          "#d7ced2",
-          "#f3ecef"
+          "#0c0a0e",
+          "#27252b",
+          "#46434c",
+          "#68646f",
+          "#8b8694",
+          "#b0abb8",
+          "#d2cfd9",
+          "#efedf4"
         ]
       },
       "border": {
         "role": "neutral",
-        "displayName": "Rose Hairline",
-        "canonical": "#ecdfe3",
-        "oklch": "oklch(91.5% 0.015 356.6)",
+        "displayName": "Lilac Hairline",
+        "canonical": "#e5dfef",
+        "oklch": "oklch(91.3% 0.022 302.9)",
         "tonalRamp": [
-          "#0d0a0b",
-          "#2b2526",
-          "#4b4245",
-          "#6e6366",
-          "#918689",
-          "#b5abae",
-          "#d6cfd1",
-          "#f2edee"
+          "#0c0a0e",
+          "#27252b",
+          "#46434b",
+          "#68646e",
+          "#8b8793",
+          "#b0abb8",
+          "#d2cfd8",
+          "#efedf4"
         ]
       },
       "border-strong": {
         "role": "neutral",
-        "displayName": "Mauve Hairline",
-        "canonical": "#d9c6cf",
-        "oklch": "oklch(84.5% 0.024 347.3)",
+        "displayName": "Violet Hairline",
+        "canonical": "#d0c8e2",
+        "oklch": "oklch(84.7% 0.037 299.7)",
         "tonalRamp": [
-          "#0e0a0c",
-          "#2c2328",
-          "#4e4147",
-          "#716169",
-          "#95838c",
-          "#b8a9b0",
-          "#d9cdd3",
-          "#f4ecf0"
+          "#0c0a0f",
+          "#27252d",
+          "#47434f",
+          "#686374",
+          "#8c859a",
+          "#b0aabe",
+          "#d3cede",
+          "#f0ecf7"
         ]
       },
       "text": {
@@ -634,7 +602,7 @@
       },
       "peach-bg": {
         "role": "status",
-        "displayName": "Peach Tint",
+        "displayName": "Peach Tint (data tone)",
         "canonical": "#fde4d5",
         "oklch": "oklch(93.5% 0.034 53.1)",
         "tonalRamp": [
@@ -650,7 +618,7 @@
       },
       "peach-fg": {
         "role": "status",
-        "displayName": "Peach Ink",
+        "displayName": "Peach Ink (data tone)",
         "canonical": "#984e2b",
         "oklch": "oklch(50.8% 0.110 44.6)",
         "tonalRamp": [
@@ -825,19 +793,19 @@
         ]
       },
       "stage": {
-        "role": "tertiary",
-        "displayName": "Glow Stage",
-        "canonical": "#ffcfb2",
-        "oklch": "oklch(88.9% 0.067 52.7)",
+        "role": "secondary",
+        "displayName": "Feather Stage",
+        "canonical": "#e6e9fc",
+        "oklch": "oklch(93.7% 0.026 278.7)",
         "tonalRamp": [
-          "#140803",
-          "#372012",
-          "#5e3c26",
-          "#855b41",
-          "#aa7e63",
-          "#caa58f",
-          "#e6cbba",
-          "#feeade"
+          "#0a0b10",
+          "#24262f",
+          "#424451",
+          "#626575",
+          "#858899",
+          "#abadbb",
+          "#ced0db",
+          "#edeef6"
         ]
       },
       "stage-warn": {
@@ -1064,36 +1032,20 @@
           "#fdedc7"
         ]
       },
-      "sunset-glow": {
-        "role": "tertiary",
-        "displayName": "Sunset Glow",
-        "canonical": "#f3a882",
-        "oklch": "oklch(79.5% 0.103 47.7)",
-        "tonalRamp": [
-          "#180500",
-          "#3f1a05",
-          "#6b3313",
-          "#95522d",
-          "#bc7550",
-          "#da9e81",
-          "#f3c6b0",
-          "#ffe7d7"
-        ]
-      },
       "sunset-stage": {
-        "role": "tertiary",
-        "displayName": "Sunset Stage",
-        "canonical": "#f3a882",
-        "oklch": "oklch(79.5% 0.103 47.7)",
+        "role": "secondary",
+        "displayName": "Sunset Feather Stage",
+        "canonical": "#b4c1ff",
+        "oklch": "oklch(82.3% 0.089 275.1)",
         "tonalRamp": [
-          "#180500",
-          "#3f1a05",
-          "#6b3313",
-          "#95522d",
-          "#bc7550",
-          "#da9e81",
-          "#f3c6b0",
-          "#ffe7d7"
+          "#080a16",
+          "#21253a",
+          "#3d4362",
+          "#5b638c",
+          "#7c86b7",
+          "#a1abdb",
+          "#c6cff5",
+          "#eaeeff"
         ]
       }
     },
@@ -1278,9 +1230,9 @@
       "name": "Profile Card",
       "kind": "card",
       "refersTo": "profile-card",
-      "description": "Sidebar card with peach avatar and Bricolage name.",
+      "description": "Sidebar card with a feather-mist avatar and Bricolage name.",
       "html": "<a class=\"ds-profile\" href=\"#\"><span class=\"ds-avatar\">AK</span><span class=\"ds-pname\">Anna<br><span>Kowalska</span></span></a>",
-      "css": ".ds-profile{display:flex;align-items:center;gap:13px;width:236px;min-height:96px;padding:14px 12px;box-sizing:border-box;border-radius:24px;background:var(--surface);border:1px solid transparent;text-decoration:none;transition:border-color 140ms ease} .ds-profile:hover{border-color:var(--accent-border)} .ds-profile:focus-visible{outline:none;box-shadow:var(--focus-ring)} .ds-avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--glow);color:var(--on-glow);font:800 19px 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.03em} .ds-pname{font:760 19px/1.08 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.025em;color:var(--text-h)} .ds-pname span{font-weight:450}"
+      "css": ".ds-profile{display:flex;align-items:center;gap:13px;width:236px;min-height:96px;padding:14px 12px;box-sizing:border-box;border-radius:24px;background:var(--surface);border:1px solid transparent;text-decoration:none;transition:border-color 140ms ease} .ds-profile:hover{border-color:var(--accent-border)} .ds-profile:focus-visible{outline:none;box-shadow:var(--focus-ring)} .ds-avatar{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--accent-bg);color:var(--accent);font:800 19px 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.03em} .ds-pname{font:760 19px/1.08 'Bricolage Grotesque Variable', 'Plus Jakarta Sans Variable', system-ui, sans-serif;letter-spacing:-0.025em;color:var(--text-h)} .ds-pname span{font-weight:450}"
     },
     {
       "name": "Brand Mark",
@@ -1293,7 +1245,7 @@
   ],
   "narrative": {
     "northStar": "The Magpie at Golden Hour",
-    "overview": "**Creative North Star: \"The Magpie at Golden Hour\"**\n\nPica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac warmed toward peach with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are. Glow, the low sun's peach, adds warmth where a person or the bird sits.\n\nIt is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.\n\nThe magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a glow-peach stage as the worker-status character. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.",
+    "overview": "**Creative North Star: \"The Magpie at Golden Hour\"**\n\nPica is a flat, saturated field of colour, lit like the sky at either end of the day. Sunrise (light) is a pale dawn lilac with indigo ink. Sunset (dark) is an ink-violet ground with plum surfaces and lavender text. Two lights cross that field. Sun yellow marks what to press and what is new. Iridescent feather blue, taken from the magpie's wing, marks where you are.\n\nIt is an operate-mode app shell, dense and calm. The world is carried by type, palette, density and one signature move, not by decoration. Headings and big numbers are set in heavy Bricolage Grotesque, so the page reads as confident and a little playful. Every control is a pill and every container is a generously curved rectangle. Depth comes only from tone steps: canvas, sidebar, surface and surface-2 sit at different lightnesses and do the work a shadow would do elsewhere. Hairlines appear only where tone alone cannot separate two things.\n\nThe magpie is the brand. It appears as a head against a sun disc in the brand mark, it peeks out of the sun-yellow new-jobs counter and the sun stat tile wherever something shiny has arrived, and it sits on a pale feather stage as the worker-status character and in empty states. There are no forest, landscape or scenery motifs. The golden-hour idea lives entirely in the palette.",
     "keyCharacteristics": [
       "Flat by rule: every shadow token is `none`; depth is tone.",
       "Two lights: sun yellow for action and novelty, feather blue for location and focus.",
@@ -1347,7 +1299,7 @@
       "**Do** set headings, display numbers and the wordmark in Bricolage Grotesque Variable at 760 to 800 with negative tracking; set all UI text in Plus Jakarta Sans.",
       "**Do** make actions pills and containers curved rectangles on the 10 / 16 / 24px steps.",
       "**Do** put the magpie head beside a counter only when it counts new finds.",
-      "**Do** use glow (`glow` / `on-glow`) for the profile avatar and the mascot stage, and nowhere else.",
+      "**Do** keep chrome to the three roles: feather for selection, ink violet for grounds, sun for highlight. The profile avatar is feather mist (`accent-bg` / `accent`) and the mascot stands on the feather `stage`.",
       "**Do** define every new colour as a token in `index.css`, in both Sunrise and Sunset."
     ],
     "donts": [
@@ -1358,7 +1310,8 @@
       "**Don't** put more than one sun pill in a page header or toolbar.",
       "**Don't** use forest, tree, landscape or other scenery motifs.",
       "**Don't** set body text, labels or controls in Bricolage Grotesque.",
-      "**Don't** recolour or restyle the magpie per surface."
+      "**Don't** recolour or restyle the magpie per surface.",
+      "**Don't** use peach (`peach-bg` / `peach-fg`) outside the work-history certificate tone, or add a fourth chrome colour for warmth."
     ]
   }
 }

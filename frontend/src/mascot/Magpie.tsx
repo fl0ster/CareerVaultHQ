@@ -125,7 +125,7 @@ export default function Magpie({ mood = 'idle', size = 48, head = false, classNa
       {!head && mood === 'queued' && (
         <g className="mg-prop mg-letters">
           <g className="mg-letter" transform="translate(-3 93)">
-            <rect width="24" height="13" rx="2.5" fill="var(--peach-bg)" stroke="var(--border-strong)" />
+            <rect width="24" height="13" rx="2.5" fill="var(--surface-2)" stroke="var(--border-strong)" />
             <path d="M1.5 1.5 L12 8 L22.5 1.5" stroke="var(--border-strong)" fill="none" />
           </g>
           <g className="mg-letter" transform="translate(-1 82) rotate(-6)">

@@ -623,7 +623,7 @@
   }
 }
 
-/* Empty states: the magpie keeps an empty spot company, always against its glow disc. */
+/* Empty states: the magpie keeps an empty spot company, always on its pale feather stage disc. */
 .empty-state {
   display: flex;
   align-items: center;

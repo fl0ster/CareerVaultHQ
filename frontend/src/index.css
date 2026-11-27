@@ -7,13 +7,13 @@
  * you are. Flat by rule: no shadows, depth only from tone steps. Every colour comes from here.
  */
 :root {
-  /* Surfaces and text: a pale dawn lilac, warmed toward peach */
-  --canvas: #f7eef0;
-  --surface: #fffcfb;
-  --surface-2: #fbf3f2;
-  --sidebar: #efdfe6;
-  --border: #ecdfe3;
-  --border-strong: #d9c6cf;
+  /* Surfaces and text: a pale dawn lilac */
+  --canvas: #f4f0f8;
+  --surface: #fdfcff;
+  --surface-2: #f8f5fc;
+  --sidebar: #e9e3f4;
+  --border: #e5dfef;
+  --border-strong: #d0c8e2;
   --text: #5d5677;
   --text-h: #1d1838;
 
@@ -33,10 +33,6 @@
   --on-sun: #2b2006;
   --sun-bg: #fdf0c9;
   --sun-fg: #865a00;
-
-  /* Glow: the low sun's peach. Warmth only: the profile avatar and the magpie's stage. */
-  --glow: #ffcfb2;
-  --on-glow: #3a1d0c;
 
   /* Status pairs: background, foreground (text) and solid (dots, bars) */
   --info-bg: #e4e8fb;
@@ -79,7 +75,8 @@
   --mag-sheen-2: #7d5ce8;
   --mag-cheek: #f7aaa0;
   --mag-feet: #8a86a3;
-  --stage: var(--glow);
+  /* The magpie's disc: pale feather, so the black-and-white bird and its blue sheen both read */
+  --stage: #e6e9fc;
   --stage-warn: #fdf0c9;
   --stage-danger: #fbe1e6;
 
@@ -144,8 +141,6 @@
     --on-sun: #2b2006;
     --sun-bg: rgba(248, 198, 74, 0.15);
     --sun-fg: #ffd77c;
-  --glow: #f3a882;
-  --on-glow: #3a1d0c;
     --info-bg: rgba(122, 146, 255, 0.15);
     --info-fg: #b8c5ff;
     --info-solid: #8197f6;
@@ -178,7 +173,7 @@
     --mag-sheen-2: #8a66f5;
     --mag-cheek: #ffaea1;
     --mag-feet: #8b86a8;
-    --stage: var(--glow);
+    --stage: #b4c1ff;
     --stage-warn: #4a4128;
     --stage-danger: #4a2c47;
     color-scheme: dark;
@@ -207,8 +202,6 @@
   --on-sun: #2b2006;
   --sun-bg: rgba(248, 198, 74, 0.15);
   --sun-fg: #ffd77c;
-  --glow: #f3a882;
-  --on-glow: #3a1d0c;
   --info-bg: rgba(122, 146, 255, 0.15);
   --info-fg: #b8c5ff;
   --info-solid: #8197f6;
@@ -241,7 +234,7 @@
   --mag-sheen-2: #8a66f5;
   --mag-cheek: #ffaea1;
   --mag-feet: #8b86a8;
-  --stage: var(--glow);
+  --stage: #b4c1ff;
   --stage-warn: #4a4128;
   --stage-danger: #4a2c47;
   color-scheme: dark;
