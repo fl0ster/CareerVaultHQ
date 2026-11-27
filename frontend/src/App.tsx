@@ -10,10 +10,8 @@ import CandidateProfilePage from './candidate-profile/CandidateProfilePage.tsx'
 import WorkHistoryPage from './work-history/WorkHistoryPage.tsx'
 import EmploymentPage from './work-history/EmploymentPage.tsx'
 import SourcesPage from './sources/SourcesPage.tsx'
-import GeneratedCvPage from './cv/GeneratedCvPage.tsx'
 import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
-import CompaniesPage from './companies/CompaniesPage.tsx'
 import DashboardPage from './dashboard/DashboardPage.tsx'
 import ImportExportPage from './import-export/ImportExportPage.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
@@ -193,14 +191,10 @@ function App() {
         )
       case 'sources':
         return <SourcesPage />
-      case 'generated-cv':
-        return <GeneratedCvPage />
       case 'gmail':
         return <GmailMonitorPage onOpenDetails={() => navigate('candidate-profile')} />
       case 'cost':
         return <CostPage />
-      case 'companies':
-        return <CompaniesPage />
       case 'import-export':
         return <ImportExportPage />
     }
