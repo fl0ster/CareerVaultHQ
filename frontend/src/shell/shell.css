@@ -105,9 +105,6 @@
   border: 1px solid transparent;
   color: var(--text);
   transition:
-    border-color var(--t-fast) ease,
-    background-color var(--t-fast) ease,
-    box-shadow var(--t-fast) ease,
     padding var(--t-med) var(--ease-out),
     min-height var(--t-med) var(--ease-out);
 
@@ -279,9 +276,8 @@
   font-weight: 550;
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    background-color var(--t-fast) ease,
-    color var(--t-fast) ease;
+  /* No transitions: the tab shape switches instantly, so a fading fill never shows as a pill */
+  transition: none;
 
   /* Not the global link hover: only the current page is feather */
   &:hover {
@@ -346,7 +342,6 @@
   border-bottom-right-radius: 0;
 }
 
-:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before,
 :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
   content: '';
   position: absolute;
@@ -356,16 +351,7 @@
   pointer-events: none;
 }
 
-/* Concave corners: the tab's fill around a quarter circle */
-:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before {
-  bottom: 100%;
-  background: radial-gradient(
-    circle at 0 0,
-    transparent calc(var(--bookmark-r) - 0.5px),
-    var(--tab-fill) var(--bookmark-r)
-  );
-}
-
+/* One concave corner below, where the tab joins the page; the top-right edge stays square. */
 :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
   top: 100%;
   background: radial-gradient(
@@ -375,8 +361,7 @@
   );
 }
 
-/* A hovered entry right beside the bookmark shares its corner rather than drawing its own */
-li:has(> .bookmark) + li > .nav-item:hover::before,
+/* A hovered entry right above the bookmark leaves the join to the bookmark */
 li:has(+ li > .bookmark) > .nav-item:hover::after {
   display: none;
 }
@@ -945,7 +930,6 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   .profile-card.active:hover {
     border-radius: var(--r-lg);
   }
-  :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before,
   :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
     display: none;
   }
