@@ -1044,13 +1044,23 @@
   padding-top: 0;
 
   .view > .page-header {
-    padding-top: 28px;
+    padding-top: 56px;
   }
 }
 
 @media (max-width: 900px) {
   .content:has(.wh-view) .view > .page-header {
-    padding-top: 22px;
+    padding-top: 60px;
+    padding-left: 38px;
+  }
+
+  /* The heading never moves here, so the menu button is pinned beside it rather than floated. */
+  .content:has(.wh-view) > .menu-button {
+    position: fixed;
+    top: 60px;
+    left: 10px;
+    float: none;
+    margin: 0;
   }
 }
 
