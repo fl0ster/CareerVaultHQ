@@ -320,7 +320,9 @@ def test_generate_cv_uses_the_descriptions_the_user_wrote(task_engine, requests_
             "Old Corp": "Kept a PHP shop alive.",
         }
         assert all(e["tech"] == "TypeScript, React Native" for e in pipeline["main"])  # tech still tailored
-        assert {r["employer"]: r["context"] for r in pipeline["relevance"]}["VGW"] == "Built pipelines. Led the app."
+        vgw = next(r for r in pipeline["relevance"] if r["employer"] == "VGW")
+        assert vgw["context"] == "Built pipelines. Led the app."
+        assert vgw["tech"] == "React Native, TypeScript, Jest"  # the work history's, for the editor
     # 3 decisions + 1 context + 2 tech + no early + 4 headline calls
     assert len(requests_seen) == 3 + 3 + 4
 

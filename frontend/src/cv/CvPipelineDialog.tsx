@@ -429,12 +429,16 @@ function TechDiff({ entry }: { entry: PipelineEntry }) {
 /** The technologies of a listed role as clickable pills: a lit one is in the CV (click to
  * drop it), a struck-through one is not (click to add it back); pills keep their place. Choosing exactly
  * what the CV already shows is no edit at all. */
-function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry; editing: ReportEditing }) {
+function TechPicker({ r, editing }: { r: RoleReport; editing: ReportEditing }) {
   const id = String(r.role.id)
   const all = editing.pending?.techs ?? {}
   const mine = all[id] ?? null
-  const generated = splitTech(entry.tech)
-  const original = splitTech(entry.original_tech ?? entry.tech)
+  const entry = r.entry
+  // The work history's list; older CVs only recorded it for the roles they printed.
+  const original = splitTech(entry?.original_tech ?? r.role.tech ?? entry?.tech)
+  // What the CV lists. A role not listed in full in this CV has no pick yet: its whole work
+  // history list stands in (the LLM picks from it on regenerating, unless edited here).
+  const generated = r.outcome === 'listed' && entry ? splitTech(entry.tech) : original
   const current = mine ?? generated
   const key = (t: string) => t.toLowerCase()
   const on = new Set(current.map(key))
@@ -881,14 +885,10 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
         ) : (
           e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
         )}
-        {e &&
-          r.outcome === 'listed' &&
-          (editable ? (
-            // Only while it stays listed: a condensed role shows no technologies.
-            where === 'listed' && <TechPicker r={r} entry={e} editing={editing} />
-          ) : (
-            <TechDiff entry={e} />
-          ))}
+        {editable
+          ? // Any role going in full, also one brought in; a condensed role shows no technologies.
+            where === 'listed' && <TechPicker r={r} editing={editing} />
+          : e && r.outcome === 'listed' && <TechDiff entry={e} />}
         {e?.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
       {place}
