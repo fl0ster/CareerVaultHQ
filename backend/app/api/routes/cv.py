@@ -79,6 +79,8 @@ class CvOverrides(BaseModel):
     """``work_history.id`` -> placement, overriding the timeline rules for that role."""
     contexts: dict[int, Annotated[str, Field(max_length=2000)]] = {}
     """``work_history.id`` -> the role's description in the CV, used as is (listed or condensed)."""
+    techs: dict[int, Annotated[list[Annotated[str, Field(max_length=128)]], Field(max_length=100)]] = {}
+    """``work_history.id`` -> the technologies a listed role shows, in order, used as is."""
 
     def stored(self) -> dict | None:
         """The JSON kept on the row: blank fields left out, ``None`` when nothing is left."""
@@ -92,6 +94,9 @@ class CvOverrides(BaseModel):
         contexts = {str(k): v.strip() for k, v in sorted(self.contexts.items()) if v.strip()}
         if contexts:
             data["contexts"] = contexts
+        techs = {str(k): list(dict.fromkeys(t.strip() for t in v if t.strip())) for k, v in sorted(self.techs.items())}
+        if techs:
+            data["techs"] = techs  # an empty list is kept: the user removed every technology
         return data or None
 
 

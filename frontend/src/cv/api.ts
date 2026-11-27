@@ -42,9 +42,11 @@ export type CvOverrides = {
   roles: Record<string, RolePlacement>
   /** `work_history.id` -> the role's description in the CV, used as written. */
   contexts: Record<string, string>
+  /** `work_history.id` -> the technologies a listed role shows, in order. */
+  techs: Record<string, string[]>
 }
 
-export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {} }
+export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {}, contexts: {}, techs: {} }
 
 /** Number of separate edits (headline, summary, each placed role, each description). */
 export function overrideCount(o: CvOverrides | null | undefined): number {
@@ -53,16 +55,23 @@ export function overrideCount(o: CvOverrides | null | undefined): number {
     (o.headline_role ? 1 : 0) +
     (o.summary ? 1 : 0) +
     Object.keys(o.roles ?? {}).length +
-    Object.keys(o.contexts ?? {}).length
+    Object.keys(o.contexts ?? {}).length +
+    Object.keys(o.techs ?? {}).length
   )
 }
 
 /** Whether two sets of edits would produce the same CV. */
 export function sameOverrides(a: CvOverrides | null | undefined, b: CvOverrides | null | undefined): boolean {
-  const sorted = (m: Record<string, string> | undefined) =>
+  const sorted = (m: Record<string, unknown> | undefined) =>
     Object.entries(m ?? {}).sort(([x], [y]) => Number(x) - Number(y))
   const key = (o: CvOverrides | null | undefined) =>
-    JSON.stringify([o?.headline_role || null, o?.summary || null, sorted(o?.roles), sorted(o?.contexts)])
+    JSON.stringify([
+      o?.headline_role || null,
+      o?.summary || null,
+      sorted(o?.roles),
+      sorted(o?.contexts),
+      sorted(o?.techs),
+    ])
   return key(a) === key(b)
 }
 

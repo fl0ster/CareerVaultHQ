@@ -362,10 +362,13 @@ def tailor_main_roles(
     job_description: str,
     warnings: list[str],
     fixed: Sequence[str | None] | None = None,
+    fixed_tech: Sequence[list[str] | None] | None = None,
 ) -> list[dict]:
     """Step 3a: rewrite ``context`` and ``tech`` of every main role for the job. A description
-    in ``fixed`` (aligned with ``entries``) is the user's: used as is, only its tech tailored."""
+    in ``fixed`` / a technology list in ``fixed_tech`` (both aligned with ``entries``) is the
+    user's: used as is, without its LLM call."""
     entries, fixed = _with_fixed(entries, fixed)
+    fixed_tech = list(fixed_tech or [None] * len(entries))
 
     def context_call(entry: dict) -> Callable[[OpenRouterService], str | None]:
         message = _position_message(entry, job_description, "WORK HISTORY POSITION")
@@ -384,11 +387,13 @@ def tailor_main_roles(
         )
 
     to_tailor = [e for e, text in zip(entries, fixed, strict=True) if not text]
-    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in entries])
-    tailored_contexts, techs = iter(results[: len(to_tailor)]), results[len(to_tailor) :]
+    tech_to_tailor = [e for e, techs in zip(entries, fixed_tech, strict=True) if techs is None]
+    results = llm.run_all([context_call(e) for e in to_tailor] + [tech_call(e) for e in tech_to_tailor])
+    tailored_contexts, tailored_techs = iter(results[: len(to_tailor)]), iter(results[len(to_tailor) :])
     contexts = [text if text else next(tailored_contexts) for text in fixed]
+    techs = [None if mine is not None else next(tailored_techs) for mine in fixed_tech]
     tailored = []
-    for entry, context, tech, mine in zip(entries, contexts, techs, fixed, strict=True):
+    for entry, context, tech, mine, my_tech in zip(entries, contexts, techs, fixed, fixed_tech, strict=True):
         label = f"{entry.get('role')} @ {entry.get('employer')}"
         new_entry = dict(entry)
         if mine:
@@ -397,7 +402,9 @@ def tailor_main_roles(
             warnings.append(f"context of {label} could not be tailored; kept the original")
         else:
             new_entry["context"] = _clean_line(context)
-        if tech is None:
+        if my_tech is not None:
+            new_entry["tech"] = ", ".join(my_tech)
+        elif tech is None:
             warnings.append(f"technologies of {label} could not be tailored; kept the original")
         else:
             new_entry["tech"] = ", ".join(t.strip() for t in _clean_line(tech).split(",") if t.strip()) or entry.get(
@@ -666,7 +673,15 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
 
     # 3. tailoring
     fixed = {int(k): v for k, v in (overrides.get("contexts") or {}).items() if v}
-    main_entries = tailor_main_roles(llm, main_entries, job_description, warnings, [fixed.get(r.id) for r in history.main])
+    fixed_tech = {int(k): list(v) for k, v in (overrides.get("techs") or {}).items()}
+    main_entries = tailor_main_roles(
+        llm,
+        main_entries,
+        job_description,
+        warnings,
+        [fixed.get(r.id) for r in history.main],
+        [fixed_tech.get(r.id) if r.id is not None else None for r in history.main],
+    )
     early_entries = condense_early_roles(
         llm, early_entries, job_description, warnings, [fixed.get(r.id) for r in history.early]
     )
