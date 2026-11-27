@@ -80,7 +80,7 @@ export default function ApplicationCv({ application, onChange }: Props) {
   }
 
   return (
-    <section className="app-section app-cv" aria-labelledby={`app-cv-${application.id}`}>
+    <section className="app-section app-cv">
       <div className="app-cv-control">
         {main}
         {cv?.status === 'finished' && !generating && (
