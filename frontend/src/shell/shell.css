@@ -631,12 +631,13 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   flex-direction: column;
 }
 
-/* No top bar: the worker pill floats over the top right corner of the page and may overlap it a little. */
+/* No top bar: the worker pill stays pinned to the top right corner of the window, above the page
+   (only the mobile menu drawer covers it). */
 .worker-dock {
-  position: absolute;
-  top: 12px;
+  position: fixed;
+  top: 8px;
   right: 24px;
-  z-index: 50;
+  z-index: 80;
 }
 
 /* Narrow screens only: floats to the left of whatever heading opens the page. */
@@ -767,7 +768,7 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 20px 40px 80px;
+  padding: 56px 40px 80px;
   box-sizing: border-box;
 }
 
@@ -943,15 +944,17 @@ li:has(+ li > .bookmark) > .nav-item:hover::after {
   }
 
   .worker-dock {
-    top: 10px;
     right: 12px;
   }
 
   .content {
-    padding: 14px 16px 56px;
+    padding: 60px 16px 56px;
   }
 
+  /* Positioned so a sticky page heading (My Career) does not paint over it. */
   .content > .menu-button {
+    position: relative;
+    z-index: 12;
     float: left;
     margin: 0 8px 0 -6px;
   }
