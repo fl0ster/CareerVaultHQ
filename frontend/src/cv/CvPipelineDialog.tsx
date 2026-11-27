@@ -768,7 +768,10 @@ function EditableText({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save(draft)
+                // Not while another edit is saving: this one is built on the edits before it.
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  if (!busy) save(draft)
+                }
                 else if (e.key === 'Escape') setDraft(null)
               }}
               rows={4}

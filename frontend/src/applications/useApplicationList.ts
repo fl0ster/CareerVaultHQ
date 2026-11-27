@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
 import { describeError, isInProgress, isTailoring } from '../cv/api.ts'
 import {
   APPLICATIONS_CHANGED,
@@ -151,13 +151,19 @@ export function useApplicationList({
     return () => controller.abort()
   }, [status, search, tick])
 
+  /** Bumped by every `replace`: a refetch started before one may have read the application
+   * before that change was saved, so its (older) answer is dropped. */
+  const replaced = useRef(0)
+
   // The open application, refetched on every reload so it stays current wherever it was changed.
   useEffect(() => {
     if (openId == null) return
     const controller = new AbortController()
+    const startedAt = replaced.current
     applicationsApi
       .get(openId, controller.signal)
       .then((a) => {
+        if (replaced.current !== startedAt) return
         setSelected(a)
         setDetailError(null)
       })
@@ -203,6 +209,7 @@ export function useApplicationList({
     if (updated.status?.key === OFFER_STATUS && prior !== OFFER_STATUS && prior !== DECLINED_STATUS && prior !== ACCEPTED_STATUS) {
       setCelebrations((n) => n + 1)
     }
+    replaced.current += 1
     setSelected((prev) => (prev?.id === updated.id ? updated : prev))
     setApplications((prev) => prev?.map((a) => (a.id === updated.id ? updated : a)) ?? prev)
     // The current status may have changed, which moves the application between the
