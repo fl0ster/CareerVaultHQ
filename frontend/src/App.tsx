@@ -14,9 +14,10 @@ import GmailMonitorPage from './gmail/GmailMonitorPage.tsx'
 import CostPage from './cost/CostPage.tsx'
 import DashboardPage from './dashboard/DashboardPage.tsx'
 import ImportExportPage from './import-export/ImportExportPage.tsx'
+import { Menu } from 'lucide-react'
+import WorkerMascot from './mascot/WorkerMascot.tsx'
 import SettingsHeader from './shell/SettingsHeader.tsx'
 import Sidebar from './shell/Sidebar.tsx'
-import TopBar from './shell/TopBar.tsx'
 import {
   type Crumb,
   type PageId,
@@ -41,7 +42,7 @@ function App() {
   // The Settings entry in the menu reopens whichever settings tab was used last.
   const [settingsTab, setSettingsTab] = useStoredState('cv-settings-tab', SETTINGS_PAGE_IDS, SETTINGS_PAGE_IDS[0])
   if (isSettingsPage(page) && page !== settingsTab) setSettingsTab(page)
-  // Breadcrumb entries each page adds after its own name (the open detail's title).
+  // What each page reports about its open detail; its heading can stand in for the page title.
   const [crumbs, setCrumbs] = useState<Partial<Record<PageId, Crumb[]>>>({})
   const onApplicationCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, applications: c })), [])
   const onInterviewCrumbs = useCallback((c: Crumb[]) => setCrumbs((all) => ({ ...all, interviews: c })), [])
@@ -236,13 +237,14 @@ function App() {
       <div className={`scrim${menuOpen ? ' open' : ''}`} onClick={() => setMenuOpen(false)} aria-hidden="true" />
 
       <div className="main">
-        <TopBar
-          active={page}
-          crumbs={route.detail !== null ? (crumbs[page] ?? []) : []}
-          onOpenMenu={() => setMenuOpen(true)}
-        />
+        <div className="worker-dock">
+          <WorkerMascot />
+        </div>
 
         <main className="content">
+          <button type="button" className="icon-button menu-button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+            <Menu size={20} />
+          </button>
           {/* Only the current page is mounted. The key remounts it on every page change, so
               each entry loads fresh; list <-> detail stays within one mount. State that has to
               outlive a page (running jobs) lives in module-level stores (shell/store.ts). */}
