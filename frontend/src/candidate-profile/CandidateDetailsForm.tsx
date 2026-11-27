@@ -2,7 +2,6 @@ import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'r
 import { ImageUp, Trash2, UserRound } from 'lucide-react'
 import { type CandidateDetails, type CandidateDetailsInput, candidateDetailsApi, type LanguageEntry } from './api.ts'
 import { candidateDetailsStore } from './store.ts'
-import { pageHref } from '../shell/nav.ts'
 
 const DEFAULT_CONSENT =
   'I consent to the processing of my personal data for recruitment purposes in accordance with GDPR (Regulation (EU) 2016/679).'
@@ -209,11 +208,6 @@ export default function CandidateDetailsForm() {
           <input value={draft.location} onChange={(e) => set('location', e.target.value)} />
         </label>
       </div>
-
-      <p className="cd-note">
-        Education and certifications are part of your career timeline: add them in{' '}
-        <a href={pageHref('work-history')}>My Career</a>.
-      </p>
 
       <fieldset className="cd-fieldset">
         <legend>Languages</legend>
