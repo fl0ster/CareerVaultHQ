@@ -920,15 +920,6 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
 
       {analysis && roles.length > 0 && (
         <>
-          <div className="pl-overview">
-            <p>
-              <strong>{plural(roles.length, 'role')}</strong> from your work history were scored against this job:{' '}
-              <strong>{analysis.counts.listed}</strong> in full, <strong>{analysis.counts.condensed}</strong>{' '}
-              condensed, <strong>{analysis.counts.dropped}</strong> left out.
-              {editing && ' Move or rewrite any role below; your changes apply to this application only.'}
-            </p>
-          </div>
-
           {warnings.length > 0 && (
             <ul className="cv-warnings pl-warnings">
               {warnings.map((w) => (
@@ -954,8 +945,6 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
                   folds={folds}
                   className="pl-group"
                   title={groupTitle(outcome, list.length)}
-                  // Open while editing, so a left-out role can be brought back.
-                  byDefault={!!editing}
                 >
                   <p className="pl-hint">{GROUP_INTRO[outcome]}</p>
                   <RoleCards roles={list} folds={folds} {...edit} />

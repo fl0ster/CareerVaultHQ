@@ -256,23 +256,6 @@
   font-size: 14px;
 }
 
-/* One sentence instead of a wall of tiles (the spend is at the very bottom). */
-.pl-overview {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  margin: 0 0 12px;
-  font-size: 14px;
-  color: var(--text-h);
-
-  p {
-    margin: 0;
-  }
-  strong {
-    font-variant-numeric: tabular-nums;
-  }
-}
 
 .pl-warnings {
   margin: 0 0 16px;
@@ -432,12 +415,10 @@
   }
 }
 
-/* Condensed / dropped groups: a heading row that opens like the listed section reads. */
+/* Condensed / dropped groups: a section like the listed one, its heading folding it. No
+   box around it: the cards inside sit at the same level as the listed ones. */
 .pl-group {
-  margin: 8px 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  margin: 0 0 16px;
 
   > summary {
     display: list-item;
@@ -447,8 +428,8 @@
       display: inline-flex;
     }
   }
-  &[open] > summary {
-    margin-bottom: 4px;
+  > .pl-fold-body {
+    padding: 0;
   }
 }
 
