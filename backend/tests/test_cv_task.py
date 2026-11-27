@@ -325,6 +325,23 @@ def test_generate_cv_uses_the_descriptions_the_user_wrote(task_engine, requests_
     assert len(requests_seen) == 3 + 3 + 4
 
 
+def test_generate_cv_uses_the_technologies_the_user_picked(task_engine, requests_seen):
+    cv_id = _seed(task_engine)
+    with session_factory(task_engine)() as session:
+        vgw = session.scalar(select(models.WorkHistoryEntry).where(models.WorkHistoryEntry.employer == "VGW"))
+        session.get(models.GeneratedCV, cv_id).overrides = {"techs": {str(vgw.id): ["Jest", "React Native"]}}
+        session.commit()
+
+    assert generate_task.generate_cv(cv_id)["status"] == "finished"
+
+    with session_factory(task_engine)() as session:
+        pipeline = session.get(models.GeneratedCV, cv_id).pipeline
+        techs = {e["employer"]: e["tech"] for e in pipeline["main"]}
+        assert techs == {"Zartis": "TypeScript, React Native", "VGW": "Jest, React Native"}
+    # 3 decisions + 2 context + 1 tech + 1 early + 4 headline calls
+    assert len(requests_seen) == 3 + 3 + 1 + 4
+
+
 def test_generate_cv_uses_the_cv_settings(task_engine):
     cv_id = _seed(task_engine)
     with session_factory(task_engine)() as session:

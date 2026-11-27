@@ -16,6 +16,7 @@ import {
   analyse,
   type Analysis,
   diffTech,
+  splitTech,
   formatMonth,
   OUTCOME_ICON,
   OUTCOME_LABEL,
@@ -426,6 +427,68 @@ function TechDiff({ entry }: { entry: PipelineEntry }) {
   )
 }
 
+/** The technologies of a listed role as clickable pills: a lit one is in the CV (click to
+ * drop it), a struck-through one is not (click to add it back, at the end). Choosing exactly
+ * what the CV already shows is no edit at all. */
+function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry; editing: ReportEditing }) {
+  const id = String(r.role.id)
+  const all = editing.pending?.techs ?? {}
+  const mine = all[id] ?? null
+  const generated = splitTech(entry.tech)
+  const original = splitTech(entry.original_tech ?? entry.tech)
+  const current = mine ?? generated
+  const key = (t: string) => t.toLowerCase()
+  const on = new Set(current.map(key))
+  const fromHistory = new Set(original.map(key))
+  const off = [...new Map([...original, ...generated].map((t) => [key(t), t])).values()].filter((t) => !on.has(key(t)))
+
+  const save = (list: string[]) => {
+    const next = { ...all }
+    if (list.length === generated.length && list.every((t, i) => t === generated[i])) delete next[id]
+    else next[id] = list
+    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), techs: next })
+  }
+  const chip = (name: string, inCv: boolean) => (
+    <li key={key(name)}>
+      <button
+        type="button"
+        className={inCv ? (fromHistory.has(key(name)) ? 'chip-kept' : 'chip-added') : 'chip-removed'}
+        aria-pressed={inCv}
+        title={inCv ? 'In the CV: click to drop it' : 'Not in the CV: click to add it'}
+        disabled={editing.busy}
+        onClick={() => save(inCv ? current.filter((t) => key(t) !== key(name)) : [...current, name])}
+      >
+        {name}
+      </button>
+    </li>
+  )
+
+  return (
+    <div className="pl-tech">
+      <div className="pl-edit-head">
+        <span className="pl-field">Technologies</span>
+        {mine && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
+        <span className="muted">click to drop or add</span>
+        {mine && (
+          <button
+            type="button"
+            className="secondary small pl-revert"
+            onClick={() => save(generated)}
+            disabled={editing.busy}
+            title="Back to the technologies the LLM picked"
+          >
+            Revert
+          </button>
+        )}
+      </div>
+      <ul className="pl-chips pl-chips-edit">
+        {current.map((t) => chip(t, true))}
+        {off.map((t) => chip(t, false))}
+      </ul>
+    </div>
+  )
+}
+
 function ContextDiff({ entry, condensed }: { entry: PipelineEntry; condensed: boolean }) {
   const empty = <span className="muted">(no description)</span>
   if (entry.original_context === undefined) {
@@ -779,7 +842,14 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
         ) : (
           e && <ContextDiff entry={e} condensed={r.outcome === 'condensed'} />
         )}
-        {e && r.outcome === 'listed' && <TechDiff entry={e} />}
+        {e &&
+          r.outcome === 'listed' &&
+          (editable ? (
+            // Only while it stays listed: a condensed role shows no technologies.
+            where === 'listed' && <TechPicker r={r} entry={e} editing={editing} />
+          ) : (
+            <TechDiff entry={e} />
+          ))}
         {e?.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
       {place}

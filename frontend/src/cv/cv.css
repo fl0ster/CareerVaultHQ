@@ -946,3 +946,46 @@
   border: 1.5px dashed var(--text);
   box-sizing: border-box;
 }
+
+/* Technologies a listed role shows, as toggles: the pill is the button. */
+.pl-chips-edit {
+  li {
+    padding: 0;
+    border: 0;
+  }
+  button {
+    padding: 1px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-h);
+    font-size: 12px;
+    font-weight: 500;
+
+    &:hover:not(:disabled) {
+      border-color: var(--accent-border);
+    }
+    &.chip-added {
+      border-color: var(--accent-border);
+      background: var(--accent-bg);
+    }
+    &.chip-removed {
+      color: var(--text);
+      text-decoration: line-through;
+      border-style: dashed;
+      background: transparent;
+      opacity: 0.8;
+
+      &:hover:not(:disabled) {
+        text-decoration: none;
+        opacity: 1;
+      }
+    }
+  }
+}
+.pl-tech .pl-edit-head {
+  margin-bottom: 6px;
+}
+.pl-tech .pl-edit-head .pl-revert {
+  margin-left: auto;
+}
