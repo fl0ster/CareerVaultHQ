@@ -144,7 +144,6 @@ export const cvApi = {
     fetch(`${API}/${id}`, { signal }).then((r) => parse<GeneratedCv>(r)),
   pipeline: (id: number, signal?: AbortSignal) =>
     fetch(`${API}/${id}/pipeline`, { signal }).then((r) => parse<CvPipeline>(r)),
-  remove: (id: number) => fetch(`${API}/${id}`, { method: 'DELETE' }).then((r) => parse<void>(r)),
   pdfUrl: (id: number) => `${API}/${id}/pdf`,
   texUrl: (id: number) => `${API}/${id}/tex`,
 }

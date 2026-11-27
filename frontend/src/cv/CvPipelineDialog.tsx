@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { type CvPipeline, cvApi, describeError, type GeneratedCv, type PipelineEntry } from './api.ts'
 import CvActions from './CvActions.tsx'
-import CvStatusBadge from './CvStatusBadge.tsx'
 import { formatUsd } from '../cost/format.ts'
 import '../cost/cost.css'
 import {
@@ -370,13 +369,6 @@ function RoleGroup({ outcome, roles, intro }: { outcome: Outcome; roles: RoleRep
   )
 }
 
-// ------------------------------------------------------------------ dialog
-
-type Props = {
-  cv: GeneratedCv
-  onClose: () => void
-}
-
 /** What the generation of `cv` did: the summary, cost, how each role scored and where it ended
  * up, the timeline decisions and the skill categories (`GET /api/cv/{id}/pipeline`). */
 export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
@@ -543,50 +535,5 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
         </>
       )}
     </div>
-  )
-}
-
-export default function CvPipelineDialog({ cv, onClose }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null)
-
-  // No close() on cleanup: unmounting removes the dialog anyway, and in dev StrictMode the
-  // close event from a cleanup would land after the remount and shut the dialog again.
-  useEffect(() => {
-    const el = dialog.current
-    if (el && !el.open) el.showModal()
-  }, [])
-
-  return (
-    <dialog
-      ref={dialog}
-      className="job-dialog pl-dialog"
-      onClose={onClose}
-      onClick={(e) => {
-        if (e.target === dialog.current) onClose()
-      }}
-    >
-      <div className="job-dialog-body">
-        <div className="job-dialog-head">
-          <div className="cv-main">
-            <h2>{cv.job.title ?? 'Untitled job'}</h2>
-            <div className="cv-meta">
-              {cv.job.company && <span className="cv-company">{cv.job.company}</span>}
-              <CvStatusBadge status={cv.status} />
-              <span>CV #{cv.id}</span>
-              <a href={cv.job.link} target="_blank" rel="noreferrer">
-                {cv.job.source}
-              </a>
-            </div>
-          </div>
-          <div className="app-buttons">
-            <button type="button" className="secondary small" onClick={onClose} aria-label="Close">
-              ✕
-            </button>
-          </div>
-        </div>
-
-        <CvPipelineReport cv={cv} />
-      </div>
-    </dialog>
   )
 }

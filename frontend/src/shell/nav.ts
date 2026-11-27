@@ -1,12 +1,10 @@
 import {
   ArrowDownUp,
-  Building2,
   BadgeCheck,
   BriefcaseBusiness,
   CalendarClock,
   Coins,
   Trophy,
-  FileText,
   Inbox,
   LayoutDashboard,
   type LucideIcon,
@@ -27,10 +25,8 @@ export type PageId =
   | 'work-history'
   | 'employment'
   | 'sources'
-  | 'generated-cv'
   | 'gmail'
   | 'cost'
-  | 'companies'
   | 'import-export'
 
 export type NavItem = {
@@ -71,17 +67,6 @@ export const SETTINGS: NavGroup = {
       title: 'Scrape sources',
       icon: Rss,
       description: 'The job boards that get scraped, how often each one runs and how relevant its jobs turn out.',
-    },
-    {
-      id: 'companies',
-      label: 'Companies',
-      icon: Building2,
-    },
-    {
-      id: 'generated-cv',
-      label: 'Generated CVs',
-      icon: FileText,
-      description: 'Every CV tailored to a job, and how far each one got through generation.',
     },
     {
       id: 'gmail',
