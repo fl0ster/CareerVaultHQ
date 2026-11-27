@@ -57,6 +57,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.routes.cv import (
+    CvOverrides,
     GeneratedCvOut,
     check_cv_inputs,
     cv_out,
@@ -244,6 +245,8 @@ class ApplicationOut(BaseModel):
     """``remote`` / ``hybrid`` / ``office`` found by parsing the job, if any."""
     work_mode_override: str | None = None
     """Work mode entered for this application, replacing ``parsed_work_mode``."""
+    cv_overrides: CvOverrides | None = None
+    """The user's edits to how this application's CV is generated (used by the next one)."""
 
 
 class ApplicationPage(BaseModel):
@@ -272,6 +275,8 @@ class ApplicationUpdate(BaseModel):
     """Only applied when sent; ``null`` (or all fields empty) clears it."""
     work_mode_override: WorkMode | None = None
     """Only applied when sent; ``null`` clears it."""
+    cv_overrides: CvOverrides | None = None
+    """Replaces the CV edits when sent; ``null`` (or all fields empty) removes them."""
 
 
 class AcceptOffer(BaseModel):
@@ -452,6 +457,7 @@ def _to_out(
         salary_override=SalaryOut.model_validate(application.salary_override) if application.salary_override else None,
         parsed_work_mode=parsed.work_mode,
         work_mode_override=application.work_mode_override,
+        cv_overrides=CvOverrides.model_validate(application.cv_overrides) if application.cv_overrides else None,
     )
 
 
@@ -610,6 +616,8 @@ def update_application(
         application.salary_override = payload.salary_override.stored() if payload.salary_override else None
     if "work_mode_override" in payload.model_fields_set:
         application.work_mode_override = payload.work_mode_override
+    if "cv_overrides" in payload.model_fields_set:
+        application.cv_overrides = payload.cv_overrides.stored() if payload.cv_overrides else None
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:
@@ -683,7 +691,7 @@ def regenerate_cv(
         if current.status in (GeneratedCV.STATUS_QUEUED, GeneratedCV.STATUS_RUNNING):
             raise HTTPException(status.HTTP_409_CONFLICT, f"generation is {current.status}")
     check_cv_inputs(session)
-    cv = enqueue_cv(session, queue, settings, application.job_parse_result)
+    cv = enqueue_cv(session, queue, settings, application.job_parse_result, application.cv_overrides)
     application.generated_cv_id = cv.id
     session.commit()
     return _reload_out(session, application_id, request, queue)

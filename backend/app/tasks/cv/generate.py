@@ -71,7 +71,7 @@ from app.services.openrouter import (
 )
 from app.services.work_journal import refresh_stale_journals
 from app.tasks.cv import prompts
-from app.tasks.cv.history import Role, build_coherent_history
+from app.tasks.cv.history import CoherentHistory, Role, build_coherent_history
 from app.tasks.cv.render import collect_technologies, load_template, render_cv
 from app.tasks.latex import compile_latex
 
@@ -548,6 +548,41 @@ def pick_core_technologies(
     return chosen
 
 
+# --------------------------------------------------------------------------- user edits
+
+
+PLACEMENT_LOG = {"main": "listed in full", "early": "condensed", "drop": "left out"}
+
+
+def role_placements(overrides: dict | None) -> dict[int, str]:
+    """``work_history.id`` -> ``main`` / ``early`` / ``drop`` from the CV's ``overrides``."""
+    return {int(k): v for k, v in ((overrides or {}).get("roles") or {}).items() if v in PLACEMENT_LOG}
+
+
+def build_history(roles: list[Role], placements: dict[int, str], rules: dict[str, Any]) -> CoherentHistory:
+    """The timeline rules applied to the roles the user did not place; those they did go
+    where they were put (``drop``: left out), bypassing the rules."""
+    if not placements:
+        return build_coherent_history(roles, **rules)
+    free = [r for r in roles if r.id not in placements]
+    history = build_coherent_history(free, **rules) if free else CoherentHistory(main=[], early=[])
+    main, early, log_lines = list(history.main), list(history.early), list(history.log)
+    for role in roles:
+        where = placements.get(role.id) if role.id is not None else None
+        if where is None:
+            continue
+        log_lines.append(f"{PLACEMENT_LOG[where]} {role.label} (your choice)")
+        if where == "main":
+            main.append(role)
+        elif where == "early":
+            early.append(role)
+
+    def newest_first(items: list[Role]) -> list[Role]:
+        return sorted(items, key=lambda r: (r.start, r.end), reverse=True)
+
+    return CoherentHistory(main=newest_first(main), early=newest_first(early), log=log_lines)
+
+
 # --------------------------------------------------------------------------- pipeline
 
 
@@ -592,8 +627,9 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     # 1. relevance
     score_relevance(llm, roles, job_description, warnings)
 
-    # 2. timeline
-    history = build_coherent_history(roles, **rules)
+    # 2. timeline (roles the user placed bypass the rules)
+    overrides = cv.overrides or {}
+    history = build_history(roles, role_placements(overrides), rules)
     main_entries = [r.to_dict(today) for r in history.main]
     early_entries = [r.to_dict(today) for r in history.early]
     for line in history.log:
@@ -608,14 +644,16 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
     main_entries = [entry | {"tenure": role.tenure} for entry, role in zip(main_entries, history.main, strict=True)]
     early_entries = [entry | {"tenure": role.tenure} for entry, role in zip(early_entries, history.early, strict=True)]
 
-    # 4. headline
+    # 4. headline (a headline / summary the user wrote is used as is)
     technologies = collect_technologies(main_entries)
     prompt_history = [{k: v for k, v in e.items() if k not in ("relevance", "tenure")} for e in main_entries]
+    fixed_summary: str | None = overrides.get("summary")
+    fixed_headline: str | None = overrides.get("headline_role")
     categories, summary, headline_role, core_technologies = llm.run_all(
         [
             lambda s: categorize_technologies(llm, s, technologies, job_description, warnings),
-            lambda s: generate_summary(llm, s, prompt_history, job_description, warnings),
-            lambda s: pick_headline_role(llm, s, prompt_history, job_description, warnings),
+            lambda s: fixed_summary or generate_summary(llm, s, prompt_history, job_description, warnings),
+            lambda s: fixed_headline or pick_headline_role(llm, s, prompt_history, job_description, warnings),
             lambda s: pick_core_technologies(llm, s, technologies, job_description, warnings),
         ]
     )
@@ -673,6 +711,7 @@ def run_pipeline(session: Session, cv: GeneratedCV, *, settings: Settings | None
         "categories": [[name, techs] for name, techs in categories],
         "timeline_log": history.log,
         "warnings": warnings,
+        "overrides": overrides or None,
     }
     (out_dir / "pipeline.json").write_text(json.dumps(pipeline, indent=2, ensure_ascii=False), encoding="utf-8")
     compiled = compile_latex(str(tex_path), out_dir=str(out_dir))

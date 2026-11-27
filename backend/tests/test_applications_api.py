@@ -177,6 +177,37 @@ def test_regenerate_cv(client, db_session, fake_queue):
     assert len(_cv_jobs(fake_queue)) == 2
 
 
+def test_cv_overrides_are_saved_and_used_by_the_next_cv(client, db_session, fake_queue):
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    assert client.get(f"{BASE}/{app_id}").json()["cv_overrides"] is None
+
+    res = client.patch(
+        f"{BASE}/{app_id}",
+        json={"cv_overrides": {"headline_role": "  Mobile Lead ", "summary": " ", "roles": {"7": "drop", "3": "early"}}},
+    )
+    assert res.status_code == 200
+    saved = res.json()["cv_overrides"]
+    assert saved["headline_role"] == "Mobile Lead"
+    assert saved["summary"] is None  # blank: left out
+    assert saved["roles"] == {"3": "early", "7": "drop"}
+    assert res.json()["cv"]["overrides"] is None  # the current CV was made without them
+
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"1": "maybe"}}}).status_code == 422
+
+    cv = db_session.query(GeneratedCV).one()
+    cv.status = GeneratedCV.STATUS_FINISHED
+    db_session.commit()
+    new_cv = client.post(f"{BASE}/{app_id}/cv").json()["cv"]
+    assert new_cv["overrides"]["headline_role"] == "Mobile Lead"
+    assert new_cv["overrides"]["roles"] == {"3": "early", "7": "drop"}
+
+    # Removing every edit (or sending only blanks) clears them.
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"summary": ""}}).json()["cv_overrides"] is None
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"summary": "x"}})
+    assert client.patch(f"{BASE}/{app_id}", json={"cv_overrides": None}).json()["cv_overrides"] is None
+
+
 def test_event_dates_are_stored_in_utc(client, db_session):
     seed_cv_inputs(client, db_session)
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]

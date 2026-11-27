@@ -216,10 +216,6 @@
     font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
-  .cv-actions {
-    justify-content: flex-start;
-    margin: 10px 0 18px;
-  }
   .spinner {
     display: inline-block;
     margin: 12px 0;
@@ -260,7 +256,7 @@
   font-size: 14px;
 }
 
-/* One sentence instead of a wall of tiles; the spend stays visible next to it. */
+/* One sentence instead of a wall of tiles (the spend is at the very bottom). */
 .pl-overview {
   display: flex;
   flex-wrap: wrap;
@@ -276,13 +272,6 @@
   strong {
     font-variant-numeric: tabular-nums;
   }
-}
-
-.pl-overview-cost {
-  margin-left: auto;
-  font-size: 13px;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
 }
 
 .pl-warnings {
@@ -776,7 +765,166 @@
   .pl-categories {
     grid-template-columns: 1fr;
   }
-  .pl-overview-cost {
-    margin-left: 0;
+}
+
+/* ------------------------------------------------------------- editing */
+
+/* Small text button (Edit, Use generated, Automatic). */
+.pl-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--accent);
+
+  &:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--hover-tint);
   }
+}
+
+/* Your edit, in the CV already. */
+.pl-mine {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Your edit, waiting for a new CV. */
+.pl-pending {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--sun-bg);
+  color: var(--sun-fg);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pl-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.pl-edit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+  font-size: 12px;
+
+  .pl-field {
+    display: inline;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+.pl-edit-actions {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* The text as it is in the CV, clicked to edit it. */
+.pl-edit-text {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-h);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  white-space: pre-wrap;
+
+  &.pl-headline {
+    font-size: 15px;
+  }
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+    background: var(--surface);
+  }
+  &:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.pl-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  input,
+  textarea {
+    width: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+  }
+  textarea {
+    resize: vertical;
+    line-height: 1.5;
+  }
+}
+
+.pl-edit-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* Where the role goes: a segmented In full / Condensed / Left out, under its card head. */
+.pl-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.pl-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+
+  button {
+    padding: 3px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: transparent;
+
+    &:hover:not(:disabled) {
+      border-color: transparent;
+      color: var(--text-h);
+    }
+    &[aria-checked='true'] {
+      color: var(--on-accent-fill);
+      background: var(--accent-fill);
+    }
+  }
+}
+
+.pl-cost {
+  margin: 22px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }

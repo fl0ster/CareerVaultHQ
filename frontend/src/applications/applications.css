@@ -1406,3 +1406,43 @@ button.accept-dialog-submit {
     align-items: center;
   }
 }
+
+/* CV Settings: whether the CV uses the edits, and what to do about it. */
+.app-cv-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 14px;
+
+  p {
+    margin: 0;
+  }
+  /* Edits waiting for a new CV: the sun calls for the regenerate. */
+  &.is-pending {
+    background: var(--sun-bg);
+  }
+}
+
+.app-cv-bar-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+
+.app-cv-intro {
+  margin: 0 0 14px;
+  font-size: 13px;
+}

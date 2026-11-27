@@ -619,6 +619,9 @@ class GeneratedCV(Base):
     pipeline: Mapped[dict | None] = mapped_column(JSON)
     """What the pipeline did: relevance per role, which roles were listed or condensed,
     the timeline log and any warnings (steps that fell back to the original text)."""
+    overrides: Mapped[dict | None] = mapped_column(JSON)
+    """The user's edits this CV was generated with (``Application.cv_overrides`` when it was
+    queued); ``None``: none."""
 
     job_parse_result: Mapped[JobParseResult] = relationship()
 
@@ -684,6 +687,10 @@ class Application(Base):
     work_mode_override: Mapped[str | None] = mapped_column(String(16))
     """Work mode entered by the user (one of ``WORK_MODES``), replacing the parsed
     ``JobParseResult.work_mode``; ``None``: use the parsed one."""
+    cv_overrides: Mapped[dict | None] = mapped_column(JSON)
+    """The user's edits to how this application's CV is generated:
+    ``{"headline_role"?: str, "summary"?: str, "roles"?: {"<work_history id>": "main" | "early" | "drop"}}``
+    (applied by ``app.tasks.cv.generate``); ``None``: no edits."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

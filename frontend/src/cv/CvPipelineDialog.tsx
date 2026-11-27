@@ -1,6 +1,15 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { type CvPipeline, cvApi, describeError, type GeneratedCv, type PipelineEntry } from './api.ts'
-import CvActions from './CvActions.tsx'
+import { Pencil, Undo2 } from 'lucide-react'
+import {
+  type CvOverrides,
+  type CvPipeline,
+  cvApi,
+  describeError,
+  type GeneratedCv,
+  NO_OVERRIDES,
+  type PipelineEntry,
+  type RolePlacement,
+} from './api.ts'
 import { formatUsd } from '../cost/format.ts'
 import '../cost/cost.css'
 import {
@@ -431,6 +440,222 @@ function ContextDiff({ entry, condensed }: { entry: PipelineEntry; condensed: bo
   )
 }
 
+// ------------------------------------------------------------------ editing
+
+/** Lets the report change the choices the next CV is generated with; without it the report
+ * is read-only. */
+export type ReportEditing = {
+  /** The edits saved for the next CV (`null`: none). */
+  pending: CvOverrides | null
+  busy: boolean
+  onChange: (next: CvOverrides) => void
+}
+
+const PLACEMENT_OF: Record<Outcome, RolePlacement> = { listed: 'main', condensed: 'early', dropped: 'drop' }
+const PLACEMENTS: { value: RolePlacement; label: string; hint: string }[] = [
+  { value: 'main', label: 'In full', hint: 'List the role in full, tailored to the job' },
+  { value: 'early', label: 'Condensed', hint: 'One sentence in the “Additional experience” block' },
+  { value: 'drop', label: 'Left out', hint: 'Leave the role out of this CV' },
+]
+const PLACEMENT_LABEL = Object.fromEntries(PLACEMENTS.map((p) => [p.value, p.label])) as Record<RolePlacement, string>
+
+/** Where the role goes in the next CV: In full / Condensed / Left out, plus what the choice
+ * changes once the CV is regenerated. */
+function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEditing; applied: CvOverrides | null }) {
+  if (r.role.id == null) return null
+  const id = String(r.role.id)
+  const pendingRoles = editing.pending?.roles ?? {}
+  const mine = pendingRoles[id]
+  const wasMine = applied?.roles?.[id]
+  const inCv = PLACEMENT_OF[r.outcome]
+  const value = mine ?? inCv
+
+  /** The pending placements with this role's set to `v` (`null`: left to the pipeline). */
+  const save = (v: RolePlacement | null) => {
+    const roles = { ...pendingRoles }
+    if (v) roles[id] = v
+    else delete roles[id]
+    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), roles })
+  }
+  // Picking what the pipeline chose by itself is no edit at all.
+  const pick = (v: RolePlacement) => v !== value && save(v === inCv && !wasMine ? null : v)
+  const reset = () => save(null)
+
+  const status =
+    mine && mine !== inCv ? (
+      <span className="pl-pending">→ {PLACEMENT_LABEL[mine]} after regenerating</span>
+    ) : !mine && wasMine ? (
+      <span className="pl-pending">Back to the automatic choice after regenerating</span>
+    ) : mine ? (
+      <span className="pl-mine">Your choice</span>
+    ) : (
+      <span className="muted">Chosen automatically</span>
+    )
+
+  return (
+    <div className="pl-place">
+      <div className="pl-segmented" role="radiogroup" aria-label={`${r.role.employer}: place in the CV`}>
+        {PLACEMENTS.map((p) => (
+          <button
+            key={p.value}
+            type="button"
+            role="radio"
+            aria-checked={value === p.value}
+            className={`place-${p.value}`}
+            title={p.hint}
+            disabled={editing.busy}
+            onClick={() => pick(p.value)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {status}
+      {mine && (
+        <button
+          type="button"
+          className="pl-link"
+          onClick={reset}
+          disabled={editing.busy}
+          title="Let the pipeline decide again"
+        >
+          <Undo2 size={13} aria-hidden="true" /> Automatic
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** The headline or the summary: the text in the CV, edited in place. Saving replaces what the
+ * LLM wrote in the next CV; "Use generated" lets it write the text again. */
+function EditableText({
+  field,
+  label,
+  generated,
+  editing,
+  applied,
+  multiline,
+  hint,
+  children,
+}: {
+  field: 'headline_role' | 'summary'
+  label: string
+  /** The text in this CV. */
+  generated: string | null
+  editing: ReportEditing
+  applied: CvOverrides | null
+  multiline?: boolean
+  hint: string
+  /** Shown after the text (the core technologies beside the headline). */
+  children?: ReactNode
+}) {
+  const mine = editing.pending?.[field] ?? null
+  const wasMine = applied?.[field] ?? null
+  const shown = mine ?? generated ?? ''
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const save = (text: string | null) => {
+    setDraft(null)
+    const value = text?.trim() || null
+    if (value === mine) return
+    editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), [field]: value })
+  }
+
+  const status =
+    mine !== null && mine !== generated ? (
+      <span className="pl-pending">Your text, used after regenerating</span>
+    ) : mine !== null ? (
+      <span className="pl-mine">Your text</span>
+    ) : wasMine !== null ? (
+      <span className="pl-pending">Generated again after regenerating</span>
+    ) : (
+      <span className="muted">Generated</span>
+    )
+
+  return (
+    <div className={`pl-edit pl-edit-${field}`}>
+      <div className="pl-edit-head">
+        <span className="pl-field">{label}</span>
+        {status}
+        {draft === null && (
+          <span className="pl-edit-actions">
+            <button
+              type="button"
+              className="pl-link"
+              onClick={() => setDraft(shown)}
+              disabled={editing.busy}
+              aria-label={`Edit the ${label.toLowerCase()}`}
+            >
+              <Pencil size={13} aria-hidden="true" /> Edit
+            </button>
+            {mine !== null && (
+              <button type="button" className="pl-link" onClick={() => save(null)} disabled={editing.busy}>
+                <Undo2 size={13} aria-hidden="true" /> Use generated
+              </button>
+            )}
+          </span>
+        )}
+      </div>
+      {draft === null ? (
+        <button
+          type="button"
+          className={`pl-edit-text${multiline ? ' cv-summary pl-summary' : ' pl-headline'}`}
+          onClick={() => setDraft(shown)}
+          disabled={editing.busy}
+          title={`Click to edit the ${label.toLowerCase()}`}
+        >
+          {multiline ? shown || <span className="muted">(none)</span> : <strong>{shown || '—'}</strong>}
+          {children}
+        </button>
+      ) : (
+        <form
+          className="pl-edit-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            save(draft)
+          }}
+        >
+          {multiline ? (
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save(draft)
+                else if (e.key === 'Escape') setDraft(null)
+              }}
+              rows={4}
+              maxLength={2000}
+              aria-label={label}
+              autoFocus
+            />
+          ) : (
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setDraft(null)}
+              maxLength={256}
+              aria-label={label}
+              autoFocus
+            />
+          )}
+          <div className="pl-edit-buttons">
+            <button type="submit" className="small" disabled={editing.busy}>
+              Save
+            </button>
+            <button type="button" className="secondary small" onClick={() => setDraft(null)}>
+              Cancel
+            </button>
+            <span className="muted">
+              {plural(wordCount(draft), 'word')} · {hint}
+            </span>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function roleDates(r: RoleReport): string | null {
   const e = r.entry
   if (e) return `${e.date_start} – ${e.date_end}`
@@ -441,9 +666,12 @@ function cardId(r: RoleReport): string {
   return `pl-role-${r.key}`
 }
 
-function RoleCard({ r, folds }: { r: RoleReport; folds: Folds }) {
+type CardEditing = { editing?: ReportEditing; applied: CvOverrides | null }
+
+function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds } & CardEditing) {
   const e = r.entry
   const dates = roleDates(r)
+  const place = editing && <Placement r={r} editing={editing} applied={applied} />
   const head = (
     <>
       <span className="pl-card-head">
@@ -461,12 +689,13 @@ function RoleCard({ r, folds }: { r: RoleReport; folds: Folds }) {
     return (
       <li id={cardId(r)} className={`pl-card outcome-${r.outcome}`} tabIndex={-1}>
         <div className="pl-card-static">{head}</div>
+        {place}
       </li>
     )
   }
   return (
     <li id={cardId(r)} className={`pl-card outcome-${r.outcome}`}>
-      <Fold id={r.key} folds={folds} title={head} byDefault={r.outcome === 'listed'}>
+      <Fold id={r.key} folds={folds} title={head} byDefault={r.outcome === 'listed' && !editing}>
         {r.trimmed && r.original && (
           <p className="pl-note">
             Trimmed from {formatMonth(r.original.start)} –{' '}
@@ -478,15 +707,16 @@ function RoleCard({ r, folds }: { r: RoleReport; folds: Folds }) {
         {r.outcome === 'listed' && <TechDiff entry={e} />}
         {e.location && <p className="pl-note">Location: {e.location}</p>}
       </Fold>
+      {place}
     </li>
   )
 }
 
-function RoleCards({ roles, folds }: { roles: RoleReport[]; folds: Folds }) {
+function RoleCards({ roles, folds, ...edit }: { roles: RoleReport[]; folds: Folds } & CardEditing) {
   return (
     <ul className="pl-cards">
       {roles.map((r) => (
-        <RoleCard key={r.key} r={r} folds={folds} />
+        <RoleCard key={r.key} r={r} folds={folds} {...edit} />
       ))}
     </ul>
   )
@@ -513,8 +743,9 @@ function groupTitle(outcome: Outcome, count: number) {
 /** What the generation of `cv` did (`GET /api/cv/{id}/pipeline`), most useful first: the
  * timeline of what the CV kept, then each role and how its description changed, most
  * relevant first. Condensed and dropped roles, the scoring, the timeline decisions, skill
- * categories and raw data start folded. */
-export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
+ * categories and raw data start folded. With `editing`, the headline, the summary and where
+ * each role goes can be changed for the next CV. */
+export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: ReportEditing }) {
   const [pipeline, setPipeline] = useState<CvPipeline | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toggled, setToggled] = useState<Record<string, boolean>>({})
@@ -562,16 +793,47 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
     })
   }
 
+  const applied = cv.overrides
+  const edit = { editing, applied }
+  const coreTech = cv.core_technologies.length > 0 && (
+    <span className="muted"> · {cv.core_technologies.join(' · ')}</span>
+  )
+
   return (
     <div className="pl-report">
-      {cv.headline_role && (
-        <p className="pl-headline">
-          <strong>{cv.headline_role}</strong>
-          {cv.core_technologies.length > 0 && <span className="muted"> · {cv.core_technologies.join(' · ')}</span>}
-        </p>
+      {editing ? (
+        <div className="pl-texts">
+          <EditableText
+            field="headline_role"
+            label="Headline"
+            generated={cv.headline_role}
+            editing={editing}
+            applied={applied}
+            hint="a job title, up to 6 words"
+          >
+            {coreTech}
+          </EditableText>
+          <EditableText
+            field="summary"
+            label="Summary"
+            generated={cv.summary}
+            editing={editing}
+            applied={applied}
+            hint="about 50 words"
+            multiline
+          />
+        </div>
+      ) : (
+        <>
+          {cv.headline_role && (
+            <p className="pl-headline">
+              <strong>{cv.headline_role}</strong>
+              {coreTech}
+            </p>
+          )}
+          {cv.summary && <p className="cv-summary pl-summary">{cv.summary}</p>}
+        </>
       )}
-      {cv.summary && <p className="cv-summary pl-summary">{cv.summary}</p>}
-      <CvActions cv={cv} />
 
       {cv.error && <pre className="error cv-inline-error">{cv.error}</pre>}
       {error && <p className="error">Could not load the pipeline report: {error}</p>}
@@ -582,13 +844,11 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
         <>
           <div className="pl-overview">
             <p>
-              <strong>{plural(roles.length, 'role')}</strong> from your work history were scored against this job;{' '}
-              <strong>{analysis.counts.listed}</strong> made it into the CV in full.
+              <strong>{plural(roles.length, 'role')}</strong> from your work history were scored against this job:{' '}
+              <strong>{analysis.counts.listed}</strong> in full, <strong>{analysis.counts.condensed}</strong>{' '}
+              condensed, <strong>{analysis.counts.dropped}</strong> left out.
+              {editing && ' Move any role below; your choices apply to this application only.'}
             </p>
-            <span className="pl-overview-cost">
-              {cost === null || cost === undefined ? 'Cost unknown' : formatUsd(cost)} ·{' '}
-              {plural(calls ?? 0, 'OpenRouter call')}
-            </span>
           </div>
 
           {warnings.length > 0 && (
@@ -613,7 +873,7 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
             <section className="pl-section">
               {groupTitle('listed', listed.length)}
               <p className="pl-hint">{GROUP_INTRO.listed}</p>
-              <RoleCards roles={listed} folds={folds} />
+              <RoleCards roles={listed} folds={folds} {...edit} />
             </section>
           )}
 
@@ -626,9 +886,11 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
                   folds={folds}
                   className="pl-group"
                   title={groupTitle(outcome, list.length)}
+                  // Open while editing, so a left-out role can be brought back.
+                  byDefault={!!editing}
                 >
                   <p className="pl-hint">{GROUP_INTRO[outcome]}</p>
-                  <RoleCards roles={list} folds={folds} />
+                  <RoleCards roles={list} folds={folds} {...edit} />
                 </Fold>
               ),
           )}
@@ -710,6 +972,13 @@ export function CvPipelineReport({ cv }: { cv: GeneratedCv }) {
             </Fold>
           </div>
         </>
+      )}
+
+      {pipeline && (
+        <p className="pl-cost">
+          {cost === null || cost === undefined ? 'Cost unknown' : `Generated for ${formatUsd(cost)}`} ·{' '}
+          {plural(calls ?? 0, 'OpenRouter call')}
+        </p>
       )}
     </div>
   )

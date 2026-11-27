@@ -26,6 +26,39 @@ export type GeneratedCv = {
   job: CvJob
   pdf_url: string | null
   tex_url: string | null
+  /** The user's edits this CV was generated with (`null`: none). */
+  overrides: CvOverrides | null
+}
+
+/** Where the user put a role: listed in full, condensed, or left out. */
+export type RolePlacement = 'main' | 'early' | 'drop'
+
+/** The user's edits to how one application's CV is generated; `null` fields and missing
+ * roles are left to the pipeline. */
+export type CvOverrides = {
+  headline_role: string | null
+  summary: string | null
+  /** `work_history.id` -> placement. */
+  roles: Record<string, RolePlacement>
+}
+
+export const NO_OVERRIDES: CvOverrides = { headline_role: null, summary: null, roles: {} }
+
+/** Number of separate edits (headline, summary, each placed role). */
+export function overrideCount(o: CvOverrides | null | undefined): number {
+  if (!o) return 0
+  return (o.headline_role ? 1 : 0) + (o.summary ? 1 : 0) + Object.keys(o.roles ?? {}).length
+}
+
+/** Whether two sets of edits would produce the same CV. */
+export function sameOverrides(a: CvOverrides | null | undefined, b: CvOverrides | null | undefined): boolean {
+  const key = (o: CvOverrides | null | undefined) =>
+    JSON.stringify([
+      o?.headline_role || null,
+      o?.summary || null,
+      Object.entries(o?.roles ?? {}).sort(([x], [y]) => Number(x) - Number(y)),
+    ])
+  return key(a) === key(b)
 }
 
 export type GeneratedCvPage = {

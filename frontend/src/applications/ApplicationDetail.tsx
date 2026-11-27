@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Check, ExternalLink, Flag, Pencil, Trash2, Undo2 } from 'lucide-react'
-import { describeError, isInProgress } from '../cv/api.ts'
-import { CvPipelineReport } from '../cv/CvPipelineDialog.tsx'
+import { describeError, overrideCount } from '../cv/api.ts'
 import '../cv/cv.css'
 import '../interviews/interviews.css'
 import TechPills from '../jobs/TechPills.tsx'
@@ -34,6 +33,7 @@ import {
   toLocalInput,
 } from './api.ts'
 import ApplicationCv from './ApplicationCv.tsx'
+import CvSettingsPane from './CvSettingsPane.tsx'
 import Salary from './Salary.tsx'
 import WorkMode from './WorkMode.tsx'
 import StatusBadge from './StatusBadge.tsx'
@@ -751,6 +751,7 @@ export default function ApplicationDetail({
   onAccepted,
 }: Props) {
   const [pane, setPane] = useState<'history' | 'cv' | 'notes' | 'description'>('history')
+  const [cvSeen, setCvSeen] = useState(false)
   const held = heldRounds(application)
   const history = historyEvents(application)
   const status = application.status
@@ -806,8 +807,19 @@ export default function ApplicationDetail({
           >
             Status history
           </button>
-          <button type="button" role="tab" aria-selected={pane === 'cv'} onClick={() => setPane('cv')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'cv'}
+            onClick={() => {
+              setPane('cv')
+              setCvSeen(true)
+            }}
+          >
             CV Settings
+            {overrideCount(application.cv_overrides) > 0 && (
+              <span className="app-tab-dot" title="This CV has your edits" aria-label="(has edits)" />
+            )}
           </button>
           <button type="button" role="tab" aria-selected={pane === 'notes'} onClick={() => setPane('notes')}>
             Notes
@@ -827,15 +839,11 @@ export default function ApplicationDetail({
             Link <ExternalLink size={13} aria-hidden="true" />
           </a>
         </div>
-        {pane === 'cv' && (
-          <div className="app-cv-report" role="tabpanel">
-            {!application.cv ? (
-              <p className="muted">No CV generated for this application yet.</p>
-            ) : isInProgress(application.cv) ? (
-              <p className="muted">The CV is being generated; how it was made shows here once it is done.</p>
-            ) : (
-              <CvPipelineReport key={application.cv.id} cv={application.cv} />
-            )}
+        {/* Mounted once opened and kept while other tabs show (say, the description while
+            writing the summary), so a text being edited survives. */}
+        {cvSeen && (
+          <div hidden={pane !== 'cv'}>
+            <CvSettingsPane application={application} onChange={onChange} />
           </div>
         )}
         {/* Kept mounted while other tabs show, so an unsaved draft survives. */}
