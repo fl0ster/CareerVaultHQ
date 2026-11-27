@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FileDown, FilePlus, FileX, RefreshCw } from 'lucide-react'
-import { type GeneratedCv, cvApi, describeError, isInProgress } from '../cv/api.ts'
+import { type GeneratedCv, cvApi, describeError, isInProgress, overrideCount, sameOverrides } from '../cv/api.ts'
 import { type Application, applicationsApi } from './api.ts'
 
 type Props = {
@@ -12,8 +12,9 @@ const formatCreated = (cv: GeneratedCv) =>
   new Date(cv.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 
 /** The CV section of the application's left column: downloads the latest CV (or generates
- * one when there is none or the last attempt failed, spinning meanwhile), generates a new one,
- * and lists the earlier finished CVs of the job for download. */
+ * one when there is none or the last attempt failed, spinning meanwhile), generates a new one
+ * (in sun yellow while edits from CV Settings wait for it), removes those edits, and lists the
+ * earlier finished CVs of the job for download. */
 export default function ApplicationCv({ application, onChange }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,16 +38,25 @@ export default function ApplicationCv({ application, onChange }: Props) {
     return () => controller.abort()
   }, [jobId, latestId])
 
-  const generate = async () => {
+  // Edits made in CV Settings that this CV was not generated with: regenerating applies them.
+  const stale = cv != null && !sameOverrides(application.cv_overrides, cv.overrides)
+  const edits = overrideCount(application.cv_overrides)
+
+  const run = async (fn: () => Promise<Application>) => {
     setBusy(true)
     setError(null)
     try {
-      onChange(await applicationsApi.regenerateCv(application.id))
+      onChange(await fn())
     } catch (e) {
       setError(describeError(e))
     } finally {
       setBusy(false)
     }
+  }
+  const generate = () => void run(() => applicationsApi.regenerateCv(application.id))
+  const removeEdits = () => {
+    if (!window.confirm('Remove all your edits to the CV (headline, summary, role placement)? The next CV is generated the usual way.')) return
+    void run(() => applicationsApi.setCvOverrides(application.id, null))
   }
 
   let main
@@ -86,15 +96,20 @@ export default function ApplicationCv({ application, onChange }: Props) {
         {cv?.status === 'finished' && !generating && (
           <button
             type="button"
-            className="app-cv-info"
+            className={`app-cv-info${stale ? ' stale' : ''}`}
             onClick={generate}
-            title="Generate a new CV"
-            aria-label="Generate a new CV"
+            title={stale ? 'Your CV edits are not in this CV yet: generate a new one with them' : 'Generate a new CV'}
+            aria-label={stale ? 'Generate a new CV with your edits' : 'Generate a new CV'}
           >
             <RefreshCw size={14} aria-hidden="true" />
           </button>
         )}
       </div>
+      {edits > 0 && !generating && (
+        <button type="button" className="app-cv-toggle" onClick={removeEdits} disabled={busy}>
+          Remove CV edits ({edits})
+        </button>
+      )}
       {earlier && earlier.length > 0 && (
         <div className="app-cv-earlier">
           <button

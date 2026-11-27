@@ -210,6 +210,16 @@
   border-left: 1px solid var(--border);
   color: var(--text);
 }
+/* Edits from CV Settings are not in this CV yet: the sun asks for a new one. */
+.app-cv-info.stale {
+  color: var(--on-sun);
+  background: var(--sun);
+
+  &:hover:not(:disabled) {
+    color: var(--on-sun);
+    background: var(--sun-hover);
+  }
+}
 .app-cv-error {
   margin: 0;
   font-size: 12px;
@@ -1404,41 +1414,6 @@ button.accept-dialog-submit {
 
   .app-buttons {
     align-items: center;
-  }
-}
-
-/* CV Settings: whether the CV uses the edits, and what to do about it. */
-.app-cv-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin: 0 0 16px;
-  padding: 10px 14px;
-  border-radius: var(--r-sm);
-  background: var(--accent-bg);
-  color: var(--text-h);
-  font-size: 14px;
-
-  p {
-    margin: 0;
-  }
-  /* Edits waiting for a new CV: the sun calls for the regenerate. */
-  &.is-pending {
-    background: var(--sun-bg);
-  }
-}
-
-.app-cv-bar-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
-
-  button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
   }
 }
 
