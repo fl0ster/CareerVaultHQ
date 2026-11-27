@@ -814,7 +814,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
+  gap: 4px 6px;
   margin-bottom: 4px;
   font-size: 12px;
 
@@ -826,10 +826,12 @@
   }
 }
 
-.pl-edit-actions {
-  display: inline-flex;
-  gap: 2px;
-  margin-left: auto;
+/* Edited by you: the same dot as on the tab. */
+.pl-edit-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 /* The text as it is in the CV, clicked to edit it. */
@@ -882,6 +884,10 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
+
+  .pl-revert {
+    margin-left: auto;
+  }
 }
 
 /* Where the role goes: a segmented In full / Condensed / Left out, under its card head. */

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useState } from 'react'
-import { Pencil, Undo2 } from 'lucide-react'
+import { Undo2 } from 'lucide-react'
 import {
   type CvOverrides,
   type CvPipeline,
@@ -526,14 +526,14 @@ function Placement({ r, editing, applied }: { r: RoleReport; editing: ReportEdit
   )
 }
 
-/** The headline or the summary: the text in the CV, edited in place. Saving replaces what the
- * LLM wrote in the next CV; "Use generated" lets it write the text again. */
+/** The headline or the summary: the text in the CV, clicked to edit it in place. Saving
+ * replaces what the LLM wrote in the next CV (a dot by the label marks it edited); Revert
+ * lets the LLM write it again. */
 function EditableText({
   field,
   label,
   generated,
   editing,
-  applied,
   multiline,
   hint,
   children,
@@ -543,14 +543,12 @@ function EditableText({
   /** The text in this CV. */
   generated: string | null
   editing: ReportEditing
-  applied: CvOverrides | null
   multiline?: boolean
   hint: string
   /** Shown after the text (the core technologies beside the headline). */
   children?: ReactNode
 }) {
   const mine = editing.pending?.[field] ?? null
-  const wasMine = applied?.[field] ?? null
   const shown = mine ?? generated ?? ''
   const [draft, setDraft] = useState<string | null>(null)
 
@@ -561,40 +559,11 @@ function EditableText({
     editing.onChange({ ...(editing.pending ?? NO_OVERRIDES), [field]: value })
   }
 
-  const status =
-    mine !== null && mine !== generated ? (
-      <span className="pl-pending">Your text, used after regenerating</span>
-    ) : mine !== null ? (
-      <span className="pl-mine">Your text</span>
-    ) : wasMine !== null ? (
-      <span className="pl-pending">Generated again after regenerating</span>
-    ) : (
-      <span className="muted">Generated</span>
-    )
-
   return (
     <div className={`pl-edit pl-edit-${field}`}>
       <div className="pl-edit-head">
         <span className="pl-field">{label}</span>
-        {status}
-        {draft === null && (
-          <span className="pl-edit-actions">
-            <button
-              type="button"
-              className="pl-link"
-              onClick={() => setDraft(shown)}
-              disabled={editing.busy}
-              aria-label={`Edit the ${label.toLowerCase()}`}
-            >
-              <Pencil size={13} aria-hidden="true" /> Edit
-            </button>
-            {mine !== null && (
-              <button type="button" className="pl-link" onClick={() => save(null)} disabled={editing.busy}>
-                <Undo2 size={13} aria-hidden="true" /> Use generated
-              </button>
-            )}
-          </span>
-        )}
+        {mine !== null && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
       </div>
       {draft === null ? (
         <button
@@ -649,6 +618,17 @@ function EditableText({
             <span className="muted">
               {plural(wordCount(draft), 'word')} · {hint}
             </span>
+            {mine !== null && (
+              <button
+                type="button"
+                className="secondary small pl-revert"
+                onClick={() => save(null)}
+                disabled={editing.busy}
+                title="Drop your text: the next CV gets a generated one"
+              >
+                Revert
+              </button>
+            )}
           </div>
         </form>
       )}
@@ -808,7 +788,6 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
             label="Headline"
             generated={cv.headline_role}
             editing={editing}
-            applied={applied}
             hint="a job title, up to 6 words"
           >
             {coreTech}
@@ -818,7 +797,6 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
             label="Summary"
             generated={cv.summary}
             editing={editing}
-            applied={applied}
             hint="about 50 words"
             multiline
           />
