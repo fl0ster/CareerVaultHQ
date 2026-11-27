@@ -74,7 +74,7 @@ class CvImportSource(BaseModel):
 
 class CvImportResult(BaseModel):
     candidate_details: CandidateDetailsIn
-    """Ready for ``PUT /api/candidate-details`` (``photo`` and ``consent_text`` are blank)."""
+    """Ready for ``PUT /api/candidate-details`` (``photo`` is blank)."""
     work_history: list[WorkHistoryImport]
     """Positions, education and certificates, ready for ``POST /api/work-history/json``;
     newest first."""

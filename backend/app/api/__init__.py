@@ -8,6 +8,7 @@ from app.api.routes import (
     companies,
     cv,
     cv_import,
+    cv_settings,
     dashboard,
     gmail_monitor,
     health,
@@ -34,6 +35,7 @@ api_router.include_router(work_journal.router, prefix="/work-history", tags=["wo
 api_router.include_router(candidate_profile.router, prefix="/candidate-profile", tags=["candidate-profile"])
 api_router.include_router(candidate_details.router, prefix="/candidate-details", tags=["candidate-details"])
 api_router.include_router(cv.router, prefix="/cv", tags=["cv"])
+api_router.include_router(cv_settings.router, prefix="/cv-settings", tags=["cv-settings"])
 api_router.include_router(cv_import.router, prefix="/cv-import", tags=["cv-import"])
 api_router.include_router(openrouter.router, prefix="/openrouter", tags=["openrouter"])
 api_router.include_router(queue_status.router, prefix="/queue", tags=["queue"])
