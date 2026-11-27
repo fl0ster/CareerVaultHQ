@@ -683,15 +683,22 @@ function placedOutcome(r: RoleReport, pending: CvOverrides | null | undefined): 
   return mine ? OUTCOME_OF_PLACEMENT[mine] : r.outcome
 }
 
-const DESCRIPTION_HINT: Record<Outcome, string> = {
+const DESCRIPTION_HINT: Record<Exclude<Outcome, 'dropped'>, string> = {
   listed: 'up to 3 sentences',
   condensed: 'one sentence, about 12 words',
-  dropped: 'used if the role is put back in the CV',
 }
 
 /** The role's description in the next CV, edited in place, with the work-history
  * description it started from below for reference. */
-function DescriptionEditor({ r, editing, where }: { r: RoleReport; editing: ReportEditing; where: Outcome }) {
+function DescriptionEditor({
+  r,
+  editing,
+  where,
+}: {
+  r: RoleReport
+  editing: ReportEditing
+  where: Exclude<Outcome, 'dropped'>
+}) {
   const id = String(r.role.id)
   const contexts = editing.pending?.contexts ?? {}
   const mine = contexts[id] ?? null
@@ -748,7 +755,8 @@ function RoleCard({ r, folds, editing, applied }: { r: RoleReport; folds: Folds 
     </>
   )
   const editable = editing && r.role.id != null
-  if (!e && !editable) {
+  // A left-out role has nothing to show or edit: just its head and where to put it.
+  if (where === 'dropped' || (!e && !editable)) {
     return (
       <li id={cardId(r)} className={`pl-card outcome-${where}`} tabIndex={-1}>
         <div className="pl-card-static">{head}</div>
