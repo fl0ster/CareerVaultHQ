@@ -4,6 +4,8 @@ import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
 import type { EvaluatedJobDetail } from '../jobs/api.ts'
+import { RowChevron } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 
 type Props = {
   application: Application
@@ -17,7 +19,7 @@ type Props = {
 /** One application in a list; clicking it opens the application. */
 export default function ApplicationRow({ application: a, onOpen, onOpenCompany, onRescored, actions }: Props) {
   return (
-    <li className="app-item">
+    <li className="app-item clickable-row" onClick={openOnClick(() => onOpen(a.id))}>
       <button type="button" className="app-row" onClick={() => onOpen(a.id)}>
         <div className="job-main">
           {a.evaluation && (
@@ -29,7 +31,7 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
               onRescored={onRescored}
             />
           )}
-          <span className="job-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
+          <span className="job-title item-title" style={{ marginLeft: '10px' }}>{a.job.title ?? a.job.link}</span>
           <div className="job-meta">
             {a.job.company && (
               <span className="job-company">
@@ -46,6 +48,7 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
         {/* Clicks anywhere around the badge stay with it instead of opening the row. */}
         <div
           className="app-badges"
+          data-no-open
           onClick={(e) => {
             e.stopPropagation()
             e.preventDefault()
@@ -55,6 +58,8 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
           {actions}
         </div>
       </button>
+      {/* Outside the button: its press scale would move the chevron away mid-click. */}
+      <RowChevron />
     </li>
   )
 }

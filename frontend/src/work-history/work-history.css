@@ -105,13 +105,13 @@
   }
 }
 
+/* A clickable row (shell/clickable.css): hover tints it in the position's colour; the right
+   padding keeps room for the open chevron. */
 .wh-item {
-  padding: 14px 18px;
+  --item-hover: color-mix(in srgb, var(--tone-fg, var(--accent)) 10%, transparent);
+  padding: 14px 44px 14px 18px;
   border-bottom: 1px solid var(--border);
   scroll-margin-top: calc(var(--topbar-h) + var(--wh-head-h, 0px) + var(--wh-tl-h, 0px) + 8px);
-  position: relative;
-  cursor: pointer;
-  transition: background-color 0.15s;
 
   &:has(.wh-kind-strip) {
     padding-left: 32px;
@@ -134,10 +134,6 @@
   }
   &:not(:has(.wh-kind-strip), .tenure-mid, .tenure-last) {
     padding-left: 28px;
-  }
-
-  &:hover {
-    background: color-mix(in srgb, var(--tone-fg, var(--accent)) 10%, transparent);
   }
 
   &:focus-visible {
@@ -1282,12 +1278,9 @@
 }
 /* Work journal on the Employment cards: a missing entry rings the card in notification sun. */
 .employment-card.overdue {
+  --card-hover-border: var(--sun-hover);
   border: 3px solid var(--sun);
   padding: 16px;
-
-  &:hover {
-    border-color: var(--sun-hover);
-  }
 }
 .employment-card .journal-composer textarea {
   min-height: 140px;

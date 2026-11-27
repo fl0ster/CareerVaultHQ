@@ -363,10 +363,17 @@ Rounded, confident, and colour-coded by job.
 
 ### Cards / Containers
 - **Corner Style:** medium (16px) for cards and lists, large (24px) for widgets, the profile card and panels.
-- **Background:** `surface`; hover steps to `surface-2` where the whole card is a link.
+- **Background:** `surface`; a card that opens takes the `hover-tint` wash on hover (see Clickable Cards and List Rows).
 - **Shadow Strategy:** none (see Elevation & Depth).
 - **Border:** a 1px `border` hairline; list rows are divided by hairlines inside one card.
 - **Internal Padding:** about 18 to 22px.
+
+### Clickable Cards and List Rows
+- **The chevron says it opens:** a list row with a right chevron at its far right, or a card with a chevron in its top right corner, opens when clicked anywhere on it. There are no "Details" or "Open" buttons on cards; the chevron replaces them. Items that don't open have no chevron.
+- **Rows:** the chevron (18px, body ink) sits at the far right, centred vertically. Rows keep 44px of right padding for it.
+- **Cards:** the chevron is the card's 36px icon button (transparent circle, body ink), the last thing in the header, after any status control.
+- **Hover:** the item takes a `hover-tint` wash over its own background, so an inbox match or the active role still shows through. Career rows use their position's colour for the wash. The title turns feather and the chevron turns feather and moves 2px right. Cards also firm their border to `border-strong` (an overdue Employment card stays sun), and their chevron button takes feather mist.
+- **Regions that do their own thing:** inline controls (buttons, links, the status picker, company pills) never open the item. Areas with their own work, like a note being written, the journal composer or an offer's decision bar, don't open it and don't show the hover. Keyboard users open the item with its title link or chevron button. In code, this is `shell/clickable.css`, `shell/OpenChevron.tsx` and `shell/openOnClick.ts`.
 
 ### Inputs / Fields
 - **Style:** `surface` fill, 1px `border-strong`, 10px radius, 7px 11px padding, 14px heading-ink text. Selects draw their chevron from two gradient triangles in the text colour.

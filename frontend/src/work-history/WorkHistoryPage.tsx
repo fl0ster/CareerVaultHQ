@@ -9,6 +9,8 @@ import AddPositionComposer from './AddPositionComposer.tsx'
 import WorkHistoryTimeline from './WorkHistoryTimeline.tsx'
 import EntryDetail, { EntryPeriod, Organisation, PrefillStatus, TransitionChip } from './EntryDetail.tsx'
 import type { Crumb } from '../shell/nav.ts'
+import { RowChevron } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { candidateDetailsApi } from '../candidate-profile/api.ts'
 import { candidateDetailsStore } from '../candidate-profile/store.ts'
@@ -66,11 +68,11 @@ function EntryCard({
     <li
       ref={cardRef}
       data-id={entry.id}
-      className={`wh-item kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${place ? ` tenure-${place}` : ''}${active ? ' active' : ''}`}
+      className={`wh-item clickable-row kind-${entry.kind}${bar ? ` tone-${bar.tone}` : ''}${place ? ` tenure-${place}` : ''}${active ? ' active' : ''}`}
       role="link"
       tabIndex={0}
       aria-label={`${entryTitle(entry)}: open details`}
-      onClick={onOpen}
+      onClick={openOnClick(onOpen)}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
         e.preventDefault()
@@ -84,7 +86,7 @@ function EntryCard({
       )}
       <div className="wh-main">
         <div className="wh-title">
-          <strong>{entry.role}</strong>
+          <strong className="item-title">{entry.role}</strong>
           {entry.pending && (
             <span
               className="badge wh-pending"
@@ -112,6 +114,7 @@ function EntryCard({
         {previous && <TransitionChip entry={entry} previous={previous} />}
         <PrefillStatus entry={entry} />
       </div>
+      <RowChevron />
     </li>
   )
 }

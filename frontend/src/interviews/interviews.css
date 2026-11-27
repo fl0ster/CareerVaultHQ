@@ -18,20 +18,13 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  transition:
-    box-shadow var(--t-fast) ease,
-    border-color var(--t-fast) ease;
-
-  &:hover {
-    border-color: var(--border-strong);
-  }
 
   .error {
     margin: 0;
   }
 }
 
-/* Head: job and company on the left, the status control on the right. */
+/* Head: job and company on the left, the status control and the open chevron on the right. */
 .iv-card-head {
   display: flex;
   align-items: flex-start;
@@ -56,9 +49,8 @@
   color: var(--text-h);
   overflow-wrap: anywhere;
 
-  &:hover {
-    color: var(--accent);
-  }
+  transition: color var(--t-fast) ease;
+
   &:focus-visible {
     border-radius: 4px;
     box-shadow: var(--focus-ring);
@@ -74,9 +66,8 @@
 }
 
 
-/* Details and the status control (top right) share one size. */
-.iv-card-head-actions :is(.app-status-main, .app-status-more),
-.iv-card-head-actions .iv-card-details {
+/* The status control, left of the open chevron in the top right. */
+.iv-card-head-actions :is(.app-status-main, .app-status-more) {
   padding: 8px 10px 8px 14px;
   font-size: 14px;
   line-height: 1.2;
@@ -89,20 +80,12 @@
 }
 
 .iv-card-head-actions {
-  align-self: center;
   flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-
-}
-
-.iv-card-details {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 /* The current step: the round being prepared for (or the last one held) and its notes. */
@@ -202,7 +185,7 @@
   }
 }
 
-/* Left column: the stepper on top, the Details button at the bottom left below it. */
+/* Left column: the rounds, as tall as the current step beside them. */
 .iv-card-side {
   align-self: stretch;
   display: flex;

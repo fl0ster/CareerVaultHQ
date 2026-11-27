@@ -1,10 +1,12 @@
-import { BellRing, ChevronRight } from 'lucide-react'
+import { BellRing } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import '../interviews/interviews.css'
 import '../companies/tags.css'
 import CompanyDialog from '../companies/CompanyDialog.tsx'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import type { Crumb } from '../shell/nav.ts'
+import { CardOpenButton } from '../shell/OpenChevron.tsx'
+import { openOnClick } from '../shell/openOnClick.ts'
 import { useDetailScroll } from '../shell/useDetailScroll.ts'
 import './work-history.css'
 import {
@@ -38,7 +40,7 @@ type Props = {
 }
 
 /** The positions currently held, one card each (styled like the interview cards), each with
- * its work journal: a box to log a note, and the full journal one click away. */
+ * its work journal: a box to log a note, and the full journal a click on the card away. */
 export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrumbsChange }: Props) {
   const [entries, setEntries] = useState<WorkHistoryEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -88,10 +90,13 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
       <ul className="iv-grid">
         {current.map((e) => (
           <li key={e.id}>
-            <article className={`iv-card employment-card${e.journal_overdue ? ' overdue' : ''}`}>
+            <article
+              className={`iv-card employment-card clickable-card${e.journal_overdue ? ' overdue' : ''}`}
+              onClick={openOnClick(() => onOpen(e.id))}
+            >
               <header className="iv-card-head">
                 <div className="iv-card-title">
-                  <h3 className="employment-role">{e.role}</h3>
+                  <h3 className="employment-role item-title">{e.role}</h3>
                   <div className="iv-card-meta">
                     {e.company_id != null ? (
                       <CompanyTagBadge
@@ -105,15 +110,14 @@ export default function EmploymentPage({ detailId = null, onOpen, onBack, onCrum
                     )}
                     {e.location && <span className="muted">{e.location}</span>}
                     <span className="muted">Since {since(e.date_start)}</span>
+                    {e.journal_count > 0 && (
+                      <span className="muted">
+                        {e.journal_count} journal {e.journal_count === 1 ? 'note' : 'notes'}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="iv-card-head-actions">
-                  <button type="button" className="secondary iv-card-details" onClick={() => onOpen(e.id)}>
-                    Open journal
-                    {e.journal_count > 0 && <span className="muted">({e.journal_count})</span>}
-                    <ChevronRight size={16} aria-hidden="true" />
-                  </button>
-                </div>
+                <CardOpenButton label={`Open the journal of ${e.role}`} onOpen={() => onOpen(e.id)} />
               </header>
               <div className="iv-card-body">
                 <div className="iv-card-side">
