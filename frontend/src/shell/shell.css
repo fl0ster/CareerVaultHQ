@@ -283,9 +283,9 @@
     background-color var(--t-fast) ease,
     color var(--t-fast) ease;
 
+  /* Not the global link hover: only the current page is feather */
   &:hover {
     color: var(--text-h);
-    background: var(--hover-tint);
   }
   &.active,
   &.active:hover {
@@ -312,25 +312,42 @@
   --bookmark-r: 16px;
 }
 
-.nav-item.bookmark {
+/* Hover previews the same tab shape in a faint tint; the bookmark itself is the page colour. */
+.nav-item:hover {
+  --tab-fill: var(--hover-tint);
+}
+
+.nav-item.bookmark,
+.nav-item.bookmark:hover,
+.profile-card.active {
+  --tab-fill: var(--canvas);
+}
+
+.nav-item:is(.bookmark, :hover) {
   width: calc(100% + var(--sidebar-pad));
   margin-right: calc(-1 * var(--sidebar-pad));
+  padding-right: calc(14px + var(--sidebar-pad));
+}
+
+/* Above its neighbours, so its corners stay clean while the next entry is hovered */
+.nav-item.bookmark {
+  z-index: 1;
 }
 
 .profile-card.active {
   margin-right: calc(-1 * var(--sidebar-pad));
 }
 
-:is(.nav-item.bookmark, .profile-card.active),
-:is(.nav-item.bookmark, .profile-card.active):hover {
-  background: var(--canvas);
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active),
+.profile-card.active:hover {
+  background: var(--tab-fill);
   border-color: transparent;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-:is(.nav-item.bookmark, .profile-card.active)::before,
-:is(.nav-item.bookmark, .profile-card.active)::after {
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before,
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
   content: '';
   position: absolute;
   right: 0;
@@ -339,23 +356,29 @@
   pointer-events: none;
 }
 
-/* Concave corners, drawn as the page colour around a quarter circle */
-:is(.nav-item.bookmark, .profile-card.active)::before {
+/* Concave corners: the tab's fill around a quarter circle */
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before {
   bottom: 100%;
   background: radial-gradient(
     circle at 0 0,
     transparent calc(var(--bookmark-r) - 0.5px),
-    var(--canvas) var(--bookmark-r)
+    var(--tab-fill) var(--bookmark-r)
   );
 }
 
-:is(.nav-item.bookmark, .profile-card.active)::after {
+:is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
   top: 100%;
   background: radial-gradient(
     circle at 0 100%,
     transparent calc(var(--bookmark-r) - 0.5px),
-    var(--canvas) var(--bookmark-r)
+    var(--tab-fill) var(--bookmark-r)
   );
+}
+
+/* A hovered entry right beside the bookmark shares its corner rather than drawing its own */
+li:has(> .bookmark) + li > .nav-item:hover::before,
+li:has(+ li > .bookmark) > .nav-item:hover::after {
+  display: none;
 }
 
 /* Settings: a single entry pinned to the bottom of the menu */
@@ -391,10 +414,8 @@
 }
 
 /* Groups (My profile): the parent toggles its sub-pages */
-.nav-parent {
-  &:hover:not(:disabled) {
-    background: var(--hover-tint);
-  }
+.nav-parent:disabled:hover {
+  --tab-fill: transparent;
 }
 
 .nav-chevron {
@@ -902,10 +923,15 @@
     }
   }
 
-  /* In the drawer there is no page beside the menu to run into: the bookmark is a feather wash. */
-  .nav-item.bookmark {
+  /* In the drawer there is no page beside the menu to run into: entries are pills again, and the
+     bookmark is a feather wash. */
+  .nav-item:is(.bookmark, :hover) {
     width: 100%;
     margin-right: 0;
+    padding-right: 14px;
+  }
+  .nav-item:hover:not(.bookmark) {
+    border-radius: 999px;
   }
   .profile-card.active {
     margin-right: 0;
@@ -919,8 +945,8 @@
   .profile-card.active:hover {
     border-radius: var(--r-lg);
   }
-  :is(.nav-item.bookmark, .profile-card.active)::before,
-  :is(.nav-item.bookmark, .profile-card.active)::after {
+  :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::before,
+  :is(.nav-item:is(.bookmark, :hover), .profile-card.active)::after {
     display: none;
   }
   .shell.rail .sidebar .nav-section-label {
