@@ -42,6 +42,15 @@ function plural(n: number, one: string, many = `${one}s`): string {
 
 const byRelevance = (a: RoleReport, b: RoleReport) => b.role.relevance - a.role.relevance
 
+/** The order the CV prints roles in: newest first by the period it prints (the whole one for
+ * a role not in this CV); by relevance for older CVs that recorded no dates. */
+const byCvOrder = (a: RoleReport, b: RoleReport) => {
+  const sa = a.kept ?? a.original
+  const sb = b.kept ?? b.original
+  if (!sa || !sb) return byRelevance(a, b)
+  return sb.start - sa.start || sb.end - sa.end
+}
+
 /** Which collapsible parts are open: the user's choice when they made one, else the default. */
 type Folds = {
   isOpen: (id: string, byDefault: boolean) => boolean
@@ -782,7 +791,7 @@ function RoleCards({ roles, folds, ...edit }: { roles: RoleReport[]; folds: Fold
 
 const GROUP_INTRO: Record<Outcome, string> = {
   listed:
-    'Each description was rewritten for this job (at most 3 sentences) and its technologies filtered and reordered. Most relevant first.',
+    'Each description was rewritten for this job (at most 3 sentences) and its technologies filtered and reordered. Newest first, as in the CV.',
   condensed: 'Shortened to one sentence each in the “Additional experience” block.',
   dropped: 'Left out of the CV entirely; the reason is on each role.',
 }
@@ -829,7 +838,7 @@ export function CvPipelineReport({ cv, editing }: { cv: GeneratedCv; editing?: R
   const roles = analysis?.roles ?? []
   // A role the user moved shows in the section it will be in after regenerating.
   const placed = (r: RoleReport) => placedOutcome(r, editing?.pending)
-  const group = (o: Outcome) => roles.filter((r) => placed(r) === o).sort(byRelevance)
+  const group = (o: Outcome) => roles.filter((r) => placed(r) === o).sort(byCvOrder)
   const listed = group('listed')
   const condensed = group('condensed')
   const dropped = group('dropped')
