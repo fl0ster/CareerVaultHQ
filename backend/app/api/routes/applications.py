@@ -625,7 +625,7 @@ def update_application(
         application.work_mode_override = payload.work_mode_override
     if "cv_overrides" in payload.model_fields_set:
         edits = payload.cv_overrides
-        set_cv_edits(application, edits.stored() if edits else None, clear=edits is None)
+        set_cv_edits(session, application, edits.stored() if edits else None, clear=edits is None)
     if payload.interview_rounds is not None:
         held = len(held_rounds(application))
         if 0 < payload.interview_rounds < held:

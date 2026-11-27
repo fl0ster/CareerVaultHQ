@@ -409,10 +409,26 @@ def current_stage_counts(session: Session) -> dict[str, int]:
 # --------------------------------------------------------------------------- CV edits
 
 
-def set_cv_edits(application: Application, edits: dict | None, *, clear: bool = False) -> None:
+def lock_cv_overrides(session: Session, application: Application) -> None:
+    """Take the database's write lock and re-read ``application.cv_overrides``, so the change
+    made to it before the next commit is based on what is stored now: the API (the user's
+    edits) and the worker (a tailoring result) both rewrite the whole column, and without the
+    lock the later write silently undoes the other one."""
+    if session.get_bind().dialect.name == "sqlite":
+        raw = session.connection().connection.dbapi_connection
+        # pysqlite opens a transaction only for a write, so one already open holds the lock.
+        if not raw.in_transaction:
+            raw.execute("BEGIN IMMEDIATE")
+        session.refresh(application, ["cv_overrides"])
+    else:
+        session.refresh(application, ["cv_overrides"], with_for_update=True)
+
+
+def set_cv_edits(session: Session, application: Application, edits: dict | None, *, clear: bool = False) -> None:
     """Replace the user's CV edits (``CvOverrides.stored()``; ``None``: none left) while the
     tailoring made for moved roles (``tailored``, the server's own) is kept, unless ``clear``
-    removes everything."""
+    removes everything. Holds the write lock until the caller commits."""
+    lock_cv_overrides(session, application)
     tailored = None if clear else (application.cv_overrides or {}).get("tailored")
     data = dict(edits or {})
     if tailored:
@@ -433,11 +449,18 @@ def tailoring_status(application: Application, role_id: int, placement: str) -> 
     return None if made is None else made.get("status", TAILOR_DONE)
 
 
-def store_tailored(application: Application, role_id: int, placement: str, made: dict) -> None:
+def store_tailored(
+    session: Session, application: Application, role_id: int, placement: str, made: dict, *, expect: str | None = None
+) -> bool:
     """Keep what the tailoring step made of a role for ``placement`` (see ``set_cv_edits``),
-    or how far it got (``status``)."""
+    or how far it got (``status``); with ``expect``, only while the stored status is that one.
+    Holds the write lock until the caller commits; ``False`` when nothing was stored."""
+    lock_cv_overrides(session, application)
+    if expect is not None and tailoring_status(application, role_id, placement) != expect:
+        return False
     data = dict(application.cv_overrides or {})
     tailored = dict(data.get("tailored") or {})
     tailored[str(role_id)] = {**(tailored.get(str(role_id)) or {}), placement: made}
     data["tailored"] = tailored
     application.cv_overrides = data
+    return True

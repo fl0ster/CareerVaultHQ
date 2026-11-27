@@ -68,7 +68,6 @@ from app.services.applications import (
     TAILOR_FAILED,
     TAILOR_QUEUED,
     store_tailored,
-    tailoring_status,
 )
 from app.services.career import previous_role_ids, tenure_ids
 from app.services.cv_settings import get_cv_settings, timeline_rules
@@ -655,11 +654,9 @@ def tailor_moved_role(application_id: int, role_id: int, placement: str) -> dict
             outcome = {"status": TAILOR_FAILED, "error": f"{type(exc).__name__}: {exc}"}
             made = {}
             log.exception("Tailoring position %d of application %d failed", role_id, application_id)
-        # The edits may have changed during the LLM calls: merge into what is stored now.
-        session.refresh(application)
-        if tailoring_status(application, role_id, placement) == TAILOR_QUEUED:
-            store_tailored(application, role_id, placement, outcome)
-            session.commit()
+        # The edits may have changed during the LLM calls: merged into what is stored now.
+        store_tailored(session, application, role_id, placement, outcome, expect=TAILOR_QUEUED)
+        session.commit()
         if outcome["status"] == TAILOR_FAILED:
             raise CvGenerationError(outcome["error"])
         return made

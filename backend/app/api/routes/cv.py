@@ -280,7 +280,7 @@ def enqueue_tailoring(
     ``tailor_moved_role`` for it; when the queue is unreachable it is marked ``failed``
     instead of raising. Commits."""
     rq_job_id = uuid.uuid4().hex
-    store_tailored(application, role_id, placement, {"status": TAILOR_QUEUED, "rq_job_id": rq_job_id})
+    store_tailored(session, application, role_id, placement, {"status": TAILOR_QUEUED, "rq_job_id": rq_job_id})
     session.commit()
     try:
         queue.enqueue(
@@ -297,7 +297,14 @@ def enqueue_tailoring(
         )
     except Exception as exc:
         log.exception("Could not enqueue tailoring position %d for application %d", role_id, application.id)
-        store_tailored(application, role_id, placement, {"status": TAILOR_FAILED, "error": f"could not enqueue it: {exc}"})
+        store_tailored(
+            session,
+            application,
+            role_id,
+            placement,
+            {"status": TAILOR_FAILED, "error": f"could not enqueue it: {exc}"},
+            expect=TAILOR_QUEUED,
+        )
         session.commit()
 
 
@@ -319,7 +326,8 @@ def reconcile_tailoring(session: Session, queue: Queue, application: Application
                 latest = rq_job.latest_result()
                 trace = (latest.exc_string if latest is not None else None) or ""
                 error = (trace.strip().splitlines() or ["worker failed"])[-1]  # the exception, not the traceback
-                store_tailored(application, int(role_id), placement, {"status": TAILOR_FAILED, "error": error})
+                failed = {"status": TAILOR_FAILED, "error": error}
+                store_tailored(session, application, int(role_id), placement, failed, expect=TAILOR_QUEUED)
                 session.commit()
 
 

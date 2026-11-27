@@ -260,6 +260,36 @@ def test_tailoring_a_moved_role_is_queued_and_kept_apart_from_the_edits(client, 
     assert client.post(f"{BASE}/{app_id}/cv/tailor", json={"work_history_id": pid, "placement": "main"}).status_code == 503
 
 
+def test_cv_edits_and_a_tailoring_result_do_not_undo_each_other(client, db_session, engine):
+    """The API and the worker both rewrite ``cv_overrides``: each must build on what is
+    stored when it writes, not on what it read earlier."""
+    from app.db import session_factory
+    from app.services.applications import set_cv_edits, store_tailored
+
+    seed_cv_inputs(client, db_session)
+    app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
+    client.patch(f"{BASE}/{app_id}", json={"cv_overrides": {"roles": {"7": "main"}}})
+    with session_factory(engine)() as api, session_factory(engine)() as worker:
+        store_tailored(worker, worker.get(Application, app_id), 7, "main", {"status": "queued"})
+        worker.commit()
+        stale = api.get(Application, app_id)  # the API reads it while the role is queued
+        assert stale.cv_overrides["tailored"]["7"]["main"]["status"] == "queued"
+
+        done = {"status": "done", "context": "Tailored.", "tech": []}
+        assert store_tailored(worker, worker.get(Application, app_id), 7, "main", done, expect="queued")
+        worker.commit()
+        set_cv_edits(api, stale, {"roles": {"7": "main"}, "summary": "Mine."})
+        api.commit()
+
+        # The worker finishing after the API read it changes nothing more.
+        assert not store_tailored(worker, worker.get(Application, app_id), 7, "main", {"status": "failed"}, expect="queued")
+        worker.commit()
+
+    stored = client.get(f"{BASE}/{app_id}").json()["cv_overrides"]
+    assert stored["summary"] == "Mine."
+    assert stored["tailored"]["7"]["main"]["status"] == "done"
+
+
 def test_event_dates_are_stored_in_utc(client, db_session):
     seed_cv_inputs(client, db_session)
     app_id = client.post(BASE, json={"job_evaluation_id": seed_evaluation(db_session).id}).json()["id"]
