@@ -240,7 +240,10 @@ def test_tailoring_a_moved_role_is_kept_apart_from_the_edits(client, db_session,
     overrides = client.get(f"{BASE}/{app_id}").json()["cv_overrides"]
     assert overrides["roles"] == {"3": "main"}  # the edits are untouched
     assert overrides["tailored"] == {
-        "3": {"main": {"context": "main text", "tech": ["Go"]}, "early": {"context": "short", "tech": None}}
+        "3": {
+            "main": {"context": "main text", "tech": ["Go"], "original_context": None, "original_tech": []},
+            "early": {"context": "short", "tech": None, "original_context": None, "original_tech": []},
+        }
     }
 
     # Saving edits keeps the tailoring (a client cannot set it); removing every edit drops it.
