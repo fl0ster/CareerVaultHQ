@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Application } from './api.ts'
+import { type Application, INTERVIEW_STATUS } from './api.ts'
 import { CompanyTagBadge } from '../companies/CompanyTag.tsx'
 import InterviewProgress from './InterviewProgress.tsx'
 import RelevanceMeter from '../jobs/RelevanceMeter.tsx'
@@ -51,7 +51,7 @@ export default function ApplicationRow({ application: a, onOpen, onOpenCompany, 
             e.preventDefault()
           }}
         >
-          <InterviewProgress application={a} compact />
+          {a.status?.key === INTERVIEW_STATUS && <InterviewProgress application={a} compact />}
           {actions}
         </div>
       </button>
