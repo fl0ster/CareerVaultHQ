@@ -192,8 +192,8 @@ components:
     height: "40px"
     padding: "0 14px"
   nav-item-active:
-    backgroundColor: "{colors.accent-fill}"
-    textColor: "{colors.on-accent-fill}"
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.accent}"
   nav-pill:
     backgroundColor: "{colors.accent-bg}"
     textColor: "{colors.accent}"
@@ -270,7 +270,7 @@ Three roles and no more. Feather blue marks selection and where you are; the dar
 
 ### Secondary
 - **Feather Cobalt** (`accent`; Sunset `sunset-accent`, a light periwinkle): where you are and where you can go. Links, focus rings and outlines, caret and checkbox accent, the active settings tab text and its underline, the current-page outline of the profile card, and the text of default (non-primary) buttons.
-- **Feather Fill** (`accent-fill` with `on-accent-fill`; Sunset `sunset-accent-fill`): solid fills for "you are here": the sliding nav indicator behind the current page, the active segmented-control tab, the worker job count. In Sunset the fill (#4669ec) is darker than the text accent so white text on it stays legible.
+- **Feather Fill** (`accent-fill` with `on-accent-fill`; Sunset `sunset-accent-fill`): solid fills for "you are here" inside the page: the active segmented-control tab and the worker job count. (The side menu marks the current page with the bookmark instead, in `canvas`.) In Sunset the fill (#4669ec) is darker than the text accent so white text on it stays legible.
 - **Feather Mist** (`accent-bg`, `accent-border`): the resting tint of default buttons and plain counters, the profile avatar disc (with `accent` initials), and the hover border of controls.
 - **Feather Stage** (`stage`; Sunset `sunset-stage`, a brighter periwinkle): the pale feather disc the mascot stands on, for the worker character and empty states. It shifts to `stage-warn` (pale sun) when the worker is queued and `stage-danger` when it errors.
 
@@ -344,7 +344,7 @@ The system is flat. `--shadow-sm`, `--shadow-md`, `--shadow-lg` and `--shadow` a
 
 ## Shapes
 
-Two shape families. Actions are pills: buttons, nav items, the nav indicator, counters, segmented controls, the theme switch and progress bars all use a full radius (999px). Containers are curved rectangles on three steps: small (10px) for inputs, selects and small inner boxes; medium (16px) for cards and lists; large (24px) for dialogs, floating panels, the profile card, dashboard widgets and the stat band. Avatars, the brand disc and the mascot stages are circles. Stat tiles inside the band have a small 6px corner so the seams read as cuts in one shape.
+Two shape families. Actions are pills: buttons, nav items (the bookmark keeps its left pill end), counters, segmented controls, the theme switch and progress bars all use a full radius (999px). Containers are curved rectangles on three steps: small (10px) for inputs, selects and small inner boxes; medium (16px) for cards and lists; large (24px) for dialogs, floating panels, the profile card, dashboard widgets and the stat band. Avatars, the brand disc and the mascot stages are circles. Stat tiles inside the band have a small 6px corner so the seams read as cuts in one shape.
 
 ## Components
 
@@ -374,14 +374,14 @@ Rounded, confident, and colour-coded by job.
 - **Error / Disabled:** errors in `danger-fg`; disabled at half opacity.
 
 ### Navigation
-- **Side menu:** on `sidebar`. The brand mark and wordmark sit at the top, then the profile card, then 40px pill nav items (14px/550, heading ink, 13px gap to an icon). The current page is shown by a feather-fill pill that slides behind the item with a spring ease; its label turns white and bold. Hover is `hover-tint`. Sub-pages open under a group with a `border-strong` guide line. Settings is pinned to the bottom, with the three-way theme switch (a tinted pill tray whose active segment is `surface`) in the footer.
+- **Side menu:** on `sidebar`. The brand mark and wordmark sit at the top, then the profile card, then 40px pill nav items (14px/550, heading ink, 13px gap to an icon). Entries are grouped into labelled sections, **Work Nest** (Employment, My Career) and **Job Search** (Jobs, Applications, Interviews, Offers). Each label is 13px/720 Bricolage in `text`, followed on the same line by a `border-strong` hairline; on the icon rail only the hairline shows. The current page is a **bookmark**: the entry takes the page's own `canvas` colour, stays pill-rounded on the left, runs flush to the menu's right edge into the page, and joins it with 16px concave corners above and below. Its label and icon turn feather (`accent`) and bold. The bookmark doesn't slide or animate between entries; it simply sits on the current page, Settings at the bottom included. In the mobile drawer there is no page beside the menu, so the bookmark becomes an `accent-bg` pill. Hover is `hover-tint`. Sub-pages open under a group with a `border-strong` guide line. Settings is pinned to the bottom, with the three-way theme switch (a tinted pill tray whose active segment is `surface`) in the footer.
 - **Rail:** labels fade out; counters shrink to 17px badges on the icon corner.
 - **Top bar:** breadcrumbs in body ink with the page name in heading ink at 650.
 - **Settings tabs:** underlined text tabs; the current tab is feather with a 3px feather underline that slides; hover previews a `border-strong` underline.
 - **Segmented control:** a `surface` pill tray with a hairline; the active tab is a feather-fill pill.
 
 ### Profile Card
-A 24px-radius `surface` card in the sidebar that links to the dashboard. It holds a 52px feather-mist avatar (initials in the display face) and the name in Bricolage. On the dashboard the card gets a feather border and the avatar a feather ring.
+A 24px-radius `surface` card in the sidebar that links to the dashboard. It holds a 52px feather-mist avatar (initials in the display face) and the name in Bricolage. On the dashboard the card is the current page and becomes the same bookmark as a nav entry: `canvas` fill, flush right into the page with concave corners, and its left side keeps the 24px card radius so it still reads as its own block. The avatar gets a feather ring.
 
 ### Stat Band (signature)
 One segmented band of headline numbers: tiles on `surface` with 46px display numerals and 13.5px labels, 3px canvas seams, 24px outer radius. The "Jobs to review" tile turns sun with sun-ink text when there are new jobs, and the magpie head (30px) watches from its top-right corner, peeking in with a spring and tilting on hover.

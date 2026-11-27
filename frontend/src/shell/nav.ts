@@ -104,23 +104,32 @@ export const SETTINGS_PAGE_IDS: PageId[] = SETTINGS_PAGES.map((i) => i.id)
 
 export const isSettingsPage = (id: PageId) => SETTINGS_PAGE_IDS.includes(id)
 
-/** Menu sections, separated by a line: my career, then the everyday pages. Settings sits apart at the bottom. */
-export const NAV_SECTIONS: NavNode[][] = [
-  [
-    {
-      id: 'employment',
-      label: 'Employment',
-      icon: BadgeCheck,
-      description: 'The positions you hold now.',
-    },
-    { id: 'work-history', label: 'My Career', icon: BriefcaseBusiness },
-  ],
-  [
-    { id: 'jobs', label: 'Jobs', icon: Inbox },
-    { id: 'applications', label: 'Applications', icon: Send },
-    { id: 'interviews', label: 'Interviews', icon: CalendarClock },
-    { id: 'offers', label: 'Offers', icon: Trophy },
-  ],
+/** A labelled block of the menu. */
+export type NavSection = { label: string; nodes: NavNode[] }
+
+/** Menu sections, each under its label and a line: my career, then the job search. Settings sits apart at the bottom. */
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Work Nest',
+    nodes: [
+      {
+        id: 'employment',
+        label: 'Employment',
+        icon: BadgeCheck,
+        description: 'The positions you hold now.',
+      },
+      { id: 'work-history', label: 'My Career', icon: BriefcaseBusiness },
+    ],
+  },
+  {
+    label: 'Job Search',
+    nodes: [
+      { id: 'jobs', label: 'Jobs', icon: Inbox },
+      { id: 'applications', label: 'Applications', icon: Send },
+      { id: 'interviews', label: 'Interviews', icon: CalendarClock },
+      { id: 'offers', label: 'Offers', icon: Trophy },
+    ],
+  },
 ]
 
 /** The home page, opened by clicking the profile card at the top of the menu. */
@@ -131,7 +140,7 @@ export const DASHBOARD_PAGE: NavItem = {
   description: 'Your job search at a glance.',
 }
 
-const NODES: NavNode[] = [DASHBOARD_PAGE, ...NAV_SECTIONS.flat(), SETTINGS]
+const NODES: NavNode[] = [DASHBOARD_PAGE, ...NAV_SECTIONS.flatMap((s) => s.nodes), SETTINGS]
 
 export const NAV_ITEMS: NavItem[] = NODES.flatMap((n) => (isGroup(n) ? n.items : [n]))
 

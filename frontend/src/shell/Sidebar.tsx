@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react'
 import Magpie from '../mascot/Magpie.tsx'
 import ProfileCard from './ProfileCard.tsx'
@@ -71,7 +71,7 @@ function PageLink({
   active: boolean
   badge?: Badges[PageId]
   collapsed: boolean
-  /** Carries the sliding highlight. */
+  /** Carries the bookmark: the tab in the page's colour that runs into the page. */
   marked: boolean
   sub?: boolean
   onNavigate: (id: PageId) => void
@@ -80,9 +80,8 @@ function PageLink({
   return (
     <a
       href={`#/${item.id}`}
-      className={`nav-item${sub ? ' nav-sub-item' : ''}${active ? ' active' : ''}`}
+      className={`nav-item${sub ? ' nav-sub-item' : ''}${active ? ' active' : ''}${marked ? ' bookmark' : ''}`}
       aria-current={active ? 'page' : undefined}
-      data-indicator={marked || undefined}
       title={collapsed ? item.label : undefined}
       onClick={(e) => {
         e.preventDefault()
@@ -121,8 +120,6 @@ export default function Sidebar({
   theme,
   onThemeChange,
 }: Props) {
-  const navRef = useRef<HTMLElement>(null)
-  const indicatorRef = useRef<HTMLSpanElement>(null)
   // Only menu groups (My profile) open in place; Settings is a single entry with tabs in the page.
   const pageGroup = findPage(active).group?.id ?? null
   const activeGroup = pageGroup === 'settings' ? null : pageGroup
@@ -137,33 +134,7 @@ export default function Sidebar({
     if (activeGroup && !open.includes(activeGroup)) setOpen([...open, activeGroup])
   }
 
-  // Which entries are in the menu: one appearing or leaving moves the entries below it.
-  const shownKey = hiddenPages.filter((id) => id !== active).join()
-
   const toggle = (id: GroupId) => setOpen((o) => (o.includes(id) ? o.filter((g) => g !== id) : [...o, id]))
-
-  // Slide the highlight to the current page, or to its group while that group is closed.
-  // The observer keeps it in place while groups open and close; entries appearing or leaving
-  // (e.g. Applications once there is one) do not resize the nav, so they re-run this instead.
-  useLayoutEffect(() => {
-    const nav = navRef.current
-    const indicator = indicatorRef.current
-    if (!nav || !indicator) return
-    const place = () => {
-      const item = nav.querySelector<HTMLElement>('[data-indicator]')
-      // The dashboard is opened from the profile card, outside the menu: no entry to highlight.
-      indicator.hidden = !item
-      if (!item) return
-      indicator.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`
-      indicator.style.width = `${item.offsetWidth}px`
-      indicator.style.height = `${item.offsetHeight}px`
-    }
-    place()
-    const observer = new ResizeObserver(place)
-    observer.observe(nav)
-    nav.querySelectorAll('.nav-sub').forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
-  }, [active, collapsed, open, shownKey])
 
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}${mobileOpen ? ' open' : ''}`} aria-label="Main menu">
@@ -185,13 +156,14 @@ export default function Sidebar({
         />
       </div>
 
-      <nav className="sidebar-nav" ref={navRef}>
-        <span className="nav-indicator" aria-hidden="true" ref={indicatorRef} />
+      <nav className="sidebar-nav">
         {NAV_SECTIONS.map((section, i) => (
-          <Fragment key={i}>
-            {i > 0 && <hr className="nav-divider" />}
+          <section key={section.label} className="nav-section" aria-labelledby={`nav-section-${i}`}>
+            <h2 className="nav-section-label" id={`nav-section-${i}`}>
+              <span>{section.label}</span>
+            </h2>
             <ul className="nav-list">
-              {section.map((node) => {
+              {section.nodes.map((node) => {
                 if (!isGroup(node)) {
                   if (hiddenPages.includes(node.id) && node.id !== active) return null
                   return (
@@ -214,10 +186,9 @@ export default function Sidebar({
                   <li key={node.id} className={`nav-group${expanded ? ' expanded' : ''}`}>
                     <button
                       type="button"
-                      className={`nav-item nav-parent${holdsActive ? ' active' : ''}`}
+                      className={`nav-item nav-parent${holdsActive ? ' active' : ''}${holdsActive && !expanded ? ' bookmark' : ''}`}
                       aria-expanded={expanded}
                       aria-controls={`nav-sub-${node.id}`}
-                      data-indicator={(holdsActive && !expanded) || undefined}
                       title={collapsed ? node.label : undefined}
                       onClick={() => toggle(node.id)}
                     >
@@ -246,16 +217,15 @@ export default function Sidebar({
                 )
               })}
             </ul>
-          </Fragment>
+          </section>
         ))}
 
         <ul className="nav-list nav-bottom">
           <li>
             <a
               href={`#/${SETTINGS_PAGE_IDS[0]}`}
-              className={`nav-item${onSettings ? ' active' : ''}`}
+              className={`nav-item${onSettings ? ' active bookmark' : ''}`}
               aria-current={onSettings ? 'page' : undefined}
-              data-indicator={onSettings || undefined}
               title={collapsed ? SETTINGS.label : undefined}
               onClick={(e) => {
                 e.preventDefault()

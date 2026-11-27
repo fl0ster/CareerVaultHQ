@@ -39,7 +39,7 @@
   display: flex;
   flex-direction: column;
   height: 100svh;
-  padding: 14px 12px 12px;
+  padding: 14px var(--sidebar-pad) 12px;
   box-sizing: border-box;
   background: var(--sidebar);
   overflow: hidden auto;
@@ -114,10 +114,7 @@
   &:hover:not(.active) {
     border-color: var(--accent-border);
   }
-  /* On the dashboard the card is the current page: feather outline and a ringed avatar. */
-  &.active {
-    border-color: var(--accent);
-  }
+  /* On the dashboard the card is the current page: it becomes the bookmark (below), avatar ringed. */
   &.active .profile-avatar {
     box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
   }
@@ -233,26 +230,34 @@
   }
 }
 
-.nav-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  border-radius: 999px;
-  background: var(--accent-fill);
-  transition:
-    transform var(--t-slow) var(--ease-spring),
-    width var(--t-med) var(--ease-out),
-    height var(--t-med) var(--ease-out);
-  pointer-events: none;
+.nav-section + .nav-section {
+  margin-top: 20px;
 }
 
-.nav-divider {
-  height: 0;
-  margin: 12px 8px;
-  border: 0;
-  border-top: 1px solid var(--border);
+/* Section label, followed by the section's hairline */
+.sidebar .nav-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  padding: 0 4px 0 14px;
+  font-family: var(--heading);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text);
+
+  span {
+    white-space: nowrap;
+    transition: opacity var(--t-fast) ease;
+  }
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-strong);
+  }
 }
 
 .nav-item {
@@ -282,13 +287,10 @@
     color: var(--text-h);
     background: var(--hover-tint);
   }
-  &.active {
-    color: var(--on-accent-fill);
-    font-weight: 700;
-    background: transparent;
-  }
+  &.active,
   &.active:hover {
-    background: transparent;
+    color: var(--accent);
+    font-weight: 700;
   }
   &:focus-visible {
     outline: none;
@@ -296,18 +298,64 @@
   }
 }
 
-/* A group (My profile) holding the current page while open: feather text, no fill. */
-.nav-parent.active:not([data-indicator]) {
-  color: var(--accent);
-}
-
 .nav-icon {
   flex: none;
-  transition: transform var(--t-med) var(--ease-spring);
 }
 
-.nav-item.active .nav-icon {
-  transform: scale(1.08);
+/*
+ * The bookmark: the current page's entry (and the profile card on the dashboard) takes the page's
+ * own colour and runs right up to it, with concave corners where it joins. It doesn't move between
+ * entries; it is simply where you are.
+ */
+.sidebar {
+  --sidebar-pad: 12px;
+  --bookmark-r: 16px;
+}
+
+.nav-item.bookmark {
+  width: calc(100% + var(--sidebar-pad));
+  margin-right: calc(-1 * var(--sidebar-pad));
+}
+
+.profile-card.active {
+  margin-right: calc(-1 * var(--sidebar-pad));
+}
+
+:is(.nav-item.bookmark, .profile-card.active),
+:is(.nav-item.bookmark, .profile-card.active):hover {
+  background: var(--canvas);
+  border-color: transparent;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+:is(.nav-item.bookmark, .profile-card.active)::before,
+:is(.nav-item.bookmark, .profile-card.active)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  width: var(--bookmark-r);
+  height: var(--bookmark-r);
+  pointer-events: none;
+}
+
+/* Concave corners, drawn as the page colour around a quarter circle */
+:is(.nav-item.bookmark, .profile-card.active)::before {
+  bottom: 100%;
+  background: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--bookmark-r) - 0.5px),
+    var(--canvas) var(--bookmark-r)
+  );
+}
+
+:is(.nav-item.bookmark, .profile-card.active)::after {
+  top: 100%;
+  background: radial-gradient(
+    circle at 0 100%,
+    transparent calc(var(--bookmark-r) - 0.5px),
+    var(--canvas) var(--bookmark-r)
+  );
 }
 
 /* Settings: a single entry pinned to the bottom of the menu */
@@ -425,13 +473,7 @@
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  animation: pop-in var(--t-med) var(--ease-spring);
-}
-
-/* On the current page's feather fill, a plain count flips to the fill's ink. */
-.nav-item.active .nav-pill:not(.finds, .warn) {
-  background: var(--on-accent-fill);
-  color: var(--accent-fill);
+  animation: pop-in var(--t-med) var(--ease-out);
 }
 
 /* New jobs: the magpie peeks out of a sun counter, black and white against the sun. */
@@ -525,6 +567,13 @@
   }
   .sidebar-brand {
     padding-left: 15px;
+  }
+  .nav-section-label {
+    gap: 0;
+    padding: 0 6px;
+  }
+  .nav-section-label span {
+    display: none;
   }
   .profile-card {
     min-height: 52px;
@@ -850,6 +899,36 @@
 
     &.open {
       transform: none;
+    }
+  }
+
+  /* In the drawer there is no page beside the menu to run into: the bookmark is a feather wash. */
+  .nav-item.bookmark {
+    width: 100%;
+    margin-right: 0;
+  }
+  .profile-card.active {
+    margin-right: 0;
+  }
+  :is(.nav-item.bookmark, .profile-card.active),
+  :is(.nav-item.bookmark, .profile-card.active):hover {
+    background: var(--accent-bg);
+    border-radius: 999px;
+  }
+  .profile-card.active,
+  .profile-card.active:hover {
+    border-radius: var(--r-lg);
+  }
+  :is(.nav-item.bookmark, .profile-card.active)::before,
+  :is(.nav-item.bookmark, .profile-card.active)::after {
+    display: none;
+  }
+  .shell.rail .sidebar .nav-section-label {
+    gap: 10px;
+    padding: 0 4px 0 14px;
+
+    span {
+      display: inline;
     }
   }
 
