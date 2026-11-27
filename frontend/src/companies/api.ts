@@ -35,14 +35,6 @@ export type CompanyDetail = Company & {
   jobs: CompanyJob[]
 }
 
-export type CompanyPage = {
-  items: Company[]
-  total: number
-  offset: number
-  limit: number
-  has_more: boolean
-}
-
 async function parse<T>(res: Response): Promise<T> {
   if (res.ok) return (await res.json()) as T
   let message = `HTTP ${res.status}`
@@ -53,15 +45,6 @@ async function parse<T>(res: Response): Promise<T> {
     // keep the status message
   }
   throw new Error(message)
-}
-
-export function listCompanies(
-  params: { offset: number; limit: number; q?: string },
-  signal?: AbortSignal,
-): Promise<CompanyPage> {
-  const search = new URLSearchParams({ offset: String(params.offset), limit: String(params.limit) })
-  if (params.q) search.set('q', params.q)
-  return fetch(`${API}?${search}`, { signal }).then((res) => parse<CompanyPage>(res))
 }
 
 export function getCompany(id: number, jobsLimit = 20, signal?: AbortSignal): Promise<CompanyDetail> {
