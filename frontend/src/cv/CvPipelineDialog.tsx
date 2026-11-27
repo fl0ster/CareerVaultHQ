@@ -428,7 +428,7 @@ function TechDiff({ entry }: { entry: PipelineEntry }) {
 }
 
 /** The technologies of a listed role as clickable pills: a lit one is in the CV (click to
- * drop it), a struck-through one is not (click to add it back, at the end). Choosing exactly
+ * drop it), a struck-through one is not (click to add it back); pills keep their place. Choosing exactly
  * what the CV already shows is no edit at all. */
 function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry; editing: ReportEditing }) {
   const id = String(r.role.id)
@@ -440,7 +440,9 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
   const key = (t: string) => t.toLowerCase()
   const on = new Set(current.map(key))
   const fromHistory = new Set(original.map(key))
-  const off = [...new Map([...original, ...generated].map((t) => [key(t), t])).values()].filter((t) => !on.has(key(t)))
+  // One fixed order whatever is picked, so pills never move: the LLM's pick, then the rest
+  // of the work history's (and anything the user kept that is in neither).
+  const shown = [...new Map([...generated, ...original, ...current].map((t) => [key(t), t])).values()]
 
   const save = (list: string[]) => {
     const next = { ...all }
@@ -456,7 +458,8 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
         aria-pressed={inCv}
         title={inCv ? 'In the CV: click to drop it' : 'Not in the CV: click to add it'}
         disabled={editing.busy}
-        onClick={() => save(inCv ? current.filter((t) => key(t) !== key(name)) : [...current, name])}
+        // The CV lists them in the order shown.
+        onClick={() => save(shown.filter((t) => (key(t) === key(name) ? !inCv : on.has(key(t)))))}
       >
         {name}
       </button>
@@ -468,7 +471,6 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
       <div className="pl-edit-head">
         <span className="pl-field">Technologies</span>
         {mine && <span className="pl-edit-dot" title="Edited by you" aria-label="(edited)" />}
-        <span className="muted">click to drop or add</span>
         {mine && (
           <button
             type="button"
@@ -481,10 +483,7 @@ function TechPicker({ r, entry, editing }: { r: RoleReport; entry: PipelineEntry
           </button>
         )}
       </div>
-      <ul className="pl-chips pl-chips-edit">
-        {current.map((t) => chip(t, true))}
-        {off.map((t) => chip(t, false))}
-      </ul>
+      <ul className="pl-chips pl-chips-edit">{shown.map((t) => chip(t, on.has(key(t))))}</ul>
     </div>
   )
 }
